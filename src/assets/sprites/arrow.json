@@ -1,0 +1,21 @@
+{
+  "cell": [
+    58,
+    46
+  ],
+  "anchor": [
+    29,
+    45
+  ],
+  "ppm": 30,
+  "cols": 3,
+  "rows": 8,
+  "anims": {
+    "fly": {
+      "row": 0,
+      "frames": 3,
+      "ms": 200,
+      "loop": "looped"
+    }
+  }
+}

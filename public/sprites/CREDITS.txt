@@ -15,6 +15,8 @@ Files used:
   mods/fantasycore/images/enemies/skeleton_weak.png
   mods/fantasycore/animations/enemies/skeleton.txt
   mods/fantasycore/images/enemies/skeleton.png
+  mods/fantasycore/animations/enemies/skeleton_archer.txt
+  mods/fantasycore/images/enemies/skeleton_archer.png
   mods/fantasycore/animations/enemies/minotaur.txt
   mods/fantasycore/images/enemies/minotaur/minotaur_stance.png
   mods/fantasycore/images/enemies/minotaur/minotaur_run.png
@@ -24,6 +26,8 @@ Files used:
   mods/fantasycore/images/enemies/minotaur/minotaur_cast_alt.png
   mods/fantasycore/images/enemies/minotaur/minotaur_shoot.png
   mods/fantasycore/images/enemies/minotaur/minotaur_die.png
+  mods/fantasycore/animations/powers/arrows.txt
+  mods/fantasycore/images/powers/arrows.png
   mods/fantasycore/animations/avatar/male/head_short.txt
   mods/fantasycore/images/avatar/male/head_short.png
   mods/fantasycore/animations/avatar/male/cloth_shirt.txt
@@ -115,6 +119,7 @@ Files used:
   mods/fantasycore/soundfx/inventory/inventory_potion.ogg
   mods/fantasycore/soundfx/inventory/inventory_metal.ogg
   mods/fantasycore/soundfx/inventory/inventory_maille.ogg
+  mods/fantasycore/soundfx/powers/shoot.ogg
   mods/fantasycore/images/cursors/cursor_normal.png
   mods/fantasycore/images/cursors/cursor_attack.png
 

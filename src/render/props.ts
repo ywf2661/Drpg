@@ -3,11 +3,13 @@ import * as THREE from 'three';
 import type { Item, Prop, World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
 import lootUrl from '../assets/sprites/loot.png';
+import arrowInfo from '../assets/sprites/arrow.json';
+import arrowUrl from '../assets/sprites/arrow.png';
 import propsInfo from '../assets/sprites/props.json';
 import propsUrl from '../assets/sprites/props.png';
 import stairsInfo from '../assets/sprites/stairs.json';
 import stairsUrl from '../assets/sprites/stairs.png';
-import { cardGeometry, frameAt, loadSheet, type Clip, type SheetInfo } from './sprites';
+import { cardGeometry, dirIndex, frameAt, loadSheet, type Clip, type SheetInfo } from './sprites';
 
 export const BRAZIER_RANGE = 4.5; // 화로 빛이 닿는 거리(m)
 const BRAZIER_LIGHT = 18; // 화로 밝기(칸델라)
@@ -27,13 +29,15 @@ const VARIANTS: Record<Prop['kind'], string[]> = {
   debris: Array.from({ length: 8 }, (_, k) => `bones${k + 1}`),
 };
 type Sheet = { info: SheetInfo; url: string; tex?: THREE.Texture; geo?: THREE.BufferGeometry };
-type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number };
+type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number }; // dir: 방향 행(화살)
 const props: Sheet = { info: propsInfo as SheetInfo, url: propsUrl };
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
+const arrow: Sheet = { info: arrowInfo as SheetInfo, url: arrowUrl };
 let cards: Card[] = [];
 let group = new THREE.Group();
-const items = new Map<number, Card>(); // 바닥 물약 id → 판자
+const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
+const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
 let lights: THREE.PointLight[] = [];
 let time = 0;
 export let braziers: { x: number; z: number }[] = []; // 화로 위치(월드 좌표, 칸 중심)
@@ -52,7 +56,7 @@ export function floorVariant(x: number, z: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [props, stairs, loot]) {
+  for (const s of [props, stairs, loot, arrow]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -67,13 +71,38 @@ function card(s: Sheet, name: string, x: number, z: number, flat: boolean): Card
   mesh.position.set(x, 0, z);
   mesh.renderOrder = flat ? 1 : 0; // 눕힌 것(계단·잔해)은 시체처럼 바닥 다음, 캐릭터 전에 그리고 깊이를 남기지 않는다
   const clip = s.info.anims[name];
-  return { mesh, mat, info: s.info, clip, t: (cellHash(x, z) % 1000) / 1000, glow: name === 'brazier' ? 1 : 0 };
+  return { mesh, mat, info: s.info, clip, t: (cellHash(x, z) % 1000) / 1000, glow: name === 'brazier' ? 1 : 0, dir: 0 };
 }
 
 const free = (c: Card) => {
   c.mat.map!.dispose();
   c.mat.dispose();
 };
+
+// 날아가는 화살 판자를 world.shots에 맞춘다(위치는 매 프레임)
+export function syncShots(world: World) {
+  const live = new Set(world.shots.map((s) => s.id));
+  for (const [id, c] of shots) {
+    if (live.has(id)) continue;
+    c.mesh.removeFromParent();
+    free(c);
+    shots.delete(id);
+    cards.splice(cards.indexOf(c), 1);
+  }
+  for (const s of world.shots) {
+    let c = shots.get(s.id);
+    if (!c) {
+      c = card(arrow, 'fly', s.x, s.z, false);
+      c.dir = dirIndex(Math.atan2(s.dx, s.dz));
+      c.glow = 0.7;
+      c.mesh.renderOrder = 2;
+      shots.set(s.id, c);
+      cards.push(c);
+      group.add(c.mesh);
+    }
+    c.mesh.position.set(s.x, 0, s.z);
+  }
+}
 
 // 바닥 아이템 판자를 world.items에 맞춘다. 새 아이템은 떨어지는 애니메이션부터
 export function syncItems(world: World) {
@@ -101,6 +130,7 @@ export function syncItems(world: World) {
 export function buildProps(world: World): THREE.Group {
   cards.forEach(free);
   items.clear();
+  shots.clear();
   for (const l of lights) l.dispose();
   cards = world.props.map((p) => {
     const names = VARIANTS[p.kind];
@@ -126,7 +156,7 @@ export function updateProps(dt: number, light: (x: number, z: number) => number)
   for (const c of cards) {
     c.t += dt;
     const f = frameAt(c.clip, c.t);
-    c.mat.map!.offset.set(f / c.info.cols, 1 - (c.clip.row + 1) / c.info.rows);
+    c.mat.map!.offset.set(f / c.info.cols, 1 - (c.clip.row + c.dir + 1) / c.info.rows);
     c.mat.color.copy(TINT).multiplyScalar(Math.max(c.glow, light(c.mesh.position.x, c.mesh.position.z)));
   }
 }

@@ -6,6 +6,8 @@ import minionInfo from '../assets/sprites/minion.json';
 import minionUrl from '../assets/sprites/minion.png';
 import warriorInfo from '../assets/sprites/warrior.json';
 import warriorUrl from '../assets/sprites/warrior.png';
+import archerInfo from '../assets/sprites/archer.json';
+import archerUrl from '../assets/sprites/archer.png';
 import bossInfo from '../assets/sprites/boss.json';
 import bossUrl from '../assets/sprites/boss.png';
 
@@ -23,6 +25,7 @@ const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
   hero: { info: heroInfo as SheetInfo, url: '' }, // 그림은 setHeroGear가 고른다
   minion: { info: minionInfo as SheetInfo, url: minionUrl },
   warrior: { info: warriorInfo as SheetInfo, url: warriorUrl },
+  archer: { info: archerInfo as SheetInfo, url: archerUrl },
   boss: { info: bossInfo as SheetInfo, url: bossUrl },
 };
 const heroSheets = new Map<string, Promise<THREE.Texture>>(); // 불러온(불러오는 중인) 장비 조합
@@ -91,7 +94,7 @@ export async function loadSheet(url: string): Promise<THREE.Texture> {
 }
 
 export async function loadSprites() {
-  await Promise.all((['minion', 'warrior', 'boss'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
+  await Promise.all((['minion', 'warrior', 'archer', 'boss'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
 }
 
 // 장비 조합의 주인공 시트로 바꾼다. 불러오는 동안은 이전 외형, 여러 번 바뀌면 마지막 요청만 적용

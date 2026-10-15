@@ -34,8 +34,10 @@ LAYER_ORDER = {
 KINDS = {  # 몬스터: 레이어 1장
     'minion': {'body': 'enemies/skeleton_weak'},
     'warrior': {'body': 'enemies/skeleton'},
+    'archer': {'body': 'enemies/skeleton_archer'},
     'boss': {'body': 'enemies/minotaur'},
 }
+KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}}  # 궁수의 공격은 활쏘기
 KIND_SCALE = {'boss': 0.28}  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 무기 × 갑옷 세트 16조합. 모든 조합이 같은 칸 크기·기준점이라 hero.json 하나를 공유한다
 HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']
@@ -51,7 +53,7 @@ SOUNDS = ROOT / 'src' / 'assets' / 'sounds'
 SOUND_FILES = ['level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
                'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
-               'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille']  # soundfx/ 아래
+               'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
@@ -124,12 +126,12 @@ def hero_layers(weapon, armor):
     return {slot: f'avatar/male/{n}' for slot, n in {**HERO_ARMORS[armor], 'main': weapon}.items()}
 
 
-def frames_of(layers):
+def frames_of(layers, anims=ANIMS):
     """layers: {슬롯: 원본 이름}. 반환 {(동작, 방향, 프레임): (잘라낸 이미지, 캔버스 안 좌상단)}, {동작: (프레임 수, ms, loop)}"""
     sheets = {slot: sheet(name) for slot, name in layers.items()}
     meta_src = sheets.get('chest') or sheets['body']
     frames, meta = {}, {}
-    for anim, src in ANIMS.items():
+    for anim, src in anims.items():
         a = meta_src.anims[src]
         n = int(a['frames'])
         # 사망은 마지막 프레임(누운 시체)에 멈춘다. 미노타우르스 정의는 back_forth라 시체가 다시 일어선다
@@ -252,6 +254,24 @@ def tiles():
     pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
 
 
+def arrow():
+    # 화살: FLARE powers/arrows 'power' 동작(8방향 3프레임). 기준점 아래로 비행 높이가 들어 있다
+    sh = sheet('powers/arrows')
+    a = sh.anims['power']
+    n = int(a['frames'])
+    frames = {}
+    for d in range(8):
+        for i in range(n):
+            x, y, w, h, ox, oy = a['rects'][(i, d)]
+            frames[('fly', d, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
+    # 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함 — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
+    x0 = min(min(o[0] for _, o in frames.values()), FOOT[0])
+    y0 = min(o[1] for _, o in frames.values())
+    x1 = max(max(o[0] + im.width for im, o in frames.values()), FOOT[0] + 1)
+    y1 = max(max(o[1] + im.height for im, o in frames.values()), FOOT[1] + 1)
+    pack('arrow', frames, {'fly': (n, int(a['duration'].removesuffix('ms')), 'looped')}, SCALE, 8, bbox=(x0, y0, x1, y1))
+
+
 def loot():
     # 아이템이 날아가 떨어지는 애니메이션(FLARE 'power' 동작, 방향 0)
     frames, meta = {}, {}
@@ -307,7 +327,8 @@ if __name__ == '__main__':
     PUBLIC.mkdir(parents=True, exist_ok=True)
     TILES.mkdir(parents=True, exist_ok=True)
     for kind in KINDS:
-        pack(kind, *frames_of(KINDS[kind]), KIND_SCALE.get(kind, SCALE), 8)
+        pack(kind, *frames_of(KINDS[kind], KIND_ANIMS.get(kind, ANIMS)), KIND_SCALE.get(kind, SCALE), 8)
+    arrow()
     hero()
     tiles()
     loot()
