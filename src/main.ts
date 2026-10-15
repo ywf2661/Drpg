@@ -11,6 +11,7 @@ import { floorPower, generateFloor } from './sim/dungeon';
 import { createWorld, DT, outcome, setLevel, step, type Gear, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
+const help = document.querySelector<HTMLDialogElement>('#help')!;
 const START = { potions: 2, gear: { weapon: 2, armor: 2 }, level: 1, xp: 0 }; // 숏소드 + 가죽 갑옷
 type Carry = { potions: number; gear: Gear; level: number; xp: number };
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
@@ -71,7 +72,11 @@ try {
   throw err;
 }
 showChoice(saved);
-if (!saved) saveRun({ floor: 1, ...START, stats });
+if (!saved) {
+  saveRun({ floor: 1, ...START, stats });
+  help.showModal(); // 처음 하는 사람에게 조작법
+}
+$('#help-btn').addEventListener('click', () => help.showModal());
 initHud({
   drink,
   skill,
@@ -113,7 +118,7 @@ requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
   pollInput(world, dt);
-  const paused = credits.open || choosing; // 크레딧을 읽거나 이어하기를 고르는 동안은 게임을 멈춘다
+  const paused = credits.open || help.open || choosing; // 크레딧·조작법을 읽거나 이어하기를 고르는 동안은 게임을 멈춘다
   if (paused) acc = 0;
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   const events = soundEvents(heard, world);

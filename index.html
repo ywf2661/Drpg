@@ -38,9 +38,13 @@
       html { cursor: url(sprites/cursor_normal.png) 0 0, auto; }
       canvas.attack { cursor: url(sprites/cursor_attack.png) 0 0, crosshair; }
       #credits-btn { position: fixed; right: 150px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: none; border: 1px solid #3a3530; padding: 4px 10px; cursor: inherit; }
-      #credits { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
+      #help-btn { position: fixed; right: 220px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: none; border: 1px solid #3a3530; padding: 4px 10px; cursor: inherit; }
+      #help table { border-collapse: collapse; font-size: 13px; }
+      #help td { padding: 3px 8px; border-bottom: 1px solid #2a2420; }
+      #help td:first-child { color: #f0c060; white-space: nowrap; }
+      #credits, #help { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
       #credits a { color: #e0a060; }
-      #credits::backdrop { background: #000a; }
+      #credits::backdrop, #help::backdrop { background: #000a; }
       #floor { position: fixed; left: 16px; top: 12px; z-index: 2; font-size: 14px; color: #b8ab98; text-shadow: 0 1px 2px #000; pointer-events: none; }
       #floor-title { position: fixed; left: 0; right: 0; top: 30%; z-index: 2; text-align: center; font-size: 34px; letter-spacing: 4px; color: #e8dcc8; text-shadow: 0 2px 6px #000; pointer-events: none; opacity: 0; }
       #floor-title.show { animation: floor-title 2.4s ease-out; }
@@ -74,6 +78,21 @@
     <div id="floor"></div>
     <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="restart" hidden>다시 시작 (R)</button><button id="continue" hidden>이어하기</button><button id="new-game" hidden>새 게임</button></div>
+    <button id="help-btn" title="조작법">?</button>
+    <dialog id="help">
+      <p><b>지하 5층의 미노타우르스를 쓰러뜨리세요.</b> 횃불이 닿지 않는 곳은 어둡습니다. 화로 근처는 멀리서도 보입니다.</p>
+      <table>
+        <tr><td>이동</td><td>땅 클릭(누르고 있으면 따라감) · 터치</td></tr>
+        <tr><td>공격</td><td>몬스터 클릭 · 터치</td></tr>
+        <tr><td>가르기</td><td>우클릭(커서 방향) · E · 스킬 버튼 — 앞쪽 적 모두 150%, 4초</td></tr>
+        <tr><td>물약</td><td>Q · 물약 버튼 — 최대 체력 50% 회복</td></tr>
+        <tr><td>상자·계단</td><td>클릭해서 열기 · 내려가기</td></tr>
+        <tr><td>지도</td><td>M · 지도 버튼</td></tr>
+        <tr><td>장비</td><td>더 좋은 장비(금색 이름)는 밟으면 자동 장착</td></tr>
+        <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>
+      </table>
+      <form method="dialog"><button>시작</button></form>
+    </dialog>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">
       <p>그림·마우스 커서·효과음·음악: <a href="https://github.com/flareteam/flare-game" target="_blank" rel="noopener">Flare: Empyrean Campaign</a> — Clint Bellanger 외 Flare 기여자</p>
