@@ -48,6 +48,9 @@
       #map-btn { position: fixed; right: 12px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: #0008; border: 1px solid #3a3530; padding: 3px 10px; cursor: inherit; }
       #sound-btn { position: fixed; right: 64px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: #0008; border: 1px solid #3a3530; padding: 3px 10px; cursor: inherit; }
       @media (max-width: 600px) { #boss, #target { top: 148px; } #target.below { top: 194px; } } /* 좁은 화면: 위쪽 버튼·지도 아래로 */
+      #labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+      .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
+      .label.better { color: #f0d070; }
       #toast { position: fixed; left: 0; right: 0; bottom: 70px; z-index: 2; text-align: center; font-size: 18px; color: #f0c060; text-shadow: 0 1px 3px #000; pointer-events: none; opacity: 0; }
       #toast.show { animation: floor-title 2s ease-out; }
       @keyframes floor-title { 0% { opacity: 0; } 15%, 60% { opacity: 1; } 100% { opacity: 0; } }
@@ -64,6 +67,7 @@
       <div id="armor" class="slot"></div>
     </div>
     <div id="toast"></div>
+    <div id="labels"></div>
     <button id="sound-btn">소리</button>
     <button id="map-btn" title="지도 (M)">지도</button>
     <canvas id="automap"></canvas>
