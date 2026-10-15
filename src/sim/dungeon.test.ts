@@ -8,6 +8,8 @@ const find = (map: string[], c: string): [number, number] => {
   return [i % map[0].length, Math.floor(i / map[0].length)];
 };
 
+const WALLS = '#Bo'; // 지나갈 수 없는 글자
+
 // 벽이 아닌 칸까지의 4방향 걸음 수
 function distances(map: string[], [sx, sz]: [number, number]) {
   const w = map[0].length;
@@ -18,7 +20,7 @@ function distances(map: string[], [sx, sz]: [number, number]) {
     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx;
       const nz = z + dz;
-      if (map[nz]?.[nx] && map[nz][nx] !== '#' && !d.has(nz * w + nx)) {
+      if (map[nz]?.[nx] && !WALLS.includes(map[nz][nx]) && !d.has(nz * w + nx)) {
         d.set(nz * w + nx, d.get(z * w + x)! + 1);
         q.push([nx, nz]);
       }
@@ -40,11 +42,31 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
       expect(count(map, 'm') + count(map, 'w')).toBe(monsters);
       expect(count(map, 'w')).toBe(Math.round(monsters * (0.2 + 0.075 * (floor - 1))));
       const d = distances(map, find(map, 'H'));
-      expect(d.size).toBe(48 * 48 - count(map, '#'));
+      expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o'));
       if (floor < FLOORS) {
         const [x, z] = find(map, '>');
         expect(d.get(z * 48 + x)).toBeGreaterThanOrEqual(15);
       }
+    }
+  }
+});
+
+test('소품: 화로 1개 이상, 막는 소품은 벽에 붙고 계단·주인공 근처는 비어 있다', () => {
+  const cheb = ([ax, az]: [number, number], [bx, bz]: [number, number]) => Math.max(Math.abs(ax - bx), Math.abs(az - bz));
+  for (let seed = 1; seed <= 50; seed++) {
+    for (let floor = 1; floor <= FLOORS; floor++) {
+      const map = generateFloor(seed, floor);
+      expect(count(map, 'B')).toBeGreaterThanOrEqual(1);
+      const hero = find(map, 'H');
+      const stairs = floor < FLOORS ? find(map, '>') : null;
+      map.forEach((row, z) =>
+        [...row].forEach((c, x) => {
+          if (!'Bo,'.includes(c)) return;
+          expect(cheb([x, z], hero)).toBeGreaterThanOrEqual(2);
+          if (stairs) expect(cheb([x, z], stairs)).toBeGreaterThanOrEqual(3);
+          if (c !== ',') expect([map[z][x - 1], map[z][x + 1], map[z - 1][x], map[z + 1][x]]).toContain('#');
+        }),
+      );
     }
   }
 });

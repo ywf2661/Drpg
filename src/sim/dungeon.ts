@@ -1,10 +1,12 @@
-// 무작위 던전 층: 방 + 2칸 폭 L자 복도. 결과는 createWorld가 읽는 글자 맵(+ '>' 계단).
+// 무작위 던전 층: 방 + 2칸 폭 L자 복도. 결과는 createWorld가 읽는 글자 맵
+// (+ '>' 계단, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)).
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
 
 export const FLOORS = 5;
 const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
+const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o'; // 지나갈 수 있는 글자
 
 export function generateFloor(seed: number, floor: number): string[] {
   let s = seed | 0;
@@ -52,11 +54,44 @@ export function generateFloor(seed: number, floor: number): string[] {
   // 주인공: 첫 방 중심. 계단: 주인공에서 걸어서 가장 먼 방의 중심(마지막 층은 없음)
   const [hx, hz] = center(rooms[0]);
   cells[hz][hx] = 'H';
+  let stair: Cell | null = null;
   if (floor < FLOORS) {
-    const dist = walkDistances(cells, hx, hz);
-    const far = rooms.slice(1).reduce((a, b) => (dist(center(b)) > dist(center(a)) ? b : a));
-    const [sx, sz] = center(far);
-    cells[sz][sx] = '>';
+    const d = walkDistances(cells, hx, hz);
+    const dist = ([x, z]: Cell) => d[z * SIZE + x];
+    stair = center(rooms.slice(1).reduce((a, b) => (dist(center(b)) > dist(center(a)) ? b : a)));
+    cells[stair[1]][stair[0]] = '>';
+  }
+
+  // 꾸미기: 막는 소품(화로·큰 소품)은 복도 입구가 아닌 방 가장자리에, 잔해는 방 안 어디든. 계단·주인공 근처는 비운다
+  const near = ([x, z]: Cell, [cx, cz]: Cell, r: number) => Math.max(Math.abs(x - cx), Math.abs(z - cz)) < r;
+  const free = (p: Cell) => cells[p[1]][p[0]] === '.' && !near(p, [hx, hz], 2) && !(stair && near(p, stair, 3));
+  const inRoom = (r: Room, x: number, z: number) => x >= r.x && x < r.x + r.w && z >= r.z && z < r.z + r.h;
+  const edge = (r: Room, [x, z]: Cell) => {
+    const out = [[x - 1, z], [x + 1, z], [x, z - 1], [x, z + 1]].filter(([nx, nz]) => !inRoom(r, nx, nz));
+    return out.length > 0 && out.every(([nx, nz]) => cells[nz][nx] === '#');
+  };
+  const connected = () => {
+    const d = walkDistances(cells, hx, hz);
+    return cells.every((row, z) => row.every((c, x) => !OPEN(c) || d[z * SIZE + x] >= 0));
+  };
+  const place = (r: Room, c: string, blocks: boolean) => {
+    for (let tries = 0; tries < 30; tries++) {
+      const p: Cell = [int(r.x, r.x + r.w - 1), int(r.z, r.z + r.h - 1)];
+      if (!free(p) || (blocks && !edge(r, p))) continue;
+      cells[p[1]][p[0]] = c;
+      if (!blocks || connected()) return;
+      cells[p[1]][p[0]] = '.'; // 길을 끊으면 되돌린다
+    }
+  };
+  const order = rooms.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = int(0, i);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  for (const i of order.slice(0, Math.ceil(rooms.length / 2))) place(rooms[i], 'B', true);
+  for (const r of rooms) {
+    for (let k = int(0, 3); k > 0; k--) place(r, 'o', true);
+    for (let k = int(0, 3); k > 0; k--) place(r, ',', false);
   }
 
   // 몬스터: 첫 방을 뺀 방들에 돌아가며 2~4마리씩
@@ -83,8 +118,8 @@ export function generateFloor(seed: number, floor: number): string[] {
   return cells.map((row) => row.join(''));
 }
 
-// (sx, sz)에서 벽이 아닌 칸까지의 4방향 걸음 수. 도달 불가는 -1.
-function walkDistances(cells: string[][], sx: number, sz: number) {
+// (sx, sz)에서 지나갈 수 있는 칸까지의 4방향 걸음 수([z * SIZE + x]). 도달 불가는 -1.
+function walkDistances(cells: string[][], sx: number, sz: number): Int32Array {
   const d = new Int32Array(SIZE * SIZE).fill(-1);
   d[sz * SIZE + sx] = 0;
   const q = [sz * SIZE + sx];
@@ -93,11 +128,11 @@ function walkDistances(cells: string[][], sx: number, sz: number) {
     const z = Math.floor(q[i] / SIZE);
     for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
       const ni = nz * SIZE + nx;
-      if (cells[nz][nx] !== '#' && d[ni] < 0) {
+      if (OPEN(cells[nz][nx]) && d[ni] < 0) {
         d[ni] = d[q[i]] + 1;
         q.push(ni);
       }
     }
   }
-  return ([x, z]: Cell) => d[z * SIZE + x];
+  return d;
 }
