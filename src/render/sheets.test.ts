@@ -9,6 +9,8 @@ import cleave from '../assets/sprites/cleave.json';
 import mage from '../assets/sprites/mage.json';
 import fireball from '../assets/sprites/fireball.json';
 import blast from '../assets/sprites/blast.json';
+import axe from '../assets/sprites/axe.json';
+import quake from '../assets/sprites/quake.json';
 import props from '../assets/sprites/props.json';
 import stairs from '../assets/sprites/stairs.json';
 import loot from '../assets/sprites/loot.json';
@@ -93,13 +95,20 @@ test('화염구 8방향 4프레임 반복, 폭발 1방향 6프레임 1회', () =
   expect(blast.anims.blast).toMatchObject({ frames: 6, loop: 'play_once' });
 });
 
+test('도끼 8방향 8프레임 회전, 함성 울림 1방향 1회', () => {
+  expect(axe.rows).toBe(8);
+  expect(axe.anims.axe).toMatchObject({ frames: 8, loop: 'looped' });
+  expect(quake.rows).toBe(1);
+  expect(quake.anims.quake).toMatchObject({ frames: 4, loop: 'play_once' });
+});
+
 test('화살 시트: 8방향 × 3프레임 반복', () => {
   expect(arrow.rows).toBe(8);
   expect(arrow.anims.fly).toMatchObject({ row: 0, frames: 3, loop: 'looped' });
 });
 
 test('모든 시트의 기준점(발)은 칸 안에 있다(판자 바닥선)', () => {
-  for (const info of [hero, minion, warrior, archer, mage, boss, props, stairs, loot, arrow, cleave, fireball, blast]) {
+  for (const info of [hero, minion, warrior, archer, mage, boss, props, stairs, loot, arrow, cleave, fireball, blast, axe, quake]) {
     expect(info.anchor[1]).toBeLessThanOrEqual(info.cell[1]);
     expect(info.anchor[1]).toBeGreaterThanOrEqual(0);
   }

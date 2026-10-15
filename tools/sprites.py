@@ -57,10 +57,12 @@ MUSIC_FILES = ['dungeon_theme', 'boss_theme']  # music/ 아래
 SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
                'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
-               'inventory/inventory_potion', 'inventory/inventory_coins', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot', 'powers/fireball', 'powers/burn', 'powers/teleport']  # soundfx/ 아래
+               'inventory/inventory_potion', 'inventory/inventory_coins', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot', 'powers/fireball', 'powers/burn', 'powers/teleport', 'powers/warcry']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
 SKILL_ICON = 22  # 가르기(Cleave)
 DASH_ICON = 9  # 돌진 베기(달리는 사람)
+SHOUT_ICON, THROW_ICON = 10, 33  # 전투의 함성(파동), 도끼 던지기
+QUAKE_SCALE = 0.16  # 함성 땅 울림 효과(지름 약 4m ≈ 기절 범위)
 BLAST_SCALE = 0.115  # 폭발 그림 가로 약 80px(2.7m) ≈ 폭발 판정 지름 2.4m
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
@@ -327,6 +329,8 @@ def loot():
     icon(POTION_ICON).save(SHEETS / 'potion_icon.png', optimize=True)
     icon(SKILL_ICON).save(SHEETS / 'skill_icon.png', optimize=True)
     icon(DASH_ICON).save(SHEETS / 'dash_icon.png', optimize=True)
+    icon(SHOUT_ICON).save(SHEETS / 'shout_icon.png', optimize=True)
+    icon(THROW_ICON).save(SHEETS / 'throw_icon.png', optimize=True)
     strip = Image.new('RGBA', (64 * len(GEAR_ICONS), 64))
     for k, i in enumerate(GEAR_ICONS):
         strip.paste(icon(i), (64 * k, 0))
@@ -366,6 +370,8 @@ if __name__ == '__main__':
     effect('cleave', 'cleave')
     effect('fireball', 'fireball')  # 화염구: 8방향 4프레임
     effect('blast', 'blast', dirs=1, scale=BLAST_SCALE)  # 폭발: 6프레임, 방향 무관
+    effect('axe', 'throw_axe')  # 도끼: 8방향 8프레임 회전
+    effect('quake', 'quake', dirs=1, scale=QUAKE_SCALE)  # 함성: 땅 울림
     hero()
     tiles()
     cave()

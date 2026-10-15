@@ -102,6 +102,8 @@ function nextCycle() {
 const drink = () => commands.push({ type: 'drink' });
 const skill = () => commands.push({ type: 'skill' });
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
+const shout = () => commands.push({ type: 'shout' });
+const throwAxe = (aimed: boolean) => commands.push({ type: 'throw', ...((aimed && aim()) || {}) });
 
 try {
   await initRender(world, themeFor(floor));
@@ -119,6 +121,8 @@ initHud({
   drink,
   skill,
   dash: () => dash(false),
+  shout,
+  throwAxe: () => throwAxe(false),
   restart,
   nextCycle,
   toggleMap: toggleAutomap,
@@ -148,6 +152,8 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyQ' || e.code === 'Digit1') drink();
   else if (e.code === 'KeyE' || e.code === 'Digit2') skill();
   else if (e.code === 'KeyF' || e.code === 'Digit3') dash(true);
+  else if (e.code === 'KeyW' || e.code === 'Digit4') shout();
+  else if (e.code === 'KeyT' || e.code === 'Digit5') throwAxe(true);
   else if (e.code === 'KeyM') toggleAutomap();
 });
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기

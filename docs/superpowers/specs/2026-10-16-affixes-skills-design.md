@@ -55,7 +55,7 @@
 - 기절: 엔티티 `stunT`(초). 기절 중에는 생각·이동·공격을 하지 않고, 진행 중이던 휘두르기·예고는 취소.
 - 함성 피해 감소: `World.shoutT`(남은 초) 동안 받는 피해 × 0.7(갑옷 감소 후).
 - 도끼: `Shot.kind = 'axe'`, 주인공이 쏜 투사체는 몬스터에게만 맞는다.
-- 그림·소리: 아이콘 44(함성)·33(도끼), 도끼 그림 FLARE `powers/throw_axe`, 소리 `powers/warcry.ogg`, 던지기 `melee_attack`.
+- 그림·소리: 아이콘 10(함성, 파동)·33(도끼), 도끼 그림 FLARE `powers/throw_axe`, 소리 `powers/warcry.ogg`, 던지기 `melee_attack`.
 
 ## 완료 기준
 

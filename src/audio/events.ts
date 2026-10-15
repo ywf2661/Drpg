@@ -5,7 +5,7 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'gold' | 'summon' | 'dash' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'gold' | 'summon' | 'dash' | 'shout' | 'throw' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
@@ -20,6 +20,7 @@ export type Snapshot = {
   level: number;
   cleaves: number;
   dashes: number;
+  shouts: number;
   opened: number; // 열린 상자 수
 };
 
@@ -37,6 +38,7 @@ export function snapshot(w: World): Snapshot {
     level: w.level,
     cleaves: w.cleaves,
     dashes: w.dashes,
+    shouts: w.shouts,
     opened: w.chests.filter((c) => c.open).length,
   };
 }
@@ -59,7 +61,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
     if (e.state === 'dead' && p.state !== 'dead') at(`${v}_die`, e.x, e.z);
     else if (e.hp < p.hp) at(`${v}_hit`, e.x, e.z);
   });
-  for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' ? 'fireball' : 'shoot', s.x, s.z);
+  for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
   for (const b of w.blasts) if (!prev.blasts.has(b.id)) at('blast', b.x, b.z);
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
   if (w.potions !== prev.potions) at('potion');
@@ -73,6 +75,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (w.level > prev.level) at('level_up');
   if (w.cleaves > prev.cleaves) at('cleave');
   if (w.dashes > prev.dashes) at('dash');
+  if (w.shouts > prev.shouts) at('shout');
   if (w.chests.filter((c) => c.open).length > prev.opened) at('chest');
   return out;
 }

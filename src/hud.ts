@@ -3,6 +3,8 @@ import gearIcons from './assets/sprites/gear_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
+import shoutIcon from './assets/sprites/shout_icon.png';
+import throwIcon from './assets/sprites/throw_icon.png';
 import { renderer } from './render/render';
 import { setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
@@ -10,7 +12,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, DASH, outcome, SKILL, STATS, WEAPONS, xpToNext, type Affix, type World } from './sim/world';
+import { ARMORS, AXE, DASH, outcome, SHOUT, SKILL, STATS, WEAPONS, xpToNext, type Affix, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -37,6 +39,8 @@ const skillBtn = $('#skill');
 const skillShade = $('#skill i');
 const dashBtn = $('#dash');
 const dashShade = $('#dash i');
+const shoutBtn = $('#shout');
+const throwBtn = $('#throw');
 const weaponSlot = $('#weapon');
 const armorSlot = $('#armor');
 const toast = $('#toast');
@@ -50,16 +54,20 @@ let shownGear = '';
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
   skillBtn.style.backgroundImage = `url(${skillIcon})`;
   dashBtn.style.backgroundImage = `url(${dashIcon})`;
+  shoutBtn.style.backgroundImage = `url(${shoutIcon})`;
+  throwBtn.style.backgroundImage = `url(${throwIcon})`;
   for (const slot of [weaponSlot, armorSlot]) slot.style.backgroundImage = `url(${gearIcons})`;
   potionBtn.addEventListener('click', h.drink);
   skillBtn.addEventListener('click', h.skill);
   dashBtn.addEventListener('click', h.dash);
+  shoutBtn.addEventListener('click', h.shout);
+  throwBtn.addEventListener('click', h.throwAxe);
   restartBtn.addEventListener('click', h.restart); // 모바일용
   nextCycleBtn.addEventListener('click', h.nextCycle);
   $('#map-btn').addEventListener('click', h.toggleMap);
@@ -175,6 +183,8 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   shownLevel = world.level;
   skillShade.style.height = `${(world.skillCd / SKILL.cd) * 100}%`; // 재사용 대기 남은 비율
   dashShade.style.height = `${(world.dashCd / DASH.cd) * 100}%`;
+  $('#shout i').style.height = `${(world.shoutCd / SHOUT.cd) * 100}%`;
+  $('#throw i').style.height = `${(world.throwCd / AXE.cd) * 100}%`;
   potionCount.textContent = String(world.potions);
   goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);

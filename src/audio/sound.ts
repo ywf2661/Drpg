@@ -24,6 +24,8 @@ const FILES: Record<SoundName, string[]> = {
   blast: ['burn'],
   cleave: ['melee_attack_2'],
   dash: ['melee_attack_3'],
+  shout: ['warcry'],
+  throw: ['melee_attack'],
   summon: ['teleport'],
   chest: ['wood_open'],
   potion: ['inventory_potion'],

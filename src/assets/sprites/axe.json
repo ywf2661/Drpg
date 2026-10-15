@@ -1,0 +1,21 @@
+{
+  "cell": [
+    50,
+    54
+  ],
+  "anchor": [
+    20,
+    34
+  ],
+  "ppm": 30,
+  "cols": 8,
+  "rows": 8,
+  "anims": {
+    "axe": {
+      "row": 0,
+      "frames": 8,
+      "ms": 266,
+      "loop": "looped"
+    }
+  }
+}

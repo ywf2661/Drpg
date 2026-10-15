@@ -1,0 +1,21 @@
+{
+  "cell": [
+    64,
+    35
+  ],
+  "anchor": [
+    33,
+    20
+  ],
+  "ppm": 30,
+  "cols": 4,
+  "rows": 1,
+  "anims": {
+    "quake": {
+      "row": 0,
+      "frames": 4,
+      "ms": 400,
+      "loop": "play_once"
+    }
+  }
+}

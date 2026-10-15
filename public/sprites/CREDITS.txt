@@ -36,6 +36,10 @@ Files used:
   mods/fantasycore/images/powers/fireball.png
   mods/fantasycore/animations/powers/blast.txt
   mods/fantasycore/images/powers/blast.png
+  mods/fantasycore/animations/powers/throw_axe.txt
+  mods/fantasycore/images/powers/throw_axe.png
+  mods/fantasycore/animations/powers/quake.txt
+  mods/fantasycore/images/powers/quake.png
   mods/fantasycore/animations/avatar/male/head_short.txt
   mods/fantasycore/images/avatar/male/head_short.png
   mods/fantasycore/animations/avatar/male/cloth_shirt.txt
@@ -141,6 +145,7 @@ Files used:
   mods/fantasycore/soundfx/powers/fireball.ogg
   mods/fantasycore/soundfx/powers/burn.ogg
   mods/fantasycore/soundfx/powers/teleport.ogg
+  mods/fantasycore/soundfx/powers/warcry.ogg
   mods/fantasycore/music/dungeon_theme.ogg
   mods/fantasycore/music/boss_theme.ogg
   mods/fantasycore/images/cursors/cursor_normal.png
