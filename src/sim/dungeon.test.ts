@@ -51,7 +51,7 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
   }
 });
 
-test('소품: 화로 1개 이상, 막는 소품은 벽에 붙고 계단·주인공 근처는 비어 있다', () => {
+test('소품: 화로 1개 이상, 막는 소품은 뒤쪽 벽에 붙고 계단·주인공 근처는 비어 있다', () => {
   const cheb = ([ax, az]: [number, number], [bx, bz]: [number, number]) => Math.max(Math.abs(ax - bx), Math.abs(az - bz));
   for (let seed = 1; seed <= 50; seed++) {
     for (let floor = 1; floor <= FLOORS; floor++) {
@@ -64,7 +64,10 @@ test('소품: 화로 1개 이상, 막는 소품은 벽에 붙고 계단·주인�
           if (!'Bo,'.includes(c)) return;
           expect(cheb([x, z], hero)).toBeGreaterThanOrEqual(2);
           if (stairs) expect(cheb([x, z], stairs)).toBeGreaterThanOrEqual(3);
-          if (c !== ',') expect([map[z][x - 1], map[z][x + 1], map[z - 1][x], map[z + 1][x]]).toContain('#');
+          if (c === ',') return;
+          // 뒤쪽 벽(-x·-z)에 붙고 앞쪽(+x·+z, 카메라 쪽)은 열려 있어 벽에 가려지지 않는다
+          expect([map[z][x - 1], map[z - 1][x]]).toContain('#');
+          expect([map[z][x + 1], map[z + 1][x]]).not.toContain('#');
         }),
       );
     }

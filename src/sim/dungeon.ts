@@ -62,12 +62,14 @@ export function generateFloor(seed: number, floor: number): string[] {
     cells[stair[1]][stair[0]] = '>';
   }
 
-  // 꾸미기: 막는 소품(화로·큰 소품)은 복도 입구가 아닌 방 가장자리에, 잔해는 방 안 어디든. 계단·주인공 근처는 비운다
+  // 꾸미기: 막는 소품(화로·큰 소품)은 복도 입구가 아닌 방의 뒤쪽 가장자리(-x·-z 벽, 앞쪽 벽에 붙으면 1.2m 벽에 가려진다)에,
+  // 잔해는 방 안 어디든. 계단·주인공 근처는 비운다
   const near = ([x, z]: Cell, [cx, cz]: Cell, r: number) => Math.max(Math.abs(x - cx), Math.abs(z - cz)) < r;
   const free = (p: Cell) => cells[p[1]][p[0]] === '.' && !near(p, [hx, hz], 2) && !(stair && near(p, stair, 3));
   const inRoom = (r: Room, x: number, z: number) => x >= r.x && x < r.x + r.w && z >= r.z && z < r.z + r.h;
   const edge = (r: Room, [x, z]: Cell) => {
-    const out = [[x - 1, z], [x + 1, z], [x, z - 1], [x, z + 1]].filter(([nx, nz]) => !inRoom(r, nx, nz));
+    if (!inRoom(r, x + 1, z) || !inRoom(r, x, z + 1)) return false; // 앞쪽 가장자리
+    const out = [[x - 1, z], [x, z - 1]].filter(([nx, nz]) => !inRoom(r, nx, nz));
     return out.length > 0 && out.every(([nx, nz]) => cells[nz][nx] === '#');
   };
   const connected = () => {

@@ -106,8 +106,8 @@ function command(w: World, hero: Entity, c: Command) {
   }
   let [x, z] = [c.x, c.z];
   const s = w.stairs;
-  if (s && Math.floor(x) === s[0] && Math.floor(z) === s[1]) {
-    [x, z] = [s[0] + 0.5, s[1] + 0.5]; // 계단 칸 어디를 눌러도 중심으로
+  if (s && Math.abs(Math.floor(x) - s[0]) <= 1 && Math.abs(Math.floor(z) - s[1]) <= 1) {
+    [x, z] = [s[0] + 0.5, s[1] + 0.5]; // 계단 그림의 구멍(계단 칸 주변 3×3) 어디를 눌러도 중심으로
     w.toStairs = true;
   }
   const p = findPath(w.grid, cellOf(hero), [Math.floor(x), Math.floor(z)]);

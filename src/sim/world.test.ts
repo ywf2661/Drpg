@@ -364,3 +364,9 @@ test('소품 글자: B·o는 막고 ,는 지나가며 props에 기록', () => {
     { kind: 'debris', x: 1, z: 2 },
   ]);
 });
+
+test('계단 그림의 구멍(계단 칸 주변 3×3)을 눌러도 계단 중심으로 가서 내려간다', () => {
+  const w = createWorld(1, ['H.....', '......', '...>..', '......']);
+  run(w, 90, [{ type: 'move', x: 4.5, z: 3.5 }]);
+  expect(outcome(w)).toBe('descend');
+});

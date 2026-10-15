@@ -9,8 +9,8 @@ import warriorInfo from '../assets/sprites/warrior.json';
 import warriorUrl from '../assets/sprites/warrior.png';
 
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
-type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
-type SheetInfo = { cell: [number, number]; anchor: [number, number]; ppm: number; cols: number; rows: number; anims: Record<Anim, Clip> };
+export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
+export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; hitT: number };
 
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
@@ -70,18 +70,18 @@ export function cardGeometry(info: SheetInfo): THREE.BufferGeometry {
   return geo;
 }
 
+// 도트 그림용 질감: 가까운 텍셀 그대로, 밉맵 없음
+export async function loadSheet(url: string): Promise<THREE.Texture> {
+  const tex = await new THREE.TextureLoader().loadAsync(url);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export async function loadSprites() {
-  const loader = new THREE.TextureLoader();
-  await Promise.all(
-    (Object.keys(SHEETS) as Kind[]).map(async (k) => {
-      const tex = await loader.loadAsync(SHEETS[k].url);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      tex.generateMipmaps = false;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      textures.set(k, tex);
-    }),
-  );
+  await Promise.all((Object.keys(SHEETS) as Kind[]).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
 }
 
 export function makeSprite(e: Entity): Sprite {
