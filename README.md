@@ -44,10 +44,12 @@ python tools/sprites.py   # FLARE 원본을 받아 시트·질감·효과음 재
 
 | 경로 | 역할 |
 |---|---|
-| `src/sim/` | 게임 규칙(three.js 없음, 시드 PRNG로 재현). `world.ts` 전투·아이템·레벨·스킬, `dungeon.ts` 층 생성, `path.ts` A*, `bot.ts` 테스트용 봇 |
+| `src/sim/` | 게임 규칙(three.js 없음, 시드 PRNG로 재현). `world.ts` 진입점(맵 읽기·한 틱·명령·기본 AI), `rules.ts` 수치·타입, `core.ts` 공용 전투(피해·드롭·레벨·걷기), `abilities.ts` 스킬·보스 패턴·투사체, `dungeon.ts` 층 생성, `path.ts` A*, `bot.ts` 테스트용 봇 |
 | `src/render/` | three.js 렌더(정사영 30° 카메라, 도트 빌보드 스프라이트, 바닥·벽, 소품·화로 빛, 앞쪽 벽 낮추기, 자동 지도, 이름표) |
 | `src/audio/` | 상태 변화 → 효과음 이벤트(순수 함수)와 Web Audio 재생 |
-| `src/main.ts` | 게임 루프(60Hz 고정 틱), 층 진행·저장, HUD |
+| `src/main.ts` | 게임 루프(60Hz 고정 틱), 층 진행·상점·저장·회차 |
+| `src/hud.ts` | 화면 위 HTML(체력·경험치·스킬·물약·장비·금화, 보스 체력바, 배너, 상점 화면) |
+| `src/shop.ts`, `src/save.ts` | 상점 가격·구매(순수 함수), 저장·이어하기(검증 포함) |
 | `src/input.ts` | 마우스·터치 → sim 명령 |
 | `tools/sprites.py` | FLARE 그림·소리 변환 |
 | `docs/superpowers/` | 단계별 설계서(specs)와 구현 계획(plans) |
