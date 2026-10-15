@@ -6,6 +6,10 @@ import lootUrl from '../assets/sprites/loot.png';
 import arrowInfo from '../assets/sprites/arrow.json';
 import arrowUrl from '../assets/sprites/arrow.png';
 import cleaveInfo from '../assets/sprites/cleave.json';
+import fireballInfo from '../assets/sprites/fireball.json';
+import fireballUrl from '../assets/sprites/fireball.png';
+import blastInfo from '../assets/sprites/blast.json';
+import blastUrl from '../assets/sprites/blast.png';
 import cleaveUrl from '../assets/sprites/cleave.png';
 import propsInfo from '../assets/sprites/props.json';
 import propsUrl from '../assets/sprites/props.png';
@@ -37,6 +41,8 @@ const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
 const arrow: Sheet = { info: arrowInfo as SheetInfo, url: arrowUrl };
 const cleaveFx: Sheet = { info: cleaveInfo as SheetInfo, url: cleaveUrl };
+const fireballFx: Sheet = { info: fireballInfo as SheetInfo, url: fireballUrl };
+const blastFx: Sheet = { info: blastInfo as SheetInfo, url: blastUrl };
 let cards: Card[] = [];
 let group = new THREE.Group();
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
@@ -44,6 +50,7 @@ const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
 let chestCards: { card: Card; name: string }[] = []; // 상자 판자(world.chests 순서)와 닫힌 그림 이름
 let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
 let cleavesSeen = 0;
+const blastsSeen = new Set<number>();
 let lights: THREE.PointLight[] = [];
 let time = 0;
 export let braziers: { x: number; z: number }[] = []; // 화로 위치(월드 좌표, 칸 중심)
@@ -62,7 +69,7 @@ export function floorVariant(x: number, z: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [props, stairs, loot, arrow, cleaveFx]) {
+  for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -105,6 +112,16 @@ export function syncEffects(world: World) {
     group.add(c.mesh);
   }
   cleavesSeen = world.cleaves;
+  for (const b of world.blasts) {
+    if (blastsSeen.has(b.id)) continue;
+    blastsSeen.add(b.id);
+    const c = card(blastFx, 'blast', b.x, b.z, false);
+    Object.assign(c, { t: 0, glow: 1 });
+    c.mesh.renderOrder = 2;
+    effects.push(c);
+    cards.push(c);
+    group.add(c.mesh);
+  }
   effects = effects.filter((c) => {
     if (c.t * 1000 < c.clip.ms) return true;
     c.mesh.removeFromParent();
@@ -127,9 +144,9 @@ export function syncShots(world: World) {
   for (const s of world.shots) {
     let c = shots.get(s.id);
     if (!c) {
-      c = card(arrow, 'fly', s.x, s.z, false);
+      c = s.kind === 'fire' ? card(fireballFx, 'fireball', s.x, s.z, false) : card(arrow, 'fly', s.x, s.z, false);
       c.dir = dirIndex(Math.atan2(s.dx, s.dz));
-      c.glow = 0.7;
+      c.glow = s.kind === 'fire' ? 1 : 0.7; // 화염구는 스스로 빛난다
       c.mesh.renderOrder = 2;
       shots.set(s.id, c);
       cards.push(c);
@@ -168,6 +185,7 @@ export function buildProps(world: World): THREE.Group {
   shots.clear();
   effects = [];
   cleavesSeen = world.cleaves;
+  blastsSeen.clear();
   for (const l of lights) l.dispose();
   cards = world.props.map((p) => {
     const names = VARIANTS[p.kind];

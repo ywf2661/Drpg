@@ -1,0 +1,21 @@
+{
+  "cell": [
+    61,
+    56
+  ],
+  "anchor": [
+    31,
+    56
+  ],
+  "ppm": 30,
+  "cols": 4,
+  "rows": 8,
+  "anims": {
+    "fireball": {
+      "row": 0,
+      "frames": 4,
+      "ms": 266,
+      "loop": "looped"
+    }
+  }
+}

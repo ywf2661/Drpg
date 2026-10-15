@@ -6,6 +6,9 @@ import boss from '../assets/sprites/boss.json';
 import archer from '../assets/sprites/archer.json';
 import arrow from '../assets/sprites/arrow.json';
 import cleave from '../assets/sprites/cleave.json';
+import mage from '../assets/sprites/mage.json';
+import fireball from '../assets/sprites/fireball.json';
+import blast from '../assets/sprites/blast.json';
 import props from '../assets/sprites/props.json';
 import stairs from '../assets/sprites/stairs.json';
 import loot from '../assets/sprites/loot.json';
@@ -17,6 +20,7 @@ test.each([
   ['minion', minion],
   ['warrior', warrior],
   ['archer', archer],
+  ['mage', mage],
   ['boss', boss],
 ])('%s 시트: 모든 동작 × 8방향이 시트 범위 안에 있다', (_, info) => {
   expect(info.ppm).toBe(30);
@@ -74,12 +78,19 @@ test('loot 시트: 물약과 장비 바닥 그림', () => {
 });
 
 test('사망 동작은 모두 1회 재생(마지막 프레임 = 시체)', () => {
-  for (const info of [hero, minion, warrior, archer, boss]) expect(info.anims.die.loop).toBe('play_once');
+  for (const info of [hero, minion, warrior, archer, mage, boss]) expect(info.anims.die.loop).toBe('play_once');
 });
 
 test('가르기 효과 시트: 8방향 × 6프레임 1회', () => {
   expect(cleave.rows).toBe(8);
   expect(cleave.anims.cleave).toMatchObject({ row: 0, frames: 6, loop: 'play_once' });
+});
+
+test('화염구 8방향 4프레임 반복, 폭발 1방향 6프레임 1회', () => {
+  expect(fireball.rows).toBe(8);
+  expect(fireball.anims.fireball).toMatchObject({ frames: 4, loop: 'looped' });
+  expect(blast.rows).toBe(1);
+  expect(blast.anims.blast).toMatchObject({ frames: 6, loop: 'play_once' });
 });
 
 test('화살 시트: 8방향 × 3프레임 반복', () => {
@@ -88,7 +99,7 @@ test('화살 시트: 8방향 × 3프레임 반복', () => {
 });
 
 test('모든 시트의 기준점(발)은 칸 안에 있다(판자 바닥선)', () => {
-  for (const info of [hero, minion, warrior, archer, boss, props, stairs, loot, arrow, cleave]) {
+  for (const info of [hero, minion, warrior, archer, mage, boss, props, stairs, loot, arrow, cleave, fireball, blast]) {
     expect(info.anchor[1]).toBeLessThanOrEqual(info.cell[1]);
     expect(info.anchor[1]).toBeGreaterThanOrEqual(0);
   }

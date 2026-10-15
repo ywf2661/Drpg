@@ -1,0 +1,21 @@
+{
+  "cell": [
+    80,
+    52
+  ],
+  "anchor": [
+    41,
+    28
+  ],
+  "ppm": 30,
+  "cols": 6,
+  "rows": 1,
+  "anims": {
+    "blast": {
+      "row": 0,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    }
+  }
+}

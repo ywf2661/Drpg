@@ -17,6 +17,8 @@ Files used:
   mods/fantasycore/images/enemies/skeleton.png
   mods/fantasycore/animations/enemies/skeleton_archer.txt
   mods/fantasycore/images/enemies/skeleton_archer.png
+  mods/fantasycore/animations/enemies/skeleton_mage.txt
+  mods/fantasycore/images/enemies/skeleton_mage.png
   mods/fantasycore/animations/enemies/minotaur.txt
   mods/fantasycore/images/enemies/minotaur/minotaur_stance.png
   mods/fantasycore/images/enemies/minotaur/minotaur_run.png
@@ -30,6 +32,10 @@ Files used:
   mods/fantasycore/images/powers/arrows.png
   mods/fantasycore/animations/powers/cleave.txt
   mods/fantasycore/images/powers/cleave.png
+  mods/fantasycore/animations/powers/fireball.txt
+  mods/fantasycore/images/powers/fireball.png
+  mods/fantasycore/animations/powers/blast.txt
+  mods/fantasycore/images/powers/blast.png
   mods/fantasycore/animations/avatar/male/head_short.txt
   mods/fantasycore/images/avatar/male/head_short.png
   mods/fantasycore/animations/avatar/male/cloth_shirt.txt
@@ -123,6 +129,8 @@ Files used:
   mods/fantasycore/soundfx/inventory/inventory_metal.ogg
   mods/fantasycore/soundfx/inventory/inventory_maille.ogg
   mods/fantasycore/soundfx/powers/shoot.ogg
+  mods/fantasycore/soundfx/powers/fireball.ogg
+  mods/fantasycore/soundfx/powers/burn.ogg
   mods/fantasycore/music/dungeon_theme.ogg
   mods/fantasycore/music/boss_theme.ogg
   mods/fantasycore/images/cursors/cursor_normal.png

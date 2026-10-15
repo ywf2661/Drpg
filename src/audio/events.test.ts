@@ -76,7 +76,7 @@ test('궁수: 활을 당길 때가 아니라 화살이 나갈 때 shoot, 피격�
   a.state = 'attack';
   expect(names(soundEvents(prev, w))).toEqual([]);
   prev = snapshot(w);
-  w.shots.push({ id: 9, x: a.x, z: a.z, dx: -1, dz: 0, dmg: 5, left: 8 });
+  w.shots.push({ id: 9, x: a.x, z: a.z, dx: -1, dz: 0, dmg: 5, left: 8, kind: 'arrow' });
   a.hp -= 3;
   expect(names(soundEvents(prev, w))).toEqual(['skel_hit', 'shoot']);
 });
@@ -100,4 +100,16 @@ test('보스 돌진 예고 시작', () => {
   const prev = snapshot(w);
   w.entities[1].phase = 'windup';
   expect(names(soundEvents(prev, w))).toEqual(['boss_attack']);
+});
+
+test('마법사: 시전할 때가 아니라 화염구가 나갈 때 fireball, 폭발은 blast', () => {
+  const w = createWorld(1, ['H....g']);
+  const g = w.entities[1];
+  let prev = snapshot(w);
+  g.state = 'attack';
+  expect(names(soundEvents(prev, w))).toEqual([]);
+  prev = snapshot(w);
+  w.shots.push({ id: 5, x: g.x, z: g.z, dx: -1, dz: 0, dmg: 5, left: 9, kind: 'fire' });
+  w.blasts.push({ id: 6, x: 1, z: 0.5, age: 0 });
+  expect(names(soundEvents(prev, w))).toEqual(['fireball', 'blast']);
 });

@@ -35,9 +35,10 @@ KINDS = {  # 몬스터: 레이어 1장
     'minion': {'body': 'enemies/skeleton_weak'},
     'warrior': {'body': 'enemies/skeleton'},
     'archer': {'body': 'enemies/skeleton_archer'},
+    'mage': {'body': 'enemies/skeleton_mage'},
     'boss': {'body': 'enemies/minotaur'},
 }
-KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}}  # 궁수의 공격은 활쏘기
+KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전
 KIND_SCALE = {'boss': 0.28}  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 무기 × 갑옷 세트 16조합. 모든 조합이 같은 칸 크기·기준점이라 hero.json 하나를 공유한다
 HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']
@@ -55,9 +56,10 @@ MUSIC_FILES = ['dungeon_theme', 'boss_theme']  # music/ 아래
 SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
                'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
-               'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot']  # soundfx/ 아래
+               'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot', 'powers/fireball', 'powers/burn']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
 SKILL_ICON = 22  # 가르기(Cleave)
+BLAST_SCALE = 0.115  # 폭발 그림 가로 약 80px(2.7m) ≈ 폭발 판정 지름 2.4m
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
 TILE_SCALE = 42.43 / 192  # FLARE 타일 1개(마름모 가로 192px) = 우리 칸 1개(화면 42.4px)
@@ -258,14 +260,14 @@ def tiles():
     pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
 
 
-def effect(name, src):
+def effect(name, src, dirs=8, scale=SCALE):
     # FLARE 기술 효과('power' 동작, 8방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
     # — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
     sh = sheet(f'powers/{src}')
     a = sh.anims['power']
     n = int(a['frames'])
     frames = {}
-    for d in range(8):
+    for d in range(dirs):
         for i in range(n):
             x, y, w, h, ox, oy = a['rects'][(i, d)]
             frames[('fly' if name == 'arrow' else name, d, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
@@ -275,7 +277,7 @@ def effect(name, src):
     y1 = max(max(o[1] + im.height for im, o in frames.values()), FOOT[1] + 1)
     loop = 'looped' if a.get('type') == 'looped' else 'play_once'
     clip = 'fly' if name == 'arrow' else name
-    pack(name, frames, {clip: (n, int(a['duration'].removesuffix('ms')), loop)}, SCALE, 8, bbox=(x0, y0, x1, y1))
+    pack(name, frames, {clip: (n, int(a['duration'].removesuffix('ms')), loop)}, scale, dirs, bbox=(x0, y0, x1, y1))
 
 
 def loot():
@@ -337,6 +339,8 @@ if __name__ == '__main__':
         pack(kind, *frames_of(KINDS[kind], KIND_ANIMS.get(kind, ANIMS)), KIND_SCALE.get(kind, SCALE), 8)
     effect('arrow', 'arrows')  # 화살: 8방향 3프레임, 기준점 위로 비행 높이가 들어 있다
     effect('cleave', 'cleave')
+    effect('fireball', 'fireball')  # 화염구: 8방향 4프레임
+    effect('blast', 'blast', dirs=1, scale=BLAST_SCALE)  # 폭발: 6프레임, 방향 무관
     hero()
     tiles()
     loot()
