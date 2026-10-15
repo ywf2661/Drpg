@@ -1,7 +1,7 @@
 // 게임 규칙(sim). three.js를 import하지 않는다. 상태 변경은 step()으로만 일어난다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 
-export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'boss';
+export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'king' | 'boss';
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 export type Command =
   | { type: 'move'; x: number; z: number }
@@ -34,6 +34,7 @@ export type Entity = {
   cd: number;
   dx: number;
   dz: number;
+  summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
 };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
@@ -84,6 +85,7 @@ export type World = {
 export const DT = 1 / 60;
 export const RANGE = 1.5;
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
+export const KING = { cd: 8, windup: 0.8, count: 2, max: 6, range: 8, gold: [80, 120] }; // 해골 왕 소환·드롭
 // 금화 드롭: 확률·양(× 몬스터 층 배율). 정예는 확정 40–60, 상자는 확정 15–30 × 층 배율
 export const GOLD: Record<Kind, { chance: number; lo: number; hi: number }> = {
   hero: { chance: 0, lo: 0, hi: 0 },
@@ -91,6 +93,7 @@ export const GOLD: Record<Kind, { chance: number; lo: number; hi: number }> = {
   warrior: { chance: 0.6, lo: 8, hi: 15 },
   archer: { chance: 0.6, lo: 5, hi: 10 },
   mage: { chance: 0.6, lo: 6, hi: 12 },
+  king: { chance: 0, lo: 0, hi: 0 }, // 해골 왕은 따로(확정)
   boss: { chance: 0, lo: 0, hi: 0 },
 };
 export const GOLD_ELITE = { lo: 40, hi: 60 };
@@ -108,10 +111,10 @@ export const HIT_AT = 0.4;
 export const REPATH = 0.5;
 
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
-export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, mage: 0.25, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
-export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, archer: 0.08, mage: 0.1, boss: 0 };
+export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, mage: 0.25, king: 0, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
+export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, archer: 0.08, mage: 0.1, king: 0, boss: 0 };
 // 처치 경험치(× 몬스터 층 배율). 레벨마다 최대 체력 +10, 주인공 데미지 +5%
-export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, archer: 15, mage: 20, boss: 0 };
+export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, archer: 15, mage: 20, king: 150, boss: 0 };
 export const xpToNext = (level: number) => 40 + 30 * (level - 1);
 const heroMaxHp = (level: number) => STATS.hero.hp + 10 * (level - 1);
 
@@ -150,12 +153,13 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
   archer: { name: '스켈레톤 궁수', hp: 25, dmg: [4, 7], interval: 1.8, speed: 2.2 },
   mage: { name: '스켈레톤 마법사', hp: 22, dmg: [5, 8], interval: 2.4, speed: 2 },
+  king: { name: '해골 왕', hp: 260, dmg: [9, 14], interval: 1.5, speed: 2.2 },
   boss: { name: '미노타우르스', hp: 500, dmg: [12, 20], interval: 1.6, speed: 2.4 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', M: 'boss' };
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', K: 'king', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 // power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만)
@@ -179,13 +183,14 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   );
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
-  const entities = spawns.map((s, id): Entity => {
-    const p = s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power;
-    const hp = Math.round(STATS[s.kind].hp * p * (s.elite ? ELITE.hp : 1));
-    return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
-  });
+  const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
   return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0 };
+}
+
+function makeEntity(id: number, kind: Kind, x: number, z: number, power: number, elite = false, summoner = -1): Entity {
+  const hp = Math.round(STATS[kind].hp * power * (elite ? ELITE.hp : 1));
+  return { id, kind, x, z, elite, summoner, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -360,6 +365,7 @@ function act(w: World, e: Entity) {
   }
   if (e.kind === 'boss' && charge(w, e, t)) return;
   if (e.kind === 'hero' && e.phase === 'charge') return dashStep(w, e);
+  if (e.kind === 'king' && summon(w, e, t)) return;
   if (e.state === 'attack') return swing(w, e, t);
   if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {
@@ -398,6 +404,31 @@ function charge(w: World, e: Entity, t: Entity | null): boolean {
   if (hero.state !== 'dead' && dist(e, hero) <= CHARGE.hit) {
     hurt(w, hero, Math.round(roll(w, e) * CHARGE.mult));
     Object.assign(e, { phase: 'none', state: 'idle' });
+  }
+  return true;
+}
+
+// 해골 왕 소환: 대상이 가까우면 KING.cd마다 예고(제자리) 후 주변 빈 칸에 졸개. 시전 중이면 true
+function summon(w: World, e: Entity, t: Entity | null): boolean {
+  e.cd = Math.max(0, e.cd - DT);
+  const alive = () => w.entities.filter((m) => m.summoner === e.id && m.state !== 'dead').length;
+  if (e.phase === 'none') {
+    if (!t || e.cd > 0 || e.state === 'attack' || dist(e, t) > KING.range || alive() >= KING.max) return false;
+    Object.assign(e, { phase: 'windup', phaseT: KING.windup, cd: KING.cd, state: 'idle', path: [] });
+    return true;
+  }
+  if ((e.phaseT -= DT) > 0) return true;
+  e.phase = 'none';
+  const [cx, cz] = cellOf(e);
+  const spots: Cell[] = [];
+  for (let r = 1; r <= 2; r++)
+    for (let dz = -r; dz <= r; dz++)
+      for (let dx = -r; dx <= r; dx++)
+        if (Math.max(Math.abs(dx), Math.abs(dz)) === r && walkable(w.grid, cx + dx, cz + dz)) spots.push([cx + dx, cz + dz]);
+  for (const [x, z] of spots.slice(0, Math.min(KING.count, KING.max - alive()))) {
+    const m = makeEntity(w.entities.length, 'minion', x + 0.5, z + 0.5, e.power, false, e.id);
+    m.target = 0; // 주인공(id 0)을 바로 노린다
+    w.entities.push(m);
   }
   return true;
 }
@@ -569,6 +600,14 @@ function hurt(w: World, t: Entity, raw: number) {
   t.path = [];
   t.target = null;
   if (t.kind === 'hero') return;
+  if (t.kind === 'king') {
+    // 해골 왕: 최고 단계 장비·금화·물약 확정
+    gainXp(w, Math.round(XP.king * t.power));
+    w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind: rand(w) < 0.5 ? 'weapon' : 'armor', tier: w.maxTier });
+    w.items.push({ id: w.nextItem++, x: t.x - 0.3, z: t.z, kind: 'potion', tier: 0 });
+    dropGold(w, t.x + 0.3, t.z, KING.gold[0], KING.gold[1], t.power);
+    return;
+  }
   gainXp(w, Math.round(XP[t.kind] * t.power * (t.elite ? ELITE.xp : 1)));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);

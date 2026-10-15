@@ -953,3 +953,32 @@ test('회차: 보스 배율 인자(기본 1)', () => {
   expect(createWorld(1, ['H.M'], 1.8, 2).entities[1].maxHp).toBe(1000);
   expect(createWorld(1, ['H.M'], 1.8).entities[1].maxHp).toBe(500);
 });
+
+test('해골 왕(K): 체력 260 × 배율, 8초마다 0.8초 시전 후 졸개 2마리 소환, 6마리까지', () => {
+  const w = createWorld(1, ['.........', 'H...K....', '.........'], 1.3);
+  const [hero, king] = w.entities;
+  expect([king.kind, king.maxHp]).toEqual(['king', Math.round(260 * 1.3)]);
+  hero.hp = hero.maxHp = 1e6;
+  step(w, []);
+  expect(king.phase).toBe('windup');
+  run(w, Math.round(0.85 / DT));
+  expect(king.phase).toBe('none');
+  const summoned = w.entities.filter((e) => e.kind === 'minion');
+  expect(summoned).toHaveLength(2);
+  expect(summoned.map((e) => e.id)).toEqual([2, 3]); // id = 배열 위치
+  expect(summoned.every((e) => e.power === 1.3 && walkable(w.grid, Math.floor(e.x), Math.floor(e.z)))).toBe(true);
+  // 졸개를 계속 살려 두면 6마리에서 멈춘다
+  run(w, Math.round(40 / DT));
+  expect(w.entities.filter((e) => e.kind === 'minion' && e.state !== 'dead').length).toBeLessThanOrEqual(6);
+});
+
+test('해골 왕을 잡으면 최고 단계 장비·금화·물약을 반드시 떨어뜨린다', () => {
+  const w = createWorld(1, ['HK']);
+  w.maxTier = 3;
+  w.gear = { weapon: 4, armor: 4 };
+  w.potions = 8;
+  slay(w);
+  const kinds = w.items.map((i) => i.kind).sort();
+  expect(kinds).toEqual(['gold', 'potion', w.items.find((i) => i.kind === 'weapon') ? 'weapon' : 'armor'].sort());
+  expect(w.items.find((i) => i.kind === 'weapon' || i.kind === 'armor')!.tier).toBe(3);
+});

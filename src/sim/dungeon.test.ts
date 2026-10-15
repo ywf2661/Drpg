@@ -48,6 +48,13 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
       const d = distances(map, find(map, 'H'));
       expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o') - count(map, 'c'));
       expect(count(map, 'M')).toBe(floor < FLOORS ? 0 : 1); // 보스는 계단 없는 마지막 층에만
+      expect(count(map, 'K')).toBe(floor === 3 ? 1 : 0); // 해골 왕은 3층 계단 방에
+      if (floor === 3) {
+        const [kx, kz] = find(map, 'K');
+        const [sx, sz] = find(map, '>');
+        expect(Math.max(Math.abs(kx - sx), Math.abs(kz - sz))).toBeGreaterThanOrEqual(2);
+        expect(Math.max(Math.abs(kx - sx), Math.abs(kz - sz))).toBeLessThanOrEqual(3);
+      }
       const [x, z] = find(map, floor < FLOORS ? '>' : 'M');
       expect(d.get(z * 48 + x)).toBeGreaterThanOrEqual(15);
     }

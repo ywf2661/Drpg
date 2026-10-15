@@ -1,5 +1,5 @@
 // 무작위 던전 층: 방 + 2칸 폭 L자 복도. 결과는 createWorld가 읽는 글자 맵
-// (+ '>' 계단, 'M' 보스(마지막 층), 'B' 화로·'o' 큰 소품·'c' 상자(막음), ',' 잔해(지나감)).
+// (+ '>' 계단, 'M' 보스(마지막 층), 'K' 해골 왕(3층), 'B' 화로·'o' 큰 소품·'c' 상자(막음), ',' 잔해(지나감)).
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
 
@@ -64,6 +64,18 @@ export function generateFloor(seed: number, floor: number): string[] {
   const dist = ([x, z]: Cell) => d[z * SIZE + x];
   const goal = center(rooms.slice(1).reduce((a, b) => (dist(center(b)) > dist(center(a)) ? b : a)));
   cells[goal[1]][goal[0]] = floor < FLOORS ? '>' : 'M';
+  if (floor === 3) {
+    // 해골 왕: 계단 방 안, 계단에서 2~3칸
+    const room = rooms.find((r) => goal[0] >= r.x && goal[0] < r.x + r.w && goal[1] >= r.z && goal[1] < r.z + r.h)!;
+    const spots: Cell[] = [];
+    for (let z = room.z; z < room.z + room.h; z++)
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const d = Math.max(Math.abs(x - goal[0]), Math.abs(z - goal[1]));
+        if (d >= 2 && d <= 3 && cells[z][x] === '.') spots.push([x, z]);
+      }
+    const [kx, kz] = spots[int(0, spots.length - 1)];
+    cells[kz][kx] = 'K';
+  }
 
   // 꾸미기: 막는 소품(화로·큰 소품)은 복도 입구가 아닌 방의 뒤쪽 가장자리(-x·-z 벽, 앞쪽 벽에 붙으면 1.2m 벽에 가려진다)에,
   // 잔해는 방 안 어디든. 계단(보스)·주인공 근처는 비운다
