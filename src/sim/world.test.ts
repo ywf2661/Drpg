@@ -182,3 +182,33 @@ test('같은 시드와 같은 명령이면 결과가 같고, 아무도 벽에 �
   expect(a.rng).toBe(b.rng);
   expect(a.entities.some((e) => e.hp < STATS[e.kind].hp)).toBe(true); // 전투가 실제로 일어났는지
 });
+
+test('휘두르는 중 다른 몬스터를 공격하면 휘두르기를 멈추고 새 대상에게 간다', () => {
+  const w = createWorld(1, ['.............', '.Hm.........m']); // 두 번째 졸개는 11m 밖
+  const hero = w.entities[0];
+  run(w, 10, [{ type: 'attack', targetId: 1 }]);
+  expect(hero.state).toBe('attack');
+  step(w, [{ type: 'attack', targetId: 2 }]);
+  expect(hero).toMatchObject({ state: 'move', target: 2 });
+});
+
+test('같은 대상을 다시 클릭해도 휘두르기는 이어진다', () => {
+  const w = createWorld(1, DUEL);
+  const hero = w.entities[0];
+  run(w, 10, [{ type: 'attack', targetId: 1 }]);
+  const t = hero.attackT;
+  step(w, [{ type: 'attack', targetId: 1 }]);
+  expect(hero.state).toBe('attack');
+  expect(hero.attackT).toBeGreaterThan(t);
+});
+
+test('휘두르기가 끝났을 때 대상이 멀어졌으면 바로 다시 쫓는다', () => {
+  const w = createWorld(1, ['...............', '.....H..m......']); // 졸개가 3m 걸어와서 휘두름
+  const m = w.entities[1];
+  for (let i = 0; i < 300 && m.state !== 'attack'; i++) step(w, []);
+  expect(m.state).toBe('attack');
+  step(w, [{ type: 'move', x: 0.5, z: 1.5 }]); // 주인공이 왼쪽으로 도망
+  while (m.state === 'attack') step(w, []);
+  step(w, []);
+  expect(m.state).toBe('move');
+});

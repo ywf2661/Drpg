@@ -113,6 +113,10 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'attack') {
     const t = w.entities[c.targetId];
     if (!t || t === hero || t.state === 'dead') return;
+    if (hero.state === 'attack' && hero.target !== t.id) {
+      hero.state = 'idle'; // 다른 대상으로 바꾸면 휘두르기 취소, 같은 대상 재클릭은 유지
+      hero.attackT = 0;
+    }
     hero.target = t.id;
     hero.repathT = 0; // 다음 act에서 즉시 경로 계산
     return;
@@ -162,6 +166,7 @@ function startSwing(e: Entity, t: Entity) {
   e.state = 'attack';
   e.attackT = 0;
   e.path = [];
+  e.repathT = 0; // 휘두르기 후 대상이 멀어졌으면 기다리지 않고 바로 경로 계산
   face(e, t);
 }
 
