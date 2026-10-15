@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { attackInterval, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
+import { makeCutaway } from './cutaway';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, loadProps, syncItems, updateProps } from './props';
 import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
@@ -28,6 +29,7 @@ let time = 0;
 let floorTex: THREE.Texture;
 let wallTex: THREE.Texture;
 const FLOOR_VARIANTS = 8; // floor.png 가로 칸 수
+let cutaway = (_hx: number, _hz: number) => {}; // 현재 층의 앞쪽 벽 낮추기
 
 export async function initRender(world: World) {
   renderer.shadowMap.enabled = true;
@@ -71,6 +73,7 @@ export function draw(world: World, dt: number) {
     updateSprite(s, e, dt, attackInterval(world, e));
     s.mat.color.copy(TORCH_TINT).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
   }
+  cutaway(hero.x, hero.z);
   syncItems(world);
   updateProps(dt, light);
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
@@ -145,6 +148,7 @@ function buildMap(world: World) {
   const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1.2, 1), [side[0], side[0], top, top, side[1], side[1]], wallCells.length);
   wallCells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
   walls.castShadow = walls.receiveShadow = true;
+  cutaway = makeCutaway(walls, wallCells);
   mapGroup.add(walls, buildProps(world));
   scene.add(mapGroup);
 }
