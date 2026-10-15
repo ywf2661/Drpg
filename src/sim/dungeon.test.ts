@@ -43,10 +43,9 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
       expect(count(map, 'w')).toBe(Math.round(monsters * (0.2 + 0.075 * (floor - 1))));
       const d = distances(map, find(map, 'H'));
       expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o'));
-      if (floor < FLOORS) {
-        const [x, z] = find(map, '>');
-        expect(d.get(z * 48 + x)).toBeGreaterThanOrEqual(15);
-      }
+      expect(count(map, 'M')).toBe(floor < FLOORS ? 0 : 1); // 보스는 계단 없는 마지막 층에만
+      const [x, z] = find(map, floor < FLOORS ? '>' : 'M');
+      expect(d.get(z * 48 + x)).toBeGreaterThanOrEqual(15);
     }
   }
 });
@@ -58,12 +57,12 @@ test('소품: 화로 1개 이상, 막는 소품은 뒤쪽 벽에 붙고 계단·
       const map = generateFloor(seed, floor);
       expect(count(map, 'B')).toBeGreaterThanOrEqual(1);
       const hero = find(map, 'H');
-      const stairs = floor < FLOORS ? find(map, '>') : null;
+      const stairs = find(map, floor < FLOORS ? '>' : 'M'); // 계단이나 보스 주변은 비운다
       map.forEach((row, z) =>
         [...row].forEach((c, x) => {
           if (!'Bo,'.includes(c)) return;
           expect(cheb([x, z], hero)).toBeGreaterThanOrEqual(2);
-          if (stairs) expect(cheb([x, z], stairs)).toBeGreaterThanOrEqual(3);
+          expect(cheb([x, z], stairs)).toBeGreaterThanOrEqual(3);
           if (c === ',') return;
           // 뒤쪽 벽(-x·-z)에 붙고 앞쪽(+x·+z, 카메라 쪽)은 열려 있어 벽에 가려지지 않는다
           expect([map[z][x - 1], map[z - 1][x]]).toContain('#');

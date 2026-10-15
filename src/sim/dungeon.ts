@@ -1,5 +1,5 @@
 // 무작위 던전 층: 방 + 2칸 폭 L자 복도. 결과는 createWorld가 읽는 글자 맵
-// (+ '>' 계단, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)).
+// (+ '>' 계단, 'M' 보스(마지막 층), 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)).
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
 
@@ -51,21 +51,18 @@ export function generateFloor(seed: number, floor: number): string[] {
   for (let i = 1; i < rooms.length; i++) corridor(rooms[i - 1], rooms[i]);
   for (let k = 0; k < 2; k++) corridor(rooms[int(0, rooms.length - 1)], rooms[int(0, rooms.length - 1)]);
 
-  // 주인공: 첫 방 중심. 계단: 주인공에서 걸어서 가장 먼 방의 중심(마지막 층은 없음)
+  // 주인공: 첫 방 중심. 주인공에서 걸어서 가장 먼 방의 중심에 계단(마지막 층은 보스)
   const [hx, hz] = center(rooms[0]);
   cells[hz][hx] = 'H';
-  let stair: Cell | null = null;
-  if (floor < FLOORS) {
-    const d = walkDistances(cells, hx, hz);
-    const dist = ([x, z]: Cell) => d[z * SIZE + x];
-    stair = center(rooms.slice(1).reduce((a, b) => (dist(center(b)) > dist(center(a)) ? b : a)));
-    cells[stair[1]][stair[0]] = '>';
-  }
+  const d = walkDistances(cells, hx, hz);
+  const dist = ([x, z]: Cell) => d[z * SIZE + x];
+  const goal = center(rooms.slice(1).reduce((a, b) => (dist(center(b)) > dist(center(a)) ? b : a)));
+  cells[goal[1]][goal[0]] = floor < FLOORS ? '>' : 'M';
 
   // 꾸미기: 막는 소품(화로·큰 소품)은 복도 입구가 아닌 방의 뒤쪽 가장자리(-x·-z 벽, 앞쪽 벽에 붙으면 1.2m 벽에 가려진다)에,
-  // 잔해는 방 안 어디든. 계단·주인공 근처는 비운다
+  // 잔해는 방 안 어디든. 계단(보스)·주인공 근처는 비운다
   const near = ([x, z]: Cell, [cx, cz]: Cell, r: number) => Math.max(Math.abs(x - cx), Math.abs(z - cz)) < r;
-  const free = (p: Cell) => cells[p[1]][p[0]] === '.' && !near(p, [hx, hz], 2) && !(stair && near(p, stair, 3));
+  const free = (p: Cell) => cells[p[1]][p[0]] === '.' && !near(p, [hx, hz], 2) && !near(p, goal, 3);
   const inRoom = (r: Room, x: number, z: number) => x >= r.x && x < r.x + r.w && z >= r.z && z < r.z + r.h;
   const edge = (r: Room, [x, z]: Cell) => {
     if (!inRoom(r, x + 1, z) || !inRoom(r, x, z + 1)) return false; // 앞쪽 가장자리
