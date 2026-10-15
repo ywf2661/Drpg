@@ -76,7 +76,7 @@ STAIRS = 286  # 4×4칸 내려가는 계단
 CAVE_TILESET = 'tileset_cave'
 CAVE_FLOOR = [16, 17, 18, 19, 48, 49, 50, 51]  # 흙 4 + 잔해 4
 CAVE_WALLS = [72, 76]  # +x 면, +z 면으로 쓸 바위벽
-CAVE_WALL_BOX, CAVE_WALL_GAIN = (40, 60, 150, 230), 1.6  # 바위 면 가운데, 밝기 보정
+CAVE_WALL_BOXES, CAVE_WALL_GAIN = [(40, 60, 150, 230), (30, 120, 140, 290), (50, 40, 160, 210), (35, 90, 145, 260)], 1.6  # 바위 면에서 자를 곳 4가지(무늬 반복 줄이기), 밝기
 LOOT_POTION = 0.5 / SCALE  # 바닥 아이템은 캐릭터 배율(0.32), 물약만 0.5배(작아서 안 보인다)
 POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
@@ -249,11 +249,13 @@ def cave():
     # 4~5층 동굴: 흙바닥 4 + 잔해 바닥 4, 벽은 울퉁불퉁한 바위라 정밀하게 펴지 않고 가운데를 잘라 쓴다
     ts = Tileset(CAVE_TILESET)
     floor_strip(ts, CAVE_FLOOR, 'floor_cave.png')
-    wall = Image.new('RGB', (64, 38))
-    for k, i in enumerate(CAVE_WALLS):
-        (im,), _, _ = ts.frames(i)
-        face = ImageEnhance.Brightness(im.crop(CAVE_WALL_BOX).convert('RGB')).enhance(CAVE_WALL_GAIN)
-        wall.paste(face.resize((32, 38), Image.LANCZOS), (32 * k, 0))
+    # 변형 v마다 [+x 면, +z 면] 두 칸 → 가로 64 × 변형 수
+    wall = Image.new('RGB', (64 * len(CAVE_WALL_BOXES), 38))
+    for v, box in enumerate(CAVE_WALL_BOXES):
+        for k, i in enumerate(CAVE_WALLS):
+            (im,), _, _ = ts.frames(i)
+            face = ImageEnhance.Brightness(im.crop(box).convert('RGB')).enhance(CAVE_WALL_GAIN)
+            wall.paste(face.resize((32, 38), Image.LANCZOS), (64 * v + 32 * k, 0))
     wall.save(TILES / 'wall_cave.png', optimize=True)
 
 

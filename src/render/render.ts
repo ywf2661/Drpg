@@ -7,7 +7,7 @@ import caveFloorUrl from '../assets/tiles/floor_cave.png';
 import caveWallUrl from '../assets/tiles/wall_cave.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
-import { BRAZIER_RANGE, braziers, buildProps, floorVariant, loadProps, syncChests, syncEffects, syncItems, syncShots, updateProps } from './props';
+import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncItems, syncShots, updateProps } from './props';
 import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -154,14 +154,22 @@ function buildMap(world: World) {
   });
   floorGeo.dispose();
   // 보이는 면은 +x·+z(카메라 쪽)와 윗면뿐. 안 보이는 면은 같은 재질을 쓴다
-  const side = [stone(wallTex, 0, 2), stone(wallTex, 1, 2)];
-  const top = stone(floorTex, 3, FLOOR_VARIANTS);
-  top.color.setScalar(0.35); // 벽 윗면은 어둡게
-  const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1.2, 1), [side[0], side[0], top, top, side[1], side[1]], wallCells.length);
-  wallCells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
-  walls.castShadow = walls.receiveShadow = true;
-  cutaway = makeCutaway(walls, wallCells);
-  mapGroup.add(walls, buildProps(world));
+  // wall.png = 변형마다 [+x 면, +z 면] 32px씩. 변형별로 InstancedMesh 하나(칸마다 해시로 고름)
+  const variants = Math.max(1, Math.round((wallTex.image as { width: number }).width / 64));
+  const boxGeo = new THREE.BoxGeometry(1, 1.2, 1);
+  const cuts = Array.from({ length: variants }, (_, v) => {
+    const cells = wallCells.filter(([x, z]) => wallVariant(x, z, variants) === v);
+    const side = [stone(wallTex, 2 * v, 2 * variants), stone(wallTex, 2 * v + 1, 2 * variants)];
+    const top = stone(floorTex, 3, FLOOR_VARIANTS);
+    top.color.setScalar(0.35); // 벽 윗면은 어둡게
+    const walls = new THREE.InstancedMesh(v ? boxGeo.clone() : boxGeo, [side[0], side[0], top, top, side[1], side[1]], cells.length);
+    cells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
+    walls.castShadow = walls.receiveShadow = true;
+    mapGroup.add(walls);
+    return makeCutaway(walls, cells);
+  });
+  cutaway = (hx, hz) => cuts.forEach((c) => c(hx, hz));
+  mapGroup.add(buildProps(world));
   scene.add(mapGroup);
 }
 

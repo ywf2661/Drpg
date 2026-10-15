@@ -70,6 +70,11 @@ export function floorVariant(x: number, z: number): number {
   return h % 10 < 8 ? (h >>> 4) % 4 : 4 + ((h >>> 8) % 4);
 }
 
+// 벽 질감 변형(n가지 중 하나, 칸마다 고정)
+export function wallVariant(x: number, z: number, n: number): number {
+  return (cellHash(x, z) >>> 12) % n;
+}
+
 export async function loadProps() {
   for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx]) {
     s.tex = await loadSheet(s.url);
