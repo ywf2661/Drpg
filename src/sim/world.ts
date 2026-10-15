@@ -95,21 +95,114 @@ export function createWorld(seed: number, map: string[] = MAP): World {
 export function step(w: World, cmds: Command[]): void {
   const hero = w.entities[0];
   for (const c of cmds) command(w, hero, c);
-  for (const e of w.entities) if (e.state !== 'dead') act(w, e);
+  for (const e of w.entities) {
+    if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
+    if (e !== hero) think(e, hero);
+    act(w, e);
+  }
   separate(w);
 }
 
+export function outcome(w: World): 'dead' | 'clear' | null {
+  if (w.entities[0].state === 'dead') return 'dead';
+  return w.entities.every((e) => e.kind === 'hero' || e.state === 'dead') ? 'clear' : null;
+}
+
 function command(w: World, hero: Entity, c: Command) {
-  if (hero.state === 'dead' || c.type !== 'move') return;
+  if (hero.state === 'dead') return;
+  if (c.type === 'attack') {
+    const t = w.entities[c.targetId];
+    if (!t || t === hero || t.state === 'dead') return;
+    hero.target = t.id;
+    hero.repathT = 0; // 다음 act에서 즉시 경로 계산
+    return;
+  }
   const p = findPath(w.grid, cellOf(hero), [Math.floor(c.x), Math.floor(c.z)]);
   if (!p) return;
   hero.path = waypoints(p, c.x, c.z);
-  hero.state = 'move';
+  hero.target = null;
+  hero.state = 'move'; // 휘두르는 중이었다면 취소
+  hero.attackT = 0;
 }
 
 function act(w: World, e: Entity) {
+  let t = e.target === null ? null : w.entities[e.target];
+  if (t && t.state === 'dead') {
+    e.target = null;
+    e.path = [];
+    t = null;
+  }
+  if (e.state === 'attack') return swing(w, e, t);
+  if (t) {
+    if (dist(e, t) <= RANGE) return startSwing(e, t);
+    if ((e.repathT -= DT) <= 0) {
+      e.repathT = REPATH;
+      const p = findPath(w.grid, cellOf(e), cellOf(t));
+      e.path = p ? waypoints(p, t.x, t.z) : [];
+    }
+  }
   if (e.path.length) walk(w, e);
   else e.state = 'idle';
+}
+
+// 몬스터 AI: 주인공이 AGGRO 안에 들어오면 대상으로 삼는다. 주인공이 죽으면 대상을 버린다.
+function think(e: Entity, hero: Entity) {
+  if (hero.state === 'dead') {
+    e.target = null;
+    e.path = [];
+    return;
+  }
+  if (e.target === null && dist(e, hero) <= AGGRO) {
+    e.target = hero.id;
+    e.repathT = 0;
+  }
+}
+
+function startSwing(e: Entity, t: Entity) {
+  e.state = 'attack';
+  e.attackT = 0;
+  e.path = [];
+  face(e, t);
+}
+
+// 휘두르기 진행. HIT_AT 시점에 사거리 안이면 타격. 끝났을 때 대상이 여전히 사거리 안이면 바로 다음 휘두르기.
+function swing(w: World, e: Entity, t: Entity | null) {
+  const s = STATS[e.kind];
+  const hitAt = s.interval * HIT_AT;
+  const before = e.attackT;
+  e.attackT += DT;
+  if (t) face(e, t);
+  if (t && before < hitAt && e.attackT >= hitAt && dist(e, t) <= RANGE) damage(w, e, t);
+  if (e.attackT < s.interval) return;
+  if (t && t.state !== 'dead' && dist(e, t) <= RANGE) {
+    e.attackT -= s.interval;
+  } else {
+    e.state = 'idle';
+    e.attackT = 0;
+  }
+}
+
+function damage(w: World, a: Entity, t: Entity) {
+  const [lo, hi] = STATS[a.kind].dmg;
+  t.hp = Math.max(0, t.hp - (lo + Math.floor(rand(w) * (hi - lo + 1))));
+  if (t.hp > 0) return;
+  t.state = 'dead';
+  t.path = [];
+  t.target = null;
+}
+
+// mulberry32. 상태가 world.rng에 있어서 같은 시드 = 같은 난수열.
+function rand(w: World) {
+  let t = (w.rng = (w.rng + 0x6d2b79f5) | 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
+
+function face(e: Entity, t: Entity) {
+  e.facing = Math.atan2(t.x - e.x, t.z - e.z);
 }
 
 const cellOf = (e: Entity): Cell => [Math.floor(e.x), Math.floor(e.z)];

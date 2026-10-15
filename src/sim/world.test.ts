@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { createWorld, MAP, RADIUS, step, type Command, type World } from './world';
+import { createWorld, MAP, outcome, RADIUS, STATS, step, type Command, type World } from './world';
 
 // 첫 틱에만 명령을 넣고 n틱 진행
 const run = (w: World, ticks: number, cmds: Command[] = []) => {
@@ -93,4 +93,92 @@ test('밀려도 벽 칸으로는 들어가지 않는다', () => {
   step(w, []);
   for (const e of [a, b]) expect(walkable(w.grid, Math.floor(e.x), Math.floor(e.z))).toBe(true);
   expect(b.z).toBe(1.05); // 위쪽(벽)으로 밀리지 못함
+});
+
+const DUEL = ['.....', '.Hm..', '.....']; // 주인공 (1.5,1.5), 졸개 (2.5,1.5) 거리 1m
+
+test('공격은 휘두르기 40% 시점에 들어가고 데미지는 8~12', () => {
+  const w = createWorld(1, DUEL);
+  const m = w.entities[1];
+  run(w, 15, [{ type: 'attack', targetId: 1 }]);
+  expect(w.entities[0].state).toBe('attack');
+  expect(m.hp).toBe(30);
+  run(w, 10);
+  expect(m.hp).toBeGreaterThanOrEqual(30 - 12);
+  expect(m.hp).toBeLessThanOrEqual(30 - 8);
+});
+
+test('타격 순간 사거리 밖이면 빗나간다', () => {
+  const w = createWorld(1, DUEL);
+  const m = w.entities[1];
+  run(w, 5, [{ type: 'attack', targetId: 1 }]);
+  m.x = 4.5; // 3m 떨어뜨림 (졸개도 자기 휘두르기 중이라 그 자리에 있음)
+  run(w, 20);
+  expect(m.hp).toBe(30);
+  expect(w.entities[0].hp).toBe(100);
+});
+
+test('대상을 죽이면 시체가 남고 주인공은 공격을 멈춘다, 전멸이면 clear', () => {
+  const w = createWorld(1, DUEL);
+  const [hero, m] = w.entities;
+  run(w, 600, [{ type: 'attack', targetId: 1 }]);
+  expect(m).toMatchObject({ hp: 0, state: 'dead', x: 2.5, z: 1.5 });
+  expect(hero).toMatchObject({ state: 'idle', target: null });
+  expect(hero.hp).toBeGreaterThan(0);
+  expect(outcome(w)).toBe('clear');
+});
+
+test('잘못된 attack 명령은 무시한다 (없는 id, 자기 자신, 시체)', () => {
+  const w = createWorld(1, ['H.........m']); // 졸개는 10m 밖이라 반응하지 않음
+  const [hero, m] = w.entities;
+  m.state = 'dead';
+  m.hp = 0;
+  run(w, 5, [
+    { type: 'attack', targetId: 99 },
+    { type: 'attack', targetId: -1 },
+    { type: 'attack', targetId: 0 },
+    { type: 'attack', targetId: 1 },
+  ]);
+  expect(hero).toMatchObject({ target: null, state: 'idle' });
+});
+
+test('몬스터는 8m 안의 주인공만 쫓는다', () => {
+  const w = createWorld(1, ['............', 'H......m...w', '............']);
+  const [, m, wr] = w.entities;
+  run(w, 30);
+  expect(m.state).toBe('move');
+  expect(m.x).toBeLessThan(7.5);
+  expect(wr).toMatchObject({ state: 'idle', x: 11.5, target: null });
+});
+
+test('주인공이 죽으면 dead, 몬스터는 멈추고 명령은 무시된다', () => {
+  const w = createWorld(1, ['.....', '.Hw..', '.....']);
+  const [hero, wr] = w.entities;
+  hero.hp = 5;
+  run(w, 200);
+  expect(hero.state).toBe('dead');
+  expect(outcome(w)).toBe('dead');
+  expect(wr).toMatchObject({ state: 'idle', target: null });
+  run(w, 5, [{ type: 'move', x: 4.5, z: 0.5 }, { type: 'attack', targetId: 1 }]);
+  expect(hero).toMatchObject({ x: 1.5, z: 1.5, path: [], target: null });
+});
+
+test('같은 시드와 같은 명령이면 결과가 같고, 아무도 벽에 들어가거나 체력이 음수가 되지 않는다', () => {
+  const play = () => {
+    const w = createWorld(7);
+    for (let i = 0; i < 1800; i++) {
+      const cmds: Command[] = i % 300 === 0 ? [{ type: 'attack', targetId: 1 + ((i / 300) % 8) }] : [];
+      step(w, cmds);
+      for (const e of w.entities) {
+        expect(walkable(w.grid, Math.floor(e.x), Math.floor(e.z))).toBe(true);
+        expect(e.hp).toBeGreaterThanOrEqual(0);
+      }
+    }
+    return w;
+  };
+  const a = play();
+  const b = play();
+  expect(JSON.stringify(a.entities)).toBe(JSON.stringify(b.entities));
+  expect(a.rng).toBe(b.rng);
+  expect(a.entities.some((e) => e.hp < STATS[e.kind].hp)).toBe(true); // 전투가 실제로 일어났는지
 });
