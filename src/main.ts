@@ -7,6 +7,7 @@ import { commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
+import { clearRun, loadRun, saveRun } from './save';
 import { FLOORS, generateFloor } from './sim/dungeon';
 import { ARMORS, createWorld, DT, outcome, setLevel, SKILL, STATS, step, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
@@ -18,6 +19,10 @@ const targetFill = $('#target i');
 const banner = $('#banner');
 const bannerText = $('#banner p');
 const restartBtn = $('#restart');
+const continueBtn = $('#continue');
+const newGameBtn = $('#new-game');
+const saved = loadRun(); // 지난번 진행(있으면 시작할 때 이어하기를 묻는다)
+let choosing = saved !== null;
 const floorLabel = $('#floor');
 const floorTitle = $('#floor-title');
 const potionBtn = $('#potion');
@@ -68,6 +73,7 @@ function replay(el: HTMLElement) {
 function enterFloor(n: number, carry: Carry) {
   floor = n;
   entry = { potions: carry.potions, gear: { ...carry.gear }, level: carry.level, xp: carry.xp };
+  saveRun({ floor: n, ...entry }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
   setWorld(world);
   resetAutomap(world);
@@ -95,7 +101,19 @@ try {
   bannerText.textContent = `그림을 불러오지 못했습니다: ${err instanceof Error ? err.message : err}`;
   throw err;
 }
-banner.hidden = true;
+banner.hidden = !choosing;
+if (saved) {
+  bannerText.textContent = `저장된 진행: 지하 ${saved.floor}층, Lv ${saved.level}`;
+  continueBtn.hidden = newGameBtn.hidden = false;
+}
+const begin = (floorN: number, carry: Carry) => {
+  choosing = false;
+  continueBtn.hidden = newGameBtn.hidden = true;
+  enterFloor(floorN, carry);
+};
+continueBtn.addEventListener('click', () => saved && begin(saved.floor, saved));
+newGameBtn.addEventListener('click', () => begin(1, START));
+if (!saved) saveRun({ floor: 1, ...START });
 initInput();
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 sound.initSound();
@@ -141,7 +159,7 @@ requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
   pollInput(world, dt);
-  if (credits.open) acc = 0; // 크레딧을 읽는 동안은 게임을 멈춘다
+  if (credits.open || choosing) acc = 0; // 크레딧을 읽거나 이어하기를 고르는 동안은 게임을 멈춘다
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   sound.play(soundEvents(heard, world), world.entities[0].x, world.entities[0].z);
   if (outcome(world) === 'descend') enterFloor(floor + 1, world);
@@ -191,6 +209,8 @@ function hud() {
   }
   renderer.domElement.classList.toggle('attack', hovered !== null); // 몬스터 위에서는 공격 커서
   const o = outcome(world);
+  if (choosing) return;
+  if (o === 'clear') clearRun(); // 다 깼으면 이어할 것이 없다
   banner.hidden = restartBtn.hidden = o !== 'dead' && o !== 'clear';
   if (o === 'dead') bannerText.textContent = '사망했습니다';
   if (o === 'clear') bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
