@@ -527,3 +527,30 @@ test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 남�
   expect(w.gear).toEqual({ weapon: 4, armor: 3 });
   expect(w.items.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['armor', 1]]);
 });
+
+test('M은 보스: 체력·데미지에 층 배율', () => {
+  const w = createWorld(1, ['H...M'], 1.8);
+  const b = w.entities[1];
+  expect(b.kind).toBe('boss');
+  expect(b.maxHp).toBe(540);
+});
+
+test('보스가 있는 층은 보스가 죽으면 클리어(다른 몬스터 생존 무관)', () => {
+  const w = createWorld(1, ['H.m..M']);
+  expect(outcome(w)).toBeNull();
+  w.entities.find((e) => e.kind === 'minion')!.state = 'dead';
+  expect(outcome(w)).toBeNull();
+  w.entities.find((e) => e.kind === 'boss')!.state = 'dead';
+  w.entities.find((e) => e.kind === 'minion')!.state = 'idle';
+  expect(outcome(w)).toBe('clear');
+});
+
+test('보스는 아무것도 떨어뜨리지 않는다', () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const w = createWorld(seed, ['HM']);
+    w.entities[1].hp = 1;
+    run(w, 60, [{ type: 'attack', targetId: 1 }]);
+    expect(w.entities[1].state).toBe('dead');
+    expect(w.items).toEqual([]);
+  }
+});

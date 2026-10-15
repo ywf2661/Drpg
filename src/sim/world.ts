@@ -1,7 +1,7 @@
 // 게임 규칙(sim). three.js를 import하지 않는다. 상태 변경은 step()으로만 일어난다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 
-export type Kind = 'hero' | 'minion' | 'warrior';
+export type Kind = 'hero' | 'minion' | 'warrior' | 'boss';
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 export type Command = { type: 'move'; x: number; z: number } | { type: 'attack'; targetId: number } | { type: 'drink' };
 type Point = [x: number, z: number];
@@ -54,8 +54,8 @@ export const HIT_AT = 0.4;
 export const REPATH = 0.5;
 
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
-export const POTION = { drop: { minion: 0.2, warrior: 0.35 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
-export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12 };
+export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
+export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, boss: 0 };
 export const WEAPONS: { name: string; dmg: [number, number]; interval: number }[] = [
   { name: '단검', dmg: [4, 7], interval: 0.6 },
   { name: '숏소드', dmg: [6, 10], interval: 0.7 },
@@ -73,11 +73,12 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)
   minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
+  boss: { name: '미노타우르스', hp: 300, dmg: [10, 16], interval: 1.6, speed: 2.4 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior' };
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 export function createWorld(seed: number, map: string[], power = 1): World {
@@ -151,6 +152,8 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
   const hero = w.entities[0];
   if (hero.state === 'dead') return 'dead';
   if (w.stairs) return w.toStairs && Math.hypot(hero.x - w.stairs[0] - 0.5, hero.z - w.stairs[1] - 0.5) <= 0.5 ? 'descend' : null;
+  const boss = w.entities.find((e) => e.kind === 'boss');
+  if (boss) return boss.state === 'dead' ? 'clear' : null; // 보스 층: 보스만 쓰러뜨리면 된다
   return w.entities.every((e) => e.kind === 'hero' || e.state === 'dead') ? 'clear' : null;
 }
 
