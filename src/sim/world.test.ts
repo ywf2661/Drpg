@@ -768,3 +768,66 @@ test('상자로 가다가 다른 명령을 내리면 열지 않고, 죽었으면
   run(dead, 30, [{ type: 'open', chestId: 0 }]);
   expect(dead.chests[0].open).toBe(false);
 });
+
+// 보스 돌진: 'H' (0.5) — 보스 (5.5): 5m 거리, 시야 트임
+const chargeWorld = () => {
+  const w = createWorld(1, ['.......', 'H....M.', '.......']);
+  const [hero, boss] = w.entities;
+  hero.hp = hero.maxHp = 1e4;
+  return { w, hero, boss };
+};
+
+test('보스 돌진: 0.7초 예고 후 직선으로 달려와 가만히 있는 주인공을 150%로 친다', () => {
+  const { w, hero, boss } = chargeWorld();
+  step(w, []);
+  expect(boss.phase).toBe('windup');
+  expect(boss.state).toBe('idle');
+  run(w, Math.round(0.6 / DT));
+  expect(boss.phase).toBe('windup');
+  expect(boss.x).toBeCloseTo(5.5, 5); // 예고 중엔 제자리
+  let hit = 0;
+  for (let t = 0; t < 60 && !hit; t++) {
+    const before = hero.hp;
+    step(w, []);
+    if (hero.hp < before) hit = before - hero.hp;
+  }
+  expect(hit).toBeGreaterThanOrEqual(Math.round(12 * 1.5)); // 12–20 × 1.5, 천옷
+  expect(hit).toBeLessThanOrEqual(Math.round(20 * 1.5));
+  expect(boss.phase).toBe('none');
+  expect(Math.hypot(boss.x - hero.x, boss.z - hero.z)).toBeLessThan(1.5);
+});
+
+test('예고 중 옆으로 비키면 돌진이 빗나가고, 벽에서 멈춘다', () => {
+  const { w, hero, boss } = chargeWorld();
+  step(w, []);
+  expect(boss.phase).toBe('windup');
+  hero.z = 2.5; // 예고 중에 옮긴 위치를 향해 달린다
+  run(w, Math.round(0.75 / DT)); // 예고(0.7초)가 끝나 돌진이 시작됨
+  expect(boss.phase).toBe('charge');
+  hero.z = 0.5; // 돌진이 시작된 뒤 반대쪽으로 비킴
+  const hp0 = hero.hp;
+  run(w, 45); // 돌진(약 0.6초)이 끝날 때까지. 그 뒤 근접 공격이 닿기 전
+  expect(hero.hp).toBe(hp0);
+  expect(walkable(w.grid, Math.floor(boss.x), Math.floor(boss.z))).toBe(true);
+});
+
+test('돌진 재사용 대기 7초, 3m 안에서는 돌진하지 않는다', () => {
+  const near = createWorld(1, ['H.M....']);
+  step(near, []);
+  expect(near.entities[1].phase).toBe('none');
+  const w = createWorld(1, ['.'.repeat(24), 'H.....M' + '.'.repeat(17), '.'.repeat(24)]);
+  const [hero, boss] = w.entities;
+  hero.hp = hero.maxHp = 1e6;
+  const starts: number[] = [];
+  let prev = boss.phase;
+  for (let t = 0; t < Math.round(9 / DT); t++) {
+    // 돌진이 끝나면 주인공을 늘 5m 거리(같은 줄)에 둔다 → 대기시간만이 돌진을 막는다
+    if (t > Math.round(2 / DT) && boss.phase === 'none') hero.x = boss.x >= 6 ? boss.x - 5 : boss.x + 5;
+    step(w, []);
+    if (boss.phase === 'windup' && prev !== 'windup') starts.push(t * DT);
+    prev = boss.phase;
+  }
+  expect(starts[0]).toBeLessThan(0.1);
+  expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(7 - 0.05);
+  expect(starts[1] - starts[0]).toBeLessThan(7.5);
+});

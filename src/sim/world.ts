@@ -27,6 +27,12 @@ export type Entity = {
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
   skill: boolean; // 지금 휘두르는 것이 가르기인가
   elite: boolean; // 정예: 체력 ×3, 데미지 ×1.3, 경험치 ×4, 최고 단계 장비 확정
+  // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
+  phase: 'none' | 'windup' | 'charge';
+  phaseT: number;
+  cd: number;
+  dx: number;
+  dz: number;
 };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
@@ -68,6 +74,7 @@ export type World = {
 export const DT = 1 / 60;
 export const RANGE = 1.5;
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
+export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8, mult: 1.5, cd: 7 }; // 보스 돌진
 export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
@@ -149,7 +156,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
   const entities = spawns.map((s, id): Entity => {
     const p = s.kind === 'hero' || s.kind === 'boss' ? 1 : power; // 보스는 마지막 층 기준으로 정한 수치
     const hp = Math.round(STATS[s.kind].hp * p * (s.elite ? ELITE.hp : 1));
-    return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false };
+    return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
   return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
@@ -311,6 +318,7 @@ function act(w: World, e: Entity) {
     e.path = [];
     t = null;
   }
+  if (e.kind === 'boss' && charge(w, e, t)) return;
   if (e.state === 'attack') return swing(w, e, t);
   if (t) {
     if (canHit(w, e, t)) return startSwing(e, t);
@@ -322,6 +330,38 @@ function act(w: World, e: Entity) {
   }
   if (e.path.length) walk(w, e);
   else e.state = 'idle';
+}
+
+// 보스 돌진. 3~7m·시야가 트이면 예고(제자리) → 그 순간 대상 방향으로 직선 돌진 → 벽·거리·명중에서 멈춤.
+// 돌진 중이면 true(평소 행동을 건너뜀)
+function charge(w: World, e: Entity, t: Entity | null): boolean {
+  e.cd = Math.max(0, e.cd - DT);
+  if (e.phase === 'none') {
+    const d = t ? dist(e, t) : 0;
+    if (!t || e.cd > 0 || e.state === 'attack' || d < CHARGE.min || d > CHARGE.max || !clearLine(w, e, t)) return false;
+    Object.assign(e, { phase: 'windup', phaseT: CHARGE.windup, cd: CHARGE.cd, state: 'idle', path: [] });
+    face(e, t);
+    return true;
+  }
+  if (e.phase === 'windup') {
+    if (t) face(e, t);
+    if ((e.phaseT -= DT) > 0) return true;
+    const d = t ? dist(e, t) || 1 : 1;
+    if (!t) return Object.assign(e, { phase: 'none' }), true;
+    Object.assign(e, { phase: 'charge', phaseT: CHARGE.dist, dx: (t.x - e.x) / d, dz: (t.z - e.z) / d, state: 'move' });
+    return true;
+  }
+  const step = CHARGE.speed * DT;
+  const [nx, nz] = [e.x + e.dx * step, e.z + e.dz * step];
+  const hero = w.entities[0];
+  if (e.phaseT <= 0 || !walkable(w.grid, Math.floor(nx), Math.floor(nz))) return Object.assign(e, { phase: 'none', state: 'idle' }), true;
+  [e.x, e.z] = [nx, nz];
+  e.phaseT -= step;
+  if (hero.state !== 'dead' && dist(e, hero) <= CHARGE.hit) {
+    hurt(w, hero, Math.round(roll(w, e) * CHARGE.mult));
+    Object.assign(e, { phase: 'none', state: 'idle' });
+  }
+  return true;
 }
 
 // 몬스터 AI: 주인공이 AGGRO 안에 들어오면 대상으로 삼는다. 주인공이 죽으면 대상을 버린다.
