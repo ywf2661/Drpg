@@ -6,17 +6,17 @@ import { aim, commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
-import { clearRun, loadRun, saveRun, type Mods, type Stats } from './save';
+import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats } from './save';
 import { buy } from './shop';
 import { cyclePower, floorPower, generateFloor, themeFor } from './sim/dungeon';
-import { createWorld, DT, outcome, setLevel, step, type Gear, type World } from './sim/world';
+import { createWorld, DT, outcome, setLevel, step, type Gear, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0 }; // 숏소드 + 가죽 갑옷
-type Carry = { potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number };
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 }; // 숏소드 + 가죽 갑옷
+type Carry = { potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number };
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
-const carryOf = (c: Carry): Carry => ({ potions: c.potions, gear: { ...c.gear }, mods: { weapon: [...c.mods.weapon], armor: [...c.mods.armor] }, level: c.level, xp: c.xp, gold: c.gold });
+const carryOf = (c: Carry): Carry => ({ potions: c.potions, gear: { ...c.gear }, mods: { weapon: [...c.mods.weapon], armor: [...c.mods.armor] }, level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const saved = loadRun(); // 지난번 진행(있으면 시작할 때 이어하기를 묻는다)
 let choosing = saved !== null;
@@ -35,6 +35,8 @@ function makeFloor(n: number, carry: Carry): World {
   w.gear = { ...carry.gear };
   w.mods = { weapon: [...carry.mods.weapon], armor: [...carry.mods.armor] };
   w.gold = carry.gold;
+  w.ranks = { ...carry.ranks };
+  w.points = carry.points;
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, carry.level, carry.xp);
   return w;
@@ -104,6 +106,7 @@ const skill = () => commands.push({ type: 'skill' });
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
 const shout = () => commands.push({ type: 'shout' });
 const throwAxe = (aimed: boolean) => commands.push({ type: 'throw', ...((aimed && aim()) || {}) });
+const learn = (skill: SkillName) => commands.push({ type: 'learn', skill });
 
 try {
   await initRender(world, themeFor(floor));
@@ -123,6 +126,7 @@ initHud({
   dash: () => dash(false),
   shout,
   throwAxe: () => throwAxe(false),
+  learn,
   restart,
   nextCycle,
   toggleMap: toggleAutomap,
@@ -149,7 +153,9 @@ showFloor(floor, cycle);
 // 스킬 Q W E R(하단 버튼 순서), 물약 1. R은 사망·클리어 화면에서는 다시 시작.
 // e.code: 한글 입력 상태에서도 물리 키
 const ended = () => ['dead', 'clear'].includes(outcome(world) ?? '');
+const SKILL_KEYS: Record<string, SkillName> = { KeyQ: 'cleave', KeyW: 'dash', KeyE: 'shout', KeyR: 'throw' };
 addEventListener('keydown', (e) => {
+  if (e.shiftKey && SKILL_KEYS[e.code]) return learn(SKILL_KEYS[e.code]); // Shift + 스킬 키 = 포인트로 단계 올리기
   if (e.code === 'KeyQ') skill();
   else if (e.code === 'KeyW') dash(true);
   else if (e.code === 'KeyE') shout();

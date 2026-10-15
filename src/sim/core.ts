@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, ARMORS, DMG_SCALE, DT, ELITE, MONSTER_DMG, SHOUT, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, ARMORS, AXE, DASH, DMG_SCALE, DT, ELITE, MONSTER_DMG, SHOUT, SKILL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -9,6 +9,18 @@ export function setLevel(w: World, level: number, xp: number) {
   const hero = w.entities[0];
   hero.maxHp = hero.hp = heroMax(w);
 }
+
+// 스킬 단계별 수치(1단계 = 기본값, 단계마다 조금씩 강해진다)
+const extra = (w: World, s: SkillName) => w.ranks[s] - 1;
+export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * extra(w, 'cleave'), radius: SKILL.radius + 0.2 * extra(w, 'cleave'), mult: SKILL.mult + 0.2 * extra(w, 'cleave') });
+export const dashStat = (w: World) => ({ cd: DASH.cd - 0.5 * extra(w, 'dash'), dist: DASH.dist + 0.5 * extra(w, 'dash'), mult: 1 + 0.2 * extra(w, 'dash') });
+export const shoutStat = (w: World) => ({
+  cd: SHOUT.cd - extra(w, 'shout'),
+  stun: SHOUT.stun + 0.3 * extra(w, 'shout'),
+  reduce: SHOUT.reduce + 0.04 * extra(w, 'shout'),
+  radius: SHOUT.radius + 0.3 * extra(w, 'shout'),
+});
+export const axeStat = (w: World) => ({ cd: AXE.cd - 0.2 * extra(w, 'throw'), mult: AXE.mult + 0.25 * extra(w, 'throw') });
 
 // 주인공 최대 체력 = 레벨 + 갑옷의 '튼튼한' 옵션
 export const heroMax = (w: World) => heroMaxHp(w.level) + mod(w.mods.armor, 'life');
@@ -56,6 +68,7 @@ export function gainXp(w: World, n: number) {
   w.xp += n;
   const before = w.level;
   while (w.xp >= xpToNext(w.level)) w.xp -= xpToNext(w.level++);
+  w.points += w.level - before; // 레벨마다 스킬 포인트 1
   if (w.level !== before) setLevel(w, w.level, w.xp);
 }
 
@@ -89,7 +102,7 @@ export function damage(w: World, a: Entity, t: Entity) {
 export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   let dmg = raw;
   // 주인공: 갑옷(+단단한) 감소, 전투의 함성 중이면 추가 감소
-  if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, ARMORS[w.gear.armor - 1].reduce + mod(w.mods.armor, 'guard') / 100)) * (w.shoutT > 0 ? 1 - SHOUT.reduce : 1)));
+  if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, ARMORS[w.gear.armor - 1].reduce + mod(w.mods.armor, 'guard') / 100)) * (w.shoutT > 0 ? 1 - shoutStat(w).reduce : 1)));
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
   const hero = w.entities[0];

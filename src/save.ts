@@ -1,15 +1,16 @@
 // 진행 저장: 층에 들어갈 때의 상태(층·물약·장비·레벨). localStorage는 손상·조작될 수 있어 읽을 때 검증한다.
 import { FLOORS } from './sim/dungeon';
-import { AFFIXES, POTION, type Affix, type AffixKind, type Gear } from './sim/world';
+import { AFFIXES, POTION, RANK_MAX, type Affix, type AffixKind, type Gear, type SkillName } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = { weapon: Affix[]; armor: Affix[] };
-export type Run = { floor: number; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; cycle: number; stats: Stats };
+export type Ranks = Record<SkillName, number>;
+export type Run = { floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; level: number; xp: number; gold: number; cycle: number; stats: Stats };
 const VERSION = 1;
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, stats: r.stats });
+  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, stats: r.stats });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -46,6 +47,11 @@ export function decodeSave(text: string | null): Run | null {
   const weapon = m && typeof m === 'object' ? affixes(m.weapon, 'weapon') : null;
   const armor = m && typeof m === 'object' ? affixes(m.armor, 'armor') : null;
   if (!weapon || !armor) return null;
+  // 스킬 단계·포인트(나중에 생긴 항목: 없으면 1단계·0)
+  const r = (d.ranks ?? { cleave: 1, dash: 1, shout: 1, throw: 1 }) as Record<string, unknown>;
+  const names: SkillName[] = ['cleave', 'dash', 'shout', 'throw'];
+  const points = d.points ?? 0;
+  if (!r || typeof r !== 'object' || !names.every((n) => int(r[n], 1, RANK_MAX)) || !int(points, 0, 1000)) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
@@ -58,6 +64,8 @@ export function decodeSave(text: string | null): Run | null {
     gold: gold as number,
     cycle: cycle as number,
     mods: { weapon, armor },
+    ranks: { cleave: r.cleave as number, dash: r.dash as number, shout: r.shout as number, throw: r.throw as number },
+    points: points as number,
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },
   };
 }

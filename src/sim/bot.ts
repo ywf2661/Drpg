@@ -1,10 +1,10 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
 import { buy } from '../shop';
-import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type Command, type Gear, type World } from './world';
+import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type Command, type Gear, type SkillName, type World } from './world';
 
-type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number };
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0 };
+type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number };
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 };
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry): World {
@@ -13,6 +13,8 @@ function makeFloor(seed: number, n: number, c: Carry): World {
   w.gear = { ...c.gear };
   w.mods = { weapon: [...c.mods.weapon], armor: [...c.mods.armor] };
   w.gold = c.gold;
+  w.ranks = { ...c.ranks };
+  w.points = c.points;
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, c.level, c.xp);
   return w;
@@ -27,6 +29,11 @@ function think(w: World, skills: boolean): Command[] {
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead').sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
+  if (skills && w.points > 0) {
+    // 포인트는 가장 낮은 단계부터(같으면 가르기 → 도끼 → 함성 → 돌진)
+    const order: SkillName[] = ['cleave', 'throw', 'shout', 'dash'];
+    cmds.push({ type: 'learn', skill: order.reduce((a, b) => (w.ranks[b] < w.ranks[a] ? b : a)) });
+  }
   if (near(2) >= 2) cmds.push({ type: 'skill' });
   if (skills) {
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
@@ -63,7 +70,7 @@ export function playthrough(seed: number, skills = true) {
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = shopping({ potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold });
+          carry = shopping({ potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, points: w.points });
           done = true;
           break;
         }

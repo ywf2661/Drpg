@@ -1,7 +1,7 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
 import { ARCHER, AXE, CHARGE, DASH, DT, KING, MAGE, REPATH, SHOUT, SKILL, type Entity, type Shot, type World } from './rules';
-import { cellOf, clearLine, dist, face, hurt, makeEntity, roll, walk, waypoints } from './core';
+import { axeStat, cellOf, cleaveStat, clearLine, dashStat, dist, face, hurt, makeEntity, roll, shoutStat, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
@@ -15,7 +15,7 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
     if (near) face(hero, near);
   }
   Object.assign(hero, { state: 'attack', attackT: 0, path: [], target: null, skill: true });
-  w.skillCd = SKILL.cd;
+  w.skillCd = cleaveStat(w).cd;
 }
 
 // 가르기 타격: 바라보는 방향 반원(내적 ≥ 0)·반경 안, 벽에 막히지 않은 적 모두
@@ -26,8 +26,9 @@ export function cleave(w: World, hero: Entity) {
     if (e === hero || e.state === 'dead') continue;
     const dx = e.x - hero.x;
     const dz = e.z - hero.z;
-    if (Math.hypot(dx, dz) > SKILL.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
-    hurt(w, e, Math.round(roll(w, hero) * SKILL.mult), hero);
+    const st = cleaveStat(w);
+    if (Math.hypot(dx, dz) > st.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
+    hurt(w, e, Math.round(roll(w, hero) * st.mult), hero);
   }
   w.cleaves++;
 }
@@ -108,9 +109,9 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number) {
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + dx, hero.z + dz];
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
-  Object.assign(hero, { phase: 'charge', phaseT: DASH.dist, dx, dz, state: 'move', path: [], target: null, attackT: 0, skill: false });
+  Object.assign(hero, { phase: 'charge', phaseT: dashStat(w).dist, dx, dz, state: 'move', path: [], target: null, attackT: 0, skill: false });
   hero.facing = Math.atan2(dx, dz);
-  Object.assign(w, { dashCd: DASH.cd, dashHit: [], opening: null, toStairs: false });
+  Object.assign(w, { dashCd: dashStat(w).cd, dashHit: [], opening: null, toStairs: false });
   w.dashes++;
 }
 
@@ -120,7 +121,7 @@ export function dashStep(w: World, hero: Entity) {
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
     w.dashHit.push(e.id);
-    hurt(w, e, roll(w, hero), hero);
+    hurt(w, e, Math.round(roll(w, hero) * dashStat(w).mult), hero);
   }
 }
 
@@ -158,11 +159,12 @@ export function shoot(w: World, a: Entity, t: Entity, kind: Shot['kind']) {
 // 전투의 함성: 반경 안 살아 있는 적을 기절(하던 휘두르기·예고·돌진도 끊김), 주인공은 잠시 받는 피해 감소
 export function shout(w: World, hero: Entity) {
   if (w.shoutCd > 0) return;
+  const st = shoutStat(w);
   for (const e of w.entities) {
-    if (e === hero || e.state === 'dead' || dist(e, hero) > SHOUT.radius) continue;
-    Object.assign(e, { stunT: SHOUT.stun, state: 'idle', attackT: 0, path: [], phase: 'none' });
+    if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius) continue;
+    Object.assign(e, { stunT: st.stun, state: 'idle', attackT: 0, path: [], phase: 'none' });
   }
-  Object.assign(w, { shoutCd: SHOUT.cd, shoutT: SHOUT.time });
+  Object.assign(w, { shoutCd: st.cd, shoutT: SHOUT.time });
   w.shouts++;
 }
 
@@ -177,8 +179,8 @@ export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
   hero.facing = Math.atan2(dx, dz);
-  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg: Math.round(roll(w, hero) * AXE.mult), left: AXE.flight, kind: 'axe' });
-  w.throwCd = AXE.cd;
+  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg: Math.round(roll(w, hero) * axeStat(w).mult), left: AXE.flight, kind: 'axe' });
+  w.throwCd = axeStat(w).cd;
 }
 
 // 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발.

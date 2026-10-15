@@ -12,7 +12,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, AXE, DASH, outcome, SHOUT, SKILL, STATS, WEAPONS, xpToNext, type Affix, type World } from './sim/world';
+import { ARMORS, axeStat, cleaveStat, dashStat, outcome, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type SkillName, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -54,7 +54,7 @@ let shownGear = '';
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; learn(s: SkillName): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -68,6 +68,16 @@ export function initHud(h: Handlers) {
   dashBtn.addEventListener('click', h.dash);
   shoutBtn.addEventListener('click', h.shout);
   throwBtn.addEventListener('click', h.throwAxe);
+  // 스킬 버튼마다 단계 숫자와 [+](포인트가 있을 때). [+]를 누르면 쓰지 않고 단계만 올린다
+  for (const [btn, s] of SKILL_BUTTONS()) {
+    const rank = Object.assign(document.createElement('b'), { className: 'rank' });
+    const up = Object.assign(document.createElement('span'), { className: 'up', textContent: '+', hidden: true });
+    up.addEventListener('click', (e) => {
+      e.stopPropagation();
+      h.learn(s);
+    });
+    btn.append(rank, up);
+  }
   restartBtn.addEventListener('click', h.restart); // 모바일용
   nextCycleBtn.addEventListener('click', h.nextCycle);
   $('#map-btn').addEventListener('click', h.toggleMap);
@@ -113,6 +123,33 @@ export function showChoice(saved: Run | null) {
   banner.hidden = !saved;
   continueBtn.hidden = newGameBtn.hidden = !saved;
   if (saved) bannerText.textContent = `저장된 진행: 지하 ${saved.floor}층, Lv ${saved.level}`;
+}
+
+const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [dashBtn, 'dash'], [shoutBtn, 'shout'], [throwBtn, 'throw']];
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+const sec = (v: number) => `${+v.toFixed(1)}초`;
+// 스킬 툴팁: 이름(키) · 단계, 지금 수치, 다음 단계 수치
+const SKILL_TEXT: Record<SkillName, { name: string; key: string; stat(w: World): string }> = {
+  cleave: { name: '가르기', key: 'Q / 우클릭', stat: (w) => { const s = cleaveStat(w); return `앞쪽 반원 ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  dash: { name: '돌진 베기', key: 'W', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 길 위 적 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  shout: { name: '전투의 함성', key: 'E', stat: (w) => { const s = shoutStat(w); return `${s.radius.toFixed(1)}m 안 적 ${sec(s.stun)} 기절, 받는 피해 −${pct(s.reduce)}, ${sec(s.cd)}`; } },
+  throw: { name: '도끼 던지기', key: 'R', stat: (w) => { const s = axeStat(w); return `처음 닿는 적에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+};
+let shownRanks = '';
+
+// 스킬 버튼의 단계 숫자·[+]·툴팁(단계나 포인트가 바뀔 때만 다시 씀)
+function showRanks(w: World) {
+  const key = JSON.stringify([w.ranks, w.points]);
+  if (key === shownRanks) return;
+  shownRanks = key;
+  for (const [btn, s] of SKILL_BUTTONS()) {
+    const r = w.ranks[s];
+    const t = SKILL_TEXT[s];
+    btn.querySelector('.rank')!.textContent = String(r);
+    (btn.querySelector('.up') as HTMLElement).hidden = !w.points || r >= RANK_MAX;
+    const next = r < RANK_MAX ? `\n다음 단계: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: r + 1 } })}` : '\n(최고 단계)';
+    btn.title = `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
+  }
 }
 
 // 옵션 한 줄 설명
@@ -178,13 +215,14 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
-  levelLabel.textContent = `Lv ${world.level}`;
+  levelLabel.textContent = `Lv ${world.level}` + (world.points ? ` · 스킬 +${world.points}` : '');
   if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}`);
   shownLevel = world.level;
-  skillShade.style.height = `${(world.skillCd / SKILL.cd) * 100}%`; // 재사용 대기 남은 비율
-  dashShade.style.height = `${(world.dashCd / DASH.cd) * 100}%`;
-  $('#shout i').style.height = `${(world.shoutCd / SHOUT.cd) * 100}%`;
-  $('#throw i').style.height = `${(world.throwCd / AXE.cd) * 100}%`;
+  skillShade.style.height = `${(world.skillCd / cleaveStat(world).cd) * 100}%`; // 재사용 대기 남은 비율
+  dashShade.style.height = `${(world.dashCd / dashStat(world).cd) * 100}%`;
+  $('#shout i').style.height = `${(world.shoutCd / shoutStat(world).cd) * 100}%`;
+  $('#throw i').style.height = `${(world.throwCd / axeStat(world).cd) * 100}%`;
+  showRanks(world);
   potionCount.textContent = String(world.potions);
   goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);

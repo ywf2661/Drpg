@@ -3,10 +3,10 @@
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, heroMax, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints } from './core';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, shoot, shout, summon, throwAxe } from './abilities';
-import { AGGRO, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, REPATH, type Chest, type Command, type Entity, type Kind, type Prop, type World } from './rules';
+import { AGGRO, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, type Chest, type SkillName, type Command, type Entity, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
-export { armorScore, attackInterval, heroMax, isBetter, mod, rollGear, setLevel, weaponScore } from './core';
+export { armorScore, attackInterval, axeStat, cleaveStat, dashStat, heroMax, isBetter, mod, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', K: 'king', M: 'boss' };
@@ -36,7 +36,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -102,6 +102,13 @@ function pickup(w: World, hero: Entity) {
   });
 }
 
+// 스킬 포인트 1을 써서 단계 +1(최대 RANK_MAX)
+function learn(w: World, s: SkillName) {
+  if (w.points <= 0 || w.ranks[s] >= RANK_MAX) return;
+  w.ranks[s]++;
+  w.points--;
+}
+
 // 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
 function drink(w: World, hero: Entity) {
   if (hero.state === 'dead' || w.potions <= 0 || hero.hp >= hero.maxHp) return;
@@ -120,6 +127,7 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 
 function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
+  if (c.type === 'learn') return learn(w, c.skill);
   if (hero.state === 'dead' || hero.phase === 'charge') return; // 돌진 중에는 물약 말고는 무시
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
   if (c.type === 'shout') return shout(w, hero);

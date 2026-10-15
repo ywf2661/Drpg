@@ -21,6 +21,9 @@
       #level { position: absolute; left: 0; bottom: 24px; font-size: 12px; color: #d0c0a0; text-shadow: 0 1px 2px #000; }
       #potion, #skill, #dash, #shout, #throw, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
       #skill, #dash, #shout, #throw { background-size: 40px 40px; image-rendering: pixelated; overflow: hidden; }
+      #hud .rank { position: absolute; left: 2px; top: 0; font-size: 10px; color: #e8dcc8; text-shadow: 0 1px 2px #000; pointer-events: none; }
+      #hud .up { position: absolute; right: -6px; top: -8px; width: 18px; height: 18px; line-height: 16px; font-size: 14px; font-weight: bold; color: #14100e; background: #f0c060; border-radius: 50%; text-align: center; cursor: pointer; z-index: 1; }
+      #skill, #dash, #shout, #throw { overflow: visible; }
       #skill i, #dash i, #shout i, #throw i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #000b; }
       .slot[data-q='1'] { border-color: #7d9bff; }
       .slot[data-q='2'] { border-color: #f0c040; }
@@ -112,6 +115,7 @@
         <tr><td>물약</td><td>1 · 물약 버튼 — 최대 체력 50% 회복</td></tr>
         <tr><td>상자·계단</td><td>클릭해서 열기 · 내려가기</td></tr>
         <tr><td>지도</td><td>M · 지도 버튼</td></tr>
+        <tr><td>스킬 성장</td><td>레벨업마다 포인트 1. 스킬 버튼의 [+] 또는 Shift+Q·W·E·R로 단계 올리기(최대 5)</td></tr>
         <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화</td></tr>
         <tr><td>장비</td><td>더 좋은 장비(▲ 표시)는 밟으면 자동 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
         <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>

@@ -13,7 +13,9 @@ export type Command =
   | { type: 'open'; chestId: number } // 상자 열기(걸어가서)
   | { type: 'dash'; x?: number; z?: number } // 돌진 베기. (x, z)가 있으면 그쪽으로
   | { type: 'shout' } // 전투의 함성
-  | { type: 'throw'; x?: number; z?: number }; // 도끼 던지기. (x, z)가 있으면 그쪽으로
+  | { type: 'throw'; x?: number; z?: number } // 도끼 던지기. (x, z)가 있으면 그쪽으로
+  | { type: 'learn'; skill: SkillName }; // 스킬 포인트로 단계 올리기
+export type SkillName = 'cleave' | 'dash' | 'shout' | 'throw';
 
 export type Point = [x: number, z: number];
 
@@ -99,6 +101,8 @@ export type World = {
   shoutT: number; // 함성의 받는 피해 감소가 남은 시간(초)
   shouts: number; // 함성 횟수(렌더·소리용)
   throwCd: number; // 도끼 던지기 재사용까지(초)
+  ranks: Record<SkillName, number>; // 스킬 단계 1~RANK_MAX
+  points: number; // 남은 스킬 포인트(레벨업마다 1)
 };
 
 export const DT = 1 / 60;
@@ -147,6 +151,7 @@ export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, �
 
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 
+export const RANK_MAX = 5;
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준
 export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베기: 재사용, 거리, 속도, 길 폭(반경), 자동 조준 거리
