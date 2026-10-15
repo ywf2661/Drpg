@@ -706,3 +706,26 @@ test('가르기 재사용 대기 4초, 죽으면 못 쓴다, 대상 없이도 �
   step(dead, [{ type: 'skill' }]);
   expect(dead.skillCd).toBe(0);
 });
+
+test('정예 전사(W): 체력 ×3, 데미지 ×1.3, 경험치 ×4, 그 층 최고 단계 장비를 반드시 떨어뜨린다', () => {
+  const w = createWorld(1, ['HW'], 1.3);
+  const e = w.entities[1];
+  expect([e.kind, e.elite, e.maxHp]).toEqual(['warrior', true, Math.round(60 * 3 * 1.3)]);
+  w.maxTier = 3;
+  slay(w);
+  expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
+  expect(w.items.filter((i) => i.kind !== 'potion').map((i) => i.tier)).toEqual([3]);
+  // 데미지: 전사 6–9 × (1 + 0.3/2) × 1.3 → 9–13 (천옷 감소 0)
+  const hitter = createWorld(2, ['HW'], 1.3);
+  const hero = hitter.entities[0];
+  hero.hp = hero.maxHp = 1e6;
+  const hits: number[] = [];
+  for (let t = 0; t < 900; t++) {
+    const before = hero.hp;
+    step(hitter, []);
+    if (hero.hp < before) hits.push(before - hero.hp);
+  }
+  expect(hits.length).toBeGreaterThan(5);
+  expect(Math.min(...hits)).toBeGreaterThanOrEqual(9);
+  expect(Math.max(...hits)).toBeLessThanOrEqual(13);
+});

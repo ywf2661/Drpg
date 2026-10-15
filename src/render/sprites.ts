@@ -14,7 +14,11 @@ import bossUrl from '../assets/sprites/boss.png';
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; hitT: number };
+// tint: 불빛에 곱하는 고유 색(정예는 금빛)
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; hitT: number; tint: THREE.Color };
+const ELITE_TINT = new THREE.Color(1.35, 1.05, 0.45);
+const WHITE = new THREE.Color(1, 1, 1);
+const ELITE_SIZE = 1.25;
 
 // 주인공 시트 16장(무기 × 갑옷). URL만 알고, 그림은 장착할 때 불러온다
 const HERO_URLS = import.meta.glob('../assets/sprites/hero_*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
@@ -123,7 +127,8 @@ export function makeSprite(e: Entity): Sprite {
   const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
-  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0 };
+  if (e.elite) mesh.scale.setScalar(ELITE_SIZE);
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0, tint: e.elite ? ELITE_TINT : WHITE };
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }

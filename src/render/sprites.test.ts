@@ -50,7 +50,7 @@ test('카드: 발 기준선 위는 서고, 아래(발끝·그림자·시체)는 
 test('시체는 아래 층(깊이 기록 없음)에, 산 캐릭터는 그 위에 그린다', () => {
   const w = createWorld(1, ['H.m']);
   const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
-  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, hitT: 0 };
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, hitT: 0, tint: new THREE.Color(1, 1, 1) };
   const m = w.entities[1];
   updateSprite(s, m, 0.016, 1.2);
   expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([2, true]);

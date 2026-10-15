@@ -25,6 +25,7 @@ export type Entity = {
   attackT: number; // 현재 휘두르기 경과 시간(초)
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
   skill: boolean; // 지금 휘두르는 것이 가르기인가
+  elite: boolean; // 정예: 체력 ×3, 데미지 ×1.3, 경험치 ×4, 최고 단계 장비 확정
 };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
@@ -61,6 +62,7 @@ export type World = {
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
+export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
 export const RADIUS = 0.4;
@@ -113,15 +115,15 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   boss: { name: '미노타우르스', hp: 500, dmg: [12, 20], interval: 1.6, speed: 2.4 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', a: 'archer', M: 'boss' };
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 export function createWorld(seed: number, map: string[], power = 1): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
-  const spawns: { kind: Kind; x: number; z: number }[] = [];
+  const spawns: { kind: Kind; x: number; z: number; elite: boolean }[] = [];
   let stairs: Cell | null = null;
   const props: Prop[] = [];
   map.forEach((row, z) =>
@@ -131,14 +133,14 @@ export function createWorld(seed: number, map: string[], power = 1): World {
       if (prop) props.push({ kind: prop, x, z });
       if (c === '#' || c === 'B' || c === 'o') grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
-      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5 });
+      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: c === 'W' });
     }),
   );
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id): Entity => {
     const p = s.kind === 'hero' || s.kind === 'boss' ? 1 : power; // 보스는 마지막 층 기준으로 정한 수치
-    const hp = Math.round(STATS[s.kind].hp * p);
+    const hp = Math.round(STATS[s.kind].hp * p * (s.elite ? ELITE.hp : 1));
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
@@ -327,7 +329,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
 function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
-  const scale = a.kind === 'hero' ? 1 + 0.05 * (w.level - 1) : 1 + (a.power - 1) / 2;
+  const scale = a.kind === 'hero' ? 1 + 0.05 * (w.level - 1) : (1 + (a.power - 1) / 2) * (a.elite ? ELITE.dmg : 1);
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale);
 }
 
@@ -365,10 +367,11 @@ function hurt(w: World, t: Entity, raw: number) {
   t.path = [];
   t.target = null;
   if (t.kind === 'hero') return;
-  gainXp(w, Math.round(XP[t.kind] * t.power));
+  gainXp(w, Math.round(XP[t.kind] * t.power * (t.elite ? ELITE.xp : 1)));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
-  if (rand(w) < GEAR_DROP[t.kind]) drop(rand(w) < 0.5 ? 'weapon' : 'armor', 1 + Math.floor(rand(w) * w.maxTier));
+  if (t.elite) drop(rand(w) < 0.5 ? 'weapon' : 'armor', w.maxTier); // 정예는 이 층 최고 단계 확정
+  else if (rand(w) < GEAR_DROP[t.kind]) drop(rand(w) < 0.5 ? 'weapon' : 'armor', 1 + Math.floor(rand(w) * w.maxTier));
 }
 
 // mulberry32. 상태가 world.rng에 있어서 같은 시드 = 같은 난수열.

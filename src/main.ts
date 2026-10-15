@@ -204,7 +204,7 @@ function hud() {
   const m = id === null ? null : world.entities[id];
   target.hidden = !m;
   if (m) {
-    targetName.textContent = STATS[m.kind].name;
+    targetName.textContent = (m.elite ? '정예 ' : '') + STATS[m.kind].name;
     targetFill.style.width = `${(m.hp / m.maxHp) * 100}%`;
   }
   renderer.domElement.classList.toggle('attack', hovered !== null); // 몬스터 위에서는 공격 커서

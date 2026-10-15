@@ -100,6 +100,7 @@ export function generateFloor(seed: number, floor: number): string[] {
   const warriors = Math.round(count * (0.2 + 0.075 * (floor - 1)));
   const archers = floor === 1 ? 0 : Math.round(count * 0.15); // 궁수는 2층부터
   const kinds: string[] = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : i < warriors + archers ? 'a' : 'm'));
+  if (floor >= 2 && floor < FLOORS && warriors > 0) kinds[0] = 'W'; // 2~4층: 전사 하나가 정예
   for (let i = kinds.length - 1; i > 0; i--) {
     const j = int(0, i);
     [kinds[i], kinds[j]] = [kinds[j], kinds[i]];

@@ -71,7 +71,7 @@ export function draw(world: World, dt: number) {
   for (const e of world.entities) {
     const s = sprites[e.id];
     updateSprite(s, e, dt, attackInterval(world, e));
-    s.mat.color.copy(TORCH_TINT).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
+    s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
   }
   cutaway(hero.x, hero.z);
   syncItems(world);

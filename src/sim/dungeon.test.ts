@@ -39,9 +39,11 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
       expect(count(map, 'H')).toBe(1);
       expect(count(map, '>')).toBe(floor < FLOORS ? 1 : 0);
       const monsters = 8 + 3 * (floor - 1);
-      expect(count(map, 'm') + count(map, 'w') + count(map, 'a')).toBe(monsters);
+      expect(count(map, 'm') + count(map, 'w') + count(map, 'W') + count(map, 'a')).toBe(monsters);
       expect(count(map, 'a')).toBe(floor === 1 ? 0 : Math.round(monsters * 0.15)); // 궁수는 2층부터
-      expect(count(map, 'w')).toBe(Math.round(monsters * (0.2 + 0.075 * (floor - 1))));
+      const elites = floor >= 2 && floor < FLOORS ? 1 : 0; // 정예 전사는 2~4층에 하나
+      expect(count(map, 'W')).toBe(elites);
+      expect(count(map, 'w') + count(map, 'W')).toBe(Math.round(monsters * (0.2 + 0.075 * (floor - 1))));
       const d = distances(map, find(map, 'H'));
       expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o'));
       expect(count(map, 'M')).toBe(floor < FLOORS ? 0 : 1); // 보스는 계단 없는 마지막 층에만
@@ -83,5 +85,5 @@ test('생성한 맵을 createWorld가 읽고 배율을 적용한다', () => {
   const w = createWorld(1, generateFloor(1, 2), 1.2);
   expect(w.stairs).not.toBeNull();
   expect(w.entities).toHaveLength(1 + 11);
-  for (const e of w.entities.slice(1)) expect(e.maxHp).toBe({ minion: 36, warrior: 72, archer: 30 }[e.kind as string]);
+  for (const e of w.entities.slice(1)) expect(e.maxHp).toBe({ minion: 36, warrior: 72, archer: 30 }[e.kind as string]! * (e.elite ? 3 : 1));
 });
