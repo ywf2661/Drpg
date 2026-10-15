@@ -22,7 +22,7 @@
 
 `stance`→`stance`, `move`→`run`, `attack`→`swing`, `hit`→`hit`, `die`→`die`. 모두 8방향.
 
-FLARE 방향 번호: 0=SW, 1=W, 2=NW, 3=N, 4=NE, 5=E, 6=SE, 7=S (화면 기준, `engine/hero_layers.txt` 순서).
+FLARE 방향 번호: 0=SW, 1=W, 2=NW, 3=N, 4=NE, 5=E, 6=SE, 7=S — **맵 좌표 기준** 나침반(`engine/hero_layers.txt` 순서). 화면 기준으로는 0=W, 1=NW, 2=N, 3=NE, 4=E, 5=SE, 6=S, 7=SW (FLARE 맵 +x = 화면 오른쪽 아래 = 우리 월드 +x).
 
 주인공 레이어 그리기 순서 (방향별, 앞쪽이 먼저 = 뒤에 깔림, `hero_layers.txt`):
 - SW, W, NW: main, feet, legs, hands, chest, off, head
@@ -69,7 +69,7 @@ JSON 형식:
 
 ### 2.3 방향·프레임
 
-- `dirIndex(facing)`: 월드 방향 (sin f, cos f)를 화면 벡터 (dx−dz, −(dx+dz))로 바꿔 45° 구간 → FLARE 번호. 구간(E부터 반시계) → `[5,4,3,2,1,0,7,6]`.
+- `dirIndex(facing)`: 월드 방향 (sin f, cos f)를 화면 벡터 (dx−dz, −(dx+dz))로 바꿔 45° 구간 → FLARE 번호. 구간(E부터 반시계) → `[4,3,2,1,0,7,6,5]`.
 - `frameAt(anim, t)`: 한 바퀴(프레임 n개) = `ms`. `looped` 반복, `play_once` 마지막 프레임 유지, `back_forth` 0→n−1→0 왕복.
 - 동작 선택: 사망 → `die`, 공격 상태 → `attack`(프레임 = 휘두르기 진행도 × 프레임 수, sim `attackT`에 동기), 피격 표시 중(0.3초) → `hit`, 이동 → `move`, 그 외 `stance`. 동작이 바뀌면 t=0.
 - 이동 재생 속도 = 해당 종류 이동 속도 / 주인공 이동 속도(4m/s).
