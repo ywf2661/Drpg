@@ -1,45 +1,25 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { STATS, type Entity, type Kind, type World } from '../sim/world';
+import type { World } from '../sim/world';
+import { loadSprites, makeSprite, updateSprite, type Sprite } from './sprites';
 
-const SCALE = 0.7; // KayKit 캐릭터 키 약 2.3 → 약 1.6m
-const FADE = 0.15;
-const HIT_SHOW = 0.3; // 피격 모션을 보여줄 시간(초)
-const ATTACK = '1H_Melee_Attack_Chop';
-const ONCE = new Set(['Death_A', 'Hit_A']);
-
-const MODELS: Record<Kind, { url: string; move: string; hide?: string[]; weapon?: string }> = {
-  // Knight GLB에는 무기·방패가 전부 붙어 있어서 한손검 + 둥근 방패만 남긴다
-  hero: { url: 'models/Knight.glb', move: 'Running_A', hide: ['1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Spike_Shield', '2H_Sword'] },
-  // 스켈레톤 GLB에는 무기가 없어서 오른손 슬롯에 붙인다
-  minion: { url: 'models/Skeleton_Minion.glb', move: 'Walking_D_Skeletons', weapon: 'models/Skeleton_Blade.gltf' },
-  warrior: { url: 'models/Skeleton_Warrior.glb', move: 'Walking_D_Skeletons', weapon: 'models/Skeleton_Axe.gltf' },
-};
-
-type Actor = { obj: THREE.Object3D; mixer: THREE.AnimationMixer; clips: THREE.AnimationClip[]; clip: string; hp: number; hitT: number };
-
-const SHORT_PX = 240; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
+const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
+const ZOOM = 6; // 화면 짧은 변 절반에 보이는 월드 길이(m). 360px / 12m = 30px/m = 스프라이트 해상도
 const TORCH = 80; // 횃불 밝기(칸델라)
 const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
+const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
 export const camera = new THREE.OrthographicCamera();
 const scene = new THREE.Scene();
 const torch = new THREE.PointLight(0xff9a4d, TORCH, TORCH_RANGE, 1.5); // 주인공이 든 횃불
-const eyes = new THREE.MeshBasicMaterial({ color: 0xff2010, toneMapped: false }); // 조명과 무관하게 빛나는 스켈레톤 눈
-const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // 모델은 meshopt 압축본
-const protos = new Map<Kind, { scene: THREE.Object3D; clips: THREE.AnimationClip[] }>();
 const focus = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 const right = new THREE.Vector3();
 const up = new THREE.Vector3();
-// 수평 45°, 내려다보는 각 40°(극각 50°), 거리 30
-const CAM_OFFSET = new THREE.Vector3().setFromSphericalCoords(30, THREE.MathUtils.degToRad(50), THREE.MathUtils.degToRad(45));
-let actors: Actor[] = [];
-let zoom = 6; // 화면 짧은 변 절반에 보이는 월드 길이(m). 모바일 세로 화면도 좌우 12m
+// 수평 45°, 내려다보는 각 30°(극각 60°) = FLARE 스프라이트를 그린 각도, 거리 30
+const CAM_OFFSET = new THREE.Vector3().setFromSphericalCoords(30, THREE.MathUtils.degToRad(60), THREE.MathUtils.degToRad(45));
+let sprites: Sprite[] = [];
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
 
@@ -56,49 +36,32 @@ export async function initRender(world: World) {
   scene.add(torch);
   buildMap(world);
   addEventListener('resize', resize);
-  renderer.domElement.addEventListener(
-    'wheel',
-    (e) => {
-      zoom = THREE.MathUtils.clamp(zoom * (e.deltaY > 0 ? 1.1 : 0.9), 4, 12);
-      resize();
-    },
-    { passive: true },
-  );
   resize();
-  await Promise.all((Object.keys(MODELS) as Kind[]).map(loadKind));
+  await loadSprites();
   setWorld(world);
 }
 
 export function setWorld(world: World) {
-  for (const a of actors) {
-    a.mixer.stopAllAction();
-    a.obj.removeFromParent();
-  }
-  actors = world.entities.map(makeActor);
+  for (const s of sprites) s.mesh.removeFromParent();
+  sprites = world.entities.map(makeSprite);
+  for (const s of sprites) scene.add(s.mesh);
   focus.set(world.entities[0].x, 0, world.entities[0].z);
 }
 
 export function draw(world: World, dt: number) {
-  for (const e of world.entities) {
-    const a = actors[e.id];
-    a.obj.position.set(e.x, 0, e.z);
-    a.obj.rotation.y = e.facing; // 모델은 +z를 바라본다
-    if (e.hp < a.hp && e.state !== 'attack') a.hitT = HIT_SHOW;
-    a.hp = e.hp;
-    a.hitT -= dt;
-    play(a, clipFor(e, a));
-    if (e.state === 'attack') {
-      // 공격 모션 진행을 sim의 휘두르기 진행도에 맞춘다
-      const act = action(a, ATTACK);
-      act.timeScale = 0;
-      act.time = Math.min(e.attackT / STATS[e.kind].interval, 1) * act.getClip().duration;
-    }
-    a.mixer.update(dt);
-  }
   const hero = world.entities[0];
   time += dt;
-  torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 머리와 먼 바닥의 밝기 차가 줄어든다
-  torch.intensity = TORCH * (1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7)); // 불꽃 깜빡임
+  const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
+  torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
+  torch.intensity = TORCH * flicker;
+  for (const e of world.entities) {
+    const s = sprites[e.id];
+    updateSprite(s, e, dt);
+    // 세로 판자는 머리 위 횃불 빛을 거의 못 받으므로 주인공과의 거리로 밝기를 직접 정한다
+    const d = Math.hypot(e.x - hero.x, e.z - hero.z);
+    const b = e === hero ? 1.15 : Math.max(0, 1 - d / TORCH_RANGE) ** 1.4 * 1.1 + 0.04;
+    s.mat.color.copy(TORCH_TINT).multiplyScalar(b * flicker);
+  }
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
   camera.position.copy(focus).add(CAM_OFFSET);
   camera.lookAt(focus);
@@ -128,7 +91,7 @@ function resize() {
   Object.assign(renderer.domElement.style, { width: `${(w * pixel) / dpr}px`, height: `${(bufH * pixel) / dpr}px` });
   const sx = Math.max(1, w / bufH); // 가로가 길면 좌우를 넓힌다
   const sy = Math.max(1, bufH / w); // 세로가 길면(모바일) 위아래를 넓힌다
-  Object.assign(camera, { left: -zoom * sx, right: zoom * sx, top: zoom * sy, bottom: -zoom * sy, near: 1, far: 100 });
+  Object.assign(camera, { left: -ZOOM * sx, right: ZOOM * sx, top: ZOOM * sy, bottom: -ZOOM * sy, near: 1, far: 100 });
   camera.updateProjectionMatrix();
 }
 
@@ -172,57 +135,4 @@ function stoneTexture(base: number, brick: boolean) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
-}
-
-async function loadKind(kind: Kind) {
-  const m = MODELS[kind];
-  const gltf = await loader.loadAsync(m.url);
-  const find = (name: string) => {
-    const o = gltf.scene.getObjectByName(name);
-    if (!o) throw new Error(`${m.url}: '${name}' 노드가 없습니다`);
-    return o;
-  };
-  for (const name of m.hide ?? []) find(name).removeFromParent();
-  if (m.weapon) {
-    // GLTFLoader는 노드 이름에서 '.'을 지운다 (handslot.r → handslotr)
-    const hand = gltf.scene.getObjectByName('handslot.r') ?? find('handslotr');
-    hand.add((await loader.loadAsync(m.weapon)).scene);
-  }
-  for (const clip of ['Idle', m.move, ATTACK, 'Hit_A', 'Death_A']) {
-    if (!THREE.AnimationClip.findByName(gltf.animations, clip)) throw new Error(`${m.url}: '${clip}' 애니메이션이 없습니다`);
-  }
-  gltf.scene.traverse((o) => {
-    o.castShadow = true;
-    if (o.name.endsWith('_Eyes')) o.traverse((c) => c instanceof THREE.Mesh && (c.material = eyes)); // 어둠 속 붉은 눈
-  });
-  protos.set(kind, { scene: gltf.scene, clips: gltf.animations });
-}
-
-function makeActor(e: Entity): Actor {
-  const proto = protos.get(e.kind)!;
-  const obj = clone(proto.scene); // 스킨드 메시는 SkeletonUtils.clone으로 복제해야 뼈대가 분리된다
-  obj.scale.setScalar(SCALE);
-  if (e.kind === 'hero') obj.traverse((o) => (o.castShadow = false)); // 횃불이 머리 위라 자기 그림자가 발밑을 덮는다
-  scene.add(obj);
-  return { obj, mixer: new THREE.AnimationMixer(obj), clips: proto.clips, clip: '', hp: e.hp, hitT: 0 };
-}
-
-const action = (a: Actor, name: string) => a.mixer.clipAction(THREE.AnimationClip.findByName(a.clips, name)!);
-
-function clipFor(e: Entity, a: Actor) {
-  if (e.state === 'dead') return 'Death_A';
-  if (e.state === 'attack') return ATTACK; // 피격 모션이 공격 준비 동작을 가리지 않게 공격 우선
-  if (a.hitT > 0) return 'Hit_A';
-  if (e.state === 'move') return MODELS[e.kind].move;
-  return 'Idle';
-}
-
-function play(a: Actor, name: string) {
-  if (a.clip === name) return;
-  const next = action(a, name);
-  next.setLoop(ONCE.has(name) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
-  next.clampWhenFinished = ONCE.has(name);
-  next.reset().play();
-  if (a.clip) next.crossFadeFrom(action(a, a.clip), FADE, false);
-  a.clip = name;
 }
