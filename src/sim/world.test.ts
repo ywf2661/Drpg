@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { createWorld, outcome, RADIUS, STATS, step, type Command, type World } from './world';
+import { ARMORS, attackInterval, createWorld, DT, outcome, RADIUS, STATS, step, WEAPONS, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
 const MAP = [
@@ -384,9 +384,10 @@ test('몬스터가 죽으면 확률로 물약을 그 자리에 떨어뜨린다(�
     for (let seed = 1; seed <= 400; seed++) {
       const w = kill(seed, kind);
       expect(w.entities[1].state).toBe('dead');
-      if (w.items.length) {
+      const potion = w.items.find((i) => i.kind === 'potion');
+      if (potion) {
         drops++;
-        expect(w.items[0]).toMatchObject({ x: w.entities[1].x, z: w.entities[1].z });
+        expect(potion).toMatchObject({ x: w.entities[1].x, z: w.entities[1].z });
       }
     }
     expect(drops / 400).toBeGreaterThan(lo);
@@ -396,14 +397,14 @@ test('몬스터가 죽으면 확률로 물약을 그 자리에 떨어뜨린다(�
 
 test('물약 드롭은 시드로 재현되고 id는 고유', () => {
   const seeds = Array.from({ length: 50 }, (_, i) => i + 1);
-  expect(seeds.map((s) => kill(s, 'm').items.length)).toEqual(seeds.map((s) => kill(s, 'm').items.length));
+  expect(seeds.map((s) => kill(s, 'w').items)).toEqual(seeds.map((s) => kill(s, 'w').items));
   for (let seed = 0; seed < 200; seed++) {
     // 두 마리 모두 떨어뜨리는 시드를 찾아 id가 겹치지 않는지 본다
     const t = createWorld(seed, ['mHm']);
     for (const m of t.entities.slice(1)) m.hp = 1;
     run(t, 120, [{ type: 'attack', targetId: 1 }]);
     run(t, 120, [{ type: 'attack', targetId: 2 }]);
-    if (t.items.length === 2) {
+    if (t.items.filter((i) => i.kind === 'potion').length === 2) {
       expect(new Set(t.items.map((i) => i.id)).size).toBe(2);
       return;
     }
@@ -413,13 +414,13 @@ test('물약 드롭은 시드로 재현되고 id는 고유', () => {
 
 test('지나가면 물약을 줍고, 허리띠가 가득 차면 바닥에 남긴다', () => {
   const w = createWorld(1, ['H....']);
-  w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5 });
+  w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'potion', tier: 0 });
   run(w, 70, [{ type: 'move', x: 4.5, z: 0.5 }]);
   expect(w.potions).toBe(1);
   expect(w.items).toEqual([]);
   const full = createWorld(1, ['H....']);
   full.potions = 8;
-  full.items.push({ id: full.nextItem++, x: 2.5, z: 0.5 });
+  full.items.push({ id: full.nextItem++, x: 2.5, z: 0.5, kind: 'potion', tier: 0 });
   run(full, 70, [{ type: 'move', x: 4.5, z: 0.5 }]);
   expect(full.potions).toBe(8);
   expect(full.items).toHaveLength(1);
@@ -456,4 +457,73 @@ test('마시기는 이동과 계단 의도를 끊지 않는다', () => {
   run(w, 60, [{ type: 'drink' }]);
   expect(w.potions).toBe(0);
   expect(outcome(w)).toBe('descend');
+});
+
+test('주인공 공격은 무기 수치(데미지·간격)를 따른다', () => {
+  for (const tier of [1, 4]) {
+    const w = createWorld(3, ['Hw.']);
+    w.gear.weapon = tier;
+    const m = w.entities[1];
+    m.hp = m.maxHp = 1000;
+    w.entities[0].hp = w.entities[0].maxHp = 1e6; // 맞아 죽지 않게
+    run(w, Math.round((attackInterval(w, w.entities[0]) * 10) / DT), [{ type: 'attack', targetId: 1 }]);
+    const [lo, hi] = WEAPONS[tier - 1].dmg;
+    expect(1000 - m.hp).toBeGreaterThanOrEqual(lo * 9);
+    expect(1000 - m.hp).toBeLessThanOrEqual(hi * 11);
+  }
+  const w = createWorld(1, ['H']);
+  expect(attackInterval(w, w.entities[0])).toBe(0.8);
+  w.gear.weapon = 1;
+  expect(attackInterval(w, w.entities[0])).toBe(0.6);
+});
+
+test('갑옷은 받는 피해를 줄이되 최소 1', () => {
+  const hits = (armor: number) => {
+    const w = createWorld(5, ['Hm']);
+    w.gear.armor = armor;
+    w.entities[0].hp = w.entities[0].maxHp = 1e6;
+    run(w, 600);
+    return 1e6 - w.entities[0].hp;
+  };
+  expect(ARMORS.map((a) => a.reduce)).toEqual([0, 0.1, 0.2, 0.3]);
+  expect(hits(4)).toBeLessThan(hits(1) * 0.8);
+  expect(hits(4)).toBeGreaterThan(0);
+  const w = createWorld(1, ['Hm']);
+  w.gear.armor = 4;
+  w.entities[1].power = 0.1; // 3~5 × 0.1 → 0 → 갑옷을 거쳐도 최소 1
+  run(w, 200);
+  expect(w.entities[0].hp).toBeLessThan(100);
+});
+
+test('장비 드롭: 확률, 종류 반반, 단계는 1..maxTier', () => {
+  let drops = 0;
+  const tiers = new Set<number>();
+  const kinds = new Set<string>();
+  for (let seed = 1; seed <= 600; seed++) {
+    const w = createWorld(seed, ['Hw.']);
+    w.maxTier = 3;
+    w.entities[1].hp = 1;
+    run(w, 60, [{ type: 'attack', targetId: 1 }]);
+    for (const it of w.items.filter((i) => i.kind !== 'potion')) {
+      drops++;
+      tiers.add(it.tier);
+      kinds.add(it.kind);
+    }
+  }
+  expect(drops / 600).toBeGreaterThan(0.07);
+  expect(drops / 600).toBeLessThan(0.18);
+  expect([...tiers].sort()).toEqual([1, 2, 3]);
+  expect([...kinds].sort()).toEqual(['armor', 'weapon']);
+});
+
+test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 남긴다', () => {
+  const w = createWorld(1, ['H.....']);
+  w.gear = { weapon: 2, armor: 2 };
+  w.items.push({ id: w.nextItem++, x: 1.5, z: 0.5, kind: 'weapon', tier: 2 });
+  w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'weapon', tier: 4 });
+  w.items.push({ id: w.nextItem++, x: 3.5, z: 0.5, kind: 'armor', tier: 1 });
+  w.items.push({ id: w.nextItem++, x: 4.5, z: 0.5, kind: 'armor', tier: 3 });
+  run(w, 90, [{ type: 'move', x: 5.5, z: 0.5 }]);
+  expect(w.gear).toEqual({ weapon: 4, armor: 3 });
+  expect(w.items.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['armor', 1]]);
 });

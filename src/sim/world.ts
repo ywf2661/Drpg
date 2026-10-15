@@ -25,11 +25,13 @@ export type Entity = {
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
 
-// 바닥에 떨어진 체력 물약(월드 좌표)
-export type Item = { id: number; x: number; z: number };
+// 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor'; tier: number };
+// 장착 장비 단계(1~4). WEAPONS·ARMORS[단계 − 1]
+export type Gear = { weapon: number; armor: number };
 
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
-// potions: 허리띠의 물약 수, nextItem: 다음 물약 id
+// potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
 export type World = {
   grid: Grid;
   entities: Entity[];
@@ -40,6 +42,8 @@ export type World = {
   items: Item[];
   nextItem: number;
   potions: number;
+  gear: Gear;
+  maxTier: number;
 };
 
 export const DT = 1 / 60;
@@ -51,9 +55,22 @@ export const REPATH = 0.5;
 
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
 export const POTION = { drop: { minion: 0.2, warrior: 0.35 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
+export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12 };
+export const WEAPONS: { name: string; dmg: [number, number]; interval: number }[] = [
+  { name: '단검', dmg: [4, 7], interval: 0.6 },
+  { name: '숏소드', dmg: [6, 10], interval: 0.7 },
+  { name: '롱소드', dmg: [8, 12], interval: 0.8 },
+  { name: '그레이트소드', dmg: [11, 17], interval: 1.0 },
+];
+export const ARMORS: { name: string; reduce: number }[] = [
+  { name: '천옷', reduce: 0 },
+  { name: '가죽 갑옷', reduce: 0.1 },
+  { name: '사슬 갑옷', reduce: 0.2 },
+  { name: '판금 갑옷', reduce: 0.3 },
+];
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
-  hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 },
+  hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)
   minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
 };
@@ -86,7 +103,8 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     const hp = Math.round(STATS[s.kind].hp * p);
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], nextItem: 0, potions: 0 };
+  // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -101,14 +119,25 @@ export function step(w: World, cmds: Command[]): void {
   pickup(w, hero);
 }
 
-// 주인공 발밑(POTION.pickup 이내)의 물약을 허리띠가 찰 때까지 줍는다
+// 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가 찰 때까지, 장비는 지금보다 좋을 때만 줍는다
 function pickup(w: World, hero: Entity) {
   if (hero.state === 'dead') return;
   w.items = w.items.filter((it) => {
-    if (w.potions >= POTION.max || Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
-    w.potions++;
+    if (Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
+    if (it.kind === 'potion') {
+      if (w.potions >= POTION.max) return true;
+      w.potions++;
+      return false;
+    }
+    if (it.tier <= w.gear[it.kind]) return true;
+    w.gear[it.kind] = it.tier;
     return false;
   });
+}
+
+// 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
+export function attackInterval(w: World, e: Entity): number {
+  return e.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].interval : STATS[e.kind].interval;
 }
 
 // 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
@@ -197,15 +226,15 @@ function startSwing(e: Entity, t: Entity) {
 
 // 휘두르기 진행. HIT_AT 시점에 사거리 안이면 타격. 끝났을 때 대상이 여전히 사거리 안이면 바로 다음 휘두르기.
 function swing(w: World, e: Entity, t: Entity | null) {
-  const s = STATS[e.kind];
-  const hitAt = s.interval * HIT_AT;
+  const interval = attackInterval(w, e);
+  const hitAt = interval * HIT_AT;
   const before = e.attackT;
   e.attackT += DT;
   if (t) face(e, t);
   if (t && before < hitAt && e.attackT >= hitAt && canHit(w, e, t)) damage(w, e, t);
-  if (e.attackT < s.interval) return;
+  if (e.attackT < interval) return;
   if (t && t.state !== 'dead' && canHit(w, e, t)) {
-    e.attackT -= s.interval;
+    e.attackT -= interval;
   } else {
     e.state = 'idle';
     e.attackT = 0;
@@ -213,13 +242,18 @@ function swing(w: World, e: Entity, t: Entity | null) {
 }
 
 function damage(w: World, a: Entity, t: Entity) {
-  const [lo, hi] = STATS[a.kind].dmg;
-  t.hp = Math.max(0, t.hp - Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power));
+  const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
+  let dmg = Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power);
+  if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - ARMORS[w.gear.armor - 1].reduce)));
+  t.hp = Math.max(0, t.hp - dmg);
   if (t.hp > 0) return;
   t.state = 'dead';
   t.path = [];
   t.target = null;
-  if (t.kind !== 'hero' && rand(w) < POTION.drop[t.kind]) w.items.push({ id: w.nextItem++, x: t.x, z: t.z });
+  if (t.kind === 'hero') return;
+  const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
+  if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
+  if (rand(w) < GEAR_DROP[t.kind]) drop(rand(w) < 0.5 ? 'weapon' : 'armor', 1 + Math.floor(rand(w) * w.maxTier));
 }
 
 // mulberry32. 상태가 world.rng에 있어서 같은 시드 = 같은 난수열.
