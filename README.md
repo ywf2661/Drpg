@@ -52,4 +52,4 @@ python tools/sprites.py   # FLARE 원본을 받아 시트·질감·효과음 재
 
 ## 크레딧
 
-그림·마우스 커서·효과음: [Flare: Empyrean Campaign](https://github.com/flareteam/flare-game) (Clint Bellanger 외 Flare 기여자), [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). 가공한 시트·질감도 CC-BY-SA 3.0. 사용 파일과 수정 내용 전체 목록은 [`public/sprites/CREDITS.txt`](public/sprites/CREDITS.txt).
+그림·마우스 커서·효과음·음악: [Flare: Empyrean Campaign](https://github.com/flareteam/flare-game) (Clint Bellanger 외 Flare 기여자), [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). 가공한 시트·질감도 CC-BY-SA 3.0. 사용 파일과 수정 내용 전체 목록은 [`public/sprites/CREDITS.txt`](public/sprites/CREDITS.txt).

@@ -83,6 +83,7 @@ function enterFloor(n: number, carry: Carry) {
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor();
+  sound.playMusic(sound.musicFor(n));
 }
 
 function gearKey(g: Gear) {
@@ -126,6 +127,7 @@ initInput();
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 initLabels($('#labels'));
 sound.initSound();
+sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
 const soundBtn = $('#sound-btn');
 const showSound = () => (soundBtn.textContent = sound.muted ? '소리 꺼짐' : '소리');
 soundBtn.addEventListener('click', () => {

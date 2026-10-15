@@ -1,8 +1,14 @@
 // 효과음 재생(Web Audio). 첫 사용자 입력에서 AudioContext를 만들고 파일을 받아 디코드한다.
 // ponytail: FLARE 원본 Ogg Vorbis 그대로. 디코드 못 하는 브라우저(구형 Safari)는 그 소리만 무음
+import { FLOORS } from '../sim/dungeon';
 import type { SoundEvent, SoundName } from './events';
 
 const URLS = import.meta.glob('../assets/sounds/*.ogg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const MUSIC = import.meta.glob('../assets/music/*.ogg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const MUSIC_VOLUME = 0.3;
+let music: HTMLAudioElement | null = null; // 스트리밍 재생(곡당 약 3MB). 처음 재생할 때 만든다
+let track = ''; // 지금 층의 곡
+let loaded = ''; // music에 실제로 넣은 곡
 const FILES: Record<SoundName, string[]> = {
   swing: ['melee_attack', 'melee_attack_2', 'melee_attack_3'],
   hero_hit: ['male_hit'],
@@ -40,8 +46,27 @@ function load() {
   }
 }
 
+// 층 → 배경 음악 이름(마지막 층은 보스)
+export function musicFor(floor: number) {
+  return floor === FLOORS ? 'boss_theme' : 'dungeon_theme';
+}
+
+// 곡을 정한다. 소리를 켠 뒤(첫 입력 이후)에만 실제로 재생
+export function playMusic(name: string) {
+  track = name;
+  if (!ctx || muted) return;
+  music ??= Object.assign(new Audio(), { loop: true, volume: MUSIC_VOLUME });
+  if (loaded !== name) {
+    loaded = name;
+    music.src = MUSIC[`../assets/music/${name}.ogg`];
+  }
+  music.play().catch(() => {}); // 재생 못 하면(형식·정책) 조용히
+}
+
 export function setMuted(m: boolean) {
   muted = m;
+  if (m) music?.pause();
+  else playMusic(track);
   try {
     localStorage.setItem(MUTE_KEY, m ? '1' : '0');
   } catch {
@@ -54,6 +79,7 @@ export function initSound() {
   const start = () => {
     if (ctx) return void ctx.resume();
     ctx = new AudioContext();
+    playMusic(track);
     for (const [path, url] of Object.entries(URLS)) {
       const name = path.split('/').pop()!.replace('.ogg', '');
       fetch(url)
