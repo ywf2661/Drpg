@@ -13,6 +13,8 @@ export type Entity = {
   z: number;
   facing: number; // 라디안, atan2(dx, dz). 0 = +z 방향
   hp: number;
+  maxHp: number;
+  power: number; // 층 배율. 체력·데미지에 곱한다(주인공은 1)
   state: State;
   path: Point[]; // 남은 웨이포인트(월드 좌표)
   target: number | null; // 공격 대상 id
@@ -20,7 +22,7 @@ export type Entity = {
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
 };
 
-export type World = { grid: Grid; entities: Entity[]; rng: number };
+export type World = { grid: Grid; entities: Entity[]; rng: number; stairs: Cell | null };
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
@@ -35,61 +37,31 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
 };
 
-// '#' 벽, '.' 바닥, 'H' 주인공, 'm' 졸개, 'w' 전사
-export const MAP = [
-  '################################',
-  '#..............#...............#',
-  '#..............#...............#',
-  '#...m....m.....#.......w.......#',
-  '#..............#...............#',
-  '#......##......#....m....m.....#',
-  '#......##......................#',
-  '#..............................#',
-  '#..............#...............#',
-  '#######.########...............#',
-  '#..............#######.#########',
-  '#..............................#',
-  '#...##....##...................#',
-  '#...##....##.......#....#......#',
-  '#..................#....#......#',
-  '#.........m........#..w.#......#',
-  '#..................######......#',
-  '#...##....##...................#',
-  '#...##....##...................#',
-  '#..............................#',
-  '##########.###########.#########',
-  '#..............#...............#',
-  '#..............#...............#',
-  '#....###.......#.......m.......#',
-  '#..............#...............#',
-  '#..............................#',
-  '#......H.......................#',
-  '#..............#...............#',
-  '#..............#.......###.....#',
-  '#..............#...............#',
-  '#..............#...............#',
-  '################################',
-];
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사
 
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior' };
 
-export function createWorld(seed: number, map: string[] = MAP): World {
+export function createWorld(seed: number, map: string[], power = 1): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
   const spawns: { kind: Kind; x: number; z: number }[] = [];
+  let stairs: Cell | null = null;
   map.forEach((row, z) =>
     [...row].forEach((c, x) => {
       const kind = SPAWN[c];
       if (c === '#') grid.blocked[z * w + x] = 1;
+      else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5 });
     }),
   );
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
-  const entities = spawns.map(
-    (s, id): Entity => ({ id, ...s, facing: 0, hp: STATS[s.kind].hp, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 }),
-  );
-  return { grid, entities, rng: seed };
+  const entities = spawns.map((s, id): Entity => {
+    const p = s.kind === 'hero' ? 1 : power;
+    const hp = Math.round(STATS[s.kind].hp * p);
+    return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
+  });
+  return { grid, entities, rng: seed, stairs };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -103,8 +75,10 @@ export function step(w: World, cmds: Command[]): void {
   separate(w);
 }
 
-export function outcome(w: World): 'dead' | 'clear' | null {
-  if (w.entities[0].state === 'dead') return 'dead';
+export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
+  const hero = w.entities[0];
+  if (hero.state === 'dead') return 'dead';
+  if (w.stairs) return Math.hypot(hero.x - w.stairs[0] - 0.5, hero.z - w.stairs[1] - 0.5) <= 0.5 ? 'descend' : null;
   return w.entities.every((e) => e.kind === 'hero' || e.state === 'dead') ? 'clear' : null;
 }
 
@@ -189,7 +163,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
 
 function damage(w: World, a: Entity, t: Entity) {
   const [lo, hi] = STATS[a.kind].dmg;
-  t.hp = Math.max(0, t.hp - (lo + Math.floor(rand(w) * (hi - lo + 1))));
+  t.hp = Math.max(0, t.hp - Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power));
   if (t.hp > 0) return;
   t.state = 'dead';
   t.path = [];

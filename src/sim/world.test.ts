@@ -1,6 +1,42 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { createWorld, MAP, outcome, RADIUS, STATS, step, type Command, type World } from './world';
+import { createWorld, outcome, RADIUS, STATS, step, type Command, type World } from './world';
+
+// 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
+const MAP = [
+  '################################',
+  '#..............#...............#',
+  '#..............#...............#',
+  '#...m....m.....#.......w.......#',
+  '#..............#...............#',
+  '#......##......#....m....m.....#',
+  '#......##......................#',
+  '#..............................#',
+  '#..............#...............#',
+  '#######.########...............#',
+  '#..............#######.#########',
+  '#..............................#',
+  '#...##....##...................#',
+  '#...##....##.......#....#......#',
+  '#..................#....#......#',
+  '#.........m........#..w.#......#',
+  '#..................######......#',
+  '#...##....##...................#',
+  '#...##....##...................#',
+  '#..............................#',
+  '##########.###########.#########',
+  '#..............#...............#',
+  '#..............#...............#',
+  '#....###.......#.......m.......#',
+  '#..............#...............#',
+  '#..............................#',
+  '#......H.......................#',
+  '#..............#...............#',
+  '#..............#.......###.....#',
+  '#..............#...............#',
+  '#..............#...............#',
+  '################################',
+];
 
 // 첫 틱에만 명령을 넣고 n틱 진행
 const run = (w: World, ticks: number, cmds: Command[] = []) => {
@@ -11,7 +47,7 @@ const dist = (w: World, a: number, b: number) =>
   Math.hypot(w.entities[a].x - w.entities[b].x, w.entities[a].z - w.entities[b].z);
 
 test('기본 맵: 32x32, 주인공 id 0, 졸개 6 전사 2, 모든 몬스터에 도달 가능', () => {
-  const w = createWorld(1);
+  const w = createWorld(1, MAP);
   expect(MAP).toHaveLength(32);
   expect(MAP.every((r) => r.length === 32)).toBe(true);
   expect([w.grid.w, w.grid.h]).toEqual([32, 32]);
@@ -165,7 +201,7 @@ test('주인공이 죽으면 dead, 몬스터는 멈추고 명령은 무시된다
 
 test('같은 시드와 같은 명령이면 결과가 같고, 아무도 벽에 들어가거나 체력이 음수가 되지 않는다', () => {
   const play = () => {
-    const w = createWorld(7);
+    const w = createWorld(7, MAP);
     for (let i = 0; i < 1800; i++) {
       const cmds: Command[] = i % 300 === 0 ? [{ type: 'attack', targetId: 1 + ((i / 300) % 8) }] : [];
       step(w, cmds);
@@ -253,4 +289,40 @@ test('시체에 attack 명령을 내려도 진행 중인 이동은 계속된다'
   step(w, [{ type: 'attack', targetId: 1 }]);
   expect(hero.state).toBe('move');
   expect(hero.path.length).toBeGreaterThan(0);
+});
+
+test('층 배율: 몬스터 체력·데미지가 배율만큼 커지고 주인공은 그대로', () => {
+  const w = createWorld(1, DUEL, 2);
+  const [hero, m] = w.entities;
+  expect(hero).toMatchObject({ hp: 100, maxHp: 100, power: 1 });
+  expect(m).toMatchObject({ hp: 60, maxHp: 60, power: 2 });
+  run(w, 35); // 졸개는 30틱째에 한 번 때린다(3~5 × 2)
+  expect(hero.hp).toBeGreaterThanOrEqual(100 - 10);
+  expect(hero.hp).toBeLessThanOrEqual(100 - 6);
+});
+
+test('계단 칸을 기록하고 바닥으로 취급한다', () => {
+  const w = createWorld(1, ['H.>']);
+  expect(w.stairs).toEqual([2, 0]);
+  expect(walkable(w.grid, 2, 0)).toBe(true);
+  expect(w.entities).toHaveLength(1);
+});
+
+test('계단 칸 중심 0.5m 안에 들어서면 descend', () => {
+  const w = createWorld(1, ['H..>', '....']);
+  run(w, 10, [{ type: 'move', x: 3.5, z: 0.5 }]);
+  expect(outcome(w)).toBeNull();
+  run(w, 60);
+  expect(outcome(w)).toBe('descend');
+});
+
+test('계단이 있는 층은 몬스터를 다 잡아도 clear가 아니고, 사망이 계단보다 우선', () => {
+  const w = createWorld(1, ['H.m.>']);
+  const [hero, m] = w.entities;
+  m.state = 'dead';
+  expect(outcome(w)).toBeNull();
+  hero.x = 4.5;
+  expect(outcome(w)).toBe('descend');
+  hero.state = 'dead';
+  expect(outcome(w)).toBe('dead');
 });
