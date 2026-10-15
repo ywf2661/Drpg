@@ -1,6 +1,7 @@
 import gearIcons from './assets/sprites/gear_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import { commands, hovered, initInput, pollInput } from './input';
+import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
 import { FLOORS, generateFloor } from './sim/dungeon';
@@ -60,6 +61,7 @@ function enterFloor(n: number, carry: Carry) {
   entry = { potions: carry.potions, gear: { ...carry.gear } };
   world = makeFloor(n, entry);
   setWorld(world);
+  resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor();
 }
@@ -86,6 +88,8 @@ try {
 }
 banner.hidden = true;
 initInput();
+initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
+resetAutomap(world);
 showFloor();
 showGear(world.gear);
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
@@ -101,8 +105,10 @@ const drink = () => commands.push({ type: 'drink' });
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') restart();
   else if (e.code === 'KeyQ' || e.code === 'Digit1') drink();
+  else if (e.code === 'KeyM') toggleAutomap();
 });
 restartBtn.addEventListener('click', restart); // 모바일용
+$('#map-btn').addEventListener('click', toggleAutomap);
 potionBtn.querySelector('img')!.src = potionIcon;
 potionBtn.addEventListener('click', drink);
 for (const slot of [weaponSlot, armorSlot]) slot.style.backgroundImage = `url(${gearIcons})`;
@@ -117,6 +123,7 @@ requestAnimationFrame(function frame(now) {
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   if (outcome(world) === 'descend') enterFloor(floor + 1, world);
   draw(world, dt);
+  drawAutomap(world);
   hud();
   requestAnimationFrame(frame);
 });
