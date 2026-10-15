@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { attackInterval, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
+import caveFloorUrl from '../assets/tiles/floor_cave.png';
+import caveWallUrl from '../assets/tiles/wall_cave.png';
+import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, loadProps, syncChests, syncEffects, syncItems, syncShots, updateProps } from './props';
 import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
@@ -27,12 +30,13 @@ let sprites: Sprite[] = [];
 let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
+const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
 let floorTex: THREE.Texture;
 let wallTex: THREE.Texture;
 const FLOOR_VARIANTS = 8; // floor.png 가로 칸 수
 let cutaway = (_hx: number, _hz: number) => {}; // 현재 층의 앞쪽 벽 낮추기
 
-export async function initRender(world: World) {
+export async function initRender(world: World, theme: Theme) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.BasicShadowMap; // 경계가 딱딱한 픽셀 그림자
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -45,11 +49,14 @@ export async function initRender(world: World) {
   scene.add(torch);
   addEventListener('resize', resize);
   resize();
-  [floorTex, wallTex] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSprites(), loadProps(), setHeroGear(world.gear)]);
-  setWorld(world);
+  const [f, w, cf, cw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear)]);
+  tex.dungeon = { floor: f, wall: w };
+  tex.cave = { floor: cf, wall: cw };
+  setWorld(world, theme);
 }
 
-export function setWorld(world: World) {
+export function setWorld(world: World, theme: Theme) {
+  ({ floor: floorTex, wall: wallTex } = tex[theme]);
   buildMap(world);
   for (const s of sprites) s.mesh.removeFromParent();
   sprites = world.entities.map(makeSprite);

@@ -94,6 +94,8 @@ Files used:
   mods/fantasycore/images/avatar/male/greatsword.png
   mods/fantasycore/images/tilesets/tileset_dungeon.png
   mods/fantasycore/tilesetdefs/tileset_dungeon.txt
+  mods/fantasycore/images/tilesets/tileset_cave.png
+  mods/fantasycore/tilesetdefs/tileset_cave.txt
   mods/fantasycore/animations/loot/hp_potion.txt
   mods/fantasycore/images/loot/hp_potion.png
   mods/fantasycore/animations/loot/dagger.txt

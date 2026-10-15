@@ -73,6 +73,10 @@ PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 
          'chest_open': 160, 'chest2_open': 161,
          'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
 STAIRS = 286  # 4×4칸 내려가는 계단
+CAVE_TILESET = 'tileset_cave'
+CAVE_FLOOR = [16, 17, 18, 19, 48, 49, 50, 51]  # 흙 4 + 잔해 4
+CAVE_WALLS = [72, 76]  # +x 면, +z 면으로 쓸 바위벽
+CAVE_WALL_BOX, CAVE_WALL_GAIN = (40, 60, 150, 230), 1.6  # 바위 면 가운데, 밝기 보정
 LOOT_POTION = 0.5 / SCALE  # 바닥 아이템은 캐릭터 배율(0.32), 물약만 0.5배(작아서 안 보인다)
 POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
@@ -204,10 +208,10 @@ def hero():
 class Tileset:
     """FLARE 타일셋 정의(tile=번호,x,y,w,h,기준x,기준y / animation=번호;x,y,ms;…)."""
 
-    def __init__(self):
-        self.img = Image.open(fetch(f'mods/fantasycore/images/tilesets/{TILESET}.png')).convert('RGBA')
+    def __init__(self, name=TILESET):
+        self.img = Image.open(fetch(f'mods/fantasycore/images/tilesets/{name}.png')).convert('RGBA')
         self.tiles, self.anims = {}, {}
-        for line in fetch(f'mods/fantasycore/tilesetdefs/{TILESET}.txt').read_text(encoding='utf-8').splitlines():
+        for line in fetch(f'mods/fantasycore/tilesetdefs/{name}.txt').read_text(encoding='utf-8').splitlines():
             if line.startswith('tile='):
                 i, *rect = map(int, line[5:].split(','))
                 self.tiles[i] = rect
@@ -227,19 +231,35 @@ def flatten(src, size, coeffs):
     return src.transform(size, Image.AFFINE, coeffs, resample=Image.BICUBIC)
 
 
-def tiles():
-    ts = Tileset()
+def floor_strip(ts, ids, out):
     # 바닥: 칸의 (x, z)∈[0,1]² → 마름모 (96 + 96x − 96z, 48x + 48z). 열 = +x, 행 = +z. 가장자리 반투명 줄을 피해 3% 안쪽만
     S, E = 128, 0.03
     s = (1 - 2 * E) / S
-    floor = Image.new('RGB', (32 * len(FLOOR_TILES), 32))
-    for k, i in enumerate(FLOOR_TILES):
+    floor = Image.new('RGB', (32 * len(ids), 32))
+    for k, i in enumerate(ids):
         (im,), (ox, oy), _ = ts.frames(i)
         c = Image.new('RGBA', (192, 96))
         c.paste(im, (96 - ox, 48 - oy))
         t = flatten(c, (S, S), (96 * s, -96 * s, 96, 48 * s, 48 * s, 96 * E))
         floor.paste(t.convert('RGB').resize((32, 32), Image.LANCZOS), (32 * k, 0))
-    floor.save(TILES / 'floor.png', optimize=True)
+    floor.save(TILES / out, optimize=True)
+
+
+def cave():
+    # 4~5층 동굴: 흙바닥 4 + 잔해 바닥 4, 벽은 울퉁불퉁한 바위라 정밀하게 펴지 않고 가운데를 잘라 쓴다
+    ts = Tileset(CAVE_TILESET)
+    floor_strip(ts, CAVE_FLOOR, 'floor_cave.png')
+    wall = Image.new('RGB', (64, 38))
+    for k, i in enumerate(CAVE_WALLS):
+        (im,), _, _ = ts.frames(i)
+        face = ImageEnhance.Brightness(im.crop(CAVE_WALL_BOX).convert('RGB')).enhance(CAVE_WALL_GAIN)
+        wall.paste(face.resize((32, 38), Image.LANCZOS), (32 * k, 0))
+    wall.save(TILES / 'wall_cave.png', optimize=True)
+
+
+def tiles():
+    ts = Tileset()
+    floor_strip(ts, FLOOR_TILES, 'floor.png')
     # 벽: 기둥의 왼쪽 면 = 법선 +x 면(열 i → z = 1 − i/W), 오른쪽 면 = 법선 +z 면(열 i → x = i/W). 행 = 아래로 1.2m.
     # 원본은 아래로 갈수록 투명해지는 장식이라 알파는 버리고 밝기를 올린다
     (im,), _, _ = ts.frames(WALL_TILE)
@@ -346,6 +366,7 @@ if __name__ == '__main__':
     effect('blast', 'blast', dirs=1, scale=BLAST_SCALE)  # 폭발: 6프레임, 방향 무관
     hero()
     tiles()
+    cave()
     loot()
     SOUNDS.mkdir(parents=True, exist_ok=True)
     for f in SOUND_FILES:

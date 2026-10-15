@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { FLOORS, floorPower, generateFloor } from './dungeon';
+import { FLOORS, floorPower, generateFloor, themeFor } from './dungeon';
 import { createWorld } from './world';
 
 const count = (map: string[], c: string) => map.join('').split(c).length - 1;
@@ -100,4 +100,8 @@ test('층 배율: 층마다 +15%, 회차마다 ×1.5씩 더해짐', () => {
   [1, 1.15, 1.6].forEach((v, i) => expect(floorPower([1, 2, 5][i])).toBeCloseTo(v));
   expect(floorPower(1, 1)).toBeCloseTo(1.5);
   expect(floorPower(5, 2)).toBeCloseTo(1.6 * 2);
+});
+
+test('층 테마: 1~3층 벽돌 던전, 4~5층 동굴', () => {
+  expect([1, 2, 3, 4, 5].map(themeFor)).toEqual(['dungeon', 'dungeon', 'dungeon', 'cave', 'cave']);
 });

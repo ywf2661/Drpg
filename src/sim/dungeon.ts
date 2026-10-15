@@ -7,6 +7,9 @@ export const FLOORS = 5;
 // 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 50%씩 더 강하다
 export const floorPower = (n: number, cycle = 0) => (1 + 0.15 * (n - 1)) * cyclePower(cycle);
 export const cyclePower = (cycle: number) => 1 + 0.5 * cycle;
+// 층의 모습(렌더용): 깊은 층은 동굴
+export type Theme = 'dungeon' | 'cave';
+export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
 const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c'; // 지나갈 수 있는 글자

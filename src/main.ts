@@ -8,7 +8,7 @@ import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
 import { clearRun, loadRun, saveRun, type Stats } from './save';
 import { buy } from './shop';
-import { cyclePower, floorPower, generateFloor } from './sim/dungeon';
+import { cyclePower, floorPower, generateFloor, themeFor } from './sim/dungeon';
 import { createWorld, DT, outcome, setLevel, step, type Gear, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -42,7 +42,7 @@ function enterFloor(n: number, carry: Carry) {
   entry = { potions: carry.potions, gear: { ...carry.gear }, level: carry.level, xp: carry.xp, gold: carry.gold };
   saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
-  setWorld(world);
+  setWorld(world, themeFor(n));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle);
@@ -102,7 +102,7 @@ const skill = () => commands.push({ type: 'skill' });
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
 
 try {
-  await initRender(world);
+  await initRender(world, themeFor(floor));
 } catch (err) {
   showLoadError(err);
   throw err;
