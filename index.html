@@ -10,11 +10,13 @@
       canvas { display: block; image-rendering: pixelated; touch-action: none; } /* 터치 드래그를 브라우저 스크롤·확대가 가로채지 않게 */
       [hidden] { display: none !important; }
       body::after { content: ''; position: fixed; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, #000c 100%); }
-      #hp, #target, #banner { z-index: 2; }
+      #hud, #target, #banner { z-index: 2; }
       .bar { width: 240px; height: 14px; background: #2a1414; border: 1px solid #000; }
       .bar i { display: block; width: 100%; height: 100%; background: #b3261e; }
-      #hp { position: fixed; left: 20px; bottom: 20px; pointer-events: none; }
-      #potion { position: fixed; left: 272px; bottom: 8px; z-index: 2; width: 40px; height: 40px; padding: 0; background: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      #hud { position: fixed; left: 20px; bottom: 8px; display: flex; align-items: center; gap: 6px; }
+      #hp { width: min(240px, calc(100vw - 260px)); pointer-events: none; }
+      #potion, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      .slot { background-size: 320px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
       #potion img { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
       #potion span { position: absolute; right: 2px; bottom: 0; font-size: 12px; color: #e8dcc8; text-shadow: 0 1px 2px #000; }
       #potion.empty { opacity: 0.4; }
@@ -32,13 +34,20 @@
       #floor { position: fixed; left: 16px; top: 12px; z-index: 2; font-size: 14px; color: #b8ab98; text-shadow: 0 1px 2px #000; pointer-events: none; }
       #floor-title { position: fixed; left: 0; right: 0; top: 30%; z-index: 2; text-align: center; font-size: 34px; letter-spacing: 4px; color: #e8dcc8; text-shadow: 0 2px 6px #000; pointer-events: none; opacity: 0; }
       #floor-title.show { animation: floor-title 2.4s ease-out; }
+      #toast { position: fixed; left: 0; right: 0; bottom: 70px; z-index: 2; text-align: center; font-size: 18px; color: #f0c060; text-shadow: 0 1px 3px #000; pointer-events: none; opacity: 0; }
+      #toast.show { animation: floor-title 2s ease-out; }
       @keyframes floor-title { 0% { opacity: 0; } 15%, 60% { opacity: 1; } 100% { opacity: 0; } }
     </style>
   </head>
   <body>
     <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
-    <div id="hp" class="bar"><i></i></div>
-    <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
+    <div id="hud">
+      <div id="hp" class="bar"><i></i></div>
+      <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
+      <div id="weapon" class="slot"></div>
+      <div id="armor" class="slot"></div>
+    </div>
+    <div id="toast"></div>
     <div id="floor"></div>
     <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><button id="restart" hidden>다시 시작 (R)</button></div>

@@ -1,10 +1,10 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import type { World } from '../sim/world';
+import { attackInterval, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, loadProps, syncItems, updateProps } from './props';
-import { loadSheet, loadSprites, makeSprite, updateSprite, viewHalf, type Sprite } from './sprites';
+import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -42,7 +42,7 @@ export async function initRender(world: World) {
   scene.add(torch);
   addEventListener('resize', resize);
   resize();
-  [floorTex, wallTex] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSprites(), loadProps()]);
+  [floorTex, wallTex] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSprites(), loadProps(), setHeroGear(world.gear)]);
   setWorld(world);
 }
 
@@ -68,7 +68,7 @@ export function draw(world: World, dt: number) {
   };
   for (const e of world.entities) {
     const s = sprites[e.id];
-    updateSprite(s, e, dt);
+    updateSprite(s, e, dt, attackInterval(world, e));
     s.mat.color.copy(TORCH_TINT).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
   }
   syncItems(world);

@@ -1,8 +1,10 @@
+import gearIcons from './assets/sprites/gear_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import { commands, hovered, initInput, pollInput } from './input';
 import { draw, initRender, renderer, setWorld } from './render/render';
+import { setHeroGear } from './render/sprites';
 import { generateFloor } from './sim/dungeon';
-import { createWorld, DT, outcome, STATS, step, type World } from './sim/world';
+import { ARMORS, createWorld, DT, outcome, STATS, step, WEAPONS, type Gear, type World } from './sim/world';
 
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -16,34 +18,60 @@ const floorLabel = $('#floor');
 const floorTitle = $('#floor-title');
 const potionBtn = $('#potion');
 const potionCount = $('#potion span');
+const weaponSlot = $('#weapon');
+const armorSlot = $('#armor');
+const toast = $('#toast');
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
-const START_POTIONS = 2;
+const START = { potions: 2, gear: { weapon: 2, armor: 2 } }; // 숏소드 + 가죽 갑옷
+type Carry = { potions: number; gear: Gear };
 let floor = 1;
-let carried = START_POTIONS; // 이 층에 들어올 때의 물약 수(사망 후 다시 시작하면 이만큼으로)
-let world = makeFloor(floor, carried);
+let entry: Carry = START; // 이 층에 들어올 때의 물약·장비(사망 후 다시 시작하면 이것으로)
+let world = makeFloor(floor, entry);
+let shownGear = gearKey(world.gear);
 
-// 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 1, 1.2, 1.4 …
-function makeFloor(n: number, potions: number): World {
+// 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 1, 1.2, 1.4 …, 떨어지는 장비는 층 + 1단계까지
+function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const w = createWorld(seed, generateFloor(seed, n), 1 + 0.2 * (n - 1));
-  w.potions = potions;
+  w.potions = carry.potions;
+  w.gear = { ...carry.gear };
+  w.maxTier = Math.min(4, n + 1);
   return w;
 }
 
 function showFloor() {
   floorLabel.textContent = floorTitle.textContent = `지하 ${floor}층`;
-  floorTitle.classList.remove('show');
-  void floorTitle.offsetWidth; // 애니메이션을 처음부터 다시 재생
-  floorTitle.classList.add('show');
+  replay(floorTitle);
 }
 
-function enterFloor(n: number, potions: number) {
+// CSS 애니메이션을 처음부터 다시 재생
+function replay(el: HTMLElement) {
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function enterFloor(n: number, carry: Carry) {
   floor = n;
-  carried = potions;
-  world = makeFloor(n, potions);
+  entry = { potions: carry.potions, gear: { ...carry.gear } };
+  world = makeFloor(n, entry);
   setWorld(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor();
+}
+
+function gearKey(g: Gear) {
+  return `${g.weapon}/${g.armor}`;
+}
+
+// 장비 칸: 아이콘(gear_icons.png = 무기 4 + 갑옷 4)과 수치
+function showGear(g: Gear) {
+  const wpn = WEAPONS[g.weapon - 1];
+  const arm = ARMORS[g.armor - 1];
+  weaponSlot.style.backgroundPositionX = `${-(g.weapon - 1) * 40}px`;
+  armorSlot.style.backgroundPositionX = `${-(4 + g.armor - 1) * 40}px`;
+  weaponSlot.title = `${wpn.name} (공격 ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초)`;
+  armorSlot.title = `${arm.name} (받는 피해 −${arm.reduce * 100}%)`;
 }
 
 try {
@@ -55,12 +83,13 @@ try {
 banner.hidden = true;
 initInput();
 showFloor();
+showGear(world.gear);
 if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands } }); // 헤드리스 확인용
 
 function restart() {
   const o = outcome(world);
-  if (o === 'dead') enterFloor(floor, carried); // 같은 층을 새 모양으로
-  else if (o === 'clear') enterFloor(1, START_POTIONS);
+  if (o === 'dead') enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
+  else if (o === 'clear') enterFloor(1, START);
 }
 const drink = () => commands.push({ type: 'drink' });
 // e.code: 한글 입력 상태에서도 물리 키
@@ -71,6 +100,7 @@ addEventListener('keydown', (e) => {
 restartBtn.addEventListener('click', restart); // 모바일용
 potionBtn.querySelector('img')!.src = potionIcon;
 potionBtn.addEventListener('click', drink);
+for (const slot of [weaponSlot, armorSlot]) slot.style.backgroundImage = `url(${gearIcons})`;
 
 let acc = 0;
 let last = performance.now();
@@ -80,7 +110,7 @@ requestAnimationFrame(function frame(now) {
   pollInput(world, dt);
   if (credits.open) acc = 0; // 크레딧을 읽는 동안은 게임을 멈춘다
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
-  if (outcome(world) === 'descend') enterFloor(floor + 1, world.potions);
+  if (outcome(world) === 'descend') enterFloor(floor + 1, world);
   draw(world, dt);
   hud();
   requestAnimationFrame(frame);
@@ -91,6 +121,19 @@ function hud() {
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   potionCount.textContent = String(world.potions);
   potionBtn.classList.toggle('empty', world.potions === 0);
+  const key = gearKey(world.gear);
+  if (key !== shownGear) {
+    // 주운 장비는 알림. 사망 후 다시 시작해 장비가 돌아간 경우는 알리지 않는다
+    const [w0, a0] = shownGear.split('/').map(Number);
+    const gained = world.gear.weapon > w0 ? WEAPONS[world.gear.weapon - 1].name : world.gear.armor > a0 ? ARMORS[world.gear.armor - 1].name : null;
+    if (gained) {
+      toast.textContent = `${gained} 장착`;
+      replay(toast);
+    }
+    shownGear = key;
+    showGear(world.gear);
+    void setHeroGear(world.gear);
+  }
   const id = hovered ?? hero.target; // 마우스 오버가 없으면(모바일) 공격 중인 대상
   const m = id === null ? null : world.entities[id];
   target.hidden = !m;

@@ -1,6 +1,6 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
 import * as THREE from 'three';
-import { STATS, type Entity, type Kind } from '../sim/world';
+import { STATS, type Entity, type Gear, type Kind } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
 import minionInfo from '../assets/sprites/minion.json';
 import minionUrl from '../assets/sprites/minion.png';
@@ -14,12 +14,17 @@ export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: She
 
 // 주인공 시트 16장(무기 × 갑옷). URL만 알고, 그림은 장착할 때 불러온다
 const HERO_URLS = import.meta.glob('../assets/sprites/hero_*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-const heroUrl = (weapon: string, armor: string) => HERO_URLS[`../assets/sprites/hero_${weapon}_${armor}.png`];
+const HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']; // 단계 1~4
+const HERO_ARMORS = ['cloth', 'leather', 'chain', 'plate'];
+const heroUrl = (g: Gear) => HERO_URLS[`../assets/sprites/hero_${HERO_WEAPONS[g.weapon - 1]}_${HERO_ARMORS[g.armor - 1]}.png`];
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
-  hero: { info: heroInfo as SheetInfo, url: heroUrl('longsword', 'chain') },
+  hero: { info: heroInfo as SheetInfo, url: '' }, // 그림은 setHeroGear가 고른다
   minion: { info: minionInfo as SheetInfo, url: minionUrl },
   warrior: { info: warriorInfo as SheetInfo, url: warriorUrl },
 };
+const heroSheets = new Map<string, Promise<THREE.Texture>>(); // 불러온(불러오는 중인) 장비 조합
+let heroWanted = '';
+let heroSprite: Sprite | null = null;
 const ELEV = THREE.MathUtils.degToRad(30); // 카메라가 내려다보는 각도 = FLARE가 그린 각도
 const HIT_SHOW = 0.3; // 피격 동작을 보여줄 시간(초)
 const LIFT = 0.01; // 바닥과 같은 높이에서 깜빡이지 않게 살짝 띄운다
@@ -83,7 +88,24 @@ export async function loadSheet(url: string): Promise<THREE.Texture> {
 }
 
 export async function loadSprites() {
-  await Promise.all((Object.keys(SHEETS) as Kind[]).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
+  await Promise.all((['minion', 'warrior'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
+}
+
+// 장비 조합의 주인공 시트로 바꾼다. 불러오는 동안은 이전 외형, 여러 번 바뀌면 마지막 요청만 적용
+export async function setHeroGear(g: Gear) {
+  const url = heroUrl(g);
+  heroWanted = url;
+  if (!heroSheets.has(url)) heroSheets.set(url, loadSheet(url));
+  const tex = await heroSheets.get(url)!;
+  if (heroWanted !== url) return;
+  textures.set('hero', tex);
+  if (!heroSprite) return;
+  const old = heroSprite.mat.map!;
+  const map = tex.clone();
+  map.repeat.copy(old.repeat);
+  map.offset.copy(old.offset);
+  heroSprite.mat.map = map;
+  old.dispose();
 }
 
 export function makeSprite(e: Entity): Sprite {
@@ -95,10 +117,13 @@ export function makeSprite(e: Entity): Sprite {
   const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
-  return { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0 };
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0 };
+  if (e.kind === 'hero') heroSprite = s;
+  return s;
 }
 
-export function updateSprite(s: Sprite, e: Entity, dt: number) {
+// interval: 이 캐릭터의 휘두르기 시간(주인공은 무기마다 다름)
+export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number) {
   if (e.hp < s.hp && e.state !== 'attack') s.hitT = HIT_SHOW;
   s.hp = e.hp;
   s.hitT -= dt;
@@ -110,7 +135,7 @@ export function updateSprite(s: Sprite, e: Entity, dt: number) {
   s.t += anim === 'move' ? (dt * STATS[e.kind].speed) / STATS.hero.speed : dt; // 느린 몬스터는 걸음도 느리게
   const c = s.info.anims[anim];
   // 공격 프레임은 sim의 휘두르기 진행도에 맞춘다
-  const f = anim === 'attack' ? Math.min(c.frames - 1, Math.floor((e.attackT / STATS[e.kind].interval) * c.frames)) : frameAt(c, s.t);
+  const f = anim === 'attack' ? Math.min(c.frames - 1, Math.floor((e.attackT / interval) * c.frames)) : frameAt(c, s.t);
   const row = c.row + dirIndex(e.facing);
   s.mat.map!.offset.set(f / s.info.cols, 1 - (row + 1) / s.info.rows);
   s.mesh.position.set(e.x, 0, e.z);

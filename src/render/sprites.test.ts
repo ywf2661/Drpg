@@ -52,10 +52,10 @@ test('시체는 아래 층(깊이 기록 없음)에, 산 캐릭터는 그 위에
   const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
   const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, hitT: 0 };
   const m = w.entities[1];
-  updateSprite(s, m, 0.016);
+  updateSprite(s, m, 0.016, 1.2);
   expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([2, true]);
   m.state = 'dead';
-  updateSprite(s, m, 0.016);
+  updateSprite(s, m, 0.016, 1.2);
   expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([1, false]);
 });
 

@@ -1,6 +1,6 @@
 // 소품·계단·바닥 물약·화로 불빛. 모두 캐릭터와 같은 세로 판자(발 아래는 바닥에 눕힘), 화로마다 점광원 1개.
 import * as THREE from 'three';
-import type { Prop, World } from '../sim/world';
+import type { Item, Prop, World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
 import lootUrl from '../assets/sprites/loot.png';
 import propsInfo from '../assets/sprites/props.json';
@@ -12,6 +12,13 @@ import { cardGeometry, frameAt, loadSheet, type Clip, type SheetInfo } from './s
 export const BRAZIER_RANGE = 4.5; // 화로 빛이 닿는 거리(m)
 const BRAZIER_LIGHT = 18; // 화로 밝기(칸델라)
 const TINT = new THREE.Color(1, 0.82, 0.62); // 판자에 입히는 불빛 색(횃불과 같음)
+// 바닥 아이템 → loot 시트 동작(사슬·판금 갑옷은 같은 그림)
+const lootClip = (it: Item) =>
+  it.kind === 'potion'
+    ? 'potion'
+    : it.kind === 'weapon'
+      ? ['dagger', 'shortsword', 'longsword', 'greatsword'][it.tier - 1]
+      : ['clothes', 'leather_armor', 'steel_armor', 'steel_armor'][it.tier - 1];
 const LOOT_MIN_LIGHT = 0.6; // 바닥 물약은 어둠 속에서도 보이게
 const STAIRS_AT: [number, number] = [-1.5, -1.5]; // 계단 칸 → 4×4칸 계단 그림의 위 꼭짓점(맵 최소 x·z 모서리)
 const VARIANTS: Record<Prop['kind'], string[]> = {
@@ -68,7 +75,7 @@ const free = (c: Card) => {
   c.mat.dispose();
 };
 
-// 바닥 물약 판자를 world.items에 맞춘다. 새 물약은 떨어지는 애니메이션부터
+// 바닥 아이템 판자를 world.items에 맞춘다. 새 아이템은 떨어지는 애니메이션부터
 export function syncItems(world: World) {
   const live = new Set(world.items.map((it) => it.id));
   for (const [id, c] of items) {
@@ -80,10 +87,10 @@ export function syncItems(world: World) {
   }
   for (const it of world.items) {
     if (items.has(it.id)) continue;
-    const c = card(loot, 'potion', it.x, it.z, false);
+    const c = card(loot, lootClip(it), it.x, it.z, false);
     c.t = 0;
     c.glow = LOOT_MIN_LIGHT;
-    c.mesh.renderOrder = 2; // 물약은 늘 시체 위에 떨어진다. 시체(깊이 안 씀)보다 나중에 그려야 가려지지 않는다
+    c.mesh.renderOrder = 2; // 아이템은 늘 시체 위에 떨어진다. 시체(깊이 안 씀)보다 나중에 그려야 가려지지 않는다
     items.set(it.id, c);
     cards.push(c);
     group.add(c.mesh);

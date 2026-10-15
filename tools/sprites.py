@@ -56,7 +56,7 @@ WALL_TILE, WALL_PX, WALL_GAIN = 48, 141, 1.8  # 벽돌 기둥, 1.2m 높이의 FL
 PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 163, 'chest': 144, 'chest2': 145,
          'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
 STAIRS = 286  # 4×4칸 내려가는 계단
-LOOT_SCALE = 0.5  # 바닥 아이템. 타일 배율(0.221)이면 물약이 6px라 보이지 않는다
+LOOT_POTION = 0.5 / SCALE  # 바닥 아이템은 캐릭터 배율(0.32), 물약만 0.5배(작아서 안 보인다)
 POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
 
@@ -242,10 +242,12 @@ def loot():
         a = sh.anims['power']
         n = int(a['frames'])
         meta[clip] = (n, int(a['duration'].removesuffix('ms')), 'play_once')
+        k = LOOT_POTION if clip == 'potion' else 1
         for i in range(n):
             x, y, w, h, ox, oy = a['rects'][(i, 0)]
-            frames[(clip, 0, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
-    pack('loot', frames, meta, LOOT_SCALE, 1)
+            im = sh.img.crop((x, y, x + w, y + h)).resize((round(w * k), round(h * k)), Image.LANCZOS)
+            frames[(clip, 0, i)] = (im, (FOOT[0] - round(ox * k), FOOT[1] - round(oy * k)))
+    pack('loot', frames, meta, SCALE, 1)
     icons = Image.open(fetch('mods/fantasycore/images/icons/icons.png')).convert('RGBA')
 
     def icon(k):
@@ -272,7 +274,7 @@ The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by {SCALE},
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
-Items: drop animations scaled by {LOOT_SCALE}, item icons cropped from the icon atlas.
+Items: drop animations scaled by {SCALE} (potion by 0.5), item icons cropped from the icon atlas.
 
 Files used:
 {files}

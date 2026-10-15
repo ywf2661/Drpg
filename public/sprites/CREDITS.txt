@@ -7,7 +7,7 @@ The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by 0.32,
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by 0.221.
-Items: drop animations scaled by 0.5, item icons cropped from the icon atlas.
+Items: drop animations scaled by 0.32 (potion by 0.5), item icons cropped from the icon atlas.
 
 Files used:
   mods/fantasycore/images/enemies/skeleton_weak.png
