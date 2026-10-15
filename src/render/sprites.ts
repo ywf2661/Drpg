@@ -20,10 +20,13 @@ const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
 };
 const ELEV = THREE.MathUtils.degToRad(30); // 카메라가 내려다보는 각도 = FLARE가 그린 각도
 const HIT_SHOW = 0.3; // 피격 동작을 보여줄 시간(초)
+const LIFT = 0.01; // 바닥과 같은 높이에서 깜빡이지 않게 살짝 띄운다
 // 화면 각도 구간(E부터 45°씩 반시계: E NE N NW W SW S SE) → FLARE 방향 번호.
 // FLARE 번호는 맵 기준 나침반이라 화면 기준으로는 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW
 const BY_SECTOR = [4, 3, 2, 1, 0, 7, 6, 5];
 const textures = new Map<Kind, THREE.Texture>();
+const geometries = new Map<Kind, THREE.BufferGeometry>();
+const PPM = SHEETS.hero.info.ppm; // 모든 시트 공통 30px/m
 
 // 월드에서 바라보는 방향(atan2(dx, dz))을 FLARE 방향 번호로. 카메라는 +x+z 쪽에서 -x-z를 내려다본다.
 export function dirIndex(facing: number): number {
@@ -43,6 +46,30 @@ export function frameAt(c: Clip, t: number): number {
   return k < c.frames ? k : period - k;
 }
 
+// 화면 범위(카메라 절반 크기, m). 렌더 픽셀 30개 = 1m로 고정해야 스프라이트 텍셀이 화면 픽셀과 1:1로 맞는다.
+export function viewHalf(w: number, h: number): [number, number] {
+  return [w / 2 / PPM, h / 2 / PPM];
+}
+
+// 발 기준선 위는 세로로 세우고, 아래(발끝·그림자·누운 시체)는 카메라 쪽 바닥에 눕힌 판자.
+// 정사영에서 세운 부분은 cos30°, 눕힌 부분은 sin30°만큼 줄어 보이므로 그만큼 늘려 텍셀 크기를 맞춘다.
+export function cardGeometry(info: SheetInfo): THREE.BufferGeometry {
+  const [cw, ch] = info.cell;
+  const [ax, ay] = info.anchor;
+  const geo = new THREE.PlaneGeometry(cw / info.ppm, 1, 1, 2); // 정점 3줄: 위, 발 기준선, 아래
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  for (const i of [0, 1]) {
+    pos.setY(i, ay / info.ppm / Math.cos(ELEV));
+    pos.setY(2 + i, 0);
+    uv.setY(2 + i, 1 - ay / ch);
+    pos.setY(4 + i, 0);
+    pos.setZ(4 + i, (ch - ay) / info.ppm / Math.sin(ELEV));
+  }
+  geo.translate((cw / 2 - ax) / info.ppm, LIFT, 0);
+  return geo;
+}
+
 export async function loadSprites() {
   const loader = new THREE.TextureLoader();
   await Promise.all(
@@ -59,11 +86,8 @@ export async function loadSprites() {
 
 export function makeSprite(e: Entity): Sprite {
   const info = SHEETS[e.kind].info;
-  const [cw, ch] = info.cell;
-  const [ax, ay] = info.anchor;
-  const k = 1 / Math.cos(ELEV); // 30° 위에서 보면 세로가 cos(30°)만큼 납작해지므로 미리 늘린다
-  const geo = new THREE.PlaneGeometry(cw / info.ppm, (ch / info.ppm) * k);
-  geo.translate((cw / 2 - ax) / info.ppm, ((ay - ch / 2) / info.ppm) * k, 0); // 발 기준점을 원점으로
+  if (!geometries.has(e.kind)) geometries.set(e.kind, cardGeometry(info));
+  const geo = geometries.get(e.kind)!;
   const map = textures.get(e.kind)!.clone(); // 이미지는 공유, 프레임 위치(offset)만 캐릭터별
   map.repeat.set(1 / info.cols, 1 / info.rows);
   const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
@@ -88,6 +112,10 @@ export function updateSprite(s: Sprite, e: Entity, dt: number) {
   const row = c.row + dirIndex(e.facing);
   s.mat.map!.offset.set(f / s.info.cols, 1 - (row + 1) / s.info.rows);
   s.mesh.position.set(e.x, 0, e.z);
+  // 시체는 벽보다 뒤, 산 캐릭터보다 먼저 그리고 깊이를 남기지 않는다 → 그 뒤를 지나가는 캐릭터를 가리지 않는다
+  const dead = e.state === 'dead';
+  s.mesh.renderOrder = dead ? 1 : 2;
+  s.mat.depthWrite = !dead;
 }
 
 function animFor(e: Entity, hitT: number): Anim {

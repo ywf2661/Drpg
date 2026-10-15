@@ -1,10 +1,9 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
 import type { World } from '../sim/world';
-import { loadSprites, makeSprite, updateSprite, type Sprite } from './sprites';
+import { loadSprites, makeSprite, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
-const ZOOM = 6; // 화면 짧은 변 절반에 보이는 월드 길이(m). 360px / 12m = 30px/m = 스프라이트 해상도
 const TORCH = 80; // 횃불 밝기(칸델라)
 const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
 const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색
@@ -89,9 +88,8 @@ function resize() {
   renderer.setPixelRatio(1);
   renderer.setSize(w, bufH, false);
   Object.assign(renderer.domElement.style, { width: `${(w * pixel) / dpr}px`, height: `${(bufH * pixel) / dpr}px` });
-  const sx = Math.max(1, w / bufH); // 가로가 길면 좌우를 넓힌다
-  const sy = Math.max(1, bufH / w); // 세로가 길면(모바일) 위아래를 넓힌다
-  Object.assign(camera, { left: -ZOOM * sx, right: ZOOM * sx, top: ZOOM * sy, bottom: -ZOOM * sy, near: 1, far: 100 });
+  const [hx, hy] = viewHalf(w, bufH); // 30px/m 고정. 보이는 범위는 기기마다 조금씩 다르다(짧은 변 약 10~14m)
+  Object.assign(camera, { left: -hx, right: hx, top: hy, bottom: -hy, near: 1, far: 100 });
   camera.updateProjectionMatrix();
 }
 

@@ -1,5 +1,8 @@
+import * as THREE from 'three';
 import { expect, test } from 'vitest';
-import { dirIndex, frameAt } from './sprites';
+import hero from '../assets/sprites/hero.json';
+import { createWorld } from '../sim/world';
+import { cardGeometry, dirIndex, frameAt, updateSprite, viewHalf } from './sprites';
 
 // 카메라는 +x+z 쪽에서 -x-z를 내려다본다. facing = atan2(dx, dz)
 // FLARE 방향 번호(화면 기준): 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW
@@ -28,4 +31,35 @@ test('play_once는 마지막 프레임에 머문다', () => {
 
 test('back_forth는 0→3→0 왕복', () => {
   expect([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7].map((t) => frameAt(clip('back_forth'), t))).toEqual([0, 1, 2, 3, 2, 1, 0, 1]);
+});
+
+test('카드: 발 기준선 위는 서고, 아래(발끝·그림자·시체)는 카메라 쪽 바닥에 눕는다', () => {
+  const [, ch] = hero.cell;
+  const [, ay] = hero.anchor;
+  const pos = cardGeometry(hero as never).attributes.position;
+  const uv = cardGeometry(hero as never).attributes.uv;
+  const ys = Array.from({ length: pos.count }, (_, i) => pos.getY(i));
+  const zs = Array.from({ length: pos.count }, (_, i) => pos.getZ(i));
+  expect(Math.min(...ys)).toBeGreaterThan(0); // 바닥 아래로 내려가는 부분이 없다
+  expect(Math.max(...ys)).toBeCloseTo(0.01 + ay / 30 / Math.cos(Math.PI / 6), 5);
+  expect(Math.max(...zs)).toBeCloseTo((ch - ay) / 30 / Math.sin(Math.PI / 6), 5); // 화면에서 텍셀 높이가 같게
+  const foot = ys.findIndex((y, i) => Math.abs(y - 0.01) < 1e-9 && Math.abs(zs[i]) < 1e-9);
+  expect(uv.getY(foot)).toBeCloseTo(1 - ay / ch, 5);
+});
+
+test('시체는 아래 층(깊이 기록 없음)에, 산 캐릭터는 그 위에 그린다', () => {
+  const w = createWorld(1, ['H.m']);
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, hitT: 0 };
+  const m = w.entities[1];
+  updateSprite(s, m, 0.016);
+  expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([2, true]);
+  m.state = 'dead';
+  updateSprite(s, m, 0.016);
+  expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([1, false]);
+});
+
+test('화면 범위는 항상 렌더 픽셀 30개 = 1m', () => {
+  expect(viewHalf(640, 360)).toEqual([640 / 60, 6]);
+  expect(viewHalf(390, 844)).toEqual([6.5, 844 / 60]);
 });

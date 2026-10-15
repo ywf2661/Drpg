@@ -11,6 +11,7 @@ const targetFill = $('#target i');
 const banner = $('#banner');
 const bannerText = $('#banner p');
 const restartBtn = $('#restart');
+const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 let world = createWorld(SEED);
 
 try {
@@ -37,7 +38,8 @@ requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
   pollInput(world, dt);
-  for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
+  if (credits.open) acc = 0; // 크레딧을 읽는 동안은 게임을 멈춘다
+  else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   draw(world, dt);
   hud();
   requestAnimationFrame(frame);
