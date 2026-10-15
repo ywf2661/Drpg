@@ -7,4 +7,5 @@ test('바닥 장비 이름표: 이름과 지금보다 좋은지(물약은 이름
   expect(itemLabel({ id: 2, x: 0, z: 0, kind: 'weapon', tier: 2 }, gear)).toEqual({ text: '숏소드', better: false });
   expect(itemLabel({ id: 3, x: 0, z: 0, kind: 'armor', tier: 1 }, gear)).toEqual({ text: '천옷', better: false });
   expect(itemLabel({ id: 4, x: 0, z: 0, kind: 'potion', tier: 0 }, gear)).toBeNull();
+  expect(itemLabel({ id: 5, x: 0, z: 0, kind: 'gold', tier: 0, amount: 23 }, gear)).toEqual({ text: '금화 23', better: false });
 });

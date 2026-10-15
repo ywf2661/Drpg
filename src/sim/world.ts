@@ -39,7 +39,8 @@ export type Entity = {
 export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
 
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
-export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor'; tier: number };
+// amount: 금화 양(금화만)
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor' | 'gold'; tier: number; amount?: number };
 // 보물 상자(칸 좌표). 한 번 열면 끝
 export type Chest = { id: number; x: number; z: number; open: boolean };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
@@ -66,6 +67,8 @@ export type World = {
   blasts: Blast[];
   nextItem: number; // 아이템·화살 공용 id
   potions: number;
+  gold: number;
+  power: number; // 이 층의 몬스터 배율(상자 금화에도)
   gear: Gear;
   maxTier: number;
   level: number;
@@ -77,6 +80,17 @@ export type World = {
 export const DT = 1 / 60;
 export const RANGE = 1.5;
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
+// 금화 드롭: 확률·양(× 몬스터 층 배율). 정예는 확정 40–60, 상자는 확정 15–30 × 층 배율
+export const GOLD: Record<Kind, { chance: number; lo: number; hi: number }> = {
+  hero: { chance: 0, lo: 0, hi: 0 },
+  minion: { chance: 0.5, lo: 3, hi: 8 },
+  warrior: { chance: 0.6, lo: 8, hi: 15 },
+  archer: { chance: 0.6, lo: 5, hi: 10 },
+  mage: { chance: 0.6, lo: 6, hi: 12 },
+  boss: { chance: 0, lo: 0, hi: 0 },
+};
+export const GOLD_ELITE = { lo: 40, hi: 60 };
+export const GOLD_CHEST = { lo: 15, hi: 30 };
 export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8, mult: 1.5, cd: 7 }; // 보스 돌진
 export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
@@ -165,7 +179,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -189,6 +203,10 @@ function pickup(w: World, hero: Entity) {
   if (hero.state === 'dead') return;
   w.items = w.items.filter((it) => {
     if (Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
+    if (it.kind === 'gold') {
+      w.gold += it.amount ?? 0;
+      return false;
+    }
     if (it.kind === 'potion') {
       if (w.potions >= POTION.max) return true;
       w.potions++;
@@ -287,6 +305,13 @@ function reachChest(w: World, hero: Entity) {
   const [x, z] = [cx + ((hero.x - cx) / d) * CHEST.drop, cz + ((hero.z - cz) / d) * CHEST.drop];
   const kind = rand(w) < CHEST.potion ? 'potion' : rand(w) < 0.5 ? 'weapon' : 'armor';
   w.items.push({ id: w.nextItem++, x, z, kind, tier: kind === 'potion' ? 0 : 1 + Math.floor(rand(w) * w.maxTier) });
+  dropGold(w, x + (hero.z - cz) / d * 0.4, z - (hero.x - cx) / d * 0.4, GOLD_CHEST.lo, GOLD_CHEST.hi, w.power); // 옆에 금화
+
+}
+
+// 금화 더미(lo..hi × 배율)
+function dropGold(w: World, x: number, z: number, lo: number, hi: number, power: number) {
+  w.items.push({ id: w.nextItem++, x, z, kind: 'gold', tier: 0, amount: Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * power) });
 }
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
@@ -503,6 +528,8 @@ function hurt(w: World, t: Entity, raw: number) {
   gainXp(w, Math.round(XP[t.kind] * t.power * (t.elite ? ELITE.xp : 1)));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
+  const g = t.elite ? { chance: 1, ...GOLD_ELITE } : GOLD[t.kind];
+  if (g.chance > 0 && rand(w) < g.chance) dropGold(w, t.x + 0.3, t.z, g.lo, g.hi, t.power);
   if (t.elite) drop(rand(w) < 0.5 ? 'weapon' : 'armor', w.maxTier); // 정예는 이 층 최고 단계 확정
   else if (rand(w) < GEAR_DROP[t.kind]) drop(rand(w) < 0.5 ? 'weapon' : 'armor', 1 + Math.floor(rand(w) * w.maxTier));
 }

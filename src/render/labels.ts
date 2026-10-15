@@ -10,6 +10,7 @@ let layer: HTMLElement;
 
 export function itemLabel(it: Item, gear: Gear): { text: string; better: boolean } | null {
   if (it.kind === 'potion') return null;
+  if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false };
   const text = (it.kind === 'weapon' ? WEAPONS : ARMORS)[it.tier - 1].name;
   return { text, better: it.tier > gear[it.kind] };
 }

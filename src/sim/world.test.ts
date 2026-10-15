@@ -405,7 +405,7 @@ test('물약 드롭은 시드로 재현되고 id는 고유', () => {
     run(t, 120, [{ type: 'attack', targetId: 1 }]);
     run(t, 120, [{ type: 'attack', targetId: 2 }]);
     if (t.items.filter((i) => i.kind === 'potion').length === 2) {
-      expect(new Set(t.items.map((i) => i.id)).size).toBe(2);
+      expect(new Set(t.items.map((i) => i.id)).size).toBe(t.items.length); // 금화까지 모든 아이템 id가 서로 다름
       return;
     }
   }
@@ -504,7 +504,7 @@ test('장비 드롭: 확률, 종류 반반, 단계는 1..maxTier', () => {
     w.maxTier = 3;
     w.entities[1].hp = 1;
     run(w, 60, [{ type: 'attack', targetId: 1 }]);
-    for (const it of w.items.filter((i) => i.kind !== 'potion')) {
+    for (const it of w.items.filter((i) => i.kind === 'weapon' || i.kind === 'armor')) {
       drops++;
       tiers.add(it.tier);
       kinds.add(it.kind);
@@ -714,7 +714,7 @@ test('정예 전사(W): 체력 ×3, 데미지 ×1.3, 경험치 ×4, 그 층 최�
   w.maxTier = 3;
   slay(w);
   expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
-  expect(w.items.filter((i) => i.kind !== 'potion').map((i) => i.tier)).toEqual([3]);
+  expect(w.items.filter((i) => i.kind === 'weapon' || i.kind === 'armor').map((i) => i.tier)).toEqual([3]);
   // 데미지: 전사 6–9 × (1 + 0.3/2) × 1.3 → 9–13 (천옷 감소 0)
   const hitter = createWorld(2, ['HW'], 1.3);
   const hero = hitter.entities[0];
@@ -736,12 +736,12 @@ test('상자(c): 막힌 칸, 클릭하면 걸어가서 열고 내용물이 주�
   expect(w.chests).toEqual([{ id: 0, x: 4, z: 1, open: false }]);
   run(w, 120, [{ type: 'open', chestId: 0 }]);
   expect(w.chests[0].open).toBe(true);
-  expect(w.items).toHaveLength(1);
-  const it = w.items[0];
+  expect(w.items.filter((i) => i.kind !== 'gold')).toHaveLength(1);
+  const it = w.items.find((i) => i.kind !== 'gold')!;
   expect(Math.hypot(it.x - 4.5, it.z - 1.5)).toBeCloseTo(0.7, 5);
   expect(walkable(w.grid, Math.floor(it.x), Math.floor(it.z))).toBe(true); // 주울 수 있는 곳
   run(w, 60, [{ type: 'open', chestId: 0 }]);
-  expect(w.items.length + w.potions).toBeLessThanOrEqual(1); // 다시 열리지 않는다
+  expect(w.items.filter((i) => i.kind !== 'gold').length + w.potions).toBeLessThanOrEqual(1); // 다시 열리지 않는다
 });
 
 test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () => {
@@ -752,7 +752,7 @@ test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () =
     w.gear = { weapon: 4, armor: 4 }; // 장비는 줍지 않게(물약은 바로 허리띠로)
     run(w, 30, [{ type: 'open', chestId: 0 }]);
     if (w.potions === 1) potions++;
-    else expect(w.items[0].tier).toBeLessThanOrEqual(2);
+    else expect(w.items.find((i) => i.kind !== 'gold')!.tier).toBeLessThanOrEqual(2);
   }
   expect(potions / 300).toBeGreaterThan(0.5);
   expect(potions / 300).toBeLessThan(0.7);
@@ -877,4 +877,36 @@ test('마법사는 가까이 오면 물러나고, 물러날 곳이 없으면 그
     cast = cornered.shots.length > 0 || cornered.blasts.length > 0;
   }
   expect(cast).toBe(true);
+});
+
+test('금화: 졸개 50%·3~8, 정예 100%·40~60(× 층 배율), 상자도 금화를 준다', () => {
+  let drops = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const w = createWorld(seed, ['Hm']);
+    slay(w);
+    const g = w.items.find((i) => i.kind === 'gold');
+    if (!g) continue;
+    drops++;
+    expect(g.amount).toBeGreaterThanOrEqual(3);
+    expect(g.amount).toBeLessThanOrEqual(8);
+  }
+  expect(drops / 300).toBeGreaterThan(0.4);
+  expect(drops / 300).toBeLessThan(0.6);
+  const e = createWorld(1, ['HW'], 1.5);
+  slay(e);
+  const g = e.items.find((i) => i.kind === 'gold')!;
+  expect(g.amount).toBeGreaterThanOrEqual(60);
+  expect(g.amount).toBeLessThanOrEqual(90);
+  const c = createWorld(1, ['H.c']);
+  run(c, 60, [{ type: 'open', chestId: 0 }]);
+  expect(c.items.some((i) => i.kind === 'gold') || c.gold > 0).toBe(true);
+});
+
+test('금화는 지나가면 줍고 개수 제한이 없다', () => {
+  const w = createWorld(1, ['H....']);
+  w.gold = 1000;
+  w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'gold', tier: 0, amount: 37 });
+  run(w, 70, [{ type: 'move', x: 4.5, z: 0.5 }]);
+  expect(w.gold).toBe(1037);
+  expect(w.items).toEqual([]);
 });

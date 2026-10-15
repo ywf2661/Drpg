@@ -23,7 +23,7 @@ function think(w: World): Command[] {
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead').sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   if (foes.filter((e) => d(e.x, e.z) < 2).length >= 2) cmds.push({ type: 'skill' });
-  const wanted = w.items.find((i) => (i.kind === 'potion' ? w.potions < 8 : i.tier > w.gear[i.kind]));
+  const wanted = w.items.find((i) => (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : i.tier > w.gear[i.kind]));
   if (foes.length && (d(foes[0].x, foes[0].z) < 9 || !wanted)) {
     if (hero.target !== foes[0].id) cmds.push({ type: 'attack', targetId: foes[0].id });
   } else if (wanted) cmds.push({ type: 'move', x: wanted.x, z: wanted.z });
