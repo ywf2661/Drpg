@@ -370,3 +370,90 @@ test('계단 그림의 구멍(계단 칸 주변 3×3)을 눌러도 계단 중심
   run(w, 90, [{ type: 'move', x: 4.5, z: 3.5 }]);
   expect(outcome(w)).toBe('descend');
 });
+
+const kill = (seed: number, kind: 'm' | 'w') => {
+  const w = createWorld(seed, ['H' + kind + '.']);
+  w.entities[1].hp = 1;
+  run(w, 60, [{ type: 'attack', targetId: 1 }]);
+  return w;
+};
+
+test('몬스터가 죽으면 확률로 물약을 그 자리에 떨어뜨린다(졸개 약 20%, 전사 약 35%)', () => {
+  for (const [kind, lo, hi] of [['m', 0.12, 0.28], ['w', 0.25, 0.45]] as const) {
+    let drops = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const w = kill(seed, kind);
+      expect(w.entities[1].state).toBe('dead');
+      if (w.items.length) {
+        drops++;
+        expect(w.items[0]).toMatchObject({ x: w.entities[1].x, z: w.entities[1].z });
+      }
+    }
+    expect(drops / 400).toBeGreaterThan(lo);
+    expect(drops / 400).toBeLessThan(hi);
+  }
+});
+
+test('물약 드롭은 시드로 재현되고 id는 고유', () => {
+  const seeds = Array.from({ length: 50 }, (_, i) => i + 1);
+  expect(seeds.map((s) => kill(s, 'm').items.length)).toEqual(seeds.map((s) => kill(s, 'm').items.length));
+  for (let seed = 0; seed < 200; seed++) {
+    // 두 마리 모두 떨어뜨리는 시드를 찾아 id가 겹치지 않는지 본다
+    const t = createWorld(seed, ['mHm']);
+    for (const m of t.entities.slice(1)) m.hp = 1;
+    run(t, 120, [{ type: 'attack', targetId: 1 }]);
+    run(t, 120, [{ type: 'attack', targetId: 2 }]);
+    if (t.items.length === 2) {
+      expect(new Set(t.items.map((i) => i.id)).size).toBe(2);
+      return;
+    }
+  }
+  throw new Error('물약 2개 드롭 사례를 찾지 못함');
+});
+
+test('지나가면 물약을 줍고, 허리띠가 가득 차면 바닥에 남긴다', () => {
+  const w = createWorld(1, ['H....']);
+  w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5 });
+  run(w, 70, [{ type: 'move', x: 4.5, z: 0.5 }]);
+  expect(w.potions).toBe(1);
+  expect(w.items).toEqual([]);
+  const full = createWorld(1, ['H....']);
+  full.potions = 8;
+  full.items.push({ id: full.nextItem++, x: 2.5, z: 0.5 });
+  run(full, 70, [{ type: 'move', x: 4.5, z: 0.5 }]);
+  expect(full.potions).toBe(8);
+  expect(full.items).toHaveLength(1);
+});
+
+test('물약을 마시면 최대 체력의 50% 회복(최대치까지), 가득하거나 없거나 죽었으면 마시지 않는다', () => {
+  const w = createWorld(1, ['H..']);
+  const hero = w.entities[0];
+  w.potions = 2;
+  hero.hp = 30;
+  step(w, [{ type: 'drink' }]);
+  expect([hero.hp, w.potions]).toEqual([80, 1]);
+  step(w, [{ type: 'drink' }]);
+  expect([hero.hp, w.potions]).toEqual([100, 0]);
+  w.potions = 1;
+  step(w, [{ type: 'drink' }]);
+  expect(w.potions).toBe(1);
+  hero.hp = 10;
+  w.potions = 0;
+  step(w, [{ type: 'drink' }]);
+  expect(hero.hp).toBe(10);
+  w.potions = 1;
+  hero.hp = 0;
+  hero.state = 'dead';
+  step(w, [{ type: 'drink' }]);
+  expect(w.potions).toBe(1);
+});
+
+test('마시기는 이동과 계단 의도를 끊지 않는다', () => {
+  const w = createWorld(1, ['H..>', '....']);
+  w.potions = 1;
+  w.entities[0].hp = 50;
+  step(w, [{ type: 'move', x: 3.5, z: 0.5 }]);
+  run(w, 60, [{ type: 'drink' }]);
+  expect(w.potions).toBe(0);
+  expect(outcome(w)).toBe('descend');
+});

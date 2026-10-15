@@ -3,7 +3,7 @@ import { findPath, walkable, type Cell, type Grid } from './path';
 
 export type Kind = 'hero' | 'minion' | 'warrior';
 export type State = 'idle' | 'move' | 'attack' | 'dead';
-export type Command = { type: 'move'; x: number; z: number } | { type: 'attack'; targetId: number };
+export type Command = { type: 'move'; x: number; z: number } | { type: 'attack'; targetId: number } | { type: 'drink' };
 type Point = [x: number, z: number];
 
 export type Entity = {
@@ -25,8 +25,22 @@ export type Entity = {
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
 
+// 바닥에 떨어진 체력 물약(월드 좌표)
+export type Item = { id: number; x: number; z: number };
+
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
-export type World = { grid: Grid; entities: Entity[]; rng: number; stairs: Cell | null; toStairs: boolean; props: Prop[] };
+// potions: 허리띠의 물약 수, nextItem: 다음 물약 id
+export type World = {
+  grid: Grid;
+  entities: Entity[];
+  rng: number;
+  stairs: Cell | null;
+  toStairs: boolean;
+  props: Prop[];
+  items: Item[];
+  nextItem: number;
+  potions: number;
+};
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
@@ -34,6 +48,9 @@ export const RADIUS = 0.4;
 export const AGGRO = 8;
 export const HIT_AT = 0.4;
 export const REPATH = 0.5;
+
+// 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
+export const POTION = { drop: { minion: 0.2, warrior: 0.35 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 },
@@ -69,7 +86,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     const hp = Math.round(STATS[s.kind].hp * p);
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
-  return { grid, entities, rng: seed, stairs, toStairs: false, props };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], nextItem: 0, potions: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -81,6 +98,24 @@ export function step(w: World, cmds: Command[]): void {
     act(w, e);
   }
   separate(w);
+  pickup(w, hero);
+}
+
+// 주인공 발밑(POTION.pickup 이내)의 물약을 허리띠가 찰 때까지 줍는다
+function pickup(w: World, hero: Entity) {
+  if (hero.state === 'dead') return;
+  w.items = w.items.filter((it) => {
+    if (w.potions >= POTION.max || Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
+    w.potions++;
+    return false;
+  });
+}
+
+// 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
+function drink(w: World, hero: Entity) {
+  if (hero.state === 'dead' || w.potions <= 0 || hero.hp >= hero.maxHp) return;
+  hero.hp = Math.min(hero.maxHp, hero.hp + Math.round(hero.maxHp * POTION.heal));
+  w.potions--;
 }
 
 export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
@@ -91,6 +126,7 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 }
 
 function command(w: World, hero: Entity, c: Command) {
+  if (c.type === 'drink') return drink(w, hero);
   if (hero.state === 'dead') return;
   w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
   if (c.type === 'attack') {
@@ -183,6 +219,7 @@ function damage(w: World, a: Entity, t: Entity) {
   t.state = 'dead';
   t.path = [];
   t.target = null;
+  if (t.kind !== 'hero' && rand(w) < POTION.drop[t.kind]) w.items.push({ id: w.nextItem++, x: t.x, z: t.z });
 }
 
 // mulberry32. 상태가 world.rng에 있어서 같은 시드 = 같은 난수열.
