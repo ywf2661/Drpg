@@ -3,7 +3,7 @@ import potionIcon from './assets/sprites/potion_icon.png';
 import { commands, hovered, initInput, pollInput } from './input';
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
-import { generateFloor } from './sim/dungeon';
+import { FLOORS, generateFloor } from './sim/dungeon';
 import { ARMORS, createWorld, DT, outcome, STATS, step, WEAPONS, type Gear, type World } from './sim/world';
 
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
@@ -21,6 +21,9 @@ const potionCount = $('#potion span');
 const weaponSlot = $('#weapon');
 const armorSlot = $('#armor');
 const toast = $('#toast');
+const bossBar = $('#boss');
+const bossFill = $('#boss i');
+const BOSS_BAR_RANGE = 12; // 보스와 이만큼 가까우면 상단 체력바(m)
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const START = { potions: 2, gear: { weapon: 2, armor: 2 } }; // 숏소드 + 가죽 갑옷
 type Carry = { potions: number; gear: Gear };
@@ -40,7 +43,8 @@ function makeFloor(n: number, carry: Carry): World {
 }
 
 function showFloor() {
-  floorLabel.textContent = floorTitle.textContent = `지하 ${floor}층`;
+  floorLabel.textContent = `지하 ${floor}층`;
+  floorTitle.textContent = floor === FLOORS ? `지하 ${floor}층 — ${STATS.boss.name}` : floorLabel.textContent;
   replay(floorTitle);
 }
 
@@ -84,7 +88,8 @@ banner.hidden = true;
 initInput();
 showFloor();
 showGear(world.gear);
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands } }); // 헤드리스 확인용
+// 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number) => enterFloor(n, world) } });
 
 function restart() {
   const o = outcome(world);
@@ -134,6 +139,10 @@ function hud() {
     showGear(world.gear);
     void setHeroGear(world.gear);
   }
+  const boss = world.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
+  bossBar.hidden = !boss || Math.hypot(boss.x - hero.x, boss.z - hero.z) > BOSS_BAR_RANGE;
+  if (boss) bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;
+  target.classList.toggle('below', !bossBar.hidden);
   const id = hovered ?? hero.target; // 마우스 오버가 없으면(모바일) 공격 중인 대상
   const m = id === null ? null : world.entities[id];
   target.hidden = !m;
@@ -145,5 +154,5 @@ function hud() {
   const o = outcome(world);
   banner.hidden = restartBtn.hidden = o !== 'dead' && o !== 'clear';
   if (o === 'dead') bannerText.textContent = '사망했습니다';
-  if (o === 'clear') bannerText.textContent = '클리어!';
+  if (o === 'clear') bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
 }

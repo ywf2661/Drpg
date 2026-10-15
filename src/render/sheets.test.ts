@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
 import minion from '../assets/sprites/minion.json';
 import warrior from '../assets/sprites/warrior.json';
+import boss from '../assets/sprites/boss.json';
 import props from '../assets/sprites/props.json';
 import stairs from '../assets/sprites/stairs.json';
 import loot from '../assets/sprites/loot.json';
@@ -12,6 +13,7 @@ test.each([
   ['hero', hero],
   ['minion', minion],
   ['warrior', warrior],
+  ['boss', boss],
 ])('%s 시트: 모든 동작 × 8방향이 시트 범위 안에 있다', (_, info) => {
   expect(info.ppm).toBe(30);
   expect(info.rows).toBe(ANIMS.length * 8);
@@ -63,4 +65,8 @@ test('주인공 시트: 무기 4 × 갑옷 4 = 16조합이 모두 있다(칸 정
 
 test('loot 시트: 물약과 장비 바닥 그림', () => {
   expect(Object.keys(loot.anims)).toEqual(['potion', 'dagger', 'shortsword', 'longsword', 'greatsword', 'clothes', 'leather_armor', 'steel_armor']);
+});
+
+test('사망 동작은 모두 1회 재생(마지막 프레임 = 시체)', () => {
+  for (const info of [hero, minion, warrior, boss]) expect(info.anims.die.loop).toBe('play_once');
 });

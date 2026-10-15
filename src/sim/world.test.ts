@@ -528,11 +528,31 @@ test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 남�
   expect(w.items.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['armor', 1]]);
 });
 
-test('M은 보스: 체력·데미지에 층 배율', () => {
+test('M은 보스: 5층 기준 수치라 층 배율을 쓰지 않는다', () => {
   const w = createWorld(1, ['H...M'], 1.8);
   const b = w.entities[1];
   expect(b.kind).toBe('boss');
-  expect(b.maxHp).toBe(540);
+  expect([b.maxHp, b.power]).toEqual([300, 1]);
+});
+
+// 주인공이 보스만 공격하고 체력이 40 미만이면 물약을 마신다. 이기면 true
+function bossFight(seed: number, gear: { weapon: number; armor: number }, potions: number) {
+  const w = createWorld(seed, ['H.M']);
+  w.gear = gear;
+  w.potions = potions;
+  for (let t = 0; t < 120 / DT && !outcome(w); t++) {
+    const cmds: Command[] = t === 0 ? [{ type: 'attack', targetId: 1 }] : [];
+    if (w.entities[0].hp < 40) cmds.push({ type: 'drink' });
+    step(w, cmds);
+  }
+  return outcome(w) === 'clear';
+}
+
+test('보스 밸런스: 물약을 써야 이긴다(시작 장비 + 4개, 최고 장비 + 2개면 대체로 승리, 최고 장비라도 물약 없으면 패배)', () => {
+  const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+  expect(seeds.filter((s) => bossFight(s, { weapon: 2, armor: 2 }, 4)).length).toBeGreaterThan(30);
+  expect(seeds.filter((s) => bossFight(s, { weapon: 4, armor: 4 }, 2)).length).toBeGreaterThan(30);
+  expect(seeds.filter((s) => bossFight(s, { weapon: 4, armor: 4 }, 0)).length).toBeLessThan(10);
 });
 
 test('보스가 있는 층은 보스가 죽으면 클리어(다른 몬스터 생존 무관)', () => {

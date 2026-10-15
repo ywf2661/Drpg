@@ -34,7 +34,9 @@ LAYER_ORDER = {
 KINDS = {  # 몬스터: 레이어 1장
     'minion': {'body': 'enemies/skeleton_weak'},
     'warrior': {'body': 'enemies/skeleton'},
+    'boss': {'body': 'enemies/minotaur'},
 }
+KIND_SCALE = {'boss': 0.28}  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 무기 × 갑옷 세트 16조합. 모든 조합이 같은 칸 크기·기준점이라 hero.json 하나를 공유한다
 HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']
 HERO_ARMORS = {
@@ -74,28 +76,38 @@ def fetch(rel):
 
 
 class Sheet:
-    """FLARE 이미지 + 정의 파일(frame=번호,방향,x,y,w,h,기준x,기준y)."""
+    """FLARE 이미지 + 정의 파일(frame=번호,방향,x,y,w,h,기준x,기준y[,이미지 이름]).
+    정의에 image=경로,이름 줄이 있으면 동작마다 다른 이미지(미노타우르스), 없으면 images/<name>.png 한 장."""
 
     def __init__(self, name):
-        self.img = Image.open(fetch(f'mods/fantasycore/images/{name}.png')).convert('RGBA')
-        self.anims = {}
+        self.anims, self.images, self.src = {}, {}, {}  # src: (동작, 프레임, 방향) → 이미지 이름
         cur = None
         for line in fetch(f'mods/fantasycore/animations/{name}.txt').read_text(encoding='utf-8').splitlines():
             line = line.strip()
-            if m := re.match(r'^\[(\w+)\]$', line):
-                cur = self.anims.setdefault(m.group(1), {'rects': {}})
+            if line.startswith('image=') and ',' in line:
+                path, key = line[6:].split(',')
+                self.images[key] = Image.open(fetch(f'mods/fantasycore/{path}')).convert('RGBA')
+            elif m := re.match(r'^\[(\w+)\]$', line):
+                section = m.group(1)
+                cur = self.anims.setdefault(section, {'rects': {}})
             elif cur is not None and line.startswith('frame='):
-                i, d, x, y, w, h, ox, oy = map(int, line[6:].split(','))
-                cur['rects'][(i, d)] = (x, y, w, h, ox, oy)
+                i, d, x, y, w, h, ox, oy, *key = line[6:].split(',')
+                cur['rects'][(int(i), int(d))] = tuple(map(int, (x, y, w, h, ox, oy)))
+                if key:
+                    self.src[(section, int(i), int(d))] = key[0]
             elif cur is not None and '=' in line:
                 k, v = line.split('=', 1)
                 cur[k] = v
+        if not self.images:
+            self.images[None] = Image.open(fetch(f'mods/fantasycore/images/{name}.png')).convert('RGBA')
+        self.img = next(iter(self.images.values()))
 
     def draw(self, canvas, anim, i, d):
         rect = self.anims[anim]['rects'].get((i, d))
         assert rect, f'프레임 없음: {anim} frame={i} dir={d}'
         x, y, w, h, ox, oy = rect
-        canvas.alpha_composite(self.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
+        img = self.images.get(self.src.get((anim, i, d)), self.img)
+        canvas.alpha_composite(img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
 
 
 @functools.lru_cache(maxsize=None)
@@ -115,7 +127,8 @@ def frames_of(layers):
     for anim, src in ANIMS.items():
         a = meta_src.anims[src]
         n = int(a['frames'])
-        meta[anim] = (n, int(a['duration'].removesuffix('ms')), a.get('type', 'play_once'))
+        # 사망은 마지막 프레임(누운 시체)에 멈춘다. 미노타우르스 정의는 back_forth라 시체가 다시 일어선다
+        meta[anim] = (n, int(a['duration'].removesuffix('ms')), 'play_once' if anim == 'die' else a.get('type', 'play_once'))
         for d, dname in enumerate(DIRS):
             order = ['body'] if 'body' in layers else LAYER_ORDER[dname].split()
             for i in range(n):
@@ -288,7 +301,7 @@ if __name__ == '__main__':
     PUBLIC.mkdir(parents=True, exist_ok=True)
     TILES.mkdir(parents=True, exist_ok=True)
     for kind in KINDS:
-        pack(kind, *frames_of(KINDS[kind]), SCALE, 8)
+        pack(kind, *frames_of(KINDS[kind]), KIND_SCALE.get(kind, SCALE), 8)
     hero()
     tiles()
     loot()

@@ -10,84 +10,93 @@ from isometric into square textures, wall brightened; props and stairs scaled by
 Items: drop animations scaled by 0.32 (potion by 0.5), item icons cropped from the icon atlas.
 
 Files used:
-  mods/fantasycore/images/enemies/skeleton_weak.png
   mods/fantasycore/animations/enemies/skeleton_weak.txt
-  mods/fantasycore/images/enemies/skeleton.png
+  mods/fantasycore/images/enemies/skeleton_weak.png
   mods/fantasycore/animations/enemies/skeleton.txt
-  mods/fantasycore/images/avatar/male/head_short.png
+  mods/fantasycore/images/enemies/skeleton.png
+  mods/fantasycore/animations/enemies/minotaur.txt
+  mods/fantasycore/images/enemies/minotaur/minotaur_stance.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_run.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_swing.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_block.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_cast.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_cast_alt.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_shoot.png
+  mods/fantasycore/images/enemies/minotaur/minotaur_die.png
   mods/fantasycore/animations/avatar/male/head_short.txt
-  mods/fantasycore/images/avatar/male/cloth_shirt.png
+  mods/fantasycore/images/avatar/male/head_short.png
   mods/fantasycore/animations/avatar/male/cloth_shirt.txt
-  mods/fantasycore/images/avatar/male/cloth_gloves.png
+  mods/fantasycore/images/avatar/male/cloth_shirt.png
   mods/fantasycore/animations/avatar/male/cloth_gloves.txt
-  mods/fantasycore/images/avatar/male/cloth_pants.png
+  mods/fantasycore/images/avatar/male/cloth_gloves.png
   mods/fantasycore/animations/avatar/male/cloth_pants.txt
-  mods/fantasycore/images/avatar/male/cloth_sandals.png
+  mods/fantasycore/images/avatar/male/cloth_pants.png
   mods/fantasycore/animations/avatar/male/cloth_sandals.txt
-  mods/fantasycore/images/avatar/male/buckler.png
+  mods/fantasycore/images/avatar/male/cloth_sandals.png
   mods/fantasycore/animations/avatar/male/buckler.txt
-  mods/fantasycore/images/avatar/male/dagger.png
+  mods/fantasycore/images/avatar/male/buckler.png
   mods/fantasycore/animations/avatar/male/dagger.txt
-  mods/fantasycore/images/avatar/male/leather_hood.png
+  mods/fantasycore/images/avatar/male/dagger.png
   mods/fantasycore/animations/avatar/male/leather_hood.txt
-  mods/fantasycore/images/avatar/male/leather_chest.png
+  mods/fantasycore/images/avatar/male/leather_hood.png
   mods/fantasycore/animations/avatar/male/leather_chest.txt
-  mods/fantasycore/images/avatar/male/leather_gloves.png
+  mods/fantasycore/images/avatar/male/leather_chest.png
   mods/fantasycore/animations/avatar/male/leather_gloves.txt
-  mods/fantasycore/images/avatar/male/leather_pants.png
+  mods/fantasycore/images/avatar/male/leather_gloves.png
   mods/fantasycore/animations/avatar/male/leather_pants.txt
-  mods/fantasycore/images/avatar/male/leather_boots.png
+  mods/fantasycore/images/avatar/male/leather_pants.png
   mods/fantasycore/animations/avatar/male/leather_boots.txt
-  mods/fantasycore/images/avatar/male/iron_buckler.png
+  mods/fantasycore/images/avatar/male/leather_boots.png
   mods/fantasycore/animations/avatar/male/iron_buckler.txt
-  mods/fantasycore/images/avatar/male/chain_coif.png
+  mods/fantasycore/images/avatar/male/iron_buckler.png
   mods/fantasycore/animations/avatar/male/chain_coif.txt
-  mods/fantasycore/images/avatar/male/chain_cuirass.png
+  mods/fantasycore/images/avatar/male/chain_coif.png
   mods/fantasycore/animations/avatar/male/chain_cuirass.txt
-  mods/fantasycore/images/avatar/male/chain_gloves.png
+  mods/fantasycore/images/avatar/male/chain_cuirass.png
   mods/fantasycore/animations/avatar/male/chain_gloves.txt
-  mods/fantasycore/images/avatar/male/chain_greaves.png
+  mods/fantasycore/images/avatar/male/chain_gloves.png
   mods/fantasycore/animations/avatar/male/chain_greaves.txt
-  mods/fantasycore/images/avatar/male/chain_boots.png
+  mods/fantasycore/images/avatar/male/chain_greaves.png
   mods/fantasycore/animations/avatar/male/chain_boots.txt
-  mods/fantasycore/images/avatar/male/kite_shield.png
+  mods/fantasycore/images/avatar/male/chain_boots.png
   mods/fantasycore/animations/avatar/male/kite_shield.txt
-  mods/fantasycore/images/avatar/male/plate_helm.png
+  mods/fantasycore/images/avatar/male/kite_shield.png
   mods/fantasycore/animations/avatar/male/plate_helm.txt
-  mods/fantasycore/images/avatar/male/plate_cuirass.png
+  mods/fantasycore/images/avatar/male/plate_helm.png
   mods/fantasycore/animations/avatar/male/plate_cuirass.txt
-  mods/fantasycore/images/avatar/male/plate_gauntlets.png
+  mods/fantasycore/images/avatar/male/plate_cuirass.png
   mods/fantasycore/animations/avatar/male/plate_gauntlets.txt
-  mods/fantasycore/images/avatar/male/plate_greaves.png
+  mods/fantasycore/images/avatar/male/plate_gauntlets.png
   mods/fantasycore/animations/avatar/male/plate_greaves.txt
-  mods/fantasycore/images/avatar/male/plate_boots.png
+  mods/fantasycore/images/avatar/male/plate_greaves.png
   mods/fantasycore/animations/avatar/male/plate_boots.txt
-  mods/fantasycore/images/avatar/male/shield.png
+  mods/fantasycore/images/avatar/male/plate_boots.png
   mods/fantasycore/animations/avatar/male/shield.txt
-  mods/fantasycore/images/avatar/male/shortsword.png
+  mods/fantasycore/images/avatar/male/shield.png
   mods/fantasycore/animations/avatar/male/shortsword.txt
-  mods/fantasycore/images/avatar/male/longsword.png
+  mods/fantasycore/images/avatar/male/shortsword.png
   mods/fantasycore/animations/avatar/male/longsword.txt
-  mods/fantasycore/images/avatar/male/greatsword.png
+  mods/fantasycore/images/avatar/male/longsword.png
   mods/fantasycore/animations/avatar/male/greatsword.txt
+  mods/fantasycore/images/avatar/male/greatsword.png
   mods/fantasycore/images/tilesets/tileset_dungeon.png
   mods/fantasycore/tilesetdefs/tileset_dungeon.txt
-  mods/fantasycore/images/loot/hp_potion.png
   mods/fantasycore/animations/loot/hp_potion.txt
-  mods/fantasycore/images/loot/dagger.png
+  mods/fantasycore/images/loot/hp_potion.png
   mods/fantasycore/animations/loot/dagger.txt
-  mods/fantasycore/images/loot/shortsword.png
+  mods/fantasycore/images/loot/dagger.png
   mods/fantasycore/animations/loot/shortsword.txt
-  mods/fantasycore/images/loot/longsword.png
+  mods/fantasycore/images/loot/shortsword.png
   mods/fantasycore/animations/loot/longsword.txt
-  mods/fantasycore/images/loot/greatsword.png
+  mods/fantasycore/images/loot/longsword.png
   mods/fantasycore/animations/loot/greatsword.txt
-  mods/fantasycore/images/loot/clothes.png
+  mods/fantasycore/images/loot/greatsword.png
   mods/fantasycore/animations/loot/clothes.txt
-  mods/fantasycore/images/loot/leather_armor.png
+  mods/fantasycore/images/loot/clothes.png
   mods/fantasycore/animations/loot/leather_armor.txt
-  mods/fantasycore/images/loot/steel_armor.png
+  mods/fantasycore/images/loot/leather_armor.png
   mods/fantasycore/animations/loot/steel_armor.txt
+  mods/fantasycore/images/loot/steel_armor.png
   mods/fantasycore/images/icons/icons.png
   mods/fantasycore/images/cursors/cursor_normal.png
   mods/fantasycore/images/cursors/cursor_attack.png

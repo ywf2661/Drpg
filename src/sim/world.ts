@@ -100,7 +100,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id): Entity => {
-    const p = s.kind === 'hero' ? 1 : power;
+    const p = s.kind === 'hero' || s.kind === 'boss' ? 1 : power; // 보스는 마지막 층 기준으로 정한 수치
     const hp = Math.round(STATS[s.kind].hp * p);
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
