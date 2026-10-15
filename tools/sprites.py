@@ -3,6 +3,7 @@
 실행: python tools/sprites.py   (Python 3 + Pillow)
 원본: Flare: Empyrean Campaign 아트, CC-BY-SA 3.0. 가공 결과물도 CC-BY-SA 3.0.
 """
+import functools
 import json
 import re
 import shutil
@@ -30,13 +31,21 @@ LAYER_ORDER = {
     'NE': 'feet legs hands chest off head main', 'E': 'feet legs hands chest off head main',
     'SE': 'feet legs hands main chest head off', 'S': 'main feet legs hands chest head off',
 }
-KINDS = {
-    'hero': {'head': 'avatar/male/chain_coif', 'chest': 'avatar/male/chain_cuirass', 'hands': 'avatar/male/chain_gloves',
-             'legs': 'avatar/male/chain_greaves', 'feet': 'avatar/male/chain_boots', 'main': 'avatar/male/longsword',
-             'off': 'avatar/male/kite_shield'},
+KINDS = {  # 몬스터: 레이어 1장
     'minion': {'body': 'enemies/skeleton_weak'},
     'warrior': {'body': 'enemies/skeleton'},
 }
+# 주인공 = 무기 × 갑옷 세트 16조합. 모든 조합이 같은 칸 크기·기준점이라 hero.json 하나를 공유한다
+HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']
+HERO_ARMORS = {
+    'cloth': {'head': 'head_short', 'chest': 'cloth_shirt', 'hands': 'cloth_gloves', 'legs': 'cloth_pants', 'feet': 'cloth_sandals', 'off': 'buckler'},
+    'leather': {'head': 'leather_hood', 'chest': 'leather_chest', 'hands': 'leather_gloves', 'legs': 'leather_pants', 'feet': 'leather_boots', 'off': 'iron_buckler'},
+    'chain': {'head': 'chain_coif', 'chest': 'chain_cuirass', 'hands': 'chain_gloves', 'legs': 'chain_greaves', 'feet': 'chain_boots', 'off': 'kite_shield'},
+    'plate': {'head': 'plate_helm', 'chest': 'plate_cuirass', 'hands': 'plate_gauntlets', 'legs': 'plate_greaves', 'feet': 'plate_boots', 'off': 'shield'},
+}
+LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
+              'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor'}  # 동작 이름 → loot 애니메이션
+GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
 TILE_SCALE = 42.43 / 192  # FLARE 타일 1개(마름모 가로 192px) = 우리 칸 1개(화면 42.4px)
@@ -47,11 +56,16 @@ WALL_TILE, WALL_PX, WALL_GAIN = 48, 141, 1.8  # 벽돌 기둥, 1.2m 높이의 FL
 PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 163, 'chest': 144, 'chest2': 145,
          'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
 STAIRS = 286  # 4×4칸 내려가는 계단
-LOOT_SCALE = 0.5  # 바닥 물약. 타일 배율(0.221)이면 6px라 보이지 않는다
+LOOT_SCALE = 0.5  # 바닥 아이템. 타일 배율(0.221)이면 물약이 6px라 보이지 않는다
 POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
 
+FETCHED = []  # 실제로 쓴 원본 파일(CREDITS 목록)
+
+
 def fetch(rel):
+    if rel not in FETCHED:
+        FETCHED.append(rel)
     path = CACHE / rel
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,9 +98,18 @@ class Sheet:
         canvas.alpha_composite(self.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
 
 
-def frames_of(kind):
-    """{(동작, 방향, 프레임): (잘라낸 이미지, 캔버스 안 좌상단)}, {동작: (프레임 수, ms, loop)}"""
-    sheets = {slot: Sheet(name) for slot, name in KINDS[kind].items()}
+@functools.lru_cache(maxsize=None)
+def sheet(name):
+    return Sheet(name)
+
+
+def hero_layers(weapon, armor):
+    return {slot: f'avatar/male/{n}' for slot, n in {**HERO_ARMORS[armor], 'main': weapon}.items()}
+
+
+def frames_of(layers):
+    """layers: {슬롯: 원본 이름}. 반환 {(동작, 방향, 프레임): (잘라낸 이미지, 캔버스 안 좌상단)}, {동작: (프레임 수, ms, loop)}"""
+    sheets = {slot: sheet(name) for slot, name in layers.items()}
     meta_src = sheets.get('chest') or sheets['body']
     frames, meta = {}, {}
     for anim, src in ANIMS.items():
@@ -94,7 +117,7 @@ def frames_of(kind):
         n = int(a['frames'])
         meta[anim] = (n, int(a['duration'].removesuffix('ms')), a.get('type', 'play_once'))
         for d, dname in enumerate(DIRS):
-            order = LAYER_ORDER[dname].split() if kind == 'hero' else ['body']
+            order = ['body'] if 'body' in layers else LAYER_ORDER[dname].split()
             for i in range(n):
                 c = Image.new('RGBA', (CANVAS, CANVAS))
                 for slot in order:
@@ -104,13 +127,16 @@ def frames_of(kind):
     return frames, meta
 
 
-def pack(name, frames, meta, scale, dirs):
+def pack(name, frames, meta, scale, dirs, bbox=None, json_name=None):
     """frames: {(동작, 방향, 프레임): (이미지, 좌상단)} — 좌상단은 발 기준점이 FOOT인 좌표(음수 가능).
-    meta: {동작: (프레임 수, ms, loop)}. 시트 행 = 동작 순서 × dirs + 방향, 열 = 프레임."""
-    x0 = min(o[0] for _, o in frames.values())
-    y0 = min(o[1] for _, o in frames.values())
-    x1 = max(o[0] + im.width for im, o in frames.values())
-    y1 = max(o[1] + im.height for im, o in frames.values())
+    meta: {동작: (프레임 수, ms, loop)}. 시트 행 = 동작 순서 × dirs + 방향, 열 = 프레임.
+    bbox: 여러 시트가 같은 칸을 쓰게 하는 공통 경계 상자. json_name: json 이름(기본 name)."""
+    x0, y0, x1, y1 = bbox or (
+        min(o[0] for _, o in frames.values()),
+        min(o[1] for _, o in frames.values()),
+        max(o[0] + im.width for im, o in frames.values()),
+        max(o[1] + im.height for im, o in frames.values()),
+    )
     cw, ch = round((x1 - x0) * scale), round((y1 - y0) * scale)
     cols, rows = max(n for n, _, _ in meta.values()), len(meta) * dirs
     assert cols * cw <= 4096 and rows * ch <= 4096, f'{name}: 시트가 너무 큼 {cols * cw}x{rows * ch}'
@@ -128,8 +154,23 @@ def pack(name, frames, meta, scale, dirs):
         'ppm': PPM, 'cols': cols, 'rows': rows,
         'anims': {anim: {'row': k * dirs, 'frames': n, 'ms': ms, 'loop': loop} for k, (anim, (n, ms, loop)) in enumerate(meta.items())},
     }
-    (SHEETS / f'{name}.json').write_text(json.dumps(info, indent=2) + '\n', encoding='utf-8')
+    (SHEETS / f'{json_name or name}.json').write_text(json.dumps(info, indent=2) + '\n', encoding='utf-8')
     print(f'{name}: cell {cw}x{ch}, sheet {cols * cw}x{rows * ch}')
+
+
+def hero():
+    combos = [(w, a) for w in HERO_WEAPONS for a in HERO_ARMORS]
+    # 공통 칸: 모든 조합·레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)
+    x0 = y0 = 10**9
+    x1 = y1 = -10**9
+    for w, a in combos:
+        for name in hero_layers(w, a).values():
+            for src in ANIMS.values():
+                for _, _, rw, rh, ox, oy in sheet(name).anims[src]['rects'].values():
+                    x0, y0 = min(x0, FOOT[0] - ox), min(y0, FOOT[1] - oy)
+                    x1, y1 = max(x1, FOOT[0] - ox + rw), max(y1, FOOT[1] - oy + rh)
+    for w, a in combos:
+        pack(f'hero_{w}_{a}', *frames_of(hero_layers(w, a)), SCALE, 8, bbox=(x0, y0, x1, y1), json_name='hero')
 
 
 class Tileset:
@@ -194,27 +235,32 @@ def tiles():
 
 
 def loot():
-    # 물약이 날아가 떨어지는 애니메이션(FLARE 'power' 동작, 방향 0)
-    sheet = Sheet('loot/hp_potion')
-    a = sheet.anims['power']
-    n = int(a['frames'])
-    frames = {}
-    for i in range(n):
-        x, y, w, h, ox, oy = a['rects'][(i, 0)]
-        frames[('potion', 0, i)] = (sheet.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
-    pack('loot', frames, {'potion': (n, int(a['duration'].removesuffix('ms')), 'play_once')}, LOOT_SCALE, 1)
+    # 아이템이 날아가 떨어지는 애니메이션(FLARE 'power' 동작, 방향 0)
+    frames, meta = {}, {}
+    for clip, name in LOOT_ITEMS.items():
+        sh = sheet(f'loot/{name}')
+        a = sh.anims['power']
+        n = int(a['frames'])
+        meta[clip] = (n, int(a['duration'].removesuffix('ms')), 'play_once')
+        for i in range(n):
+            x, y, w, h, ox, oy = a['rects'][(i, 0)]
+            frames[(clip, 0, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
+    pack('loot', frames, meta, LOOT_SCALE, 1)
     icons = Image.open(fetch('mods/fantasycore/images/icons/icons.png')).convert('RGBA')
-    x, y = POTION_ICON % 8 * 64, POTION_ICON // 8 * 64
-    icons.crop((x, y, x + 64, y + 64)).save(SHEETS / 'potion_icon.png', optimize=True)
+
+    def icon(k):
+        x, y = k % 8 * 64, k // 8 * 64
+        return icons.crop((x, y, x + 64, y + 64))
+
+    icon(POTION_ICON).save(SHEETS / 'potion_icon.png', optimize=True)
+    strip = Image.new('RGBA', (64 * len(GEAR_ICONS), 64))
+    for k, i in enumerate(GEAR_ICONS):
+        strip.paste(icon(i), (64 * k, 0))
+    strip.save(SHEETS / 'gear_icons.png', optimize=True)
 
 
 def credits():
-    used = sorted({n for k in KINDS.values() for n in k.values()})
-    files = '\n'.join(f'  mods/fantasycore/images/{n}.png, mods/fantasycore/animations/{n}.txt' for n in used)
-    files += '\n' + '\n'.join(f'  mods/fantasycore/images/cursors/{c}.png' for c in CURSORS)
-    files += f'\n  mods/fantasycore/images/tilesets/{TILESET}.png, mods/fantasycore/tilesetdefs/{TILESET}.txt'
-    files += '\n  mods/fantasycore/images/loot/hp_potion.png, mods/fantasycore/animations/loot/hp_potion.txt'
-    files += '\n  mods/fantasycore/images/icons/icons.png'
+    files = '\n'.join(f'  {f}' for f in FETCHED)
     flare = fetch('CREDITS.txt').read_text(encoding='utf-8')
     (PUBLIC / 'CREDITS.txt').write_text(
         f'''이 폴더와 게임의 캐릭터·던전·아이템 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
@@ -223,10 +269,10 @@ Character sprites, dungeon tiles, item images and mouse cursors in this game are
 Source: https://github.com/flareteam/flare-game (commit {COMMIT})
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
-Modifications: selected frames, composited equipment layers, scaled by {SCALE},
+Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by {SCALE},
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
-Items: potion drop animation scaled by {LOOT_SCALE}, potion icon cropped from the icon atlas.
+Items: drop animations scaled by {LOOT_SCALE}, item icons cropped from the icon atlas.
 
 Files used:
 {files}
@@ -240,7 +286,8 @@ if __name__ == '__main__':
     PUBLIC.mkdir(parents=True, exist_ok=True)
     TILES.mkdir(parents=True, exist_ok=True)
     for kind in KINDS:
-        pack(kind, *frames_of(kind), SCALE, 8)
+        pack(kind, *frames_of(KINDS[kind]), SCALE, 8)
+    hero()
     tiles()
     loot()
     for c in CURSORS:

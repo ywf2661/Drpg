@@ -1,18 +1,60 @@
 {
   "cell": [
-    54,
-    126
+    92,
+    166
   ],
   "anchor": [
-    9,
-    124
+    28,
+    152
   ],
   "ppm": 30,
   "cols": 6,
-  "rows": 1,
+  "rows": 8,
   "anims": {
     "potion": {
       "row": 0,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "dagger": {
+      "row": 1,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "shortsword": {
+      "row": 2,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "longsword": {
+      "row": 3,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "greatsword": {
+      "row": 4,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "clothes": {
+      "row": 5,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "leather_armor": {
+      "row": 6,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "steel_armor": {
+      "row": 7,
       "frames": 6,
       "ms": 600,
       "loop": "play_once"

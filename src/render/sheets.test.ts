@@ -52,3 +52,15 @@ test('props 시트: 화로 8프레임 반복, 큰 소품 8종, 잔해 8종', () 
 test('loot 시트: 물약이 떨어지는 6프레임(1회 재생)', () => {
   expect(loot.anims.potion).toMatchObject({ frames: 6, loop: 'play_once' });
 });
+
+test('주인공 시트: 무기 4 × 갑옷 4 = 16조합이 모두 있다(칸 정보는 hero.json 공유)', () => {
+  const files = Object.keys(import.meta.glob('../assets/sprites/hero_*.png')).map((p) => p.split('/').pop());
+  const want = ['dagger', 'shortsword', 'longsword', 'greatsword'].flatMap((w) =>
+    ['cloth', 'leather', 'chain', 'plate'].map((a) => `hero_${w}_${a}.png`),
+  );
+  expect(files.sort()).toEqual(want.sort());
+});
+
+test('loot 시트: 물약과 장비 바닥 그림', () => {
+  expect(Object.keys(loot.anims)).toEqual(['potion', 'dagger', 'shortsword', 'longsword', 'greatsword', 'clothes', 'leather_armor', 'steel_armor']);
+});

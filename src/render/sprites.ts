@@ -2,7 +2,6 @@
 import * as THREE from 'three';
 import { STATS, type Entity, type Kind } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
-import heroUrl from '../assets/sprites/hero.png';
 import minionInfo from '../assets/sprites/minion.json';
 import minionUrl from '../assets/sprites/minion.png';
 import warriorInfo from '../assets/sprites/warrior.json';
@@ -13,8 +12,11 @@ export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth'
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; hitT: number };
 
+// 주인공 시트 16장(무기 × 갑옷). URL만 알고, 그림은 장착할 때 불러온다
+const HERO_URLS = import.meta.glob('../assets/sprites/hero_*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const heroUrl = (weapon: string, armor: string) => HERO_URLS[`../assets/sprites/hero_${weapon}_${armor}.png`];
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
-  hero: { info: heroInfo as SheetInfo, url: heroUrl },
+  hero: { info: heroInfo as SheetInfo, url: heroUrl('longsword', 'chain') },
   minion: { info: minionInfo as SheetInfo, url: minionUrl },
   warrior: { info: warriorInfo as SheetInfo, url: warriorUrl },
 };
