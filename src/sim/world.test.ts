@@ -658,3 +658,51 @@ test('시야가 막히면 쏘지 않고 다가간다', () => {
   expect(blocked.shots.length).toBe(0);
   expect(a.x).toBeLessThan(x0); // 벽을 돌아 다가오는 중
 });
+
+test('가르기: 바라보는 방향 반원 2m 안의 적 모두에게 150%, 뒤·범위 밖은 제외', () => {
+  // 주인공 (2.5, 2.5)이 +x를 조준. 앞 (3,1)(3,2)(3,3)은 맞고 뒤 (1,2)와 먼 (5,2)는 아님
+  const w = createWorld(1, ['.......', '...m...', '.mHm.m.', '...m...', '.......']);
+  const [hero, ...mobs] = w.entities;
+  const start = mobs.map((e) => [e.x, e.z]);
+  for (const e of mobs) e.hp = e.maxHp = 1000;
+  w.gear.weapon = 1; // 단검 4–7 × 1.5 → 6–11
+  step(w, [{ type: 'skill', x: 10, z: hero.z }]);
+  run(w, 20); // 타격 시점(0.6초 × 40%) 지남
+  const front = (x: number, z: number) => x > hero.x && Math.hypot(x - hero.x, z - hero.z) <= 2;
+  mobs.forEach((e, i) => {
+    const d = 1000 - e.hp;
+    if (front(start[i][0], start[i][1])) {
+      expect(d).toBeGreaterThanOrEqual(6);
+      expect(d).toBeLessThanOrEqual(11);
+    } else expect(d).toBe(0);
+  });
+  expect(mobs.filter((e) => e.hp < 1000)).toHaveLength(3);
+  expect(w.cleaves).toBe(1);
+  run(w, 30);
+  expect(hero.state).toBe('idle'); // 끝나면 이어서 휘두르지 않는다
+});
+
+test('가르기는 벽 너머 적은 맞히지 않는다', () => {
+  const w = createWorld(1, ['H#m']);
+  w.entities[1].hp = w.entities[1].maxHp = 1000;
+  step(w, [{ type: 'skill', x: 5, z: 0.5 }]);
+  run(w, 30);
+  expect(w.entities[1].hp).toBe(1000);
+});
+
+test('가르기 재사용 대기 4초, 죽으면 못 쓴다, 대상 없이도 쓴다', () => {
+  const w = createWorld(1, ['H....']);
+  step(w, [{ type: 'skill' }]);
+  expect(w.entities[0].state).toBe('attack');
+  run(w, 60);
+  step(w, [{ type: 'skill' }]);
+  expect(w.cleaves).toBe(1);
+  expect(w.entities[0].state).toBe('idle'); // 대기 중이라 무시
+  run(w, Math.round(3 / DT));
+  step(w, [{ type: 'skill' }]);
+  expect(w.entities[0].state).toBe('attack');
+  const dead = createWorld(1, ['H..']);
+  dead.entities[0].state = 'dead';
+  step(dead, [{ type: 'skill' }]);
+  expect(dead.skillCd).toBe(0);
+});

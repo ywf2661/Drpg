@@ -3,7 +3,11 @@ import { findPath, walkable, type Cell, type Grid } from './path';
 
 export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'boss';
 export type State = 'idle' | 'move' | 'attack' | 'dead';
-export type Command = { type: 'move'; x: number; z: number } | { type: 'attack'; targetId: number } | { type: 'drink' };
+export type Command =
+  | { type: 'move'; x: number; z: number }
+  | { type: 'attack'; targetId: number }
+  | { type: 'drink' }
+  | { type: 'skill'; x?: number; z?: number }; // 가르기. (x, z)가 있으면 그쪽으로
 type Point = [x: number, z: number];
 
 export type Entity = {
@@ -20,6 +24,7 @@ export type Entity = {
   target: number | null; // 공격 대상 id
   attackT: number; // 현재 휘두르기 경과 시간(초)
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
+  skill: boolean; // 지금 휘두르는 것이 가르기인가
 };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
@@ -50,10 +55,13 @@ export type World = {
   maxTier: number;
   level: number;
   xp: number;
+  skillCd: number; // 가르기 재사용까지 남은 시간(초)
+  cleaves: number; // 가르기 타격 횟수(렌더·소리용)
 };
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
+export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
 export const RADIUS = 0.4;
 export const AGGRO = 8;
@@ -131,14 +139,15 @@ export function createWorld(seed: number, map: string[], power = 1): World {
   const entities = spawns.map((s, id): Entity => {
     const p = s.kind === 'hero' || s.kind === 'boss' ? 1 : power; // 보스는 마지막 층 기준으로 정한 수치
     const hp = Math.round(STATS[s.kind].hp * p);
-    return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
+    return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
   const hero = w.entities[0];
+  w.skillCd = Math.max(0, w.skillCd - DT);
   for (const c of cmds) command(w, hero, c);
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
@@ -190,13 +199,15 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
   if (hero.state === 'dead') return;
+  if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
   w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
   if (c.type === 'attack') {
     const t = w.entities[c.targetId];
     if (!t || t === hero || t.state === 'dead') return;
     if (hero.state === 'attack' && hero.target !== t.id) {
-      hero.state = 'idle'; // 다른 대상으로 바꾸면 휘두르기 취소, 같은 대상 재클릭은 유지
+      hero.state = 'idle'; // 다른 대상으로 바꾸면 휘두르기(가르기 포함) 취소, 같은 대상 재클릭은 유지
       hero.attackT = 0;
+      hero.skill = false;
     }
     hero.target = t.id;
     hero.repathT = 0; // 다음 act에서 즉시 경로 계산
@@ -214,6 +225,36 @@ function command(w: World, hero: Entity, c: Command) {
   hero.target = null;
   hero.state = 'move'; // 휘두르는 중이었다면 취소
   hero.attackT = 0;
+  hero.skill = false;
+}
+
+// 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
+function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
+  if (w.skillCd > 0) return;
+  w.toStairs = false;
+  if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
+  else {
+    const near = w.entities
+      .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= SKILL.aim)
+      .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+    if (near) face(hero, near);
+  }
+  Object.assign(hero, { state: 'attack', attackT: 0, path: [], target: null, skill: true });
+  w.skillCd = SKILL.cd;
+}
+
+// 가르기 타격: 바라보는 방향 반원(내적 ≥ 0)·반경 안, 벽에 막히지 않은 적 모두
+function cleave(w: World, hero: Entity) {
+  const fx = Math.sin(hero.facing);
+  const fz = Math.cos(hero.facing);
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead') continue;
+    const dx = e.x - hero.x;
+    const dz = e.z - hero.z;
+    if (Math.hypot(dx, dz) > SKILL.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
+    hurt(w, e, Math.round(roll(w, hero) * SKILL.mult));
+  }
+  w.cleaves++;
 }
 
 function act(w: World, e: Entity) {
@@ -264,8 +305,16 @@ function swing(w: World, e: Entity, t: Entity | null) {
   const before = e.attackT;
   e.attackT += DT;
   if (t) face(e, t);
-  if (t && before < hitAt && e.attackT >= hitAt && canHit(w, e, t)) (e.kind === 'archer' ? shoot : damage)(w, e, t);
+  const hitNow = before < hitAt && e.attackT >= hitAt;
+  if (e.skill && hitNow) cleave(w, e);
+  else if (t && hitNow && canHit(w, e, t)) (e.kind === 'archer' ? shoot : damage)(w, e, t);
   if (e.attackT < interval) return;
+  if (e.skill) {
+    e.skill = false; // 가르기는 한 번만 휘두르고 멈춘다
+    e.state = 'idle';
+    e.attackT = 0;
+    return;
+  }
   if (t && t.state !== 'dead' && canHit(w, e, t)) {
     e.attackT -= interval;
   } else {
@@ -333,9 +382,12 @@ const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // 사거리(궁수는 ARCHER.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
 function canHit(w: World, a: Entity, b: Entity) {
-  const d = dist(a, b);
-  if (d > (a.kind === 'archer' ? ARCHER.range : RANGE)) return false;
-  const n = Math.ceil(d / 0.1);
+  return dist(a, b) <= (a.kind === 'archer' ? ARCHER.range : RANGE) && clearLine(w, a, b);
+}
+
+// 둘 사이 직선이 벽 칸을 지나지 않는가(0.1m 간격 샘플)
+function clearLine(w: World, a: Entity, b: Entity) {
+  const n = Math.ceil(dist(a, b) / 0.1);
   for (let i = 1; i < n; i++) {
     if (!walkable(w.grid, Math.floor(a.x + ((b.x - a.x) * i) / n), Math.floor(a.z + ((b.z - a.z) * i) / n))) return false;
   }
