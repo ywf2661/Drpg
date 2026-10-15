@@ -19,6 +19,7 @@ const up = new THREE.Vector3();
 // 수평 45°, 내려다보는 각 30°(극각 60°) = FLARE 스프라이트를 그린 각도, 거리 30
 const CAM_OFFSET = new THREE.Vector3().setFromSphericalCoords(30, THREE.MathUtils.degToRad(60), THREE.MathUtils.degToRad(45));
 let sprites: Sprite[] = [];
+let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
 
@@ -33,7 +34,6 @@ export async function initRender(world: World) {
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.002;
   scene.add(torch);
-  buildMap(world);
   addEventListener('resize', resize);
   resize();
   await loadSprites();
@@ -41,6 +41,7 @@ export async function initRender(world: World) {
 }
 
 export function setWorld(world: World) {
+  buildMap(world);
   for (const s of sprites) s.mesh.removeFromParent();
   sprites = world.entities.map(makeSprite);
   for (const s of sprites) scene.add(s.mesh);
@@ -94,23 +95,48 @@ function resize() {
 }
 
 function buildMap(world: World) {
+  // 이전 층의 메시·지오메트리·재질·질감 해제
+  mapGroup.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    o.geometry.dispose();
+    const mat = o.material as THREE.MeshStandardMaterial;
+    mat.map?.dispose();
+    mat.dispose();
+  });
+  mapGroup.removeFromParent();
+  mapGroup = new THREE.Group();
   const { w, h, blocked } = world.grid;
-  const floorMap = stoneTexture(0x5a5f66, false);
-  floorMap.repeat.set(w, h); // 1칸 = 텍스처 1장
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: floorMap, roughness: 1 }));
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(w / 2, 0, h / 2);
-  floor.receiveShadow = true;
+  // 바닥은 걸을 수 있는 칸에만, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
+  const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
+  const floorCells: [number, number][] = [];
+  const wallCells: [number, number][] = [];
+  for (let z = 0; z < h; z++) {
+    for (let x = 0; x < w; x++) {
+      if (open(x, z)) floorCells.push([x, z]);
+      else if ([-1, 0, 1].some((dz) => [-1, 0, 1].some((dx) => open(x + dx, z + dz)))) wallCells.push([x, z]);
+    }
+  }
+  const floorGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const floor = new THREE.InstancedMesh(floorGeo, new THREE.MeshStandardMaterial({ map: stoneTexture(0x5a5f66, false), roughness: 1 }), floorCells.length);
   const walls = new THREE.InstancedMesh(
     new THREE.BoxGeometry(1, 1.2, 1),
     new THREE.MeshStandardMaterial({ map: stoneTexture(0x5c6068, true), roughness: 1 }),
-    blocked.reduce((n, b) => n + b, 0),
+    wallCells.length,
   );
   const m = new THREE.Matrix4();
-  let i = 0;
-  for (let z = 0; z < h; z++) for (let x = 0; x < w; x++) if (blocked[z * w + x]) walls.setMatrixAt(i++, m.makeTranslation(x + 0.5, 0.6, z + 0.5));
+  floorCells.forEach(([x, z], i) => floor.setMatrixAt(i, m.makeTranslation(x + 0.5, 0, z + 0.5)));
+  wallCells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
+  floor.receiveShadow = true;
   walls.castShadow = walls.receiveShadow = true;
-  scene.add(floor, walls);
+  mapGroup.add(floor, walls);
+  if (world.stairs) {
+    // ponytail: 임시 계단 = 검은 구멍. 2-B에서 FLARE 계단 그림으로 교체
+    const hole = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    hole.rotation.x = -Math.PI / 2;
+    hole.position.set(world.stairs[0] + 0.5, 0.005, world.stairs[1] + 0.5); // 스프라이트 바닥면(0.01)보다 아래
+    mapGroup.add(hole);
+  }
+  scene.add(mapGroup);
 }
 
 // 코드로 만든 16×16 픽셀 돌 질감. 바닥은 타일 테두리, 벽은 엇갈린 벽돌 줄눈이 어둡다.

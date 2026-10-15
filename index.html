@@ -25,11 +25,17 @@
       #credits { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
       #credits a { color: #e0a060; }
       #credits::backdrop { background: #000a; }
+      #floor { position: fixed; left: 16px; top: 12px; z-index: 2; font-size: 14px; color: #b8ab98; text-shadow: 0 1px 2px #000; pointer-events: none; }
+      #floor-title { position: fixed; left: 0; right: 0; top: 30%; z-index: 2; text-align: center; font-size: 34px; letter-spacing: 4px; color: #e8dcc8; text-shadow: 0 2px 6px #000; pointer-events: none; opacity: 0; }
+      #floor-title.show { animation: floor-title 2.4s ease-out; }
+      @keyframes floor-title { 0% { opacity: 0; } 15%, 60% { opacity: 1; } 100% { opacity: 0; } }
     </style>
   </head>
   <body>
     <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
     <div id="hp" class="bar"><i></i></div>
+    <div id="floor"></div>
+    <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><button id="restart" hidden>다시 시작 (R)</button></div>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">

@@ -62,7 +62,7 @@ export function generateFloor(seed: number, floor: number): string[] {
   // 몬스터: 첫 방을 뺀 방들에 돌아가며 2~4마리씩
   const count = 8 + 3 * (floor - 1);
   const warriors = Math.round(count * (0.2 + 0.075 * (floor - 1)));
-  const kinds = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : 'm'));
+  const kinds: string[] = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : 'm'));
   for (let i = kinds.length - 1; i > 0; i--) {
     const j = int(0, i);
     [kinds[i], kinds[j]] = [kinds[j], kinds[i]];
