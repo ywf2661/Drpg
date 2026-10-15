@@ -99,6 +99,7 @@ Files used:
   mods/fantasycore/animations/loot/steel_armor.txt
   mods/fantasycore/images/loot/steel_armor.png
   mods/fantasycore/images/icons/icons.png
+  mods/fantasycore/soundfx/level_up.ogg
   mods/fantasycore/soundfx/melee_attack.ogg
   mods/fantasycore/soundfx/melee_attack_2.ogg
   mods/fantasycore/soundfx/melee_attack_3.ogg

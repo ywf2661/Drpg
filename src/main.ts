@@ -7,7 +7,7 @@ import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
 import { FLOORS, generateFloor } from './sim/dungeon';
-import { ARMORS, createWorld, DT, outcome, STATS, step, WEAPONS, type Gear, type World } from './sim/world';
+import { ARMORS, createWorld, DT, outcome, setLevel, STATS, step, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -24,16 +24,19 @@ const potionCount = $('#potion span');
 const weaponSlot = $('#weapon');
 const armorSlot = $('#armor');
 const toast = $('#toast');
+const xpFill = $('#xp i');
+const levelLabel = $('#level');
 const bossBar = $('#boss');
 const bossFill = $('#boss i');
 const BOSS_BAR_RANGE = 12; // 보스와 이만큼 가까우면 상단 체력바(m)
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
-const START = { potions: 2, gear: { weapon: 2, armor: 2 } }; // 숏소드 + 가죽 갑옷
-type Carry = { potions: number; gear: Gear };
+const START = { potions: 2, gear: { weapon: 2, armor: 2 }, level: 1, xp: 0 }; // 숏소드 + 가죽 갑옷
+type Carry = { potions: number; gear: Gear; level: number; xp: number };
 let floor = 1;
-let entry: Carry = START; // 이 층에 들어올 때의 물약·장비(사망 후 다시 시작하면 이것으로)
+let entry: Carry = START; // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
 let shownGear = gearKey(world.gear);
+let shownLevel = world.level;
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 1, 1.2, 1.4 …, 떨어지는 장비는 층 + 1단계까지
 function makeFloor(n: number, carry: Carry): World {
@@ -42,6 +45,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
   w.maxTier = Math.min(4, n + 1);
+  setLevel(w, carry.level, carry.xp);
   return w;
 }
 
@@ -60,7 +64,7 @@ function replay(el: HTMLElement) {
 
 function enterFloor(n: number, carry: Carry) {
   floor = n;
-  entry = { potions: carry.potions, gear: { ...carry.gear } };
+  entry = { potions: carry.potions, gear: { ...carry.gear }, level: carry.level, xp: carry.xp };
   world = makeFloor(n, entry);
   setWorld(world);
   resetAutomap(world);
@@ -144,6 +148,13 @@ requestAnimationFrame(function frame(now) {
 function hud() {
   const hero = world.entities[0];
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
+  xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
+  levelLabel.textContent = `Lv ${world.level}`;
+  if (world.level > shownLevel) {
+    toast.textContent = `레벨 업! Lv ${world.level}`;
+    replay(toast);
+  }
+  shownLevel = world.level;
   potionCount.textContent = String(world.potions);
   potionBtn.classList.toggle('empty', world.potions === 0);
   const key = gearKey(world.gear);

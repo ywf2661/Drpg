@@ -14,7 +14,11 @@
       .bar { width: 240px; height: 14px; background: #2a1414; border: 1px solid #000; }
       .bar i { display: block; width: 100%; height: 100%; background: #b3261e; }
       #hud { position: fixed; left: 20px; bottom: 8px; display: flex; align-items: center; gap: 6px; }
-      #hp { width: min(240px, calc(100vw - 260px)); pointer-events: none; }
+      #hp { width: 100%; pointer-events: none; }
+      #bars { position: relative; width: min(240px, calc(100vw - 260px)); }
+      #xp { height: 4px; margin-top: 2px; background: #1a1608; border: 1px solid #000; }
+      #xp i { display: block; width: 0; height: 100%; background: #d0a030; }
+      #level { position: absolute; left: 0; bottom: 24px; font-size: 12px; color: #d0c0a0; text-shadow: 0 1px 2px #000; }
       #potion, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
       .slot { background-size: 320px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
       #potion img { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
@@ -49,7 +53,7 @@
     <div id="boss" hidden><span>미노타우르스</span><div class="bar"><i></i></div></div>
     <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
     <div id="hud">
-      <div id="hp" class="bar"><i></i></div>
+      <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
       <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
       <div id="weapon" class="slot"></div>
       <div id="armor" class="slot"></div>

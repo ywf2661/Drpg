@@ -61,3 +61,10 @@ test('층이 바뀌면(다른 world) 소리 없이 넘어간다', () => {
   b.potions = 5;
   expect(soundEvents(snapshot(a), b)).toEqual([]);
 });
+
+test('레벨업', () => {
+  const w = createWorld(1, ['H..']);
+  const prev = snapshot(w);
+  w.level = 2;
+  expect(names(soundEvents(prev, w))).toEqual(['level_up']);
+});

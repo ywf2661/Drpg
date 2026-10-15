@@ -48,7 +48,7 @@ HERO_ARMORS = {
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor'}  # 동작 이름 → loot 애니메이션
 SOUNDS = ROOT / 'src' / 'assets' / 'sounds'
-SOUND_FILES = ['melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
+SOUND_FILES = ['level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
                'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
                'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille']  # soundfx/ 아래

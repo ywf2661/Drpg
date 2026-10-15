@@ -17,6 +17,7 @@ const FILES: Record<SoundName, string[]> = {
   loot: ['flying_loot'],
   equip_weapon: ['inventory_metal'],
   equip_armor: ['inventory_maille'],
+  level_up: ['level_up'],
 };
 const VOLUME = 0.5;
 const HEAR = 12; // 이 거리(m) 밖의 소리는 들리지 않는다
