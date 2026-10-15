@@ -1,11 +1,12 @@
-이 폴더와 게임의 캐릭터 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
-Character sprites and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
+이 폴더와 게임의 캐릭터·던전 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
+Character sprites, dungeon tiles and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
 
 Source: https://github.com/flareteam/flare-game (commit af6eee6d339ac98011864bfe89da837fe7769c28)
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers, scaled by 0.32,
-alpha thresholded, reduced to 256 colors.
+alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
+from isometric into square textures, wall brightened; props and stairs scaled by 0.221.
 
 Files used:
   mods/fantasycore/images/avatar/male/chain_boots.png, mods/fantasycore/animations/avatar/male/chain_boots.txt

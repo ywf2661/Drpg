@@ -1,0 +1,117 @@
+{
+  "cell": [
+    42,
+    85
+  ],
+  "anchor": [
+    21,
+    74
+  ],
+  "ppm": 30,
+  "cols": 8,
+  "rows": 17,
+  "anims": {
+    "brazier": {
+      "row": 0,
+      "frames": 8,
+      "ms": 528,
+      "loop": "looped"
+    },
+    "barrel": {
+      "row": 1,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "barrel2": {
+      "row": 2,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "crate": {
+      "row": 3,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "crate2": {
+      "row": 4,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "chest": {
+      "row": 5,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "chest2": {
+      "row": 6,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "statue": {
+      "row": 7,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "statue2": {
+      "row": 8,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones1": {
+      "row": 9,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones2": {
+      "row": 10,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones3": {
+      "row": 11,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones4": {
+      "row": 12,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones5": {
+      "row": 13,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones6": {
+      "row": 14,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones7": {
+      "row": 15,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones8": {
+      "row": 16,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    }
+  }
+}

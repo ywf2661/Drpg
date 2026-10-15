@@ -9,7 +9,7 @@ import shutil
 import urllib.request
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 COMMIT = 'af6eee6d339ac98011864bfe89da837fe7769c28'
 BASE = f'https://raw.githubusercontent.com/flareteam/flare-game/{COMMIT}/'
@@ -39,6 +39,14 @@ KINDS = {
 }
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
+TILE_SCALE = 42.43 / 192  # FLARE 타일 1개(마름모 가로 192px) = 우리 칸 1개(화면 42.4px)
+TILES = ROOT / 'src' / 'assets' / 'tiles'
+TILESET = 'tileset_dungeon'
+FLOOR_TILES = [16, 17, 18, 19, 42, 43, 44, 45]  # 평바닥 4 + 금 간 바닥 4
+WALL_TILE, WALL_PX, WALL_GAIN = 48, 141, 1.8  # 벽돌 기둥, 1.2m 높이의 FLARE 픽셀(세로 1m = 117.6px), 밝기 보정
+PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 163, 'chest': 144, 'chest2': 145,
+         'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
+STAIRS = 286  # 4×4칸 내려가는 계단
 
 
 def fetch(rel):
@@ -94,31 +102,93 @@ def frames_of(kind):
     return frames, meta
 
 
-def build(kind):
-    frames, meta = frames_of(kind)
+def pack(name, frames, meta, scale, dirs):
+    """frames: {(동작, 방향, 프레임): (이미지, 좌상단)} — 좌상단은 발 기준점이 FOOT인 좌표(음수 가능).
+    meta: {동작: (프레임 수, ms, loop)}. 시트 행 = 동작 순서 × dirs + 방향, 열 = 프레임."""
     x0 = min(o[0] for _, o in frames.values())
     y0 = min(o[1] for _, o in frames.values())
     x1 = max(o[0] + im.width for im, o in frames.values())
     y1 = max(o[1] + im.height for im, o in frames.values())
-    cw, ch = round((x1 - x0) * SCALE), round((y1 - y0) * SCALE)
-    cols, rows = max(n for n, _, _ in meta.values()), len(ANIMS) * 8
-    assert cols * cw <= 4096 and rows * ch <= 4096, f'{kind}: 시트가 너무 큼 {cols * cw}x{rows * ch}'
+    cw, ch = round((x1 - x0) * scale), round((y1 - y0) * scale)
+    cols, rows = max(n for n, _, _ in meta.values()), len(meta) * dirs
+    assert cols * cw <= 4096 and rows * ch <= 4096, f'{name}: 시트가 너무 큼 {cols * cw}x{rows * ch}'
     atlas = Image.new('RGBA', (cols * cw, rows * ch))
     for (anim, d, i), (im, (bx, by)) in frames.items():
         full = Image.new('RGBA', (x1 - x0, y1 - y0))
         full.paste(im, (bx - x0, by - y0))
         small = full.resize((cw, ch), Image.LANCZOS)
         small.putalpha(small.getchannel('A').point(lambda v: 255 if v > ALPHA_CUT else 0))
-        atlas.paste(small, (i * cw, (list(ANIMS).index(anim) * 8 + d) * ch))
-    atlas.quantize(colors=256, method=Image.Quantize.FASTOCTREE).save(SHEETS / f'{kind}.png', optimize=True)
+        atlas.paste(small, (i * cw, (list(meta).index(anim) * dirs + d) * ch))
+    atlas.quantize(colors=256, method=Image.Quantize.FASTOCTREE).save(SHEETS / f'{name}.png', optimize=True)
     info = {
         'cell': [cw, ch],
-        'anchor': [round((FOOT[0] - x0) * SCALE), round((FOOT[1] - y0) * SCALE)],
+        'anchor': [round((FOOT[0] - x0) * scale), round((FOOT[1] - y0) * scale)],
         'ppm': PPM, 'cols': cols, 'rows': rows,
-        'anims': {anim: {'row': k * 8, 'frames': n, 'ms': ms, 'loop': loop} for k, (anim, (n, ms, loop)) in enumerate(meta.items())},
+        'anims': {anim: {'row': k * dirs, 'frames': n, 'ms': ms, 'loop': loop} for k, (anim, (n, ms, loop)) in enumerate(meta.items())},
     }
-    (SHEETS / f'{kind}.json').write_text(json.dumps(info, indent=2) + '\n', encoding='utf-8')
-    print(f'{kind}: cell {cw}x{ch}, sheet {cols * cw}x{rows * ch}')
+    (SHEETS / f'{name}.json').write_text(json.dumps(info, indent=2) + '\n', encoding='utf-8')
+    print(f'{name}: cell {cw}x{ch}, sheet {cols * cw}x{rows * ch}')
+
+
+class Tileset:
+    """FLARE 타일셋 정의(tile=번호,x,y,w,h,기준x,기준y / animation=번호;x,y,ms;…)."""
+
+    def __init__(self):
+        self.img = Image.open(fetch(f'mods/fantasycore/images/tilesets/{TILESET}.png')).convert('RGBA')
+        self.tiles, self.anims = {}, {}
+        for line in fetch(f'mods/fantasycore/tilesetdefs/{TILESET}.txt').read_text(encoding='utf-8').splitlines():
+            if line.startswith('tile='):
+                i, *rect = map(int, line[5:].split(','))
+                self.tiles[i] = rect
+            elif line.startswith('animation='):
+                i, *fs = line[10:].strip().strip(';').split(';')
+                self.anims[int(i)] = [tuple(int(v.removesuffix('ms')) for v in f.split(',')) for f in fs]
+
+    def frames(self, i):
+        """([프레임 이미지], (기준x, 기준y), 한 바퀴 ms)"""
+        x, y, w, h, ox, oy = self.tiles[i]
+        anim = self.anims.get(i, [(x, y, 1000)])
+        return [self.img.crop((fx, fy, fx + w, fy + h)) for fx, fy, _ in anim], (ox, oy), sum(f[2] for f in anim)
+
+
+def flatten(src, size, coeffs):
+    """아핀 변환: 결과 픽셀 (i, j) → 원본 (a·i + b·j + c, d·i + e·j + f)."""
+    return src.transform(size, Image.AFFINE, coeffs, resample=Image.BICUBIC)
+
+
+def tiles():
+    ts = Tileset()
+    # 바닥: 칸의 (x, z)∈[0,1]² → 마름모 (96 + 96x − 96z, 48x + 48z). 열 = +x, 행 = +z. 가장자리 반투명 줄을 피해 3% 안쪽만
+    S, E = 128, 0.03
+    s = (1 - 2 * E) / S
+    floor = Image.new('RGB', (32 * len(FLOOR_TILES), 32))
+    for k, i in enumerate(FLOOR_TILES):
+        (im,), (ox, oy), _ = ts.frames(i)
+        c = Image.new('RGBA', (192, 96))
+        c.paste(im, (96 - ox, 48 - oy))
+        t = flatten(c, (S, S), (96 * s, -96 * s, 96, 48 * s, 48 * s, 96 * E))
+        floor.paste(t.convert('RGB').resize((32, 32), Image.LANCZOS), (32 * k, 0))
+    floor.save(TILES / 'floor.png', optimize=True)
+    # 벽: 기둥의 왼쪽 면 = 법선 +x 면(열 i → z = 1 − i/W), 오른쪽 면 = 법선 +z 면(열 i → x = i/W). 행 = 아래로 1.2m.
+    # 원본은 아래로 갈수록 투명해지는 장식이라 알파는 버리고 밝기를 올린다
+    (im,), _, _ = ts.frames(WALL_TILE)
+    im = ImageEnhance.Brightness(im.convert('RGB')).enhance(WALL_GAIN)
+    W, H = 128, 152
+    wall = Image.new('RGB', (64, 38))
+    wall.paste(flatten(im, (W, H), (96 / W, 0, 0, -48 / W, WALL_PX / H, 48)).resize((32, 38), Image.LANCZOS), (0, 0))
+    wall.paste(flatten(im, (W, H), (96 / W, 0, 96, 48 / W, WALL_PX / H, 0)).resize((32, 38), Image.LANCZOS), (32, 0))
+    wall.save(TILES / 'wall.png', optimize=True)
+    # 소품: 캐릭터와 같은 시트 형식(동작 = 소품 이름, 방향 1개)
+    frames, meta = {}, {}
+    for name, i in PROPS.items():
+        ims, (ox, oy), ms = ts.frames(i)
+        meta[name] = (len(ims), ms, 'looped' if len(ims) > 1 else 'play_once')
+        for k, f in enumerate(ims):
+            frames[(name, 0, k)] = (f, (FOOT[0] - ox, FOOT[1] - oy))
+    pack('props', frames, meta, TILE_SCALE, 1)
+    # 계단: 기준점을 마름모 위 꼭짓점(가로 중앙, 맨 위)으로 → 그림 전체가 바닥에 눕는다
+    (im,), _, _ = ts.frames(STAIRS)
+    pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
 
 
 def credits():
@@ -127,14 +197,15 @@ def credits():
     files += '\n' + '\n'.join(f'  mods/fantasycore/images/cursors/{c}.png' for c in CURSORS)
     flare = fetch('CREDITS.txt').read_text(encoding='utf-8')
     (PUBLIC / 'CREDITS.txt').write_text(
-        f'''이 폴더와 게임의 캐릭터 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
-Character sprites and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
+        f'''이 폴더와 게임의 캐릭터·던전 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
+Character sprites, dungeon tiles and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
 
 Source: https://github.com/flareteam/flare-game (commit {COMMIT})
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers, scaled by {SCALE},
-alpha thresholded, reduced to 256 colors.
+alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
+from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
 
 Files used:
 {files}
@@ -146,8 +217,10 @@ Files used:
 if __name__ == '__main__':
     SHEETS.mkdir(parents=True, exist_ok=True)
     PUBLIC.mkdir(parents=True, exist_ok=True)
+    TILES.mkdir(parents=True, exist_ok=True)
     for kind in KINDS:
-        build(kind)
+        pack(kind, *frames_of(kind), SCALE, 8)
+    tiles()
     for c in CURSORS:
         shutil.copy(fetch(f'mods/fantasycore/images/cursors/{c}.png'), PUBLIC / f'{c}.png')
     credits()
