@@ -8,7 +8,7 @@ const find = (map: string[], c: string): [number, number] => {
   return [i % map[0].length, Math.floor(i / map[0].length)];
 };
 
-const WALLS = '#Bo'; // 지나갈 수 없는 글자
+const WALLS = '#Boc'; // 지나갈 수 없는 글자
 
 // 벽이 아닌 칸까지의 4방향 걸음 수
 function distances(map: string[], [sx, sz]: [number, number]) {
@@ -45,7 +45,7 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
       expect(count(map, 'W')).toBe(elites);
       expect(count(map, 'w') + count(map, 'W')).toBe(Math.round(monsters * (0.2 + 0.075 * (floor - 1))));
       const d = distances(map, find(map, 'H'));
-      expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o'));
+      expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o') - count(map, 'c'));
       expect(count(map, 'M')).toBe(floor < FLOORS ? 0 : 1); // 보스는 계단 없는 마지막 층에만
       const [x, z] = find(map, floor < FLOORS ? '>' : 'M');
       expect(d.get(z * 48 + x)).toBeGreaterThanOrEqual(15);
@@ -63,7 +63,7 @@ test('소품: 화로 1개 이상, 막는 소품은 뒤쪽 벽에 붙고 계단·
       const stairs = find(map, floor < FLOORS ? '>' : 'M'); // 계단이나 보스 주변은 비운다
       map.forEach((row, z) =>
         [...row].forEach((c, x) => {
-          if (!'Bo,'.includes(c)) return;
+          if (!'Boc,'.includes(c)) return;
           expect(cheb([x, z], hero)).toBeGreaterThanOrEqual(2);
           expect(cheb([x, z], stairs)).toBeGreaterThanOrEqual(3);
           if (c === ',') return;
@@ -86,4 +86,11 @@ test('생성한 맵을 createWorld가 읽고 배율을 적용한다', () => {
   expect(w.stairs).not.toBeNull();
   expect(w.entities).toHaveLength(1 + 11);
   for (const e of w.entities.slice(1)) expect(e.maxHp).toBe({ minion: 36, warrior: 72, archer: 30 }[e.kind as string]! * (e.elite ? 3 : 1));
+});
+
+test('상자: 층마다 몇 개(방의 약 35%), 막는 소품 규칙을 따른다', () => {
+  let total = 0;
+  for (let seed = 1; seed <= 50; seed++) total += count(generateFloor(seed, 2), 'c');
+  expect(total / 50).toBeGreaterThan(1.2);
+  expect(total / 50).toBeLessThan(3.5);
 });

@@ -729,3 +729,42 @@ test('정예 전사(W): 체력 ×3, 데미지 ×1.3, 경험치 ×4, 그 층 최�
   expect(Math.min(...hits)).toBeGreaterThanOrEqual(9);
   expect(Math.max(...hits)).toBeLessThanOrEqual(13);
 });
+
+test('상자(c): 막힌 칸, 클릭하면 걸어가서 열고 내용물이 주인공 쪽에 떨어진다, 한 번만', () => {
+  const w = createWorld(1, ['H....', '....c']);
+  expect(walkable(w.grid, 4, 1)).toBe(false);
+  expect(w.chests).toEqual([{ id: 0, x: 4, z: 1, open: false }]);
+  run(w, 120, [{ type: 'open', chestId: 0 }]);
+  expect(w.chests[0].open).toBe(true);
+  expect(w.items).toHaveLength(1);
+  const it = w.items[0];
+  expect(Math.hypot(it.x - 4.5, it.z - 1.5)).toBeCloseTo(0.7, 5);
+  expect(walkable(w.grid, Math.floor(it.x), Math.floor(it.z))).toBe(true); // 주울 수 있는 곳
+  run(w, 60, [{ type: 'open', chestId: 0 }]);
+  expect(w.items.length + w.potions).toBeLessThanOrEqual(1); // 다시 열리지 않는다
+});
+
+test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () => {
+  let potions = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const w = createWorld(seed, ['Hc']);
+    w.maxTier = 2;
+    w.gear = { weapon: 4, armor: 4 }; // 장비는 줍지 않게(물약은 바로 허리띠로)
+    run(w, 30, [{ type: 'open', chestId: 0 }]);
+    if (w.potions === 1) potions++;
+    else expect(w.items[0].tier).toBeLessThanOrEqual(2);
+  }
+  expect(potions / 300).toBeGreaterThan(0.5);
+  expect(potions / 300).toBeLessThan(0.7);
+});
+
+test('상자로 가다가 다른 명령을 내리면 열지 않고, 죽었으면 못 연다', () => {
+  const w = createWorld(1, ['H....', '....c']);
+  step(w, [{ type: 'open', chestId: 0 }]);
+  run(w, 120, [{ type: 'move', x: 0.5, z: 1.5 }]);
+  expect(w.chests[0].open).toBe(false);
+  const dead = createWorld(1, ['Hc']);
+  dead.entities[0].state = 'dead';
+  run(dead, 30, [{ type: 'open', chestId: 0 }]);
+  expect(dead.chests[0].open).toBe(false);
+});

@@ -1,5 +1,5 @@
 // 무작위 던전 층: 방 + 2칸 폭 L자 복도. 결과는 createWorld가 읽는 글자 맵
-// (+ '>' 계단, 'M' 보스(마지막 층), 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)).
+// (+ '>' 계단, 'M' 보스(마지막 층), 'B' 화로·'o' 큰 소품·'c' 상자(막음), ',' 잔해(지나감)).
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
 
@@ -8,7 +8,7 @@ export const FLOORS = 5;
 export const floorPower = (n: number) => 1 + 0.15 * (n - 1);
 const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o'; // 지나갈 수 있는 글자
+const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c'; // 지나갈 수 있는 글자
 
 export function generateFloor(seed: number, floor: number): string[] {
   let s = seed | 0;
@@ -91,6 +91,7 @@ export function generateFloor(seed: number, floor: number): string[] {
   }
   for (const i of order.slice(0, Math.ceil(rooms.length / 2))) place(rooms[i], 'B', true);
   for (const r of rooms) {
+    if (rand() < 0.35) place(r, 'c', true); // 보물 상자
     for (let k = int(0, 3); k > 0; k--) place(r, 'o', true);
     for (let k = int(0, 3); k > 0; k--) place(r, ',', false);
   }

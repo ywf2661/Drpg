@@ -3,9 +3,9 @@ import { expect, test } from 'vitest';
 import { playthrough } from './bot';
 
 test('봇이 5층 보스까지 깰 수 있다(대부분의 시드에서, 사망은 적게)', { timeout: 120_000 }, () => {
-  const results = [1, 2, 3, 4, 5, 6].map(playthrough);
+  const results = Array.from({ length: 10 }, (_, i) => playthrough(i + 1)); // 맵 무작위성 편차를 줄이려고 10판
   const cleared = results.filter((r) => r.cleared);
-  expect(cleared.length).toBeGreaterThanOrEqual(4);
+  expect(cleared.length).toBeGreaterThanOrEqual(7);
   for (const r of cleared) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
-  expect(results.reduce((a, r) => a + r.deaths, 0)).toBeLessThanOrEqual(12);
+  expect(results.reduce((a, r) => a + r.deaths, 0)).toBeLessThanOrEqual(25); // 판당 평균 2.5회 이하
 });

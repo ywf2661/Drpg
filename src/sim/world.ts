@@ -7,7 +7,8 @@ export type Command =
   | { type: 'move'; x: number; z: number }
   | { type: 'attack'; targetId: number }
   | { type: 'drink' }
-  | { type: 'skill'; x?: number; z?: number }; // 가르기. (x, z)가 있으면 그쪽으로
+  | { type: 'skill'; x?: number; z?: number } // 가르기. (x, z)가 있으면 그쪽으로
+  | { type: 'open'; chestId: number }; // 상자 열기(걸어가서)
 type Point = [x: number, z: number];
 
 export type Entity = {
@@ -33,6 +34,8 @@ export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number }
 
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor'; tier: number };
+// 보물 상자(칸 좌표). 한 번 열면 끝
+export type Chest = { id: number; x: number; z: number; open: boolean };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number };
 // 장착 장비 단계(1~4). WEAPONS·ARMORS[단계 − 1]
@@ -48,6 +51,8 @@ export type World = {
   stairs: Cell | null;
   toStairs: boolean;
   props: Prop[];
+  chests: Chest[];
+  opening: number | null; // 주인공이 열러 가는 상자 id
   items: Item[];
   shots: Shot[];
   nextItem: number; // 아이템·화살 공용 id
@@ -63,6 +68,7 @@ export type World = {
 export const DT = 1 / 60;
 export const RANGE = 1.5;
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
+export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
 export const RADIUS = 0.4;
@@ -115,7 +121,7 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   boss: { name: '미노타우르스', hp: 500, dmg: [12, 20], interval: 1.6, speed: 2.4 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
@@ -126,12 +132,14 @@ export function createWorld(seed: number, map: string[], power = 1): World {
   const spawns: { kind: Kind; x: number; z: number; elite: boolean }[] = [];
   let stairs: Cell | null = null;
   const props: Prop[] = [];
+  const chests: Chest[] = [];
   map.forEach((row, z) =>
     [...row].forEach((c, x) => {
       const kind = SPAWN[c];
       const prop = PROPS[c];
       if (prop) props.push({ kind: prop, x, z });
-      if (c === '#' || c === 'B' || c === 'o') grid.blocked[z * w + x] = 1;
+      if (c === 'c') chests.push({ id: chests.length, x, z, open: false });
+      if (c === '#' || c === 'B' || c === 'o' || c === 'c') grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: c === 'W' });
     }),
@@ -144,7 +152,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -158,6 +166,7 @@ export function step(w: World, cmds: Command[]): void {
   }
   fly(w, hero);
   separate(w);
+  reachChest(w, hero);
   pickup(w, hero);
 }
 
@@ -201,7 +210,9 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
   if (hero.state === 'dead') return;
+  w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
   if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
+  if (c.type === 'open') return goToChest(w, hero, c.chestId);
   w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
   if (c.type === 'attack') {
     const t = w.entities[c.targetId];
@@ -228,6 +239,40 @@ function command(w: World, hero: Entity, c: Command) {
   hero.state = 'move'; // 휘두르는 중이었다면 취소
   hero.attackT = 0;
   hero.skill = false;
+}
+
+// 상자 옆 걸을 수 있는 칸 중 가장 가까운 곳으로 간다
+function goToChest(w: World, hero: Entity, id: number) {
+  const ch = w.chests[id];
+  if (!ch || ch.open) return;
+  const near: Cell[] = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]
+    .map(([dx, dz]): Cell => [ch.x + dx, ch.z + dz])
+    .filter(([x, z]) => walkable(w.grid, x, z))
+    .sort((a, b) => Math.hypot(a[0] + 0.5 - hero.x, a[1] + 0.5 - hero.z) - Math.hypot(b[0] + 0.5 - hero.x, b[1] + 0.5 - hero.z));
+  for (const cell of near) {
+    const p = findPath(w.grid, cellOf(hero), cell);
+    if (!p) continue;
+    Object.assign(hero, { path: waypoints(p, cell[0] + 0.5, cell[1] + 0.5), target: null, state: 'move', attackT: 0, skill: false });
+    w.opening = id;
+    return;
+  }
+}
+
+// 상자에 닿으면 연다: 물약 또는 장비가 상자에서 주인공 쪽으로 떨어진다. 길이 끝났는데 못 닿았으면 포기
+function reachChest(w: World, hero: Entity) {
+  if (w.opening === null || hero.state === 'dead') return;
+  const ch = w.chests[w.opening];
+  const [cx, cz] = [ch.x + 0.5, ch.z + 0.5];
+  const d = Math.hypot(hero.x - cx, hero.z - cz);
+  if (d > CHEST.reach) {
+    if (!hero.path.length) w.opening = null;
+    return;
+  }
+  w.opening = null;
+  ch.open = true;
+  const [x, z] = [cx + ((hero.x - cx) / d) * CHEST.drop, cz + ((hero.z - cz) / d) * CHEST.drop];
+  const kind = rand(w) < CHEST.potion ? 'potion' : rand(w) < 0.5 ? 'weapon' : 'armor';
+  w.items.push({ id: w.nextItem++, x, z, kind, tier: kind === 'potion' ? 0 : 1 + Math.floor(rand(w) * w.maxTier) });
 }
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
