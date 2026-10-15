@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { ARMORS, attackInterval, createWorld, DT, outcome, RADIUS, setLevel, STATS, step, WEAPONS, xpToNext, type Command, type World } from './world';
+import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, MONSTER_DMG, outcome, RADIUS, setLevel, STATS, step, WEAPONS, xpToNext, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
 const MAP = [
@@ -296,9 +296,10 @@ test('층 배율: 몬스터 체력·데미지가 배율만큼 커지고 주인�
   const [hero, m] = w.entities;
   expect(hero).toMatchObject({ hp: 100, maxHp: 100, power: 1 });
   expect(m).toMatchObject({ hp: 60, maxHp: 60, power: 2 });
-  run(w, 35); // 졸개는 30틱째에 한 번 때린다(3~5 × 2)
-  expect(hero.hp).toBeGreaterThanOrEqual(100 - 10);
-  expect(hero.hp).toBeLessThanOrEqual(100 - 6);
+  run(w, 35); // 졸개는 30틱째에 한 번 때린다(3~5 × 데미지 배율)
+  const s = (1 + (2 - 1) * DMG_SCALE) * MONSTER_DMG;
+  expect(hero.hp).toBeGreaterThanOrEqual(100 - Math.round(5 * s));
+  expect(hero.hp).toBeLessThanOrEqual(100 - Math.round(3 * s));
 });
 
 test('계단 칸을 기록하고 바닥으로 취급한다', () => {
@@ -707,7 +708,7 @@ test('가르기 재사용 대기 4초, 죽으면 못 쓴다, 대상 없이도 �
   expect(dead.skillCd).toBe(0);
 });
 
-test('정예 전사(W): 체력 ×3, 데미지 ×1.3, 경험치 ×4, 그 층 최고 단계 장비를 반드시 떨어뜨린다', () => {
+test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 층 최고 단계 장비를 반드시 떨어뜨린다', () => {
   const w = createWorld(1, ['HW'], 1.3);
   const e = w.entities[1];
   expect([e.kind, e.elite, e.maxHp]).toEqual(['warrior', true, Math.round(60 * 3 * 1.3)]);
@@ -715,7 +716,8 @@ test('정예 전사(W): 체력 ×3, 데미지 ×1.3, 경험치 ×4, 그 층 최�
   slay(w);
   expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
   expect(w.items.filter((i) => i.kind === 'weapon' || i.kind === 'armor').map((i) => i.tier)).toEqual([3]);
-  // 데미지: 전사 6–9 × (1 + 0.3/2) × 1.3 → 9–13 (천옷 감소 0)
+  // 데미지: 전사 6–9 × 층 배율(데미지 몫) × 정예 배율 (천옷 감소 0)
+  const s = (1 + 0.3 * DMG_SCALE) * MONSTER_DMG * ELITE.dmg;
   const hitter = createWorld(2, ['HW'], 1.3);
   const hero = hitter.entities[0];
   hero.hp = hero.maxHp = 1e6;
@@ -726,8 +728,8 @@ test('정예 전사(W): 체력 ×3, 데미지 ×1.3, 경험치 ×4, 그 층 최�
     if (hero.hp < before) hits.push(before - hero.hp);
   }
   expect(hits.length).toBeGreaterThan(5);
-  expect(Math.min(...hits)).toBeGreaterThanOrEqual(9);
-  expect(Math.max(...hits)).toBeLessThanOrEqual(13);
+  expect(Math.min(...hits)).toBeGreaterThanOrEqual(Math.round(6 * s));
+  expect(Math.max(...hits)).toBeLessThanOrEqual(Math.round(9 * s));
 });
 
 test('상자(c): 막힌 칸, 클릭하면 걸어가서 열고 내용물이 주인공 쪽에 떨어진다, 한 번만', () => {

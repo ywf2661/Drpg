@@ -32,7 +32,7 @@ export type Entity = {
   attackT: number; // 현재 휘두르기 경과 시간(초)
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
   skill: boolean; // 지금 휘두르는 것이 가르기인가
-  elite: boolean; // 정예: 체력 ×3, 데미지 ×1.3, 경험치 ×4, 최고 단계 장비 확정
+  elite: boolean; // 정예: 체력 ×3, 데미지 ×1.15, 경험치 ×4, 최고 단계 장비 확정
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
   phase: 'none' | 'windup' | 'charge';
   phaseT: number;
@@ -105,7 +105,11 @@ export const DT = 1 / 60;
 
 export const RANGE = 1.5;
 
-export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
+// 몬스터 데미지 = 기본 × (1 + (층 배율 − 1) × DMG_SCALE) × MONSTER_DMG. 1~2층은 거의 그대로, 깊을수록 가파르게
+// (마법 옵션·스킬 도입 후 봇 테스트로 정함: 5층 ×2.2. 스킬을 쓰면 확실히 덜 죽게)
+export const DMG_SCALE = 2;
+export const MONSTER_DMG = 1; // 공통 배율(밸런스 손잡이)
+export const ELITE = { hp: 3, dmg: 1.15, xp: 4 };
 // 마법 옵션: 붙는 부위, 이름(접두어), 값 범위. dmg·speed·leech·crit·guard·thorns는 %, life는 체력, regen은 초당 1/10
 export const AFFIXES: Record<AffixKind, { slot: 'weapon' | 'armor'; name: string; lo: number; hi: number }> = {
   dmg: { slot: 'weapon', name: '날카로운', lo: 15, hi: 30 },

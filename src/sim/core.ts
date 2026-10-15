@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, ARMORS, DT, ELITE, SHOUT, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, ARMORS, DMG_SCALE, DT, ELITE, MONSTER_DMG, SHOUT, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -74,7 +74,7 @@ export function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) : (1 + (a.power - 1) / 2) * (a.elite ? ELITE.dmg : 1);
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1);
   const crit = a.kind === 'hero' ? mod(w.mods.weapon, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale) * twice;

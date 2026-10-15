@@ -18,14 +18,23 @@ function makeFloor(seed: number, n: number, c: Carry): World {
   return w;
 }
 
-// 간단한 플레이어: 체력이 낮으면 물약, 가까운 적부터 공격(무리면 가르기), 좋은 아이템 줍기, 다 잡으면 계단
-function think(w: World): Command[] {
+// 간단한 플레이어: 체력이 낮으면 물약, 가까운 적부터 공격, 스킬은 뻔한 상황에만(무리면 가르기, 둘러싸이거나 보스 예고면 함성,
+// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단. 피하기는 하지 않는다
+function think(w: World, skills: boolean): Command[] {
   const hero = w.entities[0];
   const cmds: Command[] = [];
   if (hero.hp < hero.maxHp * 0.45 && w.potions > 0) cmds.push({ type: 'drink' });
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead').sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
-  if (foes.filter((e) => d(e.x, e.z) < 2).length >= 2) cmds.push({ type: 'skill' });
+  const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
+  if (near(2) >= 2) cmds.push({ type: 'skill' });
+  if (skills) {
+    const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
+    if (w.shoutCd <= 0 && (near(4) >= 3 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
+    const shooter = foes.find((e) => (e.kind === 'archer' || e.kind === 'mage') && d(e.x, e.z) > 2.5 && d(e.x, e.z) < 8);
+    if (shooter && w.throwCd <= 0) cmds.push({ type: 'throw', x: shooter.x, z: shooter.z });
+    else if (shooter && w.dashCd <= 0 && d(shooter.x, shooter.z) > 3.5) cmds.push({ type: 'dash', x: shooter.x, z: shooter.z });
+  }
   const wanted = w.items.find((i) => (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : isBetter(w, i)));
   if (foes.length && (d(foes[0].x, foes[0].z) < 9 || !wanted)) {
     if (hero.target !== foes[0].id) cmds.push({ type: 'attack', targetId: foes[0].id });
@@ -42,7 +51,7 @@ function shopping(c: Carry): Carry {
 }
 
 // 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨
-export function playthrough(seed: number) {
+export function playthrough(seed: number, skills = true) {
   let carry = START;
   let deaths = 0;
   for (let n = 1; n <= FLOORS; n++) {
@@ -50,7 +59,7 @@ export function playthrough(seed: number) {
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
       const w = makeFloor(seed * 100 + n * 10 + attempt, n, carry);
       for (let t = 0; t < 600 / DT; t++) {
-        step(w, t % THINK === 0 ? think(w) : []);
+        step(w, t % THINK === 0 ? think(w, skills) : []);
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
