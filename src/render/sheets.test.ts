@@ -49,10 +49,12 @@ test.each([
   });
 });
 
-test('props 시트: 화로 8프레임 반복, 큰 소품 8종, 잔해 8종', () => {
+test('props 시트: 화로 8프레임 반복, 큰 소품 8종, 열린 상자 2종, 잔해 8종', () => {
   expect(props.anims.brazier).toMatchObject({ frames: 8, loop: 'looped' });
   expect(Object.keys(props.anims).filter((n) => n.startsWith('bones'))).toHaveLength(8);
-  expect(Object.keys(props.anims)).toHaveLength(17);
+  expect(Object.keys(props.anims)).toHaveLength(19);
+  expect(props.anims).toHaveProperty('chest_open');
+  expect(props.anims).toHaveProperty('chest2_open');
 });
 
 test('loot 시트: 물약이 떨어지는 6프레임(1회 재생)', () => {

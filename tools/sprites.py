@@ -50,7 +50,7 @@ HERO_ARMORS = {
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor'}  # 동작 이름 → loot 애니메이션
 SOUNDS = ROOT / 'src' / 'assets' / 'sounds'
-SOUND_FILES = ['level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
+SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
                'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
                'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot']  # soundfx/ 아래
@@ -64,6 +64,7 @@ TILESET = 'tileset_dungeon'
 FLOOR_TILES = [16, 17, 18, 19, 42, 43, 44, 45]  # 평바닥 4 + 금 간 바닥 4
 WALL_TILE, WALL_PX, WALL_GAIN = 48, 141, 1.8  # 벽돌 기둥, 1.2m 높이의 FLARE 픽셀(세로 1m = 117.6px), 밝기 보정
 PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 163, 'chest': 144, 'chest2': 145,
+         'chest_open': 160, 'chest2_open': 161,
          'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
 STAIRS = 286  # 4×4칸 내려가는 계단
 LOOT_POTION = 0.5 / SCALE  # 바닥 아이템은 캐릭터 배율(0.32), 물약만 0.5배(작아서 안 보인다)

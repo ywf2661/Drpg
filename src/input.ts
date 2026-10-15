@@ -52,11 +52,11 @@ export function pollInput(world: World, dt: number) {
     repeatT = REPEAT;
     ray.setFromCamera(clickAt, camera);
     const id = pick(world);
-    if (id === null) moveToRay();
-    else {
-      commands.push({ type: 'attack', targetId: id });
-      held = false; // 몬스터 클릭은 이동 반복을 시작하지 않는다(공격은 sim이 대상이 죽을 때까지 반복)
-    }
+    const chest = id === null ? pickChest(world) : null;
+    if (id !== null) commands.push({ type: 'attack', targetId: id });
+    else if (chest !== null) commands.push({ type: 'open', chestId: chest });
+    else moveToRay();
+    if (id !== null || chest !== null) held = false; // 몬스터·상자 클릭은 이동 반복을 시작하지 않는다
   } else if (held && (repeatT -= dt) <= 0) {
     repeatT = REPEAT;
     ray.setFromCamera(pointer, camera);
@@ -71,6 +71,21 @@ function moveToRay() {
 }
 
 // 각 몬스터를 세로 선분(발목~머리)으로 보고, 마우스 광선과 가장 가까운 것을 고른다
+// 닫힌 상자를 칸 중심의 낮은 세로 선분으로 보고 마우스 광선에 가장 가까운 것
+function pickChest(world: World): number | null {
+  let best: number | null = null;
+  let bestD = PICK_RADIUS ** 2;
+  for (const c of world.chests) {
+    if (c.open) continue;
+    const d = ray.ray.distanceSqToSegment(a.set(c.x + 0.5, 0, c.z + 0.5), b.set(c.x + 0.5, 0.8, c.z + 0.5));
+    if (d < bestD) {
+      bestD = d;
+      best = c.id;
+    }
+  }
+  return best;
+}
+
 function pick(world: World): number | null {
   let best: number | null = null;
   let bestD = PICK_RADIUS ** 2;

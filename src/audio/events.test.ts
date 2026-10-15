@@ -87,3 +87,10 @@ test('가르기 타격', () => {
   w.cleaves = 1;
   expect(names(soundEvents(prev, w))).toEqual(['cleave']);
 });
+
+test('상자가 열림', () => {
+  const w = createWorld(1, ['Hc']);
+  const prev = snapshot(w);
+  w.chests[0].open = true;
+  expect(names(soundEvents(prev, w))).toEqual(['chest']);
+});

@@ -27,7 +27,7 @@ const LOOT_MIN_LIGHT = 0.6; // 바닥 물약은 어둠 속에서도 보이게
 const STAIRS_AT: [number, number] = [-1.5, -1.5]; // 계단 칸 → 4×4칸 계단 그림의 위 꼭짓점(맵 최소 x·z 모서리)
 const VARIANTS: Record<Prop['kind'], string[]> = {
   brazier: ['brazier'],
-  prop: ['barrel', 'barrel2', 'crate', 'crate2', 'chest', 'chest2', 'statue', 'statue2'],
+  prop: ['barrel', 'barrel2', 'crate', 'crate2', 'statue', 'statue2'], // 상자 그림은 열 수 있는 상자 전용
   debris: Array.from({ length: 8 }, (_, k) => `bones${k + 1}`),
 };
 type Sheet = { info: SheetInfo; url: string; tex?: THREE.Texture; geo?: THREE.BufferGeometry };
@@ -41,6 +41,7 @@ let cards: Card[] = [];
 let group = new THREE.Group();
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
+let chestCards: { card: Card; name: string }[] = []; // 상자 판자(world.chests 순서)와 닫힌 그림 이름
 let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
 let cleavesSeen = 0;
 let lights: THREE.PointLight[] = [];
@@ -83,6 +84,14 @@ const free = (c: Card) => {
   c.mat.map!.dispose();
   c.mat.dispose();
 };
+
+// 열린 상자는 열린 그림으로
+export function syncChests(world: World) {
+  world.chests.forEach((ch, i) => {
+    const c = chestCards[i];
+    if (ch.open && c) c.card.clip = props.info.anims[`${c.name}_open`];
+  });
+}
 
 // 가르기가 새로 일어났으면 주인공 위치·방향에 효과를 한 번 재생
 export function syncEffects(world: World) {
@@ -164,6 +173,11 @@ export function buildProps(world: World): THREE.Group {
     const names = VARIANTS[p.kind];
     return card(props, names[cellHash(p.x, p.z) % names.length], p.x + 0.5, p.z + 0.5, p.kind === 'debris');
   });
+  chestCards = world.chests.map((ch) => {
+    const name = cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest';
+    return { card: card(props, ch.open ? `${name}_open` : name, ch.x + 0.5, ch.z + 0.5, false), name };
+  });
+  cards.push(...chestCards.map((c) => c.card));
   if (world.stairs) cards.push(card(stairs, 'stairs', world.stairs[0] + STAIRS_AT[0], world.stairs[1] + STAIRS_AT[1], true));
   braziers = world.props.filter((p) => p.kind === 'brazier').map((p) => ({ x: p.x + 0.5, z: p.z + 0.5 }));
   // ponytail: 화로 빛은 그림자가 없어 벽 너머로 조금 샌다. 거슬리면 화로마다 castShadow(점광원 그림자는 6면 렌더)

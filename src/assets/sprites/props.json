@@ -9,7 +9,7 @@
   ],
   "ppm": 30,
   "cols": 8,
-  "rows": 17,
+  "rows": 19,
   "anims": {
     "brazier": {
       "row": 0,
@@ -53,62 +53,74 @@
       "ms": 1000,
       "loop": "play_once"
     },
-    "statue": {
+    "chest_open": {
       "row": 7,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "statue2": {
+    "chest2_open": {
       "row": 8,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones1": {
+    "statue": {
       "row": 9,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones2": {
+    "statue2": {
       "row": 10,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones3": {
+    "bones1": {
       "row": 11,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones4": {
+    "bones2": {
       "row": 12,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones5": {
+    "bones3": {
       "row": 13,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones6": {
+    "bones4": {
       "row": 14,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones7": {
+    "bones5": {
       "row": 15,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
     },
-    "bones8": {
+    "bones6": {
       "row": 16,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones7": {
+      "row": 17,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "bones8": {
+      "row": 18,
       "frames": 1,
       "ms": 1000,
       "loop": "play_once"
