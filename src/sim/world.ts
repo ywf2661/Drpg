@@ -1,7 +1,7 @@
 // 게임 규칙(sim). three.js를 import하지 않는다. 상태 변경은 step()으로만 일어난다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 
-export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'boss';
+export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'boss';
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 export type Command =
   | { type: 'move'; x: number; z: number }
@@ -43,7 +43,9 @@ export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon'
 // 보물 상자(칸 좌표). 한 번 열면 끝
 export type Chest = { id: number; x: number; z: number; open: boolean };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number };
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' };
+// 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
+export type Blast = { id: number; x: number; z: number; age: number };
 // 장착 장비 단계(1~4). WEAPONS·ARMORS[단계 − 1]
 export type Gear = { weapon: number; armor: number };
 
@@ -61,6 +63,7 @@ export type World = {
   opening: number | null; // 주인공이 열러 가는 상자 id
   items: Item[];
   shots: Shot[];
+  blasts: Blast[];
   nextItem: number; // 아이템·화살 공용 id
   potions: number;
   gear: Gear;
@@ -78,16 +81,18 @@ export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8
 export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
+// 마법사: 사거리, 화염구 속도·비행 거리·직격 반경·폭발 반경·폭발 기록 유지, 물러나는 거리
+export const MAGE = { range: 7, speed: 6, flight: 9, hitRadius: 0.5, blast: 1.2, blastAge: 0.6, flee: 3 };
 export const RADIUS = 0.4;
 export const AGGRO = 8;
 export const HIT_AT = 0.4;
 export const REPATH = 0.5;
 
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
-export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
-export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, archer: 0.08, boss: 0 };
+export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, mage: 0.25, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
+export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, archer: 0.08, mage: 0.1, boss: 0 };
 // 처치 경험치(× 몬스터 층 배율). 레벨마다 최대 체력 +10, 주인공 데미지 +5%
-export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, archer: 15, boss: 0 };
+export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, archer: 15, mage: 20, boss: 0 };
 export const xpToNext = (level: number) => 40 + 30 * (level - 1);
 const heroMaxHp = (level: number) => STATS.hero.hp + 10 * (level - 1);
 
@@ -125,12 +130,13 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
   archer: { name: '스켈레톤 궁수', hp: 25, dmg: [4, 7], interval: 1.8, speed: 2.2 },
+  mage: { name: '스켈레톤 마법사', hp: 22, dmg: [5, 8], interval: 2.4, speed: 2 },
   boss: { name: '미노타우르스', hp: 500, dmg: [12, 20], interval: 1.6, speed: 2.4 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', M: 'boss' };
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 export function createWorld(seed: number, map: string[], power = 1): World {
@@ -159,12 +165,13 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
   const hero = w.entities[0];
   w.skillCd = Math.max(0, w.skillCd - DT);
+  w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
   for (const c of cmds) command(w, hero, c);
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
@@ -320,6 +327,7 @@ function act(w: World, e: Entity) {
   }
   if (e.kind === 'boss' && charge(w, e, t)) return;
   if (e.state === 'attack') return swing(w, e, t);
+  if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {
     if (canHit(w, e, t)) return startSwing(e, t);
     if ((e.repathT -= DT) <= 0) {
@@ -364,6 +372,30 @@ function charge(w: World, e: Entity, t: Entity | null): boolean {
   return true;
 }
 
+// 마법사: 대상이 MAGE.flee 안이면 반대쪽으로 물러난다. 물러날 곳이 없으면(구석) false → 평소처럼 시전
+function flee(w: World, e: Entity, t: Entity): boolean {
+  const d = dist(e, t);
+  if (d >= MAGE.flee) return false;
+  if ((e.repathT -= DT) <= 0 || !e.path.length) {
+    e.repathT = REPATH;
+    const [ux, uz] = d < 1e-6 ? [1, 0] : [(e.x - t.x) / d, (e.z - t.z) / d];
+    const [gx, gz] = [Math.floor(e.x + ux * MAGE.flee), Math.floor(e.z + uz * MAGE.flee)];
+    let best: Cell | null = null;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const c: Cell = [gx + dx, gz + dz];
+        const far = Math.hypot(c[0] + 0.5 - t.x, c[1] + 0.5 - t.z);
+        if (walkable(w.grid, c[0], c[1]) && far > d + 1 && (!best || far > Math.hypot(best[0] + 0.5 - t.x, best[1] + 0.5 - t.z))) best = c;
+      }
+    }
+    const p = best && findPath(w.grid, cellOf(e), best);
+    e.path = p && p.length > 1 ? waypoints(p, best![0] + 0.5, best![1] + 0.5) : [];
+  }
+  if (!e.path.length) return false;
+  walk(w, e);
+  return true;
+}
+
 // 몬스터 AI: 주인공이 AGGRO 안에 들어오면 대상으로 삼는다. 주인공이 죽으면 대상을 버린다.
 function think(e: Entity, hero: Entity) {
   if (hero.state === 'dead') {
@@ -394,7 +426,11 @@ function swing(w: World, e: Entity, t: Entity | null) {
   if (t) face(e, t);
   const hitNow = before < hitAt && e.attackT >= hitAt;
   if (e.skill && hitNow) cleave(w, e);
-  else if (t && hitNow && canHit(w, e, t)) (e.kind === 'archer' ? shoot : damage)(w, e, t);
+  else if (t && hitNow && canHit(w, e, t)) {
+    if (e.kind === 'archer') shoot(w, e, t, 'arrow');
+    else if (e.kind === 'mage') shoot(w, e, t, 'fire');
+    else damage(w, e, t);
+  }
   if (e.attackT < interval) return;
   if (e.skill) {
     e.skill = false; // 가르기는 한 번만 휘두르고 멈춘다
@@ -422,24 +458,36 @@ function damage(w: World, a: Entity, t: Entity) {
   hurt(w, t, roll(w, a));
 }
 
-// 대상 t 쪽으로 화살을 쏜다(그 순간 위치를 향해 직선). 데미지는 지금 굴린다
-function shoot(w: World, a: Entity, t: Entity) {
+// 대상 t 쪽으로 화살·화염구를 쏜다(그 순간 위치를 향해 직선). 데미지는 지금 굴린다
+function shoot(w: World, a: Entity, t: Entity, kind: Shot['kind']) {
   const d = dist(a, t) || 1;
-  w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg: roll(w, a), left: ARCHER.flight });
+  const left = kind === 'fire' ? MAGE.flight : ARCHER.flight;
+  w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg: roll(w, a), left, kind });
 }
 
-// 화살 이동: 벽 칸에 들어가거나 다 날아가면 사라지고, 살아 있는 주인공에 닿으면 피해
+// 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발
 function fly(w: World, hero: Entity) {
-  const step = ARCHER.speed * DT;
   w.shots = w.shots.filter((s) => {
-    s.x += s.dx * step;
-    s.z += s.dz * step;
+    const fire = s.kind === 'fire';
+    const step = (fire ? MAGE.speed : ARCHER.speed) * DT;
+    const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;
-    if (!walkable(w.grid, Math.floor(s.x), Math.floor(s.z)) || s.left <= 0) return false;
-    if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > ARCHER.hitRadius) return true;
-    hurt(w, hero, s.dmg);
+    if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
+      if (fire) explode(w, hero, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
+      return false;
+    }
+    [s.x, s.z] = [nx, nz];
+    if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > (fire ? MAGE.hitRadius : ARCHER.hitRadius)) return true;
+    if (fire) explode(w, hero, s.x, s.z, s.dmg);
+    else hurt(w, hero, s.dmg);
     return false;
   });
+}
+
+// 화염구 폭발: 반경 안의 살아 있는 주인공에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다
+function explode(w: World, hero: Entity, x: number, z: number, dmg: number) {
+  w.blasts.push({ id: w.nextItem++, x, z, age: 0 });
+  if (hero.state !== 'dead' && Math.hypot(hero.x - x, hero.z - z) <= MAGE.blast) hurt(w, hero, dmg);
 }
 
 // 피해 적용: 주인공은 갑옷으로 줄이되 최소 1. 몬스터가 죽으면 경험치·드롭
@@ -469,9 +517,10 @@ function rand(w: World) {
 
 const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
 
-// 사거리(궁수는 ARCHER.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
+// 사거리(궁수 ARCHER.range, 마법사 MAGE.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
 function canHit(w: World, a: Entity, b: Entity) {
-  return dist(a, b) <= (a.kind === 'archer' ? ARCHER.range : RANGE) && clearLine(w, a, b);
+  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : RANGE;
+  return dist(a, b) <= reach && clearLine(w, a, b);
 }
 
 // 둘 사이 직선이 벽 칸을 지나지 않는가(0.1m 간격 샘플)

@@ -96,11 +96,14 @@ export function generateFloor(seed: number, floor: number): string[] {
     for (let k = int(0, 3); k > 0; k--) place(r, ',', false);
   }
 
-  // 몬스터(졸개·전사·궁수): 첫 방을 뺀 방들에 돌아가며 2~4마리씩
+  // 몬스터(졸개·전사·궁수·마법사): 첫 방을 뺀 방들에 돌아가며 2~4마리씩
   const count = 8 + 3 * (floor - 1);
   const warriors = Math.round(count * (0.2 + 0.075 * (floor - 1)));
   const archers = floor === 1 ? 0 : Math.round(count * 0.15); // 궁수는 2층부터
-  const kinds: string[] = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : i < warriors + archers ? 'a' : 'm'));
+  const mages = floor < 3 || floor === FLOORS ? 0 : Math.round(count * 0.1); // 마법사는 3~4층(보스층 제외)
+  const kinds: string[] = Array.from({ length: count }, (_, i) =>
+    i < warriors ? 'w' : i < warriors + archers ? 'a' : i < warriors + archers + mages ? 'g' : 'm',
+  );
   if (floor >= 2 && floor < FLOORS && warriors > 0) kinds[0] = 'W'; // 2~4층: 전사 하나가 정예
   for (let i = kinds.length - 1; i > 0; i--) {
     const j = int(0, i);

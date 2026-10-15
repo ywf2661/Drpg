@@ -639,12 +639,12 @@ test('궁수는 사거리 안·시야가 트이면 멀리서 화살을 쏘고, �
 
 test('화살은 벽에 막히고, 날아가는 동안 옆으로 비키면 빗나간다', () => {
   const wall = createWorld(1, ['H.#..']);
-  wall.shots.push({ id: 0, x: 4.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 8 });
+  wall.shots.push({ id: 0, x: 4.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 8, kind: 'arrow' });
   run(wall, 60);
   expect(wall.shots).toEqual([]);
   expect(wall.entities[0].hp).toBe(100);
   const dodge = createWorld(1, ['H....', '.....', '.....']);
-  dodge.shots.push({ id: 0, x: 4.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 8 });
+  dodge.shots.push({ id: 0, x: 4.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 8, kind: 'arrow' });
   run(dodge, 60, [{ type: 'move', x: 0.5, z: 2.5 }]);
   expect(dodge.entities[0].hp).toBe(100);
   expect(dodge.shots).toEqual([]); // 8m를 다 날아가 사라짐
@@ -830,4 +830,51 @@ test('돌진 재사용 대기 7초, 3m 안에서는 돌진하지 않는다', () 
   expect(starts[0]).toBeLessThan(0.1);
   expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(7 - 0.05);
   expect(starts[1] - starts[0]).toBeLessThan(7.5);
+});
+
+test('마법사는 멀리서 화염구를 쏘고, 폭발이 주인공을 태우며 기록이 잠시 남는다', () => {
+  const w = createWorld(3, ['H.....g']);
+  const hero = w.entities[0];
+  let fire = false;
+  let blasted = false;
+  for (let i = 0; i < 240; i++) {
+    step(w, []);
+    if (w.shots.some((s) => s.kind === 'fire')) fire = true;
+    if (w.blasts.length) blasted = true;
+  }
+  expect(fire).toBe(true);
+  expect(blasted).toBe(true);
+  expect(hero.hp).toBeLessThan(100);
+  run(w, Math.round(0.7 / DT));
+  expect(w.blasts.every((b) => b.age <= 0.6)).toBe(true); // 오래된 폭발 기록은 지운다
+});
+
+test('화염구는 벽에 닿아도 터지고, 벽 옆 주인공도 폭발에 맞는다', () => {
+  const w = createWorld(1, ['...H#', '....#']);
+  w.shots.push({ id: 0, x: 0.5, z: 1.5, dx: 1, dz: 0, dmg: 10, left: 9, kind: 'fire' });
+  run(w, 60);
+  expect(w.shots).toEqual([]);
+  expect(w.entities[0].hp).toBe(90);
+});
+
+test('화염구가 날아오는 동안 옆으로 비키면 폭발 범위 밖', () => {
+  const w = createWorld(1, ['H........', '.........', '.........', '.........']);
+  w.shots.push({ id: 0, x: 8.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 9, kind: 'fire' });
+  run(w, 120, [{ type: 'move', x: 0.5, z: 3.5 }]);
+  expect(w.entities[0].hp).toBe(100);
+});
+
+test('마법사는 가까이 오면 물러나고, 물러날 곳이 없으면 그 자리에서 시전한다', () => {
+  const w = createWorld(1, ['H.g.......']);
+  const g = w.entities[1];
+  const x0 = g.x;
+  run(w, 30);
+  expect(g.x).toBeGreaterThan(x0); // 주인공 반대쪽으로
+  const cornered = createWorld(1, ['Hg']);
+  let cast = false;
+  for (let i = 0; i < 200 && !cast; i++) {
+    step(cornered, []);
+    cast = cornered.shots.length > 0 || cornered.blasts.length > 0;
+  }
+  expect(cast).toBe(true);
 });
