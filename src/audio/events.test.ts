@@ -94,3 +94,10 @@ test('상자가 열림', () => {
   w.chests[0].open = true;
   expect(names(soundEvents(prev, w))).toEqual(['chest']);
 });
+
+test('보스 돌진 예고 시작', () => {
+  const w = createWorld(1, ['H....M']);
+  const prev = snapshot(w);
+  w.entities[1].phase = 'windup';
+  expect(names(soundEvents(prev, w))).toEqual(['boss_attack']);
+});

@@ -9,7 +9,7 @@ export type SoundName =
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
-  ents: { hp: number; state: Entity['state']; attackT: number }[];
+  ents: { hp: number; state: Entity['state']; attackT: number; phase: Entity['phase'] }[];
   potions: number;
   gear: Gear;
   items: Set<number>;
@@ -22,7 +22,7 @@ export type Snapshot = {
 export function snapshot(w: World): Snapshot {
   return {
     world: w,
-    ents: w.entities.map((e) => ({ hp: e.hp, state: e.state, attackT: e.attackT })),
+    ents: w.entities.map((e) => ({ hp: e.hp, state: e.state, attackT: e.attackT, phase: e.phase })),
     potions: w.potions,
     gear: { ...w.gear },
     items: new Set(w.items.map((i) => i.id)),
@@ -45,6 +45,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
     const v = VOICE[e.kind];
     const swung = e.state === 'attack' && (p.state !== 'attack' || e.attackT < p.attackT);
     if (swung && e.kind !== 'archer') at(v === 'hero' ? 'swing' : `${v}_attack`, e.x, e.z); // 궁수는 화살이 나갈 때
+    if (e.phase === 'windup' && p.phase !== 'windup') at('boss_attack', e.x, e.z); // 돌진 예고
     if (e.state === 'dead' && p.state !== 'dead') at(`${v}_die`, e.x, e.z);
     else if (e.hp < p.hp) at(`${v}_hit`, e.x, e.z);
   });

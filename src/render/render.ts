@@ -11,6 +11,7 @@ const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그�
 const TORCH = 80; // 횃불 밝기(칸델라)
 const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
 const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색
+const WINDUP = new THREE.Color(1.6, 0.15, 0.1); // 보스 돌진 예고 색
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
 export const camera = new THREE.OrthographicCamera();
@@ -72,6 +73,7 @@ export function draw(world: World, dt: number) {
     const s = sprites[e.id];
     updateSprite(s, e, dt, attackInterval(world, e));
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
+    if (e.phase === 'windup') s.mat.color.lerp(WINDUP, 0.5 + 0.3 * Math.sin(time * 25)); // 돌진 예고: 붉게 맥동
   }
   cutaway(hero.x, hero.z);
   syncItems(world);
