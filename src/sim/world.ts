@@ -1,7 +1,7 @@
 // 게임 규칙(sim). three.js를 import하지 않는다. 상태 변경은 step()으로만 일어난다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 
-export type Kind = 'hero' | 'minion' | 'warrior' | 'boss';
+export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'boss';
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 export type Command = { type: 'move'; x: number; z: number } | { type: 'attack'; targetId: number } | { type: 'drink' };
 type Point = [x: number, z: number];
@@ -27,6 +27,8 @@ export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number }
 
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor'; tier: number };
+// 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number };
 // 장착 장비 단계(1~4). WEAPONS·ARMORS[단계 − 1]
 export type Gear = { weapon: number; armor: number };
 
@@ -41,7 +43,8 @@ export type World = {
   toStairs: boolean;
   props: Prop[];
   items: Item[];
-  nextItem: number;
+  shots: Shot[];
+  nextItem: number; // 아이템·화살 공용 id
   potions: number;
   gear: Gear;
   maxTier: number;
@@ -51,16 +54,17 @@ export type World = {
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
+export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
 export const RADIUS = 0.4;
 export const AGGRO = 8;
 export const HIT_AT = 0.4;
 export const REPATH = 0.5;
 
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
-export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
-export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, boss: 0 };
+export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
+export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, archer: 0.08, boss: 0 };
 // 처치 경험치(× 몬스터 층 배율). 레벨마다 최대 체력 +10, 주인공 데미지 +5%
-export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, boss: 0 };
+export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, archer: 15, boss: 0 };
 export const xpToNext = (level: number) => 40 + 30 * (level - 1);
 const heroMaxHp = (level: number) => STATS.hero.hp + 10 * (level - 1);
 
@@ -97,12 +101,13 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)
   minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
+  archer: { name: '스켈레톤 궁수', hp: 25, dmg: [4, 7], interval: 1.8, speed: 2.2 },
   boss: { name: '미노타우르스', hp: 600, dmg: [14, 22], interval: 1.6, speed: 2.4 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', M: 'boss' };
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', a: 'archer', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 export function createWorld(seed: number, map: string[], power = 1): World {
@@ -129,7 +134,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], shots: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -140,6 +145,7 @@ export function step(w: World, cmds: Command[]): void {
     if (e !== hero) think(e, hero);
     act(w, e);
   }
+  fly(w, hero);
   separate(w);
   pickup(w, hero);
 }
@@ -258,7 +264,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
   const before = e.attackT;
   e.attackT += DT;
   if (t) face(e, t);
-  if (t && before < hitAt && e.attackT >= hitAt && canHit(w, e, t)) damage(w, e, t);
+  if (t && before < hitAt && e.attackT >= hitAt && canHit(w, e, t)) (e.kind === 'archer' ? shoot : damage)(w, e, t);
   if (e.attackT < interval) return;
   if (t && t.state !== 'dead' && canHit(w, e, t)) {
     e.attackT -= interval;
@@ -268,10 +274,40 @@ function swing(w: World, e: Entity, t: Entity | null) {
   }
 }
 
-function damage(w: World, a: Entity, t: Entity) {
+// 공격자 a의 데미지 굴림(무기·레벨·층 배율)
+function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   const bonus = a.kind === 'hero' ? 1 + 0.05 * (w.level - 1) : 1; // 레벨 보너스
-  let dmg = Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power * bonus);
+  return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power * bonus);
+}
+
+function damage(w: World, a: Entity, t: Entity) {
+  hurt(w, t, roll(w, a));
+}
+
+// 대상 t 쪽으로 화살을 쏜다(그 순간 위치를 향해 직선). 데미지는 지금 굴린다
+function shoot(w: World, a: Entity, t: Entity) {
+  const d = dist(a, t) || 1;
+  w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg: roll(w, a), left: ARCHER.flight });
+}
+
+// 화살 이동: 벽 칸에 들어가거나 다 날아가면 사라지고, 살아 있는 주인공에 닿으면 피해
+function fly(w: World, hero: Entity) {
+  const step = ARCHER.speed * DT;
+  w.shots = w.shots.filter((s) => {
+    s.x += s.dx * step;
+    s.z += s.dz * step;
+    s.left -= step;
+    if (!walkable(w.grid, Math.floor(s.x), Math.floor(s.z)) || s.left <= 0) return false;
+    if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > ARCHER.hitRadius) return true;
+    hurt(w, hero, s.dmg);
+    return false;
+  });
+}
+
+// 피해 적용: 주인공은 갑옷으로 줄이되 최소 1. 몬스터가 죽으면 경험치·드롭
+function hurt(w: World, t: Entity, raw: number) {
+  let dmg = raw;
   if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - ARMORS[w.gear.armor - 1].reduce)));
   t.hp = Math.max(0, t.hp - dmg);
   if (t.hp > 0) return;
@@ -295,10 +331,10 @@ function rand(w: World) {
 
 const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
 
-// 사거리 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
+// 사거리(궁수는 ARCHER.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
 function canHit(w: World, a: Entity, b: Entity) {
   const d = dist(a, b);
-  if (d > RANGE) return false;
+  if (d > (a.kind === 'archer' ? ARCHER.range : RANGE)) return false;
   const n = Math.ceil(d / 0.1);
   for (let i = 1; i < n; i++) {
     if (!walkable(w.grid, Math.floor(a.x + ((b.x - a.x) * i) / n), Math.floor(a.z + ((b.z - a.z) * i) / n))) return false;

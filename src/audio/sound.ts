@@ -13,6 +13,7 @@ const FILES: Record<SoundName, string[]> = {
   boss_attack: ['minotaur_phys'],
   boss_hit: ['minotaur_hit'],
   boss_die: ['minotaur_die'],
+  shoot: ['shoot'],
   potion: ['inventory_potion'],
   loot: ['flying_loot'],
   equip_weapon: ['inventory_metal'],

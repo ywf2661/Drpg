@@ -68,3 +68,15 @@ test('레벨업', () => {
   w.level = 2;
   expect(names(soundEvents(prev, w))).toEqual(['level_up']);
 });
+
+test('궁수: 활을 당길 때가 아니라 화살이 나갈 때 shoot, 피격·사망은 스켈레톤 소리', () => {
+  const w = createWorld(1, ['H...a']);
+  const a = w.entities[1];
+  let prev = snapshot(w);
+  a.state = 'attack';
+  expect(names(soundEvents(prev, w))).toEqual([]);
+  prev = snapshot(w);
+  w.shots.push({ id: 9, x: a.x, z: a.z, dx: -1, dz: 0, dmg: 5, left: 8 });
+  a.hp -= 3;
+  expect(names(soundEvents(prev, w))).toEqual(['skel_hit', 'shoot']);
+});

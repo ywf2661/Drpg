@@ -623,3 +623,38 @@ test('setLevel은 주인공 최대 체력·체력을 맞추고, 레벨은 주인
   expect(1000 - m.hp).toBeGreaterThanOrEqual(6 * 9);
   expect(1000 - m.hp).toBeLessThanOrEqual(11 * 11);
 });
+
+test('궁수는 사거리 안·시야가 트이면 멀리서 화살을 쏘고, 화살이 날아가 맞힌다', () => {
+  const w = createWorld(2, ['H....a']); // 4.5m 거리
+  const hero = w.entities[0];
+  let flew = false;
+  for (let i = 0; i < 180; i++) {
+    step(w, []);
+    if (w.shots.length) flew = true;
+  }
+  expect(flew).toBe(true);
+  expect(w.entities[1].x).toBeCloseTo(5.5, 5); // 다가오지 않고 그 자리에서 쏜다
+  expect(hero.hp).toBeLessThan(100);
+});
+
+test('화살은 벽에 막히고, 날아가는 동안 옆으로 비키면 빗나간다', () => {
+  const wall = createWorld(1, ['H.#..']);
+  wall.shots.push({ id: 0, x: 4.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 8 });
+  run(wall, 60);
+  expect(wall.shots).toEqual([]);
+  expect(wall.entities[0].hp).toBe(100);
+  const dodge = createWorld(1, ['H....', '.....', '.....']);
+  dodge.shots.push({ id: 0, x: 4.5, z: 0.5, dx: -1, dz: 0, dmg: 10, left: 8 });
+  run(dodge, 60, [{ type: 'move', x: 0.5, z: 2.5 }]);
+  expect(dodge.entities[0].hp).toBe(100);
+  expect(dodge.shots).toEqual([]); // 8m를 다 날아가 사라짐
+});
+
+test('시야가 막히면 쏘지 않고 다가간다', () => {
+  const blocked = createWorld(1, ['H#...a', '.#....', '......']);
+  const a = blocked.entities[1];
+  const x0 = a.x;
+  run(blocked, 60);
+  expect(blocked.shots.length).toBe(0);
+  expect(a.x).toBeLessThan(x0); // 벽을 돌아 다가오는 중
+});
