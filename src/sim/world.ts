@@ -2,7 +2,7 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, heroMax, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints } from './core';
-import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, shoot, summon } from './abilities';
+import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, shoot, shout, summon, throwAxe } from './abilities';
 import { AGGRO, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, REPATH, type Chest, type Command, type Entity, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
@@ -36,18 +36,25 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
   const hero = w.entities[0];
   w.skillCd = Math.max(0, w.skillCd - DT);
   w.dashCd = Math.max(0, w.dashCd - DT);
+  w.shoutCd = Math.max(0, w.shoutCd - DT);
+  w.shoutT = Math.max(0, w.shoutT - DT);
+  w.throwCd = Math.max(0, w.throwCd - DT);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
   regen(w, hero);
   for (const c of cmds) command(w, hero, c);
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
+    if (e.stunT > 0) {
+      e.stunT = Math.max(0, e.stunT - DT); // 기절: 생각도 행동도 하지 않는다
+      continue;
+    }
     if (e !== hero) think(e, hero);
     act(w, e);
   }
@@ -115,6 +122,8 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
   if (hero.state === 'dead' || hero.phase === 'charge') return; // 돌진 중에는 물약 말고는 무시
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
+  if (c.type === 'shout') return shout(w, hero);
+  if (c.type === 'throw') return throwAxe(w, hero, c.x, c.z);
   w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
   if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
   if (c.type === 'open') return goToChest(w, hero, c.chestId);

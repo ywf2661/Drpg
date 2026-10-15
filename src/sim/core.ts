@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, ARMORS, DT, ELITE, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, ARMORS, DT, ELITE, SHOUT, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -61,7 +61,7 @@ export function gainXp(w: World, n: number) {
 
 export function makeEntity(id: number, kind: Kind, x: number, z: number, power: number, elite = false, summoner = -1): Entity {
   const hp = Math.round(STATS[kind].hp * power * (elite ? ELITE.hp : 1));
-  return { id, kind, x, z, elite, summoner, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
+  return { id, kind, x, z, elite, summoner, stunT: 0, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
 }
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
@@ -88,7 +88,8 @@ export function damage(w: World, a: Entity, t: Entity) {
 // 몬스터가 죽으면 경험치·드롭. 실제로 준 피해를 돌려준다
 export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   let dmg = raw;
-  if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, ARMORS[w.gear.armor - 1].reduce + mod(w.mods.armor, 'guard') / 100))));
+  // 주인공: 갑옷(+단단한) 감소, 전투의 함성 중이면 추가 감소
+  if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, ARMORS[w.gear.armor - 1].reduce + mod(w.mods.armor, 'guard') / 100)) * (w.shoutT > 0 ? 1 - SHOUT.reduce : 1)));
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
   const hero = w.entities[0];

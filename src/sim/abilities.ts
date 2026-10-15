@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, CHARGE, DASH, DT, KING, MAGE, REPATH, SKILL, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, CHARGE, DASH, DT, KING, MAGE, REPATH, SHOUT, SKILL, type Entity, type Shot, type World } from './rules';
 import { cellOf, clearLine, dist, face, hurt, makeEntity, roll, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
@@ -155,11 +155,38 @@ export function shoot(w: World, a: Entity, t: Entity, kind: Shot['kind']) {
   w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg: roll(w, a), left, kind });
 }
 
-// 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발
+// 전투의 함성: 반경 안 살아 있는 적을 기절(하던 휘두르기·예고·돌진도 끊김), 주인공은 잠시 받는 피해 감소
+export function shout(w: World, hero: Entity) {
+  if (w.shoutCd > 0) return;
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead' || dist(e, hero) > SHOUT.radius) continue;
+    Object.assign(e, { stunT: SHOUT.stun, state: 'idle', attackT: 0, path: [], phase: 'none' });
+  }
+  Object.assign(w, { shoutCd: SHOUT.cd, shoutT: SHOUT.time });
+  w.shouts++;
+}
+
+// 도끼 던지기: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 방향)으로. 주인공은 하던 일을 계속한다
+export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
+  if (w.throwCd > 0) return;
+  const near = w.entities
+    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= AXE.aim)
+    .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+  let [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
+  const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + dx, hero.z + dz];
+  const d = Math.hypot(tx - hero.x, tz - hero.z);
+  if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
+  hero.facing = Math.atan2(dx, dz);
+  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg: Math.round(roll(w, hero) * AXE.mult), left: AXE.flight, kind: 'axe' });
+  w.throwCd = AXE.cd;
+}
+
+// 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발.
+// 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해
 export function fly(w: World, hero: Entity) {
   w.shots = w.shots.filter((s) => {
     const fire = s.kind === 'fire';
-    const step = (fire ? MAGE.speed : ARCHER.speed) * DT;
+    const step = (fire ? MAGE.speed : s.kind === 'axe' ? AXE.speed : ARCHER.speed) * DT;
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;
     if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
@@ -167,6 +194,11 @@ export function fly(w: World, hero: Entity) {
       return false;
     }
     [s.x, s.z] = [nx, nz];
+    if (s.kind === 'axe') {
+      const t = w.entities.find((e) => e !== hero && e.state !== 'dead' && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);
+      if (t) hurt(w, t, s.dmg, hero);
+      return !t;
+    }
     if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > (fire ? MAGE.hitRadius : ARCHER.hitRadius)) return true;
     if (fire) explode(w, hero, s.x, s.z, s.dmg);
     else hurt(w, hero, s.dmg);

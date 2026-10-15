@@ -11,7 +11,9 @@ export type Command =
   | { type: 'drink' }
   | { type: 'skill'; x?: number; z?: number } // 가르기. (x, z)가 있으면 그쪽으로
   | { type: 'open'; chestId: number } // 상자 열기(걸어가서)
-  | { type: 'dash'; x?: number; z?: number }; // 돌진 베기. (x, z)가 있으면 그쪽으로
+  | { type: 'dash'; x?: number; z?: number } // 돌진 베기. (x, z)가 있으면 그쪽으로
+  | { type: 'shout' } // 전투의 함성
+  | { type: 'throw'; x?: number; z?: number }; // 도끼 던지기. (x, z)가 있으면 그쪽으로
 
 export type Point = [x: number, z: number];
 
@@ -38,6 +40,7 @@ export type Entity = {
   dx: number;
   dz: number;
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
+  stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
 };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
@@ -54,7 +57,7 @@ export type Affix = { kind: AffixKind; value: number };
 export type Chest = { id: number; x: number; z: number; open: boolean };
 
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' };
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' }; // axe = 주인공의 도끼(몬스터만 맞음)
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 export type Blast = { id: number; x: number; z: number; age: number };
@@ -92,6 +95,10 @@ export type World = {
   dashHit: number[]; // 이번 돌진에서 이미 맞은 적 id
   dashes: number; // 돌진 횟수(렌더·소리용)
   cleaves: number; // 가르기 타격 횟수(렌더·소리용)
+  shoutCd: number; // 전투의 함성 재사용까지(초)
+  shoutT: number; // 함성의 받는 피해 감소가 남은 시간(초)
+  shouts: number; // 함성 횟수(렌더·소리용)
+  throwCd: number; // 도끼 던지기 재사용까지(초)
 };
 
 export const DT = 1 / 60;
@@ -136,6 +143,8 @@ export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, �
 
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 
+export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율
+export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준
 export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베기: 재사용, 거리, 속도, 길 폭(반경), 자동 조준 거리
 
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
