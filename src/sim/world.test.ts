@@ -352,3 +352,15 @@ test('계단으로 가다가 다른 명령을 내리면 내려가지 않는다',
     expect(outcome(w)).toBeNull();
   }
 });
+
+test('소품 글자: B·o는 막고 ,는 지나가며 props에 기록', () => {
+  const w = createWorld(1, ['#####', '#HBo#', '#,..#', '#####']);
+  expect(walkable(w.grid, 2, 1)).toBe(false);
+  expect(walkable(w.grid, 3, 1)).toBe(false);
+  expect(walkable(w.grid, 1, 2)).toBe(true);
+  expect(w.props).toEqual([
+    { kind: 'brazier', x: 2, z: 1 },
+    { kind: 'prop', x: 3, z: 1 },
+    { kind: 'debris', x: 1, z: 2 },
+  ]);
+});

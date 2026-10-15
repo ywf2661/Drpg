@@ -22,8 +22,11 @@ export type Entity = {
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
 };
 
+// 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
+export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
+
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
-export type World = { grid: Grid; entities: Entity[]; rng: number; stairs: Cell | null; toStairs: boolean };
+export type World = { grid: Grid; entities: Entity[]; rng: number; stairs: Cell | null; toStairs: boolean; props: Prop[] };
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
@@ -38,19 +41,23 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
 };
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior' };
+const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 export function createWorld(seed: number, map: string[], power = 1): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
   const spawns: { kind: Kind; x: number; z: number }[] = [];
   let stairs: Cell | null = null;
+  const props: Prop[] = [];
   map.forEach((row, z) =>
     [...row].forEach((c, x) => {
       const kind = SPAWN[c];
-      if (c === '#') grid.blocked[z * w + x] = 1;
+      const prop = PROPS[c];
+      if (prop) props.push({ kind: prop, x, z });
+      if (c === '#' || c === 'B' || c === 'o') grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5 });
     }),
@@ -62,7 +69,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     const hp = Math.round(STATS[s.kind].hp * p);
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
-  return { grid, entities, rng: seed, stairs, toStairs: false };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props };
 }
 
 export function step(w: World, cmds: Command[]): void {
