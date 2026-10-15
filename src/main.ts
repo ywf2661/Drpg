@@ -53,7 +53,7 @@ function hud() {
     targetName.textContent = STATS[m.kind].name;
     targetFill.style.width = `${(m.hp / STATS[m.kind].hp) * 100}%`;
   }
-  renderer.domElement.style.cursor = hovered !== null ? 'crosshair' : '';
+  renderer.domElement.classList.toggle('attack', hovered !== null); // 몬스터 위에서는 공격 커서
   const o = outcome(world);
   banner.hidden = restartBtn.hidden = !o;
   if (o) bannerText.textContent = o === 'dead' ? '사망했습니다' : '클리어!';
