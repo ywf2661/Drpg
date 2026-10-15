@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
-import { BRAZIER_RANGE, braziers, buildProps, floorVariant, loadProps, updateProps } from './props';
+import { BRAZIER_RANGE, braziers, buildProps, floorVariant, loadProps, syncItems, updateProps } from './props';
 import { loadSheet, loadSprites, makeSprite, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -71,6 +71,7 @@ export function draw(world: World, dt: number) {
     updateSprite(s, e, dt);
     s.mat.color.copy(TORCH_TINT).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
   }
+  syncItems(world);
   updateProps(dt, light);
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
   camera.position.copy(focus).add(CAM_OFFSET);

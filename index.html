@@ -14,6 +14,10 @@
       .bar { width: 240px; height: 14px; background: #2a1414; border: 1px solid #000; }
       .bar i { display: block; width: 100%; height: 100%; background: #b3261e; }
       #hp { position: fixed; left: 20px; bottom: 20px; pointer-events: none; }
+      #potion { position: fixed; left: 272px; bottom: 8px; z-index: 2; width: 40px; height: 40px; padding: 0; background: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      #potion img { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
+      #potion span { position: absolute; right: 2px; bottom: 0; font-size: 12px; color: #e8dcc8; text-shadow: 0 1px 2px #000; }
+      #potion.empty { opacity: 0.4; }
       #target { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
       #target span { display: block; margin-bottom: 4px; text-shadow: 0 1px 2px #000; }
       #banner { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px; font-size: 28px; background: #0008; pointer-events: none; }
@@ -34,12 +38,13 @@
   <body>
     <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
     <div id="hp" class="bar"><i></i></div>
+    <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
     <div id="floor"></div>
     <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><button id="restart" hidden>다시 시작 (R)</button></div>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">
-      <p>캐릭터·던전 그림·마우스 커서: <a href="https://github.com/flareteam/flare-game" target="_blank" rel="noopener">Flare: Empyrean Campaign</a> — Clint Bellanger 외 Flare 기여자</p>
+      <p>캐릭터·던전·아이템 그림·마우스 커서: <a href="https://github.com/flareteam/flare-game" target="_blank" rel="noopener">Flare: Empyrean Campaign</a> — Clint Bellanger 외 Flare 기여자</p>
       <p>라이선스: <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC-BY-SA 3.0</a>. 프레임 선택, 장비 레이어 합성, 크기 조정, 색 수 감소를 거쳤으며 가공한 그림도 CC-BY-SA 3.0입니다.</p>
       <p><a href="sprites/CREDITS.txt" target="_blank">전체 크레딧 (CREDITS.txt)</a></p>
       <form method="dialog"><button>닫기</button></form>
