@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drpg</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0a09; color: #e8dcc8; font: 14px system-ui, sans-serif; }
+      canvas { display: block; }
+      [hidden] { display: none !important; }
+      .bar { width: 240px; height: 14px; background: #2a1414; border: 1px solid #000; }
+      .bar i { display: block; width: 100%; height: 100%; background: #b3261e; }
+      #hp { position: fixed; left: 20px; bottom: 20px; pointer-events: none; }
+      #target { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
+      #target span { display: block; margin-bottom: 4px; text-shadow: 0 1px 2px #000; }
+      #banner { position: fixed; inset: 0; display: grid; place-items: center; font-size: 28px; background: #0008; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
+    <div id="hp" class="bar"><i></i></div>
+    <div id="banner">불러오는 중…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
