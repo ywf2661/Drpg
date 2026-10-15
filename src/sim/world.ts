@@ -1,0 +1,174 @@
+// 게임 규칙(sim). three.js를 import하지 않는다. 상태 변경은 step()으로만 일어난다.
+import { findPath, walkable, type Cell, type Grid } from './path';
+
+export type Kind = 'hero' | 'minion' | 'warrior';
+export type State = 'idle' | 'move' | 'attack' | 'dead';
+export type Command = { type: 'move'; x: number; z: number } | { type: 'attack'; targetId: number };
+type Point = [x: number, z: number];
+
+export type Entity = {
+  id: number;
+  kind: Kind;
+  x: number;
+  z: number;
+  facing: number; // 라디안, atan2(dx, dz). 0 = +z 방향
+  hp: number;
+  state: State;
+  path: Point[]; // 남은 웨이포인트(월드 좌표)
+  target: number | null; // 공격 대상 id
+  attackT: number; // 현재 휘두르기 경과 시간(초)
+  repathT: number; // 다음 경로 재계산까지 남은 시간(초)
+};
+
+export type World = { grid: Grid; entities: Entity[]; rng: number };
+
+export const DT = 1 / 60;
+export const RANGE = 1.5;
+export const RADIUS = 0.4;
+export const AGGRO = 8;
+export const HIT_AT = 0.4;
+export const REPATH = 0.5;
+
+export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
+  hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 },
+  minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
+  warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
+};
+
+// '#' 벽, '.' 바닥, 'H' 주인공, 'm' 졸개, 'w' 전사
+export const MAP = [
+  '################################',
+  '#..............#...............#',
+  '#..............#...............#',
+  '#...m....m.....#.......w.......#',
+  '#..............#...............#',
+  '#......##......#....m....m.....#',
+  '#......##......................#',
+  '#..............................#',
+  '#..............#...............#',
+  '#######.########...............#',
+  '#..............#######.#########',
+  '#..............................#',
+  '#...##....##...................#',
+  '#...##....##.......#....#......#',
+  '#..................#....#......#',
+  '#.........m........#..w.#......#',
+  '#..................######......#',
+  '#...##....##...................#',
+  '#...##....##...................#',
+  '#..............................#',
+  '##########.###########.#########',
+  '#..............#...............#',
+  '#..............#...............#',
+  '#....###.......#.......m.......#',
+  '#..............#...............#',
+  '#..............................#',
+  '#......H.......................#',
+  '#..............#...............#',
+  '#..............#.......###.....#',
+  '#..............#...............#',
+  '#..............#...............#',
+  '################################',
+];
+
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior' };
+
+export function createWorld(seed: number, map: string[] = MAP): World {
+  const w = map[0].length;
+  const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
+  const spawns: { kind: Kind; x: number; z: number }[] = [];
+  map.forEach((row, z) =>
+    [...row].forEach((c, x) => {
+      const kind = SPAWN[c];
+      if (c === '#') grid.blocked[z * w + x] = 1;
+      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5 });
+    }),
+  );
+  spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
+  if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
+  const entities = spawns.map(
+    (s, id): Entity => ({ id, ...s, facing: 0, hp: STATS[s.kind].hp, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 }),
+  );
+  return { grid, entities, rng: seed };
+}
+
+export function step(w: World, cmds: Command[]): void {
+  const hero = w.entities[0];
+  for (const c of cmds) command(w, hero, c);
+  for (const e of w.entities) if (e.state !== 'dead') act(w, e);
+  separate(w);
+}
+
+function command(w: World, hero: Entity, c: Command) {
+  if (hero.state === 'dead' || c.type !== 'move') return;
+  const p = findPath(w.grid, cellOf(hero), [Math.floor(c.x), Math.floor(c.z)]);
+  if (!p) return;
+  hero.path = waypoints(p, c.x, c.z);
+  hero.state = 'move';
+}
+
+function act(w: World, e: Entity) {
+  if (e.path.length) walk(w, e);
+  else e.state = 'idle';
+}
+
+const cellOf = (e: Entity): Cell => [Math.floor(e.x), Math.floor(e.z)];
+
+// 칸 경로 → 월드 좌표 웨이포인트. 시작 칸은 빼고, 마지막은 정확한 목표 지점.
+const waypoints = (cells: Cell[], x: number, z: number): Point[] => [
+  ...cells.slice(1, -1).map(([cx, cz]): Point => [cx + 0.5, cz + 0.5]),
+  [x, z],
+];
+
+function walk(w: World, e: Entity) {
+  e.state = 'move';
+  let budget = STATS[e.kind].speed * DT;
+  while (budget > 0 && e.path.length) {
+    const [px, pz] = e.path[0];
+    const dx = px - e.x;
+    const dz = pz - e.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 1e-6) e.facing = Math.atan2(dx, dz);
+    if (d <= budget) {
+      e.x = px;
+      e.z = pz;
+      budget -= d;
+      e.path.shift();
+      continue;
+    }
+    const nx = e.x + (dx / d) * budget;
+    const nz = e.z + (dz / d) * budget;
+    // 충돌로 밀려난 뒤 직선 이동이 벽을 가로지르면 경로를 버린다(추적자는 다음 재계산 때 새 경로)
+    if (!walkable(w.grid, Math.floor(nx), Math.floor(nz))) {
+      e.path = [];
+      return;
+    }
+    e.x = nx;
+    e.z = nz;
+    budget = 0;
+  }
+}
+
+// 살아 있는 엔티티끼리 반경 RADIUS 원이 겹치지 않게 반씩 밀어낸다. 벽 칸으로는 밀리지 않는다.
+// ponytail: O(n²) 쌍 검사. 엔티티 수백 개부터는 공간 해시로 교체
+function separate(w: World) {
+  const alive = w.entities.filter((e) => e.state !== 'dead');
+  for (let i = 0; i < alive.length; i++) {
+    for (let j = i + 1; j < alive.length; j++) {
+      const a = alive[i];
+      const b = alive[j];
+      const d = Math.hypot(b.x - a.x, b.z - a.z);
+      if (d >= RADIUS * 2) continue;
+      const [ux, uz] = d < 1e-6 ? [1, 0] : [(b.x - a.x) / d, (b.z - a.z) / d]; // 완전히 겹치면 x축으로 벌린다
+      const push = (RADIUS * 2 - d) / 2;
+      nudge(w, a, -ux * push, -uz * push);
+      nudge(w, b, ux * push, uz * push);
+    }
+  }
+}
+
+function nudge(w: World, e: Entity, dx: number, dz: number) {
+  if (!walkable(w.grid, Math.floor(e.x + dx), Math.floor(e.z + dz))) return;
+  e.x += dx;
+  e.z += dz;
+}
