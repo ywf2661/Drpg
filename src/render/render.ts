@@ -20,37 +20,45 @@ const MODELS: Record<Kind, { url: string; move: string; hide?: string[]; weapon?
 
 type Actor = { obj: THREE.Object3D; mixer: THREE.AnimationMixer; clips: THREE.AnimationClip[]; clip: string; hp: number; hitT: number };
 
-export const renderer = new THREE.WebGLRenderer({ antialias: true });
+const PIXEL = 3; // 렌더 픽셀 1개를 화면 PIXEL×PIXEL 픽셀로 확대(도트 느낌)
+const TORCH = 80; // 횃불 밝기(칸델라)
+const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
+
+export const renderer = new THREE.WebGLRenderer({ antialias: false });
 export const camera = new THREE.OrthographicCamera();
 const scene = new THREE.Scene();
-const sun = new THREE.DirectionalLight(0xfff1dd, 2.5);
+const torch = new THREE.PointLight(0xff9a4d, TORCH, TORCH_RANGE, 1.5); // 주인공이 든 횃불
+const eyes = new THREE.MeshBasicMaterial({ color: 0xff2010, toneMapped: false }); // 조명과 무관하게 빛나는 스켈레톤 눈
 const loader = new GLTFLoader();
 const protos = new Map<Kind, { scene: THREE.Object3D; clips: THREE.AnimationClip[] }>();
 const focus = new THREE.Vector3();
 const tmp = new THREE.Vector3();
+const right = new THREE.Vector3();
+const up = new THREE.Vector3();
 // 수평 45°, 내려다보는 각 40°(극각 50°), 거리 30
 const CAM_OFFSET = new THREE.Vector3().setFromSphericalCoords(30, THREE.MathUtils.degToRad(50), THREE.MathUtils.degToRad(45));
-const SUN_OFFSET = new THREE.Vector3(-8, 15, 6);
 let actors: Actor[] = [];
-let zoom = 9; // 화면 세로 절반에 보이는 월드 길이(m)
+let zoom = 6; // 화면 세로 절반에 보이는 월드 길이(m)
+let bufH = 1; // 렌더 버퍼 세로 픽셀 수
+let time = 0;
 
 export async function initRender(world: World) {
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.BasicShadowMap; // 경계가 딱딱한 픽셀 그림자
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
   document.body.prepend(renderer.domElement);
-  scene.background = new THREE.Color(0x0b0a09);
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x2a2018, 1.2));
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 50 });
-  sun.shadow.camera.updateProjectionMatrix();
-  scene.add(sun, sun.target);
+  scene.background = new THREE.Color(0x000000);
+  scene.add(new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1)); // 시야 밖이 완전한 검정은 아니게
+  torch.castShadow = true;
+  torch.shadow.mapSize.set(512, 512);
+  torch.shadow.bias = -0.002;
+  scene.add(torch);
   buildMap(world);
   addEventListener('resize', resize);
   renderer.domElement.addEventListener(
     'wheel',
     (e) => {
-      zoom = THREE.MathUtils.clamp(zoom * (e.deltaY > 0 ? 1.1 : 0.9), 5, 16);
+      zoom = THREE.MathUtils.clamp(zoom * (e.deltaY > 0 ? 1.1 : 0.9), 4, 12);
       resize();
     },
     { passive: true },
@@ -87,40 +95,80 @@ export function draw(world: World, dt: number) {
     a.mixer.update(dt);
   }
   const hero = world.entities[0];
+  time += dt;
+  torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 머리와 먼 바닥의 밝기 차가 줄어든다
+  torch.intensity = TORCH * (1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7)); // 불꽃 깜빡임
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
   camera.position.copy(focus).add(CAM_OFFSET);
   camera.lookAt(focus);
-  sun.position.copy(focus).add(SUN_OFFSET);
-  sun.target.position.copy(focus);
+  snapToPixel();
   renderer.render(scene, camera);
 }
 
+// 카메라를 렌더 픽셀 격자에 맞춘다. 안 맞추면 이동할 때 벽·바닥 픽셀이 지글거린다.
+function snapToPixel() {
+  camera.updateMatrixWorld();
+  right.setFromMatrixColumn(camera.matrixWorld, 0);
+  up.setFromMatrixColumn(camera.matrixWorld, 1);
+  const px = (2 * zoom) / bufH; // 렌더 픽셀 1개의 월드 크기
+  const x = camera.position.dot(right);
+  const y = camera.position.dot(up);
+  camera.position.addScaledVector(right, Math.round(x / px) * px - x).addScaledVector(up, Math.round(y / px) * px - y);
+}
+
+// 화면의 1/PIXEL 해상도로 그리고 CSS(image-rendering: pixelated)로 정수배 확대한다.
 function resize() {
-  const aspect = innerWidth / innerHeight;
+  const dpr = devicePixelRatio;
+  const w = Math.ceil((innerWidth * dpr) / PIXEL);
+  bufH = Math.ceil((innerHeight * dpr) / PIXEL);
+  renderer.setPixelRatio(1);
+  renderer.setSize(w, bufH, false);
+  Object.assign(renderer.domElement.style, { width: `${(w * PIXEL) / dpr}px`, height: `${(bufH * PIXEL) / dpr}px` });
+  const aspect = w / bufH;
   Object.assign(camera, { left: -zoom * aspect, right: zoom * aspect, top: zoom, bottom: -zoom, near: 1, far: 100 });
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
 }
 
 function buildMap(world: World) {
   const { w, h, blocked } = world.grid;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ color: 0x4a4038 }));
+  const floorMap = stoneTexture(0x5a5f66, false);
+  floorMap.repeat.set(w, h); // 1칸 = 텍스처 1장
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: floorMap, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(w / 2, 0, h / 2);
   floor.receiveShadow = true;
-  // ponytail: GridHelper는 정사각형만 지원. 직사각형 맵이 생기면 LineSegments로 교체
-  const lines = new THREE.GridHelper(Math.max(w, h), Math.max(w, h), 0x2e2722, 0x2e2722);
-  lines.position.set(w / 2, 0.01, h / 2);
   const walls = new THREE.InstancedMesh(
     new THREE.BoxGeometry(1, 1.2, 1),
-    new THREE.MeshStandardMaterial({ color: 0x6b6158 }),
+    new THREE.MeshStandardMaterial({ map: stoneTexture(0x5c6068, true), roughness: 1 }),
     blocked.reduce((n, b) => n + b, 0),
   );
   const m = new THREE.Matrix4();
   let i = 0;
   for (let z = 0; z < h; z++) for (let x = 0; x < w; x++) if (blocked[z * w + x]) walls.setMatrixAt(i++, m.makeTranslation(x + 0.5, 0.6, z + 0.5));
   walls.castShadow = walls.receiveShadow = true;
-  scene.add(floor, lines, walls);
+  scene.add(floor, walls);
+}
+
+// 코드로 만든 16×16 픽셀 돌 질감. 바닥은 타일 테두리, 벽은 엇갈린 벽돌 줄눈이 어둡다.
+function stoneTexture(base: number, brick: boolean) {
+  const S = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  const col = new THREE.Color();
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const offset = ((y >> 2) % 2) * 4;
+      const mortar = brick ? y % 4 === 0 || (x + offset) % 8 === 0 : x === 0 || y === 0;
+      g.fillStyle = col.set(base).multiplyScalar(mortar ? 0.45 : 0.8 + Math.random() * 0.35).getStyle();
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 async function loadKind(kind: Kind) {
@@ -140,7 +188,10 @@ async function loadKind(kind: Kind) {
   for (const clip of ['Idle', m.move, ATTACK, 'Hit_A', 'Death_A']) {
     if (!THREE.AnimationClip.findByName(gltf.animations, clip)) throw new Error(`${m.url}: '${clip}' 애니메이션이 없습니다`);
   }
-  gltf.scene.traverse((o) => (o.castShadow = true));
+  gltf.scene.traverse((o) => {
+    o.castShadow = true;
+    if (o.name.endsWith('_Eyes')) o.traverse((c) => c instanceof THREE.Mesh && (c.material = eyes)); // 어둠 속 붉은 눈
+  });
   protos.set(kind, { scene: gltf.scene, clips: gltf.animations });
 }
 
@@ -148,6 +199,7 @@ function makeActor(e: Entity): Actor {
   const proto = protos.get(e.kind)!;
   const obj = clone(proto.scene); // 스킨드 메시는 SkeletonUtils.clone으로 복제해야 뼈대가 분리된다
   obj.scale.setScalar(SCALE);
+  if (e.kind === 'hero') obj.traverse((o) => (o.castShadow = false)); // 횃불이 머리 위라 자기 그림자가 발밑을 덮는다
   scene.add(obj);
   return { obj, mixer: new THREE.AnimationMixer(obj), clips: proto.clips, clip: '', hp: e.hp, hitT: 0 };
 }
