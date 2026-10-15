@@ -47,6 +47,8 @@ WALL_TILE, WALL_PX, WALL_GAIN = 48, 141, 1.8  # 벽돌 기둥, 1.2m 높이의 FL
 PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 163, 'chest': 144, 'chest2': 145,
          'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
 STAIRS = 286  # 4×4칸 내려가는 계단
+LOOT_SCALE = 0.5  # 바닥 물약. 타일 배율(0.221)이면 6px라 보이지 않는다
+POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
 
 def fetch(rel):
@@ -191,14 +193,32 @@ def tiles():
     pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
 
 
+def loot():
+    # 물약이 날아가 떨어지는 애니메이션(FLARE 'power' 동작, 방향 0)
+    sheet = Sheet('loot/hp_potion')
+    a = sheet.anims['power']
+    n = int(a['frames'])
+    frames = {}
+    for i in range(n):
+        x, y, w, h, ox, oy = a['rects'][(i, 0)]
+        frames[('potion', 0, i)] = (sheet.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
+    pack('loot', frames, {'potion': (n, int(a['duration'].removesuffix('ms')), 'play_once')}, LOOT_SCALE, 1)
+    icons = Image.open(fetch('mods/fantasycore/images/icons/icons.png')).convert('RGBA')
+    x, y = POTION_ICON % 8 * 64, POTION_ICON // 8 * 64
+    icons.crop((x, y, x + 64, y + 64)).save(SHEETS / 'potion_icon.png', optimize=True)
+
+
 def credits():
     used = sorted({n for k in KINDS.values() for n in k.values()})
     files = '\n'.join(f'  mods/fantasycore/images/{n}.png, mods/fantasycore/animations/{n}.txt' for n in used)
     files += '\n' + '\n'.join(f'  mods/fantasycore/images/cursors/{c}.png' for c in CURSORS)
+    files += f'\n  mods/fantasycore/images/tilesets/{TILESET}.png, mods/fantasycore/tilesetdefs/{TILESET}.txt'
+    files += '\n  mods/fantasycore/images/loot/hp_potion.png, mods/fantasycore/animations/loot/hp_potion.txt'
+    files += '\n  mods/fantasycore/images/icons/icons.png'
     flare = fetch('CREDITS.txt').read_text(encoding='utf-8')
     (PUBLIC / 'CREDITS.txt').write_text(
-        f'''이 폴더와 게임의 캐릭터·던전 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
-Character sprites, dungeon tiles and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
+        f'''이 폴더와 게임의 캐릭터·던전·아이템 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
+Character sprites, dungeon tiles, item images and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
 
 Source: https://github.com/flareteam/flare-game (commit {COMMIT})
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
@@ -206,6 +226,7 @@ The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers, scaled by {SCALE},
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
+Items: potion drop animation scaled by {LOOT_SCALE}, potion icon cropped from the icon atlas.
 
 Files used:
 {files}
@@ -221,6 +242,7 @@ if __name__ == '__main__':
     for kind in KINDS:
         pack(kind, *frames_of(kind), SCALE, 8)
     tiles()
+    loot()
     for c in CURSORS:
         shutil.copy(fetch(f'mods/fantasycore/images/cursors/{c}.png'), PUBLIC / f'{c}.png')
     credits()

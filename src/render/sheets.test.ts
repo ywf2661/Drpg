@@ -4,6 +4,7 @@ import minion from '../assets/sprites/minion.json';
 import warrior from '../assets/sprites/warrior.json';
 import props from '../assets/sprites/props.json';
 import stairs from '../assets/sprites/stairs.json';
+import loot from '../assets/sprites/loot.json';
 
 const ANIMS = ['stance', 'move', 'attack', 'hit', 'die'] as const;
 
@@ -30,6 +31,7 @@ test.each([
 test.each([
   ['props', props],
   ['stairs', stairs],
+  ['loot', loot],
 ])('%s 시트: 동작마다 1줄, 프레임이 범위 안', (_, info) => {
   const names = Object.keys(info.anims);
   expect(info.ppm).toBe(30);
@@ -45,4 +47,8 @@ test('props 시트: 화로 8프레임 반복, 큰 소품 8종, 잔해 8종', () 
   expect(props.anims.brazier).toMatchObject({ frames: 8, loop: 'looped' });
   expect(Object.keys(props.anims).filter((n) => n.startsWith('bones'))).toHaveLength(8);
   expect(Object.keys(props.anims)).toHaveLength(17);
+});
+
+test('loot 시트: 물약이 떨어지는 6프레임(1회 재생)', () => {
+  expect(loot.anims.potion).toMatchObject({ frames: 6, loop: 'play_once' });
 });

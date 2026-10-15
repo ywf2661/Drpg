@@ -1,0 +1,21 @@
+{
+  "cell": [
+    54,
+    126
+  ],
+  "anchor": [
+    9,
+    124
+  ],
+  "ppm": 30,
+  "cols": 6,
+  "rows": 1,
+  "anims": {
+    "potion": {
+      "row": 0,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    }
+  }
+}
