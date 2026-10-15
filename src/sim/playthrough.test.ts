@@ -59,7 +59,6 @@ function playthrough(seed: number) {
 
 test('봇이 5층 보스까지 깰 수 있다(대부분의 시드에서, 사망은 적게)', { timeout: 120_000 }, () => {
   const results = [1, 2, 3, 4, 5, 6].map(playthrough);
-  if (process.env.PT) require('node:fs').writeFileSync(process.env.PT, JSON.stringify(results)); // 밸런스 조정용 출력
   const cleared = results.filter((r) => r.cleared);
   expect(cleared.length).toBeGreaterThanOrEqual(4);
   for (const r of cleared) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
