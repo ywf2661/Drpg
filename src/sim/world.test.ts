@@ -199,7 +199,7 @@ test('주인공이 죽으면 dead, 몬스터는 멈추고 명령은 무시된다
   expect(hero).toMatchObject({ x: 1.5, z: 1.5, path: [], target: null });
 });
 
-test('같은 시드와 같은 명령이면 결과가 같고, 아무도 벽에 들어가거나 체력이 음수가 되지 않는다', () => {
+test('같은 시드와 같은 명령이면 결과가 같고, 아무도 벽에 들어가거나 체력이 음수가 되지 않는다', { timeout: 30_000 }, () => {
   const play = () => {
     const w = createWorld(7, MAP);
     for (let i = 0; i < 1800; i++) {

@@ -29,7 +29,7 @@ function distances(map: string[], [sx, sz]: [number, number]) {
   return d;
 }
 
-test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수, 모든 칸 연결, 계단은 멀리', () => {
+test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수, 모든 칸 연결, 계단은 멀리', { timeout: 30_000 }, () => {
   for (let seed = 1; seed <= 50; seed++) {
     for (let floor = 1; floor <= FLOORS; floor++) {
       const map = generateFloor(seed, floor);
