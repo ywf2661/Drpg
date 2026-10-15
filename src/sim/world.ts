@@ -158,7 +158,8 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', M: 'boss' };
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
-export function createWorld(seed: number, map: string[], power = 1): World {
+// power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만)
+export function createWorld(seed: number, map: string[], power = 1, bossPower = 1): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
   const spawns: { kind: Kind; x: number; z: number; elite: boolean }[] = [];
@@ -179,7 +180,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id): Entity => {
-    const p = s.kind === 'hero' || s.kind === 'boss' ? 1 : power; // 보스는 마지막 층 기준으로 정한 수치
+    const p = s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power;
     const hp = Math.round(STATS[s.kind].hp * p * (s.elite ? ELITE.hp : 1));
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
   });

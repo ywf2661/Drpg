@@ -3,12 +3,12 @@ import { FLOORS } from './sim/dungeon';
 import { POTION, type Gear } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
-export type Run = { floor: number; potions: number; gear: Gear; level: number; xp: number; gold: number; stats: Stats };
+export type Run = { floor: number; potions: number; gear: Gear; level: number; xp: number; gold: number; cycle: number; stats: Stats };
 const VERSION = 1;
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, stats: r.stats });
+  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, stats: r.stats });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -27,7 +27,8 @@ export function decodeSave(text: string | null): Run | null {
   if (!int(d.floor, 1, FLOORS) || !int(d.potions, 0, POTION.max) || !int(d.level, 1, 99) || !int(d.xp, 0, 1e6)) return null;
   // 금화·기록은 나중에 생긴 항목이라 없으면 0. 있는데 이상하면 저장 전체를 버린다
   const gold = d.gold ?? 0;
-  if (!int(gold, 0, 1e7)) return null;
+  const cycle = d.cycle ?? 0;
+  if (!int(gold, 0, 1e7) || !int(cycle, 0, 1000)) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
@@ -38,6 +39,7 @@ export function decodeSave(text: string | null): Run | null {
     level: d.level as number,
     xp: d.xp as number,
     gold: gold as number,
+    cycle: cycle as number,
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },
   };
 }

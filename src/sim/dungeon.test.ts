@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { FLOORS, generateFloor } from './dungeon';
+import { FLOORS, floorPower, generateFloor } from './dungeon';
 import { createWorld } from './world';
 
 const count = (map: string[], c: string) => map.join('').split(c).length - 1;
@@ -94,4 +94,10 @@ test('상자: 층마다 몇 개(방의 약 35%), 막는 소품 규칙을 따른�
   for (let seed = 1; seed <= 50; seed++) total += count(generateFloor(seed, 2), 'c');
   expect(total / 50).toBeGreaterThan(1.2);
   expect(total / 50).toBeLessThan(3.5);
+});
+
+test('층 배율: 층마다 +15%, 회차마다 ×1.5씩 더해짐', () => {
+  [1, 1.15, 1.6].forEach((v, i) => expect(floorPower([1, 2, 5][i])).toBeCloseTo(v));
+  expect(floorPower(1, 1)).toBeCloseTo(1.5);
+  expect(floorPower(5, 2)).toBeCloseTo(1.6 * 2);
 });

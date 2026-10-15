@@ -34,7 +34,7 @@
       #banner { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px; font-size: 28px; background: #0008; pointer-events: none; }
       #banner p { margin: 0; }
       #summary { font-size: 16px; color: #d0c0a0; }
-      #restart, #continue, #new-game { pointer-events: auto; font: inherit; font-size: 20px; padding: 10px 28px; color: #e8dcc8; background: #2a1414; border: 1px solid #b3261e; cursor: pointer; }
+      #restart, #continue, #new-game, #next-cycle { pointer-events: auto; font: inherit; font-size: 20px; padding: 10px 28px; color: #e8dcc8; background: #2a1414; border: 1px solid #b3261e; cursor: pointer; }
       html { cursor: url(sprites/cursor_normal.png) 0 0, auto; }
       canvas.attack { cursor: url(sprites/cursor_attack.png) 0 0, crosshair; }
       #credits-btn { position: fixed; right: 150px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: none; border: 1px solid #3a3530; padding: 4px 10px; cursor: inherit; }
@@ -85,7 +85,7 @@
     <canvas id="automap"></canvas>
     <div id="floor"></div>
     <div id="floor-title"></div>
-    <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="restart" hidden>다시 시작 (R)</button><button id="continue" hidden>이어하기</button><button id="new-game" hidden>새 게임</button></div>
+    <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="next-cycle" hidden>다음 회차 ▶ (레벨·장비 유지, 몬스터 강화)</button><button id="restart" hidden>다시 시작 (R)</button><button id="continue" hidden>이어하기</button><button id="new-game" hidden>새 게임</button></div>
     <button id="help-btn" title="조작법">?</button>
     <dialog id="help">
       <p><b>지하 5층의 미노타우르스를 쓰러뜨리세요.</b> 횃불이 닿지 않는 곳은 어둡습니다. 화로 근처는 멀리서도 보입니다.</p>

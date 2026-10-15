@@ -25,6 +25,7 @@ const summary = $('#summary');
 const restartBtn = $('#restart');
 const continueBtn = $('#continue');
 const newGameBtn = $('#new-game');
+const nextCycleBtn = $('#next-cycle');
 const floorLabel = $('#floor');
 const floorTitle = $('#floor-title');
 const potionBtn = $('#potion');
@@ -46,7 +47,7 @@ let shownGear = '';
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; restart(): void; toggleMap(): void; toggleSound(): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; restart(): void; nextCycle(): void; toggleMap(): void; toggleSound(): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -57,6 +58,7 @@ export function initHud(h: Handlers) {
   skillBtn.addEventListener('click', h.skill);
   dashBtn.addEventListener('click', h.dash);
   restartBtn.addEventListener('click', h.restart); // 모바일용
+  nextCycleBtn.addEventListener('click', h.nextCycle);
   $('#map-btn').addEventListener('click', h.toggleMap);
   soundBtn.addEventListener('click', h.toggleSound);
   continueBtn.addEventListener('click', h.resume);
@@ -70,8 +72,8 @@ function replay(el: HTMLElement) {
   el.classList.add('show');
 }
 
-export function showFloor(n: number) {
-  floorLabel.textContent = `지하 ${n}층`;
+export function showFloor(n: number, cycle: number) {
+  floorLabel.textContent = `지하 ${n}층` + (cycle ? ` · ${cycle + 1}회차` : '');
   floorTitle.textContent = n === FLOORS ? `지하 ${n}층 — ${STATS.boss.name}` : floorLabel.textContent;
   replay(floorTitle);
 }
@@ -179,5 +181,6 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
     summary.textContent = `플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;
   }
-  summary.hidden = o !== 'clear';
+  summary.hidden = nextCycleBtn.hidden = o !== 'clear';
+  restartBtn.textContent = o === 'clear' ? '처음부터 (R)' : '다시 시작 (R)';
 }

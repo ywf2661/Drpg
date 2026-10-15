@@ -948,3 +948,8 @@ test('돌진은 벽에서 멈추고 벽 안으로 들어가지 않는다, 재사
   step(dead, [{ type: 'dash', x: 4, z: 0.5 }]);
   expect(dead.entities[0].phase).toBe('none');
 });
+
+test('회차: 보스 배율 인자(기본 1)', () => {
+  expect(createWorld(1, ['H.M'], 1.8, 2).entities[1].maxHp).toBe(1000);
+  expect(createWorld(1, ['H.M'], 1.8).entities[1].maxHp).toBe(500);
+});

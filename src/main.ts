@@ -8,7 +8,7 @@ import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
 import { clearRun, loadRun, saveRun, type Stats } from './save';
 import { buy } from './shop';
-import { floorPower, generateFloor } from './sim/dungeon';
+import { cyclePower, floorPower, generateFloor } from './sim/dungeon';
 import { createWorld, DT, outcome, setLevel, step, type Gear, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -20,6 +20,7 @@ const saved = loadRun(); // 지난번 진행(있으면 시작할 때 이어하�
 let choosing = saved !== null;
 let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터)
 let floor = 1;
+let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 1씩
 let entry: Carry = START; // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
 let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(다음 층으로 가져갈 상태)
@@ -27,7 +28,7 @@ let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(�
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
-  const w = createWorld(seed, generateFloor(seed, n), floorPower(n));
+  const w = createWorld(seed, generateFloor(seed, n), floorPower(n, cycle), cyclePower(cycle));
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
   w.gold = carry.gold;
@@ -39,12 +40,12 @@ function makeFloor(n: number, carry: Carry): World {
 function enterFloor(n: number, carry: Carry) {
   floor = n;
   entry = { potions: carry.potions, gear: { ...carry.gear }, level: carry.level, xp: carry.xp, gold: carry.gold };
-  saveRun({ floor: n, ...entry, stats }); // 층에 들어갈 때마다 자동 저장
+  saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
   setWorld(world);
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
-  showFloor(n);
+  showFloor(n, cycle);
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -84,8 +85,16 @@ function restart() {
     enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
   } else if (o === 'clear') {
     stats = newStats();
+    cycle = 0;
     enterFloor(1, START);
   }
+}
+
+// 보스를 잡은 뒤: 레벨·장비·물약·금화를 가지고 더 강한 1층부터
+function nextCycle() {
+  if (outcome(world) !== 'clear') return;
+  cycle++;
+  enterFloor(1, { potions: world.potions, gear: { ...world.gear }, level: world.level, xp: world.xp, gold: world.gold });
 }
 
 const drink = () => commands.push({ type: 'drink' });
@@ -100,7 +109,7 @@ try {
 }
 showChoice(saved);
 if (!saved) {
-  saveRun({ floor: 1, ...START, stats });
+  saveRun({ floor: 1, ...START, cycle, stats });
   help.showModal(); // 처음 하는 사람에게 조작법
 }
 $('#help-btn').addEventListener('click', () => help.showModal());
@@ -109,6 +118,7 @@ initHud({
   skill,
   dash: () => dash(false),
   restart,
+  nextCycle,
   toggleMap: toggleAutomap,
   toggleSound: () => {
     sound.setMuted(!sound.muted);
@@ -117,6 +127,7 @@ initHud({
   resume: () => {
     if (!saved) return;
     stats = { ...saved.stats };
+    cycle = saved.cycle;
     begin(saved.floor, saved);
   },
   newGame: () => begin(1, START),
@@ -128,7 +139,7 @@ sound.initSound();
 sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
 showSound(sound.muted);
 resetAutomap(world);
-showFloor(floor);
+showFloor(floor, cycle);
 // e.code: 한글 입력 상태에서도 물리 키
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') restart();
