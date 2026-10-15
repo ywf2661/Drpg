@@ -8,7 +8,8 @@ export type Command =
   | { type: 'attack'; targetId: number }
   | { type: 'drink' }
   | { type: 'skill'; x?: number; z?: number } // 가르기. (x, z)가 있으면 그쪽으로
-  | { type: 'open'; chestId: number }; // 상자 열기(걸어가서)
+  | { type: 'open'; chestId: number } // 상자 열기(걸어가서)
+  | { type: 'dash'; x?: number; z?: number }; // 돌진 베기. (x, z)가 있으면 그쪽으로
 type Point = [x: number, z: number];
 
 export type Entity = {
@@ -74,6 +75,9 @@ export type World = {
   level: number;
   xp: number;
   skillCd: number; // 가르기 재사용까지 남은 시간(초)
+  dashCd: number; // 돌진 베기 재사용까지 남은 시간(초)
+  dashHit: number[]; // 이번 돌진에서 이미 맞은 적 id
+  dashes: number; // 돌진 횟수(렌더·소리용)
   cleaves: number; // 가르기 타격 횟수(렌더·소리용)
 };
 
@@ -93,7 +97,8 @@ export const GOLD_ELITE = { lo: 40, hi: 60 };
 export const GOLD_CHEST = { lo: 15, hi: 30 };
 export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8, mult: 1.5, cd: 7 }; // 보스 돌진
 export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
-export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
+export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 };
+export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베기: 재사용, 거리, 속도, 길 폭(반경), 자동 조준 거리 // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
 // 마법사: 사거리, 화염구 속도·비행 거리·직격 반경·폭발 반경·폭발 기록 유지, 물러나는 거리
 export const MAGE = { range: 7, speed: 6, flight: 9, hitRadius: 0.5, blast: 1.2, blastAge: 0.6, flee: 3 };
@@ -179,12 +184,13 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
   const hero = w.entities[0];
   w.skillCd = Math.max(0, w.skillCd - DT);
+  w.dashCd = Math.max(0, w.dashCd - DT);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
   for (const c of cmds) command(w, hero, c);
   for (const e of w.entities) {
@@ -241,7 +247,8 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 
 function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
-  if (hero.state === 'dead') return;
+  if (hero.state === 'dead' || hero.phase === 'charge') return; // 돌진 중에는 물약 말고는 무시
+  if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
   w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
   if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
   if (c.type === 'open') return goToChest(w, hero, c.chestId);
@@ -351,6 +358,7 @@ function act(w: World, e: Entity) {
     t = null;
   }
   if (e.kind === 'boss' && charge(w, e, t)) return;
+  if (e.kind === 'hero' && e.phase === 'charge') return dashStep(w, e);
   if (e.state === 'attack') return swing(w, e, t);
   if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {
@@ -384,17 +392,52 @@ function charge(w: World, e: Entity, t: Entity | null): boolean {
     Object.assign(e, { phase: 'charge', phaseT: CHARGE.dist, dx: (t.x - e.x) / d, dz: (t.z - e.z) / d, state: 'move' });
     return true;
   }
-  const step = CHARGE.speed * DT;
-  const [nx, nz] = [e.x + e.dx * step, e.z + e.dz * step];
   const hero = w.entities[0];
-  if (e.phaseT <= 0 || !walkable(w.grid, Math.floor(nx), Math.floor(nz))) return Object.assign(e, { phase: 'none', state: 'idle' }), true;
-  [e.x, e.z] = [nx, nz];
-  e.phaseT -= step;
+  if (!rush(w, e, CHARGE.speed)) return true;
   if (hero.state !== 'dead' && dist(e, hero) <= CHARGE.hit) {
     hurt(w, hero, Math.round(roll(w, e) * CHARGE.mult));
     Object.assign(e, { phase: 'none', state: 'idle' });
   }
   return true;
+}
+
+// 직선 돌진 한 틱(보스 돌진·주인공 돌진 공용): (dx, dz)로 speed만큼. 남은 거리(phaseT)를 다 썼거나 벽이면 멈추고 false
+function rush(w: World, e: Entity, speed: number): boolean {
+  const step = speed * DT;
+  const [nx, nz] = [e.x + e.dx * step, e.z + e.dz * step];
+  if (e.phaseT <= 0 || !walkable(w.grid, Math.floor(nx), Math.floor(nz))) {
+    Object.assign(e, { phase: 'none', state: 'idle' });
+    return false;
+  }
+  [e.x, e.z] = [nx, nz];
+  e.phaseT -= step;
+  return true;
+}
+
+// 돌진 베기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)으로. 하던 일은 모두 끊는다
+function dashStart(w: World, hero: Entity, x?: number, z?: number) {
+  if (w.dashCd > 0) return;
+  let [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
+  const near = w.entities
+    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= DASH.aim)
+    .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+  const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + dx, hero.z + dz];
+  const d = Math.hypot(tx - hero.x, tz - hero.z);
+  if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
+  Object.assign(hero, { phase: 'charge', phaseT: DASH.dist, dx, dz, state: 'move', path: [], target: null, attackT: 0, skill: false });
+  hero.facing = Math.atan2(dx, dz);
+  Object.assign(w, { dashCd: DASH.cd, dashHit: [], opening: null, toStairs: false });
+  w.dashes++;
+}
+
+// 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해
+function dashStep(w: World, hero: Entity) {
+  if (!rush(w, hero, DASH.speed)) return;
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
+    w.dashHit.push(e.id);
+    hurt(w, e, roll(w, hero));
+  }
 }
 
 // 마법사: 대상이 MAGE.flee 안이면 반대쪽으로 물러난다. 물러날 곳이 없으면(구석) false → 평소처럼 시전
@@ -605,7 +648,7 @@ function walk(w: World, e: Entity) {
 // 살아 있는 엔티티끼리 반경 RADIUS 원이 겹치지 않게 반씩 밀어낸다. 벽 칸으로는 밀리지 않는다.
 // ponytail: O(n²) 쌍 검사. 엔티티 수백 개부터는 공간 해시로 교체
 function separate(w: World) {
-  const alive = w.entities.filter((e) => e.state !== 'dead');
+  const alive = w.entities.filter((e) => e.state !== 'dead' && e.phase !== 'charge'); // 돌진 중에는 뚫고 지나간다
   for (let i = 0; i < alive.length; i++) {
     for (let j = i + 1; j < alive.length; j++) {
       const a = alive[i];

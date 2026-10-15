@@ -910,3 +910,41 @@ test('금화는 지나가면 줍고 개수 제한이 없다', () => {
   expect(w.gold).toBe(1037);
   expect(w.items).toEqual([]);
 });
+
+test('돌진 베기: 조준 방향으로 최대 5m, 지나간 길 1m 안의 적만 한 번씩 피해', () => {
+  // 주인공 (0.5, 1.7), +x로 돌진. 길 위 (2,1)·(3,2)(길에서 0.8m)는 맞고, 길에서 먼 (2,3)과 너무 먼 (9,1)은 아님
+  const w = createWorld(1, ['..........', 'H.m......m', '...m......', '..m.......']);
+  const [hero, ...mobs] = w.entities;
+  for (const e of mobs) Object.assign(e, { hp: 1000, maxHp: 1000, target: 0, repathT: 1e9 }); // 제자리에 묶어 둔다
+  w.gear.weapon = 1; // 단검 4–7
+  hero.z = 1.7;
+  step(w, [{ type: 'dash', x: 20, z: 1.7 }]);
+  expect(hero.phase).toBe('charge');
+  run(w, 30);
+  expect(hero.phase).toBe('none');
+  expect(hero.x).toBeCloseTo(5.5, 0); // 5m
+  const hits = mobs.map((e) => 1000 - e.hp);
+  expect(hits[0]).toBeGreaterThanOrEqual(4); // (2.5,1.5) 바로 위
+  expect(hits[0]).toBeLessThanOrEqual(7); // 한 번만
+  expect(hits[2]).toBeGreaterThanOrEqual(4); // (3.5,2.5): 길에서 0.8m
+  expect(hits[1]).toBe(0); // (9.5,1.5): 5m 밖
+  expect(hits[3]).toBe(0); // (2.5,3.5): 길에서 1.8m
+});
+
+test('돌진은 벽에서 멈추고 벽 안으로 들어가지 않는다, 재사용 6초, 죽으면 못 쓴다', () => {
+  const w = createWorld(1, ['H..#....']);
+  const hero = w.entities[0];
+  step(w, [{ type: 'dash', x: 9, z: 0.5 }]);
+  run(w, 30);
+  expect(hero.x).toBeLessThan(3);
+  expect(walkable(w.grid, Math.floor(hero.x), 0)).toBe(true);
+  step(w, [{ type: 'dash', x: 0, z: 0.5 }]);
+  expect(hero.phase).toBe('none'); // 대기 중
+  run(w, Math.round(6 / DT));
+  step(w, [{ type: 'dash', x: 0, z: 0.5 }]);
+  expect(hero.phase).toBe('charge');
+  const dead = createWorld(1, ['H....']);
+  dead.entities[0].state = 'dead';
+  step(dead, [{ type: 'dash', x: 4, z: 0.5 }]);
+  expect(dead.entities[0].phase).toBe('none');
+});
