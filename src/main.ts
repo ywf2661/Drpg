@@ -1,4 +1,6 @@
 import gearIcons from './assets/sprites/gear_icons.png';
+import { snapshot, soundEvents } from './audio/events';
+import * as sound from './audio/sound';
 import potionIcon from './assets/sprites/potion_icon.png';
 import { commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
@@ -89,11 +91,20 @@ try {
 banner.hidden = true;
 initInput();
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
+sound.initSound();
+const soundBtn = $('#sound-btn');
+const showSound = () => (soundBtn.textContent = sound.muted ? '소리 꺼짐' : '소리');
+soundBtn.addEventListener('click', () => {
+  sound.setMuted(!sound.muted);
+  showSound();
+});
+showSound();
+let heard = snapshot(world); // 직전 프레임 상태(효과음 비교용)
 resetAutomap(world);
 showFloor();
 showGear(world.gear);
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number) => enterFloor(n, world) } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number) => enterFloor(n, world), get played() { return sound.played; } } });
 
 function restart() {
   const o = outcome(world);
@@ -121,7 +132,9 @@ requestAnimationFrame(function frame(now) {
   pollInput(world, dt);
   if (credits.open) acc = 0; // 크레딧을 읽는 동안은 게임을 멈춘다
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
+  sound.play(soundEvents(heard, world), world.entities[0].x, world.entities[0].z);
   if (outcome(world) === 'descend') enterFloor(floor + 1, world);
+  heard = snapshot(world);
   draw(world, dt);
   drawAutomap(world);
   hud();

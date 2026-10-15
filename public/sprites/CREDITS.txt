@@ -1,5 +1,5 @@
-이 폴더와 게임의 캐릭터·던전·아이템 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
-Character sprites, dungeon tiles, item images and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
+이 폴더와 게임의 캐릭터·던전·아이템 그림·마우스 커서·효과음은 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
+Character sprites, dungeon tiles, item images, mouse cursors and sound effects in this game are derived from Flare: Empyrean Campaign art.
 
 Source: https://github.com/flareteam/flare-game (commit af6eee6d339ac98011864bfe89da837fe7769c28)
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
@@ -7,6 +7,7 @@ The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by 0.32,
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by 0.221.
+Sound effects: copied unchanged (Ogg Vorbis).
 Items: drop animations scaled by 0.32 (potion by 0.5), item icons cropped from the icon atlas.
 
 Files used:
@@ -98,6 +99,21 @@ Files used:
   mods/fantasycore/animations/loot/steel_armor.txt
   mods/fantasycore/images/loot/steel_armor.png
   mods/fantasycore/images/icons/icons.png
+  mods/fantasycore/soundfx/melee_attack.ogg
+  mods/fantasycore/soundfx/melee_attack_2.ogg
+  mods/fantasycore/soundfx/melee_attack_3.ogg
+  mods/fantasycore/soundfx/male_hit.ogg
+  mods/fantasycore/soundfx/male_die.ogg
+  mods/fantasycore/soundfx/flying_loot.ogg
+  mods/fantasycore/soundfx/enemies/skeleton_phys.ogg
+  mods/fantasycore/soundfx/enemies/skeleton_hit.ogg
+  mods/fantasycore/soundfx/enemies/skeleton_die.ogg
+  mods/fantasycore/soundfx/enemies/minotaur_phys.ogg
+  mods/fantasycore/soundfx/enemies/minotaur_hit.ogg
+  mods/fantasycore/soundfx/enemies/minotaur_die.ogg
+  mods/fantasycore/soundfx/inventory/inventory_potion.ogg
+  mods/fantasycore/soundfx/inventory/inventory_metal.ogg
+  mods/fantasycore/soundfx/inventory/inventory_maille.ogg
   mods/fantasycore/images/cursors/cursor_normal.png
   mods/fantasycore/images/cursors/cursor_attack.png
 

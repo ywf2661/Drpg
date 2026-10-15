@@ -47,6 +47,11 @@ HERO_ARMORS = {
 }
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor'}  # 동작 이름 → loot 애니메이션
+SOUNDS = ROOT / 'src' / 'assets' / 'sounds'
+SOUND_FILES = ['melee_attack', 'melee_attack_2', 'melee_attack_3', 'male_hit', 'male_die', 'flying_loot',
+               'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
+               'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
+               'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
@@ -278,8 +283,8 @@ def credits():
     files = '\n'.join(f'  {f}' for f in FETCHED)
     flare = fetch('CREDITS.txt').read_text(encoding='utf-8')
     (PUBLIC / 'CREDITS.txt').write_text(
-        f'''이 폴더와 게임의 캐릭터·던전·아이템 그림·마우스 커서는 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
-Character sprites, dungeon tiles, item images and mouse cursors in this game are derived from Flare: Empyrean Campaign art.
+        f'''이 폴더와 게임의 캐릭터·던전·아이템 그림·마우스 커서·효과음은 Flare: Empyrean Campaign의 아트를 가공한 것입니다.
+Character sprites, dungeon tiles, item images, mouse cursors and sound effects in this game are derived from Flare: Empyrean Campaign art.
 
 Source: https://github.com/flareteam/flare-game (commit {COMMIT})
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
@@ -287,6 +292,7 @@ The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by {SCALE},
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
+Sound effects: copied unchanged (Ogg Vorbis).
 Items: drop animations scaled by {SCALE} (potion by 0.5), item icons cropped from the icon atlas.
 
 Files used:
@@ -305,6 +311,9 @@ if __name__ == '__main__':
     hero()
     tiles()
     loot()
+    SOUNDS.mkdir(parents=True, exist_ok=True)
+    for f in SOUND_FILES:
+        shutil.copy(fetch(f'mods/fantasycore/soundfx/{f}.ogg'), SOUNDS / f'{f.split("/")[-1]}.ogg')
     for c in CURSORS:
         shutil.copy(fetch(f'mods/fantasycore/images/cursors/{c}.png'), PUBLIC / f'{c}.png')
     credits()
