@@ -25,6 +25,7 @@ const FILES: Record<SoundName, string[]> = {
   cleave: ['melee_attack_2'],
   chest: ['wood_open'],
   potion: ['inventory_potion'],
+  gold: ['inventory_coins'],
   loot: ['flying_loot'],
   equip_weapon: ['inventory_metal'],
   equip_armor: ['inventory_maille'],

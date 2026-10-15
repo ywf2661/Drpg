@@ -113,3 +113,10 @@ test('마법사: 시전할 때가 아니라 화염구가 나갈 때 fireball, �
   w.blasts.push({ id: 6, x: 1, z: 0.5, age: 0 });
   expect(names(soundEvents(prev, w))).toEqual(['fireball', 'blast']);
 });
+
+test('금화를 주움', () => {
+  const w = createWorld(1, ['H..']);
+  const prev = snapshot(w);
+  w.gold += 12;
+  expect(names(soundEvents(prev, w))).toEqual(['gold']);
+});

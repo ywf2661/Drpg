@@ -5,12 +5,13 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'gold' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
   ents: { hp: number; state: Entity['state']; attackT: number; phase: Entity['phase'] }[];
   potions: number;
+  gold: number;
   gear: Gear;
   items: Set<number>;
   shots: Set<number>;
@@ -25,6 +26,7 @@ export function snapshot(w: World): Snapshot {
     world: w,
     ents: w.entities.map((e) => ({ hp: e.hp, state: e.state, attackT: e.attackT, phase: e.phase })),
     potions: w.potions,
+    gold: w.gold,
     gear: { ...w.gear },
     items: new Set(w.items.map((i) => i.id)),
     shots: new Set(w.shots.map((s) => s.id)),
@@ -55,6 +57,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' ? 'fireball' : 'shoot', s.x, s.z);
   for (const b of w.blasts) if (!prev.blasts.has(b.id)) at('blast', b.x, b.z);
   if (w.potions !== prev.potions) at('potion');
+  if (w.gold > prev.gold) at('gold');
   if (w.items.some((i) => !prev.items.has(i.id))) at('loot', w.items[w.items.length - 1].x, w.items[w.items.length - 1].z);
   if (w.gear.weapon > prev.gear.weapon) at('equip_weapon');
   if (w.gear.armor > prev.gear.armor) at('equip_armor');

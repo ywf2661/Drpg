@@ -42,9 +42,15 @@
       #help table { border-collapse: collapse; font-size: 13px; }
       #help td { padding: 3px 8px; border-bottom: 1px solid #2a2420; }
       #help td:first-child { color: #f0c060; white-space: nowrap; }
-      #credits, #help { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
+      #gold { min-width: 34px; font-size: 13px; color: #f0c060; text-shadow: 0 1px 2px #000; }
+      #shop-items { display: grid; gap: 8px; margin: 12px 0; }
+      #shop-items button, #shop-leave { font: inherit; text-align: left; padding: 8px 12px; color: #e8dcc8; background: #2a1414; border: 1px solid #5a3a30; cursor: pointer; }
+      #shop-items button:disabled { opacity: 0.4; cursor: default; }
+      #shop-items small { color: #b8ab98; }
+      #shop-leave { border-color: #b3261e; }
+      #credits, #help, #shop { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
       #credits a { color: #e0a060; }
-      #credits::backdrop, #help::backdrop { background: #000a; }
+      #credits::backdrop, #help::backdrop, #shop::backdrop { background: #000a; }
       #floor { position: fixed; left: 16px; top: 12px; z-index: 2; font-size: 14px; color: #b8ab98; text-shadow: 0 1px 2px #000; pointer-events: none; }
       #floor-title { position: fixed; left: 0; right: 0; top: 30%; z-index: 2; text-align: center; font-size: 34px; letter-spacing: 4px; color: #e8dcc8; text-shadow: 0 2px 6px #000; pointer-events: none; opacity: 0; }
       #floor-title.show { animation: floor-title 2.4s ease-out; }
@@ -67,6 +73,7 @@
       <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
       <button id="skill" title="가르기 (우클릭 / E): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
       <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
+      <div id="gold" title="금화">0</div>
       <div id="weapon" class="slot"></div>
       <div id="armor" class="slot"></div>
     </div>
@@ -92,6 +99,11 @@
         <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>
       </table>
       <form method="dialog"><button>시작</button></form>
+    </dialog>
+    <dialog id="shop">
+      <p><b>상인</b> — 다음 층으로 내려가기 전에 준비하세요. 금화 <b id="shop-gold">0</b></p>
+      <div id="shop-items"></div>
+      <button id="shop-leave">다음 층으로 ▶</button>
     </dialog>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">

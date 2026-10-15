@@ -22,7 +22,9 @@ const BRAZIER_LIGHT = 18; // 화로 밝기(칸델라)
 const TINT = new THREE.Color(1, 0.82, 0.62); // 판자에 입히는 불빛 색(횃불과 같음)
 // 바닥 아이템 → loot 시트 동작(사슬·판금 갑옷은 같은 그림)
 const lootClip = (it: Item) =>
-  it.kind === 'potion'
+  it.kind === 'gold'
+    ? (it.amount ?? 0) < 15 ? 'coins5' : (it.amount ?? 0) < 50 ? 'coins25' : 'coins100'
+    : it.kind === 'potion'
     ? 'potion'
     : it.kind === 'weapon'
       ? ['dagger', 'shortsword', 'longsword', 'greatsword'][it.tier - 1]

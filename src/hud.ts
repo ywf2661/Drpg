@@ -5,6 +5,7 @@ import skillIcon from './assets/sprites/skill_icon.png';
 import { renderer } from './render/render';
 import { setHeroGear } from './render/sprites';
 import { formatTime, type Run, type Stats } from './save';
+import { offers, type ShopItem, type Wallet } from './shop';
 import { FLOORS } from './sim/dungeon';
 import { ARMORS, outcome, SKILL, STATS, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
@@ -33,6 +34,10 @@ const weaponSlot = $('#weapon');
 const armorSlot = $('#armor');
 const toast = $('#toast');
 const soundBtn = $('#sound-btn');
+const goldLabel = $('#gold');
+const shop = document.querySelector<HTMLDialogElement>('#shop')!;
+const shopGold = $('#shop-gold');
+const shopItems = $('#shop-items');
 const BOSS_BAR_RANGE = 12; // 보스와 이만큼 가까우면 상단 체력바(m)
 let shownGear = '';
 let shownLevel = 0;
@@ -96,6 +101,29 @@ function say(text: string) {
   replay(toast);
 }
 
+// 상점 화면. 항목을 누르면 onBuy, 닫으면(버튼·Esc) onLeave. 산 뒤에는 다시 불러 갱신한다
+export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onLeave: () => void) {
+  const next = (t: number) => (t < 4 ? `(${t + 1}단계)` : '(최고 단계)');
+  const label: Record<ShopItem, string> = {
+    potion: `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`,
+    weapon: `무기 강화: ${WEAPONS[c.gear.weapon - 1].name}${c.gear.weapon < 4 ? ` → ${WEAPONS[c.gear.weapon].name}` : ''} <small>${next(c.gear.weapon)}</small>`,
+    armor: `갑옷 강화: ${ARMORS[c.gear.armor - 1].name}${c.gear.armor < 4 ? ` → ${ARMORS[c.gear.armor].name}` : ''} <small>${next(c.gear.armor)}</small>`,
+  };
+  shopGold.textContent = String(c.gold);
+  shopItems.replaceChildren(
+    ...offers(c).map((o) => {
+      const b = document.createElement('button');
+      b.innerHTML = `${label[o.item]} — 금화 ${o.price}`;
+      b.disabled = !o.ok;
+      b.addEventListener('click', () => onBuy(o.item));
+      return b;
+    }),
+  );
+  $('#shop-leave').onclick = () => shop.close();
+  shop.onclose = onLeave;
+  if (!shop.open) shop.showModal();
+}
+
 // 매 프레임. hovered: 마우스가 올라간 몬스터 id, choosing: 이어하기를 고르는 중(배너를 건드리지 않음)
 export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats) {
   const hero = world.entities[0];
@@ -111,6 +139,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   shownLevel = world.level;
   skillShade.style.height = `${(world.skillCd / SKILL.cd) * 100}%`; // 재사용 대기 남은 비율
   potionCount.textContent = String(world.potions);
+  goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);
   const key = `${world.gear.weapon}/${world.gear.armor}`;
   if (key !== shownGear) {

@@ -74,7 +74,7 @@ test('주인공 시트: 무기 4 × 갑옷 4 = 16조합이 모두 있다(칸 정
 });
 
 test('loot 시트: 물약과 장비 바닥 그림', () => {
-  expect(Object.keys(loot.anims)).toEqual(['potion', 'dagger', 'shortsword', 'longsword', 'greatsword', 'clothes', 'leather_armor', 'steel_armor']);
+  expect(Object.keys(loot.anims)).toEqual(['potion', 'dagger', 'shortsword', 'longsword', 'greatsword', 'clothes', 'leather_armor', 'steel_armor', 'coins5', 'coins25', 'coins100']);
 });
 
 test('사망 동작은 모두 1회 재생(마지막 프레임 = 시체)', () => {

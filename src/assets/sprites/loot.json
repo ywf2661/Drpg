@@ -9,7 +9,7 @@
   ],
   "ppm": 30,
   "cols": 6,
-  "rows": 8,
+  "rows": 11,
   "anims": {
     "potion": {
       "row": 0,
@@ -55,6 +55,24 @@
     },
     "steel_armor": {
       "row": 7,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "coins5": {
+      "row": 8,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "coins25": {
+      "row": 9,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "coins100": {
+      "row": 10,
       "frames": 6,
       "ms": 600,
       "loop": "play_once"

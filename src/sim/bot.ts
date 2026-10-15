@@ -1,15 +1,17 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
+import { buy } from '../shop';
 import { createWorld, DT, outcome, setLevel, step, type Command, type Gear, type World } from './world';
 
-type Carry = { potions: number; gear: Gear; level: number; xp: number };
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, level: 1, xp: 0 };
+type Carry = { potions: number; gear: Gear; level: number; xp: number; gold: number };
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, level: 1, xp: 0, gold: 0 };
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry): World {
   const w = createWorld(seed, generateFloor(seed, n), floorPower(n));
   w.potions = c.potions;
   w.gear = { ...c.gear };
+  w.gold = c.gold;
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, c.level, c.xp);
   return w;
@@ -31,6 +33,13 @@ function think(w: World): Command[] {
   return cmds;
 }
 
+// 상점: 물약을 5개까지 채우고, 남으면 무기·갑옷 강화, 그래도 남으면 물약
+function shopping(c: Carry): Carry {
+  while (c.potions < 5 && buy(c, 'potion') !== c) c = buy(c, 'potion');
+  for (const item of ['weapon', 'armor', 'potion', 'potion', 'potion'] as const) c = buy(c, item);
+  return c;
+}
+
 // 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨
 export function playthrough(seed: number) {
   let carry = START;
@@ -44,7 +53,7 @@ export function playthrough(seed: number) {
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = { potions: w.potions, gear: { ...w.gear }, level: w.level, xp: w.xp };
+          carry = shopping({ potions: w.potions, gear: { ...w.gear }, level: w.level, xp: w.xp, gold: w.gold });
           done = true;
           break;
         }

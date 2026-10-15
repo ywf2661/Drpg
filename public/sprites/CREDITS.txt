@@ -110,6 +110,12 @@ Files used:
   mods/fantasycore/images/loot/leather_armor.png
   mods/fantasycore/animations/loot/steel_armor.txt
   mods/fantasycore/images/loot/steel_armor.png
+  mods/fantasycore/animations/loot/coins5.txt
+  mods/fantasycore/images/loot/coins5.png
+  mods/fantasycore/animations/loot/coins25.txt
+  mods/fantasycore/images/loot/coins25.png
+  mods/fantasycore/animations/loot/coins100.txt
+  mods/fantasycore/images/loot/coins100.png
   mods/fantasycore/images/icons/icons.png
   mods/fantasycore/soundfx/wood_open.ogg
   mods/fantasycore/soundfx/level_up.ogg
@@ -126,6 +132,7 @@ Files used:
   mods/fantasycore/soundfx/enemies/minotaur_hit.ogg
   mods/fantasycore/soundfx/enemies/minotaur_die.ogg
   mods/fantasycore/soundfx/inventory/inventory_potion.ogg
+  mods/fantasycore/soundfx/inventory/inventory_coins.ogg
   mods/fantasycore/soundfx/inventory/inventory_metal.ogg
   mods/fantasycore/soundfx/inventory/inventory_maille.ogg
   mods/fantasycore/soundfx/powers/shoot.ogg
