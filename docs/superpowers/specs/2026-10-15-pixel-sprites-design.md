@@ -39,7 +39,7 @@ Python 3 + Pillow. 한 번 실행하고 결과를 커밋한다. 원본은 `tools
 3. 종류 내 모든 프레임의 합집합 경계 상자로 자른다.
 4. `SCALE = 0.32`로 축소(LANCZOS), 알파를 110 기준으로 0/255 이진화(도트 가장자리), 256색 팔레트로 줄인다.
 5. 시트: 열 = 프레임 번호, 행 = 동작 기준 행 + 방향. 모든 칸 크기 동일.
-6. 결과: `public/sprites/{hero,minion,warrior}.png`, `.json`, `CREDITS.txt`.
+6. 결과: `src/assets/sprites/{hero,minion,warrior}.png`, `.json`(코드에서 import → Vite가 번들·해시), `public/sprites/CREDITS.txt`(크레딧 링크용).
 7. 자체 검사: 모든 (동작, 방향, 프레임) 원본 존재, 시트 크기 ≤ 4096×4096.
 
 JSON 형식:
@@ -85,6 +85,11 @@ JSON 형식:
 - 오른쪽 아래 [크레딧] 버튼 → `<dialog>`: "캐릭터 그림: Flare: Empyrean Campaign (Clint Bellanger 외 Flare 기여자), CC-BY-SA 3.0, 원본 링크, 수정 내용(프레임 선택·장비 레이어 합성·크기 조정·색 수 감소), 전체 목록 `sprites/CREDITS.txt`".
 - `CREDITS.txt`는 스크립트가 생성: 출처·커밋·라이선스·수정 내용·사용 파일 목록 + FLARE `CREDITS.txt` 전문.
 
+## 3.1 마우스 커서
+
+- FLARE `images/cursors/cursor_normal.png`(평소), `cursor_attack.png`(몬스터 위) 40×40, 핫스팟 (0,0). `public/sprites/`로 복사, CREDITS에 포함.
+- CSS: `html`에 기본 커서, 몬스터 위에서는 캔버스에 `attack` 클래스.
+
 ## 4. 제거
 
 - `public/models/` 전체(KayKit 캐릭터·무기·라이선스), GLTFLoader·MeshoptDecoder·SkeletonUtils 사용 코드, 스켈레톤 눈 재질.
@@ -95,7 +100,7 @@ JSON 형식:
 
 ## 6. 완료 기준
 
-1. `python tools/sprites.py`가 자체 검사를 통과하고 `public/sprites/`에 시트 3종·JSON·CREDITS를 만든다.
+1. `python tools/sprites.py`가 자체 검사를 통과하고 `src/assets/sprites/`에 시트 3종·JSON, `public/sprites/`에 CREDITS를 만든다.
 2. `npm test` 통과: 기존 sim 테스트 + `dirIndex`·`frameAt` 단위 테스트 + 시트 JSON 계약 테스트(모든 동작 존재, 행·열 범위).
 3. `npm run build` 성공.
 4. 헤드리스 Chrome(PC·모바일)에서: 기사·스켈레톤이 도트 스프라이트로 보이고, 8방향으로 이동할 때 진행 방향을 바라보며, 공격·피격·사망 동작이 나오고, 시체가 남는다. 앞 벽에 가려진다. [크레딧]이 열린다.
