@@ -532,7 +532,7 @@ test('M은 보스: 5층 기준 수치라 층 배율을 쓰지 않는다', () => 
   const w = createWorld(1, ['H...M'], 1.8);
   const b = w.entities[1];
   expect(b.kind).toBe('boss');
-  expect([b.maxHp, b.power]).toEqual([600, 1]);
+  expect([b.maxHp, b.power]).toEqual([500, 1]);
 });
 
 // 주인공이 보스만 공격하고 체력이 40 미만이면 물약을 마신다. 이기면 true

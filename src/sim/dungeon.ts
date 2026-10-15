@@ -4,6 +4,8 @@
 import type { Cell } from './path';
 
 export const FLOORS = 5;
+// 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다
+export const floorPower = (n: number) => 1 + 0.15 * (n - 1);
 const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
 const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o'; // 지나갈 수 있는 글자

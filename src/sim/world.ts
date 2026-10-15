@@ -110,7 +110,7 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
   archer: { name: '스켈레톤 궁수', hp: 25, dmg: [4, 7], interval: 1.8, speed: 2.2 },
-  boss: { name: '미노타우르스', hp: 600, dmg: [14, 22], interval: 1.6, speed: 2.4 },
+  boss: { name: '미노타우르스', hp: 500, dmg: [12, 20], interval: 1.6, speed: 2.4 },
 };
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
@@ -326,8 +326,9 @@ function swing(w: World, e: Entity, t: Entity | null) {
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)
 function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
-  const bonus = a.kind === 'hero' ? 1 + 0.05 * (w.level - 1) : 1; // 레벨 보너스
-  return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power * bonus);
+  // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
+  const scale = a.kind === 'hero' ? 1 + 0.05 * (w.level - 1) : 1 + (a.power - 1) / 2;
+  return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale);
 }
 
 function damage(w: World, a: Entity, t: Entity) {

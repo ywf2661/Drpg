@@ -8,7 +8,7 @@ import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
 import { clearRun, loadRun, saveRun } from './save';
-import { FLOORS, generateFloor } from './sim/dungeon';
+import { FLOORS, floorPower, generateFloor } from './sim/dungeon';
 import { ARMORS, createWorld, DT, outcome, setLevel, SKILL, STATS, step, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
@@ -46,10 +46,10 @@ let world = makeFloor(floor, entry);
 let shownGear = gearKey(world.gear);
 let shownLevel = world.level;
 
-// 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 1, 1.2, 1.4 …, 떨어지는 장비는 층 + 1단계까지
+// 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
-  const w = createWorld(seed, generateFloor(seed, n), 1 + 0.2 * (n - 1));
+  const w = createWorld(seed, generateFloor(seed, n), floorPower(n));
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
   w.maxTier = Math.min(4, n + 1);
