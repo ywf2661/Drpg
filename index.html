@@ -16,13 +16,15 @@
       #hp { position: fixed; left: 20px; bottom: 20px; pointer-events: none; }
       #target { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
       #target span { display: block; margin-bottom: 4px; text-shadow: 0 1px 2px #000; }
-      #banner { position: fixed; inset: 0; display: grid; place-items: center; font-size: 28px; background: #0008; pointer-events: none; }
+      #banner { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px; font-size: 28px; background: #0008; pointer-events: none; }
+      #banner p { margin: 0; }
+      #restart { pointer-events: auto; font: inherit; font-size: 20px; padding: 10px 28px; color: #e8dcc8; background: #2a1414; border: 1px solid #b3261e; cursor: pointer; }
     </style>
   </head>
   <body>
     <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
     <div id="hp" class="bar"><i></i></div>
-    <div id="banner">불러오는 중…</div>
+    <div id="banner"><p>불러오는 중…</p><button id="restart" hidden>다시 시작 (R)</button></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

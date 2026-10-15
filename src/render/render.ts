@@ -1,6 +1,7 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { STATS, type Entity, type Kind, type World } from '../sim/world';
 
@@ -20,7 +21,7 @@ const MODELS: Record<Kind, { url: string; move: string; hide?: string[]; weapon?
 
 type Actor = { obj: THREE.Object3D; mixer: THREE.AnimationMixer; clips: THREE.AnimationClip[]; clip: string; hp: number; hitT: number };
 
-const PIXEL = 3; // 렌더 픽셀 1개를 화면 PIXEL×PIXEL 픽셀로 확대(도트 느낌)
+const SHORT_PX = 240; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
 const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
 
@@ -29,7 +30,7 @@ export const camera = new THREE.OrthographicCamera();
 const scene = new THREE.Scene();
 const torch = new THREE.PointLight(0xff9a4d, TORCH, TORCH_RANGE, 1.5); // 주인공이 든 횃불
 const eyes = new THREE.MeshBasicMaterial({ color: 0xff2010, toneMapped: false }); // 조명과 무관하게 빛나는 스켈레톤 눈
-const loader = new GLTFLoader();
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // 모델은 meshopt 압축본
 const protos = new Map<Kind, { scene: THREE.Object3D; clips: THREE.AnimationClip[] }>();
 const focus = new THREE.Vector3();
 const tmp = new THREE.Vector3();
@@ -38,7 +39,7 @@ const up = new THREE.Vector3();
 // 수평 45°, 내려다보는 각 40°(극각 50°), 거리 30
 const CAM_OFFSET = new THREE.Vector3().setFromSphericalCoords(30, THREE.MathUtils.degToRad(50), THREE.MathUtils.degToRad(45));
 let actors: Actor[] = [];
-let zoom = 6; // 화면 세로 절반에 보이는 월드 길이(m)
+let zoom = 6; // 화면 짧은 변 절반에 보이는 월드 길이(m). 모바일 세로 화면도 좌우 12m
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
 
@@ -110,22 +111,24 @@ function snapToPixel() {
   camera.updateMatrixWorld();
   right.setFromMatrixColumn(camera.matrixWorld, 0);
   up.setFromMatrixColumn(camera.matrixWorld, 1);
-  const px = (2 * zoom) / bufH; // 렌더 픽셀 1개의 월드 크기
+  const px = (camera.top - camera.bottom) / bufH; // 렌더 픽셀 1개의 월드 크기
   const x = camera.position.dot(right);
   const y = camera.position.dot(up);
   camera.position.addScaledVector(right, Math.round(x / px) * px - x).addScaledVector(up, Math.round(y / px) * px - y);
 }
 
-// 화면의 1/PIXEL 해상도로 그리고 CSS(image-rendering: pixelated)로 정수배 확대한다.
+// 낮은 해상도로 그리고 CSS(image-rendering: pixelated)로 정수배 확대한다.
 function resize() {
   const dpr = devicePixelRatio;
-  const w = Math.ceil((innerWidth * dpr) / PIXEL);
-  bufH = Math.ceil((innerHeight * dpr) / PIXEL);
+  const pixel = Math.max(1, Math.round((Math.min(innerWidth, innerHeight) * dpr) / SHORT_PX)); // 렌더 픽셀 1개 = 화면 pixel×pixel
+  const w = Math.ceil((innerWidth * dpr) / pixel);
+  bufH = Math.ceil((innerHeight * dpr) / pixel);
   renderer.setPixelRatio(1);
   renderer.setSize(w, bufH, false);
-  Object.assign(renderer.domElement.style, { width: `${(w * PIXEL) / dpr}px`, height: `${(bufH * PIXEL) / dpr}px` });
-  const aspect = w / bufH;
-  Object.assign(camera, { left: -zoom * aspect, right: zoom * aspect, top: zoom, bottom: -zoom, near: 1, far: 100 });
+  Object.assign(renderer.domElement.style, { width: `${(w * pixel) / dpr}px`, height: `${(bufH * pixel) / dpr}px` });
+  const sx = Math.max(1, w / bufH); // 가로가 길면 좌우를 넓힌다
+  const sy = Math.max(1, bufH / w); // 세로가 길면(모바일) 위아래를 넓힌다
+  Object.assign(camera, { left: -zoom * sx, right: zoom * sx, top: zoom * sy, bottom: -zoom * sy, near: 1, far: 100 });
   camera.updateProjectionMatrix();
 }
 
@@ -208,8 +211,8 @@ const action = (a: Actor, name: string) => a.mixer.clipAction(THREE.AnimationCli
 
 function clipFor(e: Entity, a: Actor) {
   if (e.state === 'dead') return 'Death_A';
+  if (e.state === 'attack') return ATTACK; // 피격 모션이 공격 준비 동작을 가리지 않게 공격 우선
   if (a.hitT > 0) return 'Hit_A';
-  if (e.state === 'attack') return ATTACK;
   if (e.state === 'move') return MODELS[e.kind].move;
   return 'Idle';
 }
