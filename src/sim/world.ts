@@ -138,7 +138,7 @@ function act(w: World, e: Entity) {
   }
   if (e.state === 'attack') return swing(w, e, t);
   if (t) {
-    if (dist(e, t) <= RANGE) return startSwing(e, t);
+    if (canHit(w, e, t)) return startSwing(e, t);
     if ((e.repathT -= DT) <= 0) {
       e.repathT = REPATH;
       const p = findPath(w.grid, cellOf(e), cellOf(t));
@@ -177,9 +177,9 @@ function swing(w: World, e: Entity, t: Entity | null) {
   const before = e.attackT;
   e.attackT += DT;
   if (t) face(e, t);
-  if (t && before < hitAt && e.attackT >= hitAt && dist(e, t) <= RANGE) damage(w, e, t);
+  if (t && before < hitAt && e.attackT >= hitAt && canHit(w, e, t)) damage(w, e, t);
   if (e.attackT < s.interval) return;
-  if (t && t.state !== 'dead' && dist(e, t) <= RANGE) {
+  if (t && t.state !== 'dead' && canHit(w, e, t)) {
     e.attackT -= s.interval;
   } else {
     e.state = 'idle';
@@ -205,6 +205,17 @@ function rand(w: World) {
 }
 
 const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
+
+// 사거리 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
+function canHit(w: World, a: Entity, b: Entity) {
+  const d = dist(a, b);
+  if (d > RANGE) return false;
+  const n = Math.ceil(d / 0.1);
+  for (let i = 1; i < n; i++) {
+    if (!walkable(w.grid, Math.floor(a.x + ((b.x - a.x) * i) / n), Math.floor(a.z + ((b.z - a.z) * i) / n))) return false;
+  }
+  return true;
+}
 
 function face(e: Entity, t: Entity) {
   e.facing = Math.atan2(t.x - e.x, t.z - e.z);
@@ -236,9 +247,11 @@ function walk(w: World, e: Entity) {
     }
     const nx = e.x + (dx / d) * budget;
     const nz = e.z + (dz / d) * budget;
-    // 충돌로 밀려난 뒤 직선 이동이 벽을 가로지르면 경로를 버린다(추적자는 다음 재계산 때 새 경로)
+    // 충돌로 밀려난 뒤 직선 이동이 벽을 가로지르면 현재 칸에서 목적지까지 경로를 다시 계산한다
     if (!walkable(w.grid, Math.floor(nx), Math.floor(nz))) {
-      e.path = [];
+      const [fx, fz] = e.path[e.path.length - 1];
+      const p = findPath(w.grid, cellOf(e), [Math.floor(fx), Math.floor(fz)]);
+      e.path = p ? waypoints(p, fx, fz) : [];
       return;
     }
     e.x = nx;

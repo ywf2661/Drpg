@@ -212,3 +212,45 @@ test('휘두르기가 끝났을 때 대상이 멀어졌으면 바로 다시 쫓�
   step(w, []);
   expect(m.state).toBe('move');
 });
+
+test('벽 너머의 대상은 사거리 안이어도 공격하지 않고 돌아서 간다', () => {
+  const w = createWorld(1, ['....', 'H#m.', '....']);
+  const [hero, m] = w.entities;
+  hero.x = 0.95;
+  m.x = 2.05; // 거리 1.1m, 사이에 벽 칸
+  step(w, [{ type: 'attack', targetId: 1 }]);
+  expect(hero.state).toBe('move');
+  expect(m.state).toBe('move');
+});
+
+test('휘두르는 중 사이에 벽이 생기면 빗나간다', () => {
+  const w = createWorld(1, ['....', 'H.m.', '....']);
+  const [hero, m] = w.entities;
+  hero.x = 0.95;
+  m.x = 2.05;
+  run(w, 5, [{ type: 'attack', targetId: 1 }]);
+  expect(hero.state).toBe('attack');
+  w.grid.blocked[1 * w.grid.w + 1] = 1; // 둘 사이 칸을 벽으로
+  run(w, 40);
+  expect(m.hp).toBe(30);
+  expect(hero.hp).toBe(100);
+});
+
+test('밀려나서 직선 경로가 벽을 가로지르면 경로를 다시 계산해 도착한다', () => {
+  const w = createWorld(1, ['H#.', '...']);
+  const hero = w.entities[0];
+  hero.path = [[2.5, 0.5]]; // 벽 칸 (1,0)을 가로지르는 직선
+  run(w, 120);
+  expect([hero.x, hero.z]).toEqual([2.5, 0.5]);
+});
+
+test('시체에 attack 명령을 내려도 진행 중인 이동은 계속된다', () => {
+  const w = createWorld(1, ['H.........m']);
+  const [hero, m] = w.entities;
+  m.state = 'dead';
+  m.hp = 0;
+  run(w, 5, [{ type: 'move', x: 5.5, z: 0.5 }]);
+  step(w, [{ type: 'attack', targetId: 1 }]);
+  expect(hero.state).toBe('move');
+  expect(hero.path.length).toBeGreaterThan(0);
+});
