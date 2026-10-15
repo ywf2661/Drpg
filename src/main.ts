@@ -146,14 +146,15 @@ sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 
 showSound(sound.settings);
 resetAutomap(world);
 showFloor(floor, cycle);
+// 스킬 Q W E R(하단 버튼 순서), 물약 1. R은 사망·클리어 화면에서는 다시 시작.
 // e.code: 한글 입력 상태에서도 물리 키
+const ended = () => ['dead', 'clear'].includes(outcome(world) ?? '');
 addEventListener('keydown', (e) => {
-  if (e.code === 'KeyR') restart();
-  else if (e.code === 'KeyQ' || e.code === 'Digit1') drink();
-  else if (e.code === 'KeyE' || e.code === 'Digit2') skill();
-  else if (e.code === 'KeyF' || e.code === 'Digit3') dash(true);
-  else if (e.code === 'KeyW' || e.code === 'Digit4') shout();
-  else if (e.code === 'KeyT' || e.code === 'Digit5') throwAxe(true);
+  if (e.code === 'KeyQ') skill();
+  else if (e.code === 'KeyW') dash(true);
+  else if (e.code === 'KeyE') shout();
+  else if (e.code === 'KeyR') (ended() ? restart() : throwAxe(true));
+  else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
 });
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
