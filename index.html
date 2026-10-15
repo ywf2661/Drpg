@@ -33,6 +33,7 @@
       #boss .bar { width: min(360px, 70vw); height: 12px; border-color: #b3261e; }
       #banner { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px; font-size: 28px; background: #0008; pointer-events: none; }
       #banner p { margin: 0; }
+      #summary { font-size: 16px; color: #d0c0a0; }
       #restart, #continue, #new-game { pointer-events: auto; font: inherit; font-size: 20px; padding: 10px 28px; color: #e8dcc8; background: #2a1414; border: 1px solid #b3261e; cursor: pointer; }
       html { cursor: url(sprites/cursor_normal.png) 0 0, auto; }
       canvas.attack { cursor: url(sprites/cursor_attack.png) 0 0, crosshair; }
@@ -68,7 +69,7 @@
     <canvas id="automap"></canvas>
     <div id="floor"></div>
     <div id="floor-title"></div>
-    <div id="banner"><p>불러오는 중…</p><button id="restart" hidden>다시 시작 (R)</button><button id="continue" hidden>이어하기</button><button id="new-game" hidden>새 게임</button></div>
+    <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="restart" hidden>다시 시작 (R)</button><button id="continue" hidden>이어하기</button><button id="new-game" hidden>새 게임</button></div>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">
       <p>캐릭터·던전·아이템 그림·마우스 커서: <a href="https://github.com/flareteam/flare-game" target="_blank" rel="noopener">Flare: Empyrean Campaign</a> — Clint Bellanger 외 Flare 기여자</p>

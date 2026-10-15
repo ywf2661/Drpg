@@ -7,7 +7,7 @@ import { commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
-import { clearRun, loadRun, saveRun } from './save';
+import { clearRun, formatTime, loadRun, saveRun, type Stats } from './save';
 import { FLOORS, floorPower, generateFloor } from './sim/dungeon';
 import { ARMORS, createWorld, DT, outcome, setLevel, SKILL, STATS, step, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
@@ -20,9 +20,12 @@ const banner = $('#banner');
 const bannerText = $('#banner p');
 const restartBtn = $('#restart');
 const continueBtn = $('#continue');
+const summary = $('#summary');
 const newGameBtn = $('#new-game');
 const saved = loadRun(); // 지난번 진행(있으면 시작할 때 이어하기를 묻는다)
 let choosing = saved !== null;
+const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
+let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터)
 const floorLabel = $('#floor');
 const floorTitle = $('#floor-title');
 const potionBtn = $('#potion');
@@ -73,7 +76,7 @@ function replay(el: HTMLElement) {
 function enterFloor(n: number, carry: Carry) {
   floor = n;
   entry = { potions: carry.potions, gear: { ...carry.gear }, level: carry.level, xp: carry.xp };
-  saveRun({ floor: n, ...entry }); // 층에 들어갈 때마다 자동 저장
+  saveRun({ floor: n, ...entry, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
   setWorld(world);
   resetAutomap(world);
@@ -111,9 +114,13 @@ const begin = (floorN: number, carry: Carry) => {
   continueBtn.hidden = newGameBtn.hidden = true;
   enterFloor(floorN, carry);
 };
-continueBtn.addEventListener('click', () => saved && begin(saved.floor, saved));
+continueBtn.addEventListener('click', () => {
+  if (!saved) return;
+  stats = { ...saved.stats };
+  begin(saved.floor, saved);
+});
 newGameBtn.addEventListener('click', () => begin(1, START));
-if (!saved) saveRun({ floor: 1, ...START });
+if (!saved) saveRun({ floor: 1, ...START, stats });
 initInput();
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 sound.initSound();
@@ -133,8 +140,13 @@ if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return 
 
 function restart() {
   const o = outcome(world);
-  if (o === 'dead') enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
-  else if (o === 'clear') enterFloor(1, START);
+  if (o === 'dead') {
+    stats.deaths++;
+    enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
+  } else if (o === 'clear') {
+    stats = newStats();
+    enterFloor(1, START);
+  }
 }
 const drink = () => commands.push({ type: 'drink' });
 const skill = () => commands.push({ type: 'skill' });
@@ -161,7 +173,10 @@ requestAnimationFrame(function frame(now) {
   pollInput(world, dt);
   if (credits.open || choosing) acc = 0; // 크레딧을 읽거나 이어하기를 고르는 동안은 게임을 멈춘다
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
-  sound.play(soundEvents(heard, world), world.entities[0].x, world.entities[0].z);
+  const events = soundEvents(heard, world);
+  sound.play(events, world.entities[0].x, world.entities[0].z);
+  stats.kills += events.filter((e) => e.name === 'skel_die' || e.name === 'boss_die').length;
+  if (!choosing && !credits.open && !outcome(world)) stats.time += dt;
   if (outcome(world) === 'descend') enterFloor(floor + 1, world);
   heard = snapshot(world);
   draw(world, dt);
@@ -213,5 +228,9 @@ function hud() {
   if (o === 'clear') clearRun(); // 다 깼으면 이어할 것이 없다
   banner.hidden = restartBtn.hidden = o !== 'dead' && o !== 'clear';
   if (o === 'dead') bannerText.textContent = '사망했습니다';
-  if (o === 'clear') bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
+  if (o === 'clear') {
+    bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
+    summary.textContent = `플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;
+  }
+  summary.hidden = o !== 'clear';
 }
