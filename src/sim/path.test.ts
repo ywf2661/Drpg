@@ -53,3 +53,17 @@ test('맵 밖 좌표는 walkable이 아니다', () => {
   expect(walkable(g, 2, 0)).toBe(false);
   expect(walkable(g, 0, Number.NaN)).toBe(false);
 });
+
+test('48x48 빈 맵: 대각선 끝까지 48칸 최단 경로', () => {
+  const g = grid(Array(48).fill('.'.repeat(48)));
+  const p = findPath(g, [0, 0], [47, 47])!;
+  expect(p).toHaveLength(48);
+  expectValid(g, p);
+});
+
+test('48x48 막힌 목표는 null', () => {
+  const rows = Array(48).fill('.'.repeat(48));
+  rows[46] = '.'.repeat(45) + '###';
+  rows[47] = '.'.repeat(45) + '#.#';
+  expect(findPath(grid(rows), [0, 0], [46, 47])).toBeNull();
+});
