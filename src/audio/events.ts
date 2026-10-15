@@ -5,7 +5,7 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'gold' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'gold' | 'dash' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
@@ -18,6 +18,7 @@ export type Snapshot = {
   blasts: Set<number>;
   level: number;
   cleaves: number;
+  dashes: number;
   opened: number; // 열린 상자 수
 };
 
@@ -33,6 +34,7 @@ export function snapshot(w: World): Snapshot {
     blasts: new Set(w.blasts.map((b) => b.id)),
     level: w.level,
     cleaves: w.cleaves,
+    dashes: w.dashes,
     opened: w.chests.filter((c) => c.open).length,
   };
 }
@@ -63,6 +65,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (w.gear.armor > prev.gear.armor) at('equip_armor');
   if (w.level > prev.level) at('level_up');
   if (w.cleaves > prev.cleaves) at('cleave');
+  if (w.dashes > prev.dashes) at('dash');
   if (w.chests.filter((c) => c.open).length > prev.opened) at('chest');
   return out;
 }

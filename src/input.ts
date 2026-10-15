@@ -13,6 +13,7 @@ const hit = new THREE.Vector3();
 const a = new THREE.Vector3();
 const b = new THREE.Vector3();
 let held = false;
+let hasPointer = false; // 마우스가 캔버스 위를 움직인 적이 있는가
 let clicked = false;
 let repeatT = 0;
 
@@ -21,7 +22,10 @@ export let hovered: number | null = null;
 
 export function initInput() {
   const el = renderer.domElement;
-  el.addEventListener('pointermove', setPointer);
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse') hasPointer = true;
+    setPointer(e);
+  });
   el.addEventListener('contextmenu', (e) => e.preventDefault()); // 우클릭 = 가르기
   el.addEventListener('pointerdown', (e) => {
     if (e.button === 2) {
@@ -64,6 +68,12 @@ export function pollInput(world: World, dt: number) {
   }
   ray.setFromCamera(pointer, camera);
   hovered = pick(world);
+}
+
+// 커서가 가리키는 바닥 지점(돌진 베기 조준). 마우스가 없으면(모바일) null
+export function aim(): { x: number; z: number } | null {
+  ray.setFromCamera(pointer, camera);
+  return hasPointer && ray.ray.intersectPlane(ground, hit) ? { x: hit.x, z: hit.z } : null;
 }
 
 function moveToRay() {

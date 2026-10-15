@@ -2,7 +2,7 @@
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
 import { $, initHud, showChoice, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
-import { commands, hovered, initInput, pollInput } from './input';
+import { aim, commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
@@ -90,6 +90,7 @@ function restart() {
 
 const drink = () => commands.push({ type: 'drink' });
 const skill = () => commands.push({ type: 'skill' });
+const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
 
 try {
   await initRender(world);
@@ -106,6 +107,7 @@ $('#help-btn').addEventListener('click', () => help.showModal());
 initHud({
   drink,
   skill,
+  dash: () => dash(false),
   restart,
   toggleMap: toggleAutomap,
   toggleSound: () => {
@@ -132,6 +134,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') restart();
   else if (e.code === 'KeyQ' || e.code === 'Digit1') drink();
   else if (e.code === 'KeyE' || e.code === 'Digit2') skill();
+  else if (e.code === 'KeyF' || e.code === 'Digit3') dash(true);
   else if (e.code === 'KeyM') toggleAutomap();
 });
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기

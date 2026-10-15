@@ -2,12 +2,13 @@
 import gearIcons from './assets/sprites/gear_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import skillIcon from './assets/sprites/skill_icon.png';
+import dashIcon from './assets/sprites/dash_icon.png';
 import { renderer } from './render/render';
 import { setHeroGear } from './render/sprites';
 import { formatTime, type Run, type Stats } from './save';
 import { offers, type ShopItem, type Wallet } from './shop';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, outcome, SKILL, STATS, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
+import { ARMORS, DASH, outcome, SKILL, STATS, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -30,6 +31,8 @@ const potionBtn = $('#potion');
 const potionCount = $('#potion span');
 const skillBtn = $('#skill');
 const skillShade = $('#skill i');
+const dashBtn = $('#dash');
+const dashShade = $('#dash i');
 const weaponSlot = $('#weapon');
 const armorSlot = $('#armor');
 const toast = $('#toast');
@@ -43,14 +46,16 @@ let shownGear = '';
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; restart(): void; toggleMap(): void; toggleSound(): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; restart(): void; toggleMap(): void; toggleSound(): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
   skillBtn.style.backgroundImage = `url(${skillIcon})`;
+  dashBtn.style.backgroundImage = `url(${dashIcon})`;
   for (const slot of [weaponSlot, armorSlot]) slot.style.backgroundImage = `url(${gearIcons})`;
   potionBtn.addEventListener('click', h.drink);
   skillBtn.addEventListener('click', h.skill);
+  dashBtn.addEventListener('click', h.dash);
   restartBtn.addEventListener('click', h.restart); // 모바일용
   $('#map-btn').addEventListener('click', h.toggleMap);
   soundBtn.addEventListener('click', h.toggleSound);
@@ -138,6 +143,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}`);
   shownLevel = world.level;
   skillShade.style.height = `${(world.skillCd / SKILL.cd) * 100}%`; // 재사용 대기 남은 비율
+  dashShade.style.height = `${(world.dashCd / DASH.cd) * 100}%`;
   potionCount.textContent = String(world.potions);
   goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);

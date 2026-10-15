@@ -23,6 +23,7 @@ const FILES: Record<SoundName, string[]> = {
   fireball: ['fireball'],
   blast: ['burn'],
   cleave: ['melee_attack_2'],
+  dash: ['melee_attack_3'],
   chest: ['wood_open'],
   potion: ['inventory_potion'],
   gold: ['inventory_coins'],

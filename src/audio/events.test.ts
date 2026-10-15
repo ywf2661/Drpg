@@ -120,3 +120,10 @@ test('금화를 주움', () => {
   w.gold += 12;
   expect(names(soundEvents(prev, w))).toEqual(['gold']);
 });
+
+test('돌진 베기 시작', () => {
+  const w = createWorld(1, ['H..']);
+  const prev = snapshot(w);
+  w.dashes = 1;
+  expect(names(soundEvents(prev, w))).toEqual(['dash']);
+});

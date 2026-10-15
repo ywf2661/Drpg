@@ -60,6 +60,7 @@ SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee
                'inventory/inventory_potion', 'inventory/inventory_coins', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot', 'powers/fireball', 'powers/burn']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
 SKILL_ICON = 22  # 가르기(Cleave)
+DASH_ICON = 9  # 돌진 베기(달리는 사람)
 BLAST_SCALE = 0.115  # 폭발 그림 가로 약 80px(2.7m) ≈ 폭발 판정 지름 2.4m
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
@@ -303,6 +304,7 @@ def loot():
 
     icon(POTION_ICON).save(SHEETS / 'potion_icon.png', optimize=True)
     icon(SKILL_ICON).save(SHEETS / 'skill_icon.png', optimize=True)
+    icon(DASH_ICON).save(SHEETS / 'dash_icon.png', optimize=True)
     strip = Image.new('RGBA', (64 * len(GEAR_ICONS), 64))
     for k, i in enumerate(GEAR_ICONS):
         strip.paste(icon(i), (64 * k, 0))

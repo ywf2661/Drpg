@@ -13,15 +13,15 @@
       #hud, #target, #boss, #banner { z-index: 2; }
       .bar { width: 240px; height: 14px; background: #2a1414; border: 1px solid #000; }
       .bar i { display: block; width: 100%; height: 100%; background: #b3261e; }
-      #hud { position: fixed; left: 20px; bottom: 8px; display: flex; align-items: center; gap: 6px; }
+      #hud { position: fixed; left: 20px; bottom: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: calc(100vw - 40px); } /* 좁으면 줄바꿈(아래에 붙어 위로 늘어남) */
       #hp { width: 100%; pointer-events: none; }
       #bars { position: relative; width: min(240px, calc(100vw - 260px)); }
       #xp { height: 4px; margin-top: 2px; background: #1a1608; border: 1px solid #000; }
       #xp i { display: block; width: 0; height: 100%; background: #d0a030; }
       #level { position: absolute; left: 0; bottom: 24px; font-size: 12px; color: #d0c0a0; text-shadow: 0 1px 2px #000; }
-      #potion, #skill, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
-      #skill { background-size: 40px 40px; image-rendering: pixelated; overflow: hidden; }
-      #skill i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #000b; }
+      #potion, #skill, #dash, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      #skill, #dash { background-size: 40px 40px; image-rendering: pixelated; overflow: hidden; }
+      #skill i, #dash i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #000b; }
       .slot { background-size: 320px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
       #potion img { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
       #potion span { position: absolute; right: 2px; bottom: 0; font-size: 12px; color: #e8dcc8; text-shadow: 0 1px 2px #000; }
@@ -72,6 +72,7 @@
     <div id="hud">
       <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
       <button id="skill" title="가르기 (우클릭 / E): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
+      <button id="dash" title="돌진 베기 (F): 5m 돌진, 길 위의 적 모두 100%, 6초"><i></i></button>
       <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
       <div id="gold" title="금화">0</div>
       <div id="weapon" class="slot"></div>
@@ -92,9 +93,11 @@
         <tr><td>이동</td><td>땅 클릭(누르고 있으면 따라감) · 터치</td></tr>
         <tr><td>공격</td><td>몬스터 클릭 · 터치</td></tr>
         <tr><td>가르기</td><td>우클릭(커서 방향) · E · 스킬 버튼 — 앞쪽 적 모두 150%, 4초</td></tr>
+        <tr><td>돌진 베기</td><td>F(커서 방향) · 돌진 버튼 — 5m 돌진하며 길 위의 적 100%, 6초</td></tr>
         <tr><td>물약</td><td>Q · 물약 버튼 — 최대 체력 50% 회복</td></tr>
         <tr><td>상자·계단</td><td>클릭해서 열기 · 내려가기</td></tr>
         <tr><td>지도</td><td>M · 지도 버튼</td></tr>
+        <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화</td></tr>
         <tr><td>장비</td><td>더 좋은 장비(금색 이름)는 밟으면 자동 장착</td></tr>
         <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>
       </table>
