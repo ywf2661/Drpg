@@ -749,7 +749,8 @@ test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () =
   for (let seed = 1; seed <= 300; seed++) {
     const w = createWorld(seed, ['Hc']);
     w.maxTier = 2;
-    w.gear = { weapon: 4, armor: 4 }; // 장비는 줍지 않게(물약은 바로 허리띠로)
+    w.gear = { weapon: 4, armor: 4 }; // 장비는 줍지 않게(물약은 바로 허리띠로) — 옵션까지 강하게
+    w.mods = { weapon: [{ kind: 'dmg', value: 500 }], armor: [{ kind: 'life', value: 500 }] };
     run(w, 30, [{ type: 'open', chestId: 0 }]);
     if (w.potions === 1) potions++;
     else expect(w.items.find((i) => i.kind !== 'gold')!.tier).toBeLessThanOrEqual(2);

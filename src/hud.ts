@@ -8,8 +8,9 @@ import { setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
 import { offers, type ShopItem, type Wallet } from './shop';
+import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, DASH, outcome, SKILL, STATS, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
+import { ARMORS, DASH, outcome, SKILL, STATS, WEAPONS, xpToNext, type Affix, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -106,14 +107,29 @@ export function showChoice(saved: Run | null) {
   if (saved) bannerText.textContent = `저장된 진행: 지하 ${saved.floor}층, Lv ${saved.level}`;
 }
 
-// 장비 칸: 아이콘(gear_icons.png = 무기 4 + 갑옷 4)과 수치
-function showGear(g: Gear) {
+// 옵션 한 줄 설명
+const AFFIX_TEXT: Record<Affix['kind'], (v: number) => string> = {
+  dmg: (v) => `데미지 +${v}%`,
+  speed: (v) => `공격 속도 +${v}%`,
+  leech: (v) => `준 피해의 ${v}% 회복`,
+  crit: (v) => `${v}% 확률로 2배`,
+  life: (v) => `최대 체력 +${v}`,
+  guard: (v) => `받는 피해 −${v}%`,
+  regen: (v) => `초당 체력 ${v / 10} 회복`,
+  thorns: (v) => `근접 피해 ${v}% 반사`,
+};
+
+// 장비 칸: 아이콘(gear_icons.png = 무기 4 + 갑옷 4)과 이름·수치·옵션(툴팁)
+function showGear(w: World) {
+  const g = w.gear;
   const wpn = WEAPONS[g.weapon - 1];
   const arm = ARMORS[g.armor - 1];
+  const lines = (list: Affix[]) => list.map((a) => `\n· ${AFFIX_TEXT[a.kind](a.value)}`).join('');
   weaponSlot.style.backgroundPositionX = `${-(g.weapon - 1) * 40}px`;
   armorSlot.style.backgroundPositionX = `${-(4 + g.armor - 1) * 40}px`;
-  weaponSlot.title = `${wpn.name} (공격 ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초)`;
-  armorSlot.title = `${arm.name} (받는 피해 −${arm.reduce * 100}%)`;
+  weaponSlot.title = `${gearName('weapon', g.weapon, w.mods.weapon)}\n공격 ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초${lines(w.mods.weapon)}`;
+  armorSlot.title = `${gearName('armor', g.armor, w.mods.armor)}\n받는 피해 −${arm.reduce * 100}%${lines(w.mods.armor)}`;
+  for (const [slot, list] of [[weaponSlot, w.mods.weapon], [armorSlot, w.mods.armor]] as const) slot.dataset.q = String(list.length);
 }
 
 function say(text: string) {
@@ -162,16 +178,17 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   potionCount.textContent = String(world.potions);
   goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);
-  const key = `${world.gear.weapon}/${world.gear.armor}`;
+  const key = JSON.stringify([world.gear, world.mods]);
   if (key !== shownGear) {
     // 주운 장비는 알림. 층에 들어와 처음 그릴 때는 알리지 않는다
     if (shownGear) {
-      const [w0, a0] = shownGear.split('/').map(Number);
-      if (world.gear.weapon > w0) say(`${WEAPONS[world.gear.weapon - 1].name} 장착`);
-      else if (world.gear.armor > a0) say(`${ARMORS[world.gear.armor - 1].name} 장착`);
+      // 바뀐 부위의 전체 이름으로 알림(줍기는 더 좋은 것만 하므로 바뀌면 장착)
+      const [g0, m0] = JSON.parse(shownGear) as [World['gear'], World['mods']];
+      const changed = (k: 'weapon' | 'armor') => g0[k] !== world.gear[k] || JSON.stringify(m0[k]) !== JSON.stringify(world.mods[k]);
+      for (const k of ['weapon', 'armor'] as const) if (changed(k)) say(`${gearName(k, world.gear[k], world.mods[k])} 장착`);
     }
     shownGear = key;
-    showGear(world.gear);
+    showGear(world);
     void setHeroGear(world.gear);
   }
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕

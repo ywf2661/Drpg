@@ -1,12 +1,12 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, makeEntity, rand, walk, waypoints } from './core';
+import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, heroMax, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints } from './core';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, shoot, summon } from './abilities';
 import { AGGRO, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, REPATH, type Chest, type Command, type Entity, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
-export { attackInterval, setLevel } from './core';
+export { armorScore, attackInterval, heroMax, isBetter, mod, rollGear, setLevel, weaponScore } from './core';
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', K: 'king', M: 'boss' };
@@ -36,7 +36,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -44,6 +44,7 @@ export function step(w: World, cmds: Command[]): void {
   w.skillCd = Math.max(0, w.skillCd - DT);
   w.dashCd = Math.max(0, w.dashCd - DT);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
+  regen(w, hero);
   for (const c of cmds) command(w, hero, c);
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
@@ -54,6 +55,17 @@ export function step(w: World, cmds: Command[]): void {
   separate(w);
   reachChest(w, hero);
   pickup(w, hero);
+}
+
+// 갑옷 '재생의': 초당 value/10. 소수점은 쌓아 두었다가 1씩
+function regen(w: World, hero: Entity) {
+  const r = mod(w.mods.armor, 'regen');
+  if (!r || hero.state === 'dead') return;
+  w.regenAcc += (r / 10) * DT;
+  while (w.regenAcc >= 1) {
+    w.regenAcc -= 1;
+    hero.hp = Math.min(hero.maxHp, hero.hp + 1);
+  }
 }
 
 // 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가 찰 때까지, 장비는 지금보다 좋을 때만 줍는다
@@ -70,8 +82,15 @@ function pickup(w: World, hero: Entity) {
       w.potions++;
       return false;
     }
-    if (it.tier <= w.gear[it.kind]) return true;
+    if (!isBetter(w, it)) return true;
     w.gear[it.kind] = it.tier;
+    w.mods[it.kind] = it.affixes ?? [];
+    if (it.kind === 'armor') {
+      // '튼튼한'이 바뀌면 최대 체력도: 늘어난 만큼은 채우고, 줄면 넘치는 만큼만 깎는다
+      const max = heroMax(w);
+      hero.hp = Math.min(max, hero.hp + Math.max(0, max - hero.maxHp));
+      hero.maxHp = max;
+    }
     return false;
   });
 }
@@ -158,7 +177,8 @@ function reachChest(w: World, hero: Entity) {
   ch.open = true;
   const [x, z] = [cx + ((hero.x - cx) / d) * CHEST.drop, cz + ((hero.z - cz) / d) * CHEST.drop];
   const kind = rand(w) < CHEST.potion ? 'potion' : rand(w) < 0.5 ? 'weapon' : 'armor';
-  w.items.push({ id: w.nextItem++, x, z, kind, tier: kind === 'potion' ? 0 : 1 + Math.floor(rand(w) * w.maxTier) });
+  if (kind === 'potion') w.items.push({ id: w.nextItem++, x, z, kind, tier: 0 });
+  else w.items.push(rollGear(w, x, z, kind, 1 + Math.floor(rand(w) * w.maxTier)));
   dropGold(w, x + (hero.z - cz) / d * 0.4, z - (hero.x - cx) / d * 0.4, GOLD_CHEST.lo, GOLD_CHEST.hi, w.power); // 옆에 금화
 
 }

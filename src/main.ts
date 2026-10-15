@@ -6,15 +6,17 @@ import { aim, commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
-import { clearRun, loadRun, saveRun, type Stats } from './save';
+import { clearRun, loadRun, saveRun, type Mods, type Stats } from './save';
 import { buy } from './shop';
 import { cyclePower, floorPower, generateFloor, themeFor } from './sim/dungeon';
 import { createWorld, DT, outcome, setLevel, step, type Gear, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
-const START = { potions: 2, gear: { weapon: 2, armor: 2 }, level: 1, xp: 0, gold: 0 }; // 숏소드 + 가죽 갑옷
-type Carry = { potions: number; gear: Gear; level: number; xp: number; gold: number };
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0 }; // 숏소드 + 가죽 갑옷
+type Carry = { potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number };
+// 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
+const carryOf = (c: Carry): Carry => ({ potions: c.potions, gear: { ...c.gear }, mods: { weapon: [...c.mods.weapon], armor: [...c.mods.armor] }, level: c.level, xp: c.xp, gold: c.gold });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const saved = loadRun(); // 지난번 진행(있으면 시작할 때 이어하기를 묻는다)
 let choosing = saved !== null;
@@ -31,6 +33,7 @@ function makeFloor(n: number, carry: Carry): World {
   const w = createWorld(seed, generateFloor(seed, n), floorPower(n, cycle), cyclePower(cycle));
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
+  w.mods = { weapon: [...carry.mods.weapon], armor: [...carry.mods.armor] };
   w.gold = carry.gold;
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, carry.level, carry.xp);
@@ -39,7 +42,7 @@ function makeFloor(n: number, carry: Carry): World {
 
 function enterFloor(n: number, carry: Carry) {
   floor = n;
-  entry = { potions: carry.potions, gear: { ...carry.gear }, level: carry.level, xp: carry.xp, gold: carry.gold };
+  entry = carryOf(carry);
   saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
   setWorld(world, themeFor(n));
@@ -51,8 +54,7 @@ function enterFloor(n: number, carry: Carry) {
 
 // 계단을 내려가면 다음 층을 만들기 전에 상점. 떠나면 산 것을 가지고 다음 층으로
 function openShop() {
-  const carry: Carry = { potions: world.potions, gear: { ...world.gear }, level: world.level, xp: world.xp, gold: world.gold };
-  shopping = carry;
+  shopping = carryOf(world);
   const render = () =>
     showShop(
       shopping!,
@@ -94,7 +96,7 @@ function restart() {
 function nextCycle() {
   if (outcome(world) !== 'clear') return;
   cycle++;
-  enterFloor(1, { potions: world.potions, gear: { ...world.gear }, level: world.level, xp: world.xp, gold: world.gold });
+  enterFloor(1, carryOf(world));
 }
 
 const drink = () => commands.push({ type: 'drink' });

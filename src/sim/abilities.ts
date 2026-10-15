@@ -27,7 +27,7 @@ export function cleave(w: World, hero: Entity) {
     const dx = e.x - hero.x;
     const dz = e.z - hero.z;
     if (Math.hypot(dx, dz) > SKILL.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
-    hurt(w, e, Math.round(roll(w, hero) * SKILL.mult));
+    hurt(w, e, Math.round(roll(w, hero) * SKILL.mult), hero);
   }
   w.cleaves++;
 }
@@ -54,7 +54,7 @@ export function charge(w: World, e: Entity, t: Entity | null): boolean {
   const hero = w.entities[0];
   if (!rush(w, e, CHARGE.speed)) return true;
   if (hero.state !== 'dead' && dist(e, hero) <= CHARGE.hit) {
-    hurt(w, hero, Math.round(roll(w, e) * CHARGE.mult));
+    hurt(w, hero, Math.round(roll(w, e) * CHARGE.mult), e);
     Object.assign(e, { phase: 'none', state: 'idle' });
   }
   return true;
@@ -120,7 +120,7 @@ export function dashStep(w: World, hero: Entity) {
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
     w.dashHit.push(e.id);
-    hurt(w, e, roll(w, hero));
+    hurt(w, e, roll(w, hero), hero);
   }
 }
 

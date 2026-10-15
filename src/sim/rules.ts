@@ -45,7 +45,10 @@ export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number }
 
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 // amount: 금화 양(금화만)
-export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor' | 'gold'; tier: number; amount?: number };
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon' | 'armor' | 'gold'; tier: number; amount?: number; affixes?: Affix[] };
+// 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
+export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns';
+export type Affix = { kind: AffixKind; value: number };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
 export type Chest = { id: number; x: number; z: number; open: boolean };
@@ -79,6 +82,8 @@ export type World = {
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
   gear: Gear;
+  mods: { weapon: Affix[]; armor: Affix[] }; // 장착 장비의 마법 옵션
+  regenAcc: number; // 재생 옵션의 소수점 회복 누적
   maxTier: number;
   level: number;
   xp: number;
@@ -94,6 +99,19 @@ export const DT = 1 / 60;
 export const RANGE = 1.5;
 
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4 };
+// 마법 옵션: 붙는 부위, 이름(접두어), 값 범위. dmg·speed·leech·crit·guard·thorns는 %, life는 체력, regen은 초당 1/10
+export const AFFIXES: Record<AffixKind, { slot: 'weapon' | 'armor'; name: string; lo: number; hi: number }> = {
+  dmg: { slot: 'weapon', name: '날카로운', lo: 15, hi: 30 },
+  speed: { slot: 'weapon', name: '신속한', lo: 8, hi: 15 },
+  leech: { slot: 'weapon', name: '흡혈의', lo: 4, hi: 8 },
+  crit: { slot: 'weapon', name: '치명적인', lo: 8, hi: 15 },
+  life: { slot: 'armor', name: '튼튼한', lo: 15, hi: 30 },
+  guard: { slot: 'armor', name: '단단한', lo: 5, hi: 10 },
+  regen: { slot: 'armor', name: '재생의', lo: 5, hi: 15 },
+  thorns: { slot: 'armor', name: '가시', lo: 20, hi: 40 },
+};
+// 옵션 0·1·2개(일반·마법·희귀) 확률. boosted = 정예·해골 왕
+export const QUALITY = { normal: [0.6, 0.32, 0.08], boosted: [0, 0.7, 0.3] };
 
 export const KING = { cd: 8, windup: 0.8, count: 2, max: 6, range: 8, gold: [80, 120] }; // 해골 왕 소환·드롭
 

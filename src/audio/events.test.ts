@@ -135,3 +135,10 @@ test('해골 왕 소환: 새로 생긴 엔티티는 비교하지 않고 소환�
   w.entities.push({ ...k, id: 2, kind: 'minion', summoner: 1, hp: 30, maxHp: 30 }, { ...k, id: 3, kind: 'minion', summoner: 1, hp: 30, maxHp: 30 });
   expect(names(soundEvents(prev, w))).toEqual(['summon']);
 });
+
+test('같은 단계라도 옵션이 바뀌면 장착음', () => {
+  const w = createWorld(1, ['H..']);
+  const prev = snapshot(w);
+  w.mods.weapon = [{ kind: 'dmg', value: 20 }];
+  expect(names(soundEvents(prev, w))).toEqual(['equip_weapon']);
+});

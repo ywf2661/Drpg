@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, stats: { time: 754.2, kills: 41, deaths: 2 } };
+const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [] }, stats: { time: 754.2, kills: 41, deaths: 2 } };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -28,6 +28,9 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(bad({ gold: -5 })).toBeNull();
   expect(bad({ gold: 1.5 })).toBeNull();
   expect(bad({ cycle: -1 })).toBeNull();
+  expect(bad({ mods: { weapon: [{ kind: 'life', value: 20 }], armor: [] } })).toBeNull(); // 부위가 다른 옵션
+  expect(bad({ mods: { weapon: [{ kind: 'dmg', value: 999 }], armor: [] } })).toBeNull(); // 범위 밖
+  expect(bad({ mods: 'x' })).toBeNull();
 });
 
 test('기록(stats)이 없는 이전 저장은 0으로 채운다, 이상한 기록은 무시', () => {
@@ -35,6 +38,7 @@ test('기록(stats)이 없는 이전 저장은 0으로 채운다, 이상한 기�
   expect(decodeSave(old)?.stats).toEqual({ time: 0, kills: 0, deaths: 0 });
   expect(decodeSave(old)?.gold).toBe(0); // 금화가 생기기 전 저장
   expect(decodeSave(old)?.cycle).toBe(0); // 회차가 생기기 전 저장
+  expect(decodeSave(old)?.mods).toEqual({ weapon: [], armor: [] }); // 마법 옵션이 생기기 전 저장
   const weird = JSON.stringify({ v: 1, floor: 2, potions: 1, gear: { weapon: 2, armor: 2 }, level: 3, xp: 5, stats: { time: -1, kills: 'x' } });
   expect(decodeSave(weird)).toBeNull();
 });

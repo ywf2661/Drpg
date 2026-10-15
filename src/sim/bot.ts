@@ -1,16 +1,17 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
 import { buy } from '../shop';
-import { createWorld, DT, outcome, setLevel, step, type Command, type Gear, type World } from './world';
+import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type Command, type Gear, type World } from './world';
 
-type Carry = { potions: number; gear: Gear; level: number; xp: number; gold: number };
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, level: 1, xp: 0, gold: 0 };
+type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number };
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0 };
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry): World {
   const w = createWorld(seed, generateFloor(seed, n), floorPower(n));
   w.potions = c.potions;
   w.gear = { ...c.gear };
+  w.mods = { weapon: [...c.mods.weapon], armor: [...c.mods.armor] };
   w.gold = c.gold;
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, c.level, c.xp);
@@ -25,7 +26,7 @@ function think(w: World): Command[] {
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead').sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   if (foes.filter((e) => d(e.x, e.z) < 2).length >= 2) cmds.push({ type: 'skill' });
-  const wanted = w.items.find((i) => (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : i.tier > w.gear[i.kind]));
+  const wanted = w.items.find((i) => (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : isBetter(w, i)));
   if (foes.length && (d(foes[0].x, foes[0].z) < 9 || !wanted)) {
     if (hero.target !== foes[0].id) cmds.push({ type: 'attack', targetId: foes[0].id });
   } else if (wanted) cmds.push({ type: 'move', x: wanted.x, z: wanted.z });
@@ -53,7 +54,7 @@ export function playthrough(seed: number) {
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = shopping({ potions: w.potions, gear: { ...w.gear }, level: w.level, xp: w.xp, gold: w.gold });
+          carry = shopping({ potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold });
           done = true;
           break;
         }

@@ -1,17 +1,30 @@
 // 진행 저장: 층에 들어갈 때의 상태(층·물약·장비·레벨). localStorage는 손상·조작될 수 있어 읽을 때 검증한다.
 import { FLOORS } from './sim/dungeon';
-import { POTION, type Gear } from './sim/world';
+import { AFFIXES, POTION, type Affix, type AffixKind, type Gear } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
-export type Run = { floor: number; potions: number; gear: Gear; level: number; xp: number; gold: number; cycle: number; stats: Stats };
+export type Mods = { weapon: Affix[]; armor: Affix[] };
+export type Run = { floor: number; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; cycle: number; stats: Stats };
 const VERSION = 1;
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, stats: r.stats });
+  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, stats: r.stats });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
+
+// 한 부위의 옵션 목록: 최대 2개, 서로 다른 종류, 그 부위의 옵션, 값은 범위 안. 아니면 null
+function affixes(v: unknown, slot: 'weapon' | 'armor'): Affix[] | null {
+  if (!Array.isArray(v) || v.length > 2) return null;
+  const out: Affix[] = [];
+  for (const a of v) {
+    const def = a && AFFIXES[a.kind as AffixKind];
+    if (!def || def.slot !== slot || !int(a.value, def.lo, def.hi) || out.some((o) => o.kind === a.kind)) return null;
+    out.push({ kind: a.kind, value: a.value });
+  }
+  return out;
+}
 
 export function decodeSave(text: string | null): Run | null {
   if (!text) return null;
@@ -29,6 +42,10 @@ export function decodeSave(text: string | null): Run | null {
   const gold = d.gold ?? 0;
   const cycle = d.cycle ?? 0;
   if (!int(gold, 0, 1e7) || !int(cycle, 0, 1000)) return null;
+  const m = (d.mods ?? { weapon: [], armor: [] }) as Record<string, unknown>;
+  const weapon = m && typeof m === 'object' ? affixes(m.weapon, 'weapon') : null;
+  const armor = m && typeof m === 'object' ? affixes(m.armor, 'armor') : null;
+  if (!weapon || !armor) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
@@ -40,6 +57,7 @@ export function decodeSave(text: string | null): Run | null {
     xp: d.xp as number,
     gold: gold as number,
     cycle: cycle as number,
+    mods: { weapon, armor },
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },
   };
 }
