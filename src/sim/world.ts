@@ -22,7 +22,8 @@ export type Entity = {
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
 };
 
-export type World = { grid: Grid; entities: Entity[]; rng: number; stairs: Cell | null };
+// toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
+export type World = { grid: Grid; entities: Entity[]; rng: number; stairs: Cell | null; toStairs: boolean };
 
 export const DT = 1 / 60;
 export const RANGE = 1.5;
@@ -61,7 +62,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     const hp = Math.round(STATS[s.kind].hp * p);
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
-  return { grid, entities, rng: seed, stairs };
+  return { grid, entities, rng: seed, stairs, toStairs: false };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -78,12 +79,13 @@ export function step(w: World, cmds: Command[]): void {
 export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
   const hero = w.entities[0];
   if (hero.state === 'dead') return 'dead';
-  if (w.stairs) return Math.hypot(hero.x - w.stairs[0] - 0.5, hero.z - w.stairs[1] - 0.5) <= 0.5 ? 'descend' : null;
+  if (w.stairs) return w.toStairs && Math.hypot(hero.x - w.stairs[0] - 0.5, hero.z - w.stairs[1] - 0.5) <= 0.5 ? 'descend' : null;
   return w.entities.every((e) => e.kind === 'hero' || e.state === 'dead') ? 'clear' : null;
 }
 
 function command(w: World, hero: Entity, c: Command) {
   if (hero.state === 'dead') return;
+  w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
   if (c.type === 'attack') {
     const t = w.entities[c.targetId];
     if (!t || t === hero || t.state === 'dead') return;
@@ -95,9 +97,15 @@ function command(w: World, hero: Entity, c: Command) {
     hero.repathT = 0; // 다음 act에서 즉시 경로 계산
     return;
   }
-  const p = findPath(w.grid, cellOf(hero), [Math.floor(c.x), Math.floor(c.z)]);
+  let [x, z] = [c.x, c.z];
+  const s = w.stairs;
+  if (s && Math.floor(x) === s[0] && Math.floor(z) === s[1]) {
+    [x, z] = [s[0] + 0.5, s[1] + 0.5]; // 계단 칸 어디를 눌러도 중심으로
+    w.toStairs = true;
+  }
+  const p = findPath(w.grid, cellOf(hero), [Math.floor(x), Math.floor(z)]);
   if (!p) return;
-  hero.path = waypoints(p, c.x, c.z);
+  hero.path = waypoints(p, x, z);
   hero.target = null;
   hero.state = 'move'; // 휘두르는 중이었다면 취소
   hero.attackT = 0;

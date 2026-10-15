@@ -321,8 +321,34 @@ test('계단이 있는 층은 몬스터를 다 잡아도 clear가 아니고, 사
   const [hero, m] = w.entities;
   m.state = 'dead';
   expect(outcome(w)).toBeNull();
-  hero.x = 4.5;
+  run(w, 70, [{ type: 'move', x: 4.5, z: 0.5 }]);
   expect(outcome(w)).toBe('descend');
   hero.state = 'dead';
   expect(outcome(w)).toBe('dead');
+});
+
+test('계단을 지나가기만 하면 내려가지 않는다', () => {
+  const w = createWorld(1, ['H.>..']);
+  step(w, [{ type: 'move', x: 4.5, z: 0.5 }]);
+  for (let i = 0; i < 90; i++) {
+    step(w, []);
+    expect(outcome(w)).toBeNull();
+  }
+  expect(w.entities[0].x).toBe(4.5);
+});
+
+test('계단 칸 가장자리를 눌러도 계단 중심으로 가서 내려간다', () => {
+  const w = createWorld(1, ['H..>', '....']);
+  run(w, 70, [{ type: 'move', x: 3.95, z: 0.95 }]);
+  expect(outcome(w)).toBe('descend');
+});
+
+test('계단으로 가다가 다른 명령을 내리면 내려가지 않는다', () => {
+  const w = createWorld(1, ['H.>..']);
+  step(w, [{ type: 'move', x: 2.5, z: 0.5 }]);
+  step(w, [{ type: 'move', x: 4.5, z: 0.5 }]);
+  for (let i = 0; i < 90; i++) {
+    step(w, []);
+    expect(outcome(w)).toBeNull();
+  }
 });
