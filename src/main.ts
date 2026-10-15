@@ -120,9 +120,9 @@ initHud({
   restart,
   nextCycle,
   toggleMap: toggleAutomap,
-  toggleSound: () => {
-    sound.setMuted(!sound.muted);
-    showSound(sound.muted);
+  sound: (patch) => {
+    sound.setSound(patch);
+    showSound(sound.settings);
   },
   resume: () => {
     if (!saved) return;
@@ -137,7 +137,7 @@ initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 initLabels($('#labels'));
 sound.initSound();
 sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
-showSound(sound.muted);
+showSound(sound.settings);
 resetAutomap(world);
 showFloor(floor, cycle);
 // e.code: 한글 입력 상태에서도 물리 키

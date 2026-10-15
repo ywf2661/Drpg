@@ -5,6 +5,7 @@ import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
 import { renderer } from './render/render';
 import { setHeroGear } from './render/sprites';
+import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
 import { offers, type ShopItem, type Wallet } from './shop';
 import { FLOORS } from './sim/dungeon';
@@ -47,7 +48,7 @@ let shownGear = '';
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; restart(): void; nextCycle(): void; toggleMap(): void; toggleSound(): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -60,7 +61,14 @@ export function initHud(h: Handlers) {
   restartBtn.addEventListener('click', h.restart); // 모바일용
   nextCycleBtn.addEventListener('click', h.nextCycle);
   $('#map-btn').addEventListener('click', h.toggleMap);
-  soundBtn.addEventListener('click', h.toggleSound);
+  const panel = $('#sound-panel');
+  soundBtn.addEventListener('click', () => (panel.hidden = !panel.hidden));
+  const sfx = $('#sfx-vol') as HTMLInputElement;
+  const music = $('#music-vol') as HTMLInputElement;
+  const mute = $('#mute') as HTMLInputElement;
+  sfx.addEventListener('input', () => h.sound({ sfx: +sfx.value / 100 }));
+  music.addEventListener('input', () => h.sound({ music: +music.value / 100 }));
+  mute.addEventListener('change', () => h.sound({ muted: mute.checked }));
   continueBtn.addEventListener('click', h.resume);
   newGameBtn.addEventListener('click', h.newGame);
 }
@@ -78,8 +86,12 @@ export function showFloor(n: number, cycle: number) {
   replay(floorTitle);
 }
 
-export function showSound(muted: boolean) {
-  soundBtn.textContent = muted ? '소리 꺼짐' : '소리';
+// 소리 버튼 글자와 패널의 값을 설정에 맞춘다
+export function showSound(s: SoundSettings) {
+  soundBtn.textContent = s.muted ? '소리 꺼짐' : '소리';
+  ($('#sfx-vol') as HTMLInputElement).value = String(Math.round(s.sfx * 100));
+  ($('#music-vol') as HTMLInputElement).value = String(Math.round(s.music * 100));
+  ($('#mute') as HTMLInputElement).checked = s.muted;
 }
 
 export function showLoadError(err: unknown) {

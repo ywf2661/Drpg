@@ -35,18 +35,33 @@ const FILES: Record<SoundName, string[]> = {
 const VOLUME = 0.5;
 const HEAR = 12; // 이 거리(m) 밖의 소리는 들리지 않는다
 const GAP = 0.05; // 같은 소리는 이 간격(초) 안에 한 번만
-const MUTE_KEY = 'drpg-muted';
+const SETTINGS_KEY = 'drpg-sound';
 let ctx: AudioContext | null = null;
 const buffers = new Map<string, AudioBuffer>();
 const lastAt = new Map<SoundName, number>();
-export let muted = load();
+export type SoundSettings = { sfx: number; music: number; muted: boolean }; // 음량 0~1
+export let settings = loadSettings();
 export let played = 0; // 헤드리스 확인용 재생 횟수
 
-function load() {
+// 저장된 소리 설정. 없거나 이상하면 기본값, 음량은 0~1로 자른다
+export function parseSound(text: string | null): SoundSettings {
+  const def: SoundSettings = { sfx: 1, music: 1, muted: false };
+  let d: Record<string, unknown>;
   try {
-    return localStorage.getItem(MUTE_KEY) === '1';
+    d = JSON.parse(text ?? 'null');
   } catch {
-    return false;
+    return def;
+  }
+  if (!d || typeof d !== 'object') return def;
+  const vol = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback);
+  return { sfx: vol(d.sfx, 1), music: vol(d.music, 1), muted: d.muted === true };
+}
+
+function loadSettings(): SoundSettings {
+  try {
+    return parseSound(localStorage.getItem(SETTINGS_KEY));
+  } catch {
+    return parseSound(null);
   }
 }
 
@@ -58,8 +73,9 @@ export function musicFor(floor: number) {
 // 곡을 정한다. 소리를 켠 뒤(첫 입력 이후)에만 실제로 재생
 export function playMusic(name: string) {
   track = name;
-  if (!ctx || muted) return;
-  music ??= Object.assign(new Audio(), { loop: true, volume: MUSIC_VOLUME });
+  if (!ctx || settings.muted || settings.music === 0) return music?.pause();
+  music ??= Object.assign(new Audio(), { loop: true });
+  music.volume = MUSIC_VOLUME * settings.music;
   if (loaded !== name) {
     loaded = name;
     music.src = MUSIC[`../assets/music/${name}.ogg`];
@@ -67,12 +83,12 @@ export function playMusic(name: string) {
   music.play().catch(() => {}); // 재생 못 하면(형식·정책) 조용히
 }
 
-export function setMuted(m: boolean) {
-  muted = m;
-  if (m) music?.pause();
-  else playMusic(track);
+// 설정 일부를 바꾸고 바로 적용·저장
+export function setSound(patch: Partial<SoundSettings>) {
+  settings = { ...settings, ...patch };
+  playMusic(track);
   try {
-    localStorage.setItem(MUTE_KEY, m ? '1' : '0');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch {
     // 저장 못 해도 이번 세션에는 적용된다
   }
@@ -98,7 +114,7 @@ export function initSound() {
 }
 
 export function play(events: SoundEvent[], hx: number, hz: number) {
-  if (!ctx || muted) return;
+  if (!ctx || settings.muted || settings.sfx === 0) return;
   for (const e of events) {
     const gain = Math.max(0, 1 - Math.hypot(e.x - hx, e.z - hz) / HEAR);
     if (gain <= 0 || ctx.currentTime - (lastAt.get(e.name) ?? -1) < GAP) continue;
@@ -108,7 +124,7 @@ export function play(events: SoundEvent[], hx: number, hz: number) {
     lastAt.set(e.name, ctx.currentTime);
     const src = ctx.createBufferSource();
     const vol = ctx.createGain();
-    vol.gain.value = VOLUME * gain;
+    vol.gain.value = VOLUME * settings.sfx * gain;
     src.buffer = buf;
     src.connect(vol).connect(ctx.destination);
     src.start();
