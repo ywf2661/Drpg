@@ -7,7 +7,7 @@
     <link rel="icon" href="data:," />
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0a09; color: #e8dcc8; font: 14px system-ui, sans-serif; }
-      canvas { display: block; image-rendering: pixelated; }
+      canvas { display: block; image-rendering: pixelated; touch-action: none; } /* 터치 드래그를 브라우저 스크롤·확대가 가로채지 않게 */
       [hidden] { display: none !important; }
       body::after { content: ''; position: fixed; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, #000c 100%); }
       #hp, #target, #banner { z-index: 2; }

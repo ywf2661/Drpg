@@ -28,6 +28,7 @@ export function initInput() {
     repeatT = 0;
   });
   addEventListener('pointerup', () => (held = false));
+  addEventListener('pointercancel', () => (held = false)); // 시스템 제스처 등으로 터치가 취소된 경우
   addEventListener('blur', () => (held = false));
 }
 
