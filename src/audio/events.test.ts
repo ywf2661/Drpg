@@ -127,3 +127,11 @@ test('돌진 베기 시작', () => {
   w.dashes = 1;
   expect(names(soundEvents(prev, w))).toEqual(['dash']);
 });
+
+test('해골 왕 소환: 새로 생긴 엔티티는 비교하지 않고 소환음 하나', () => {
+  const w = createWorld(1, ['H...K....']);
+  const prev = snapshot(w);
+  const k = w.entities[1];
+  w.entities.push({ ...k, id: 2, kind: 'minion', summoner: 1, hp: 30, maxHp: 30 }, { ...k, id: 3, kind: 'minion', summoner: 1, hp: 30, maxHp: 30 });
+  expect(names(soundEvents(prev, w))).toEqual(['summon']);
+});

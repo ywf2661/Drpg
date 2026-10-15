@@ -21,6 +21,8 @@ export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: She
 const ELITE_TINT = new THREE.Color(1.35, 1.05, 0.45);
 const WHITE = new THREE.Color(1, 1, 1);
 const ELITE_SIZE = 1.25;
+const KING_TINT = new THREE.Color(0.95, 0.6, 1.35);
+const KING_SIZE = 1.5;
 
 // 주인공 시트 16장(무기 × 갑옷). URL만 알고, 그림은 장착할 때 불러온다
 const HERO_URLS = import.meta.glob('../assets/sprites/hero_*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
@@ -33,6 +35,7 @@ const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
   warrior: { info: warriorInfo as SheetInfo, url: warriorUrl },
   archer: { info: archerInfo as SheetInfo, url: archerUrl },
   mage: { info: mageInfo as SheetInfo, url: mageUrl },
+  king: { info: warriorInfo as SheetInfo, url: warriorUrl }, // 해골 왕 = 전사 그림을 크게·보라색으로
   boss: { info: bossInfo as SheetInfo, url: bossUrl },
 };
 const heroSheets = new Map<string, Promise<THREE.Texture>>(); // 불러온(불러오는 중인) 장비 조합
@@ -101,7 +104,7 @@ export async function loadSheet(url: string): Promise<THREE.Texture> {
 }
 
 export async function loadSprites() {
-  await Promise.all((['minion', 'warrior', 'archer', 'mage', 'boss'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
+  await Promise.all((['minion', 'warrior', 'archer', 'mage', 'king', 'boss'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
 }
 
 // 장비 조합의 주인공 시트로 바꾼다. 불러오는 동안은 이전 외형, 여러 번 바뀌면 마지막 요청만 적용
@@ -130,8 +133,8 @@ export function makeSprite(e: Entity): Sprite {
   const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
-  if (e.elite) mesh.scale.setScalar(ELITE_SIZE);
-  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0, tint: e.elite ? ELITE_TINT : WHITE };
+  if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0, tint: e.kind === 'king' ? KING_TINT : e.elite ? ELITE_TINT : WHITE };
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }

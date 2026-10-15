@@ -140,6 +140,7 @@ Files used:
   mods/fantasycore/soundfx/powers/shoot.ogg
   mods/fantasycore/soundfx/powers/fireball.ogg
   mods/fantasycore/soundfx/powers/burn.ogg
+  mods/fantasycore/soundfx/powers/teleport.ogg
   mods/fantasycore/music/dungeon_theme.ogg
   mods/fantasycore/music/boss_theme.ogg
   mods/fantasycore/images/cursors/cursor_normal.png

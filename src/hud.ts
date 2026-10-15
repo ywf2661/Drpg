@@ -20,6 +20,7 @@ const targetName = $('#target span');
 const targetFill = $('#target i');
 const bossBar = $('#boss');
 const bossFill = $('#boss i');
+const bossName = $('#boss span');
 const banner = $('#banner');
 const bannerText = $('#banner p');
 const summary = $('#summary');
@@ -173,9 +174,13 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     showGear(world.gear);
     void setHeroGear(world.gear);
   }
-  const boss = world.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
-  bossBar.hidden = !boss || Math.hypot(boss.x - hero.x, boss.z - hero.z) > BOSS_BAR_RANGE;
-  if (boss) bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;
+  // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
+  const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
+  bossBar.hidden = !boss;
+  if (boss) {
+    bossName.textContent = STATS[boss.kind].name;
+    bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;
+  }
   target.classList.toggle('below', !bossBar.hidden);
   const id = hovered ?? hero.target; // 마우스 오버가 없으면(모바일) 공격 중인 대상
   const m = id === null ? null : world.entities[id];

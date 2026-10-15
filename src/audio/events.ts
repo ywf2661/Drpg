@@ -5,7 +5,7 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'gold' | 'dash' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'gold' | 'summon' | 'dash' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
@@ -39,7 +39,7 @@ export function snapshot(w: World): Snapshot {
   };
 }
 
-const VOICE = { hero: 'hero', minion: 'skel', warrior: 'skel', archer: 'skel', mage: 'skel', boss: 'boss' } as const;
+const VOICE = { hero: 'hero', minion: 'skel', warrior: 'skel', archer: 'skel', mage: 'skel', king: 'skel', boss: 'boss' } as const;
 
 export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (prev.world !== w) return []; // 새 층: 비교하지 않는다
@@ -48,6 +48,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   const at = (name: SoundName, x = hero.x, z = hero.z) => out.push({ name, x, z });
   w.entities.forEach((e, i) => {
     const p = prev.ents[i];
+    if (!p) return; // 이번 프레임에 새로 생긴 엔티티(소환)
     const v = VOICE[e.kind];
     const swung = e.state === 'attack' && (p.state !== 'attack' || e.attackT < p.attackT);
     const ranged = e.kind === 'archer' || e.kind === 'mage'; // 원거리는 쏠 때 소리
@@ -58,6 +59,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   });
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' ? 'fireball' : 'shoot', s.x, s.z);
   for (const b of w.blasts) if (!prev.blasts.has(b.id)) at('blast', b.x, b.z);
+  if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
   if (w.potions !== prev.potions) at('potion');
   if (w.gold > prev.gold) at('gold');
   if (w.items.some((i) => !prev.items.has(i.id))) at('loot', w.items[w.items.length - 1].x, w.items[w.items.length - 1].z);
