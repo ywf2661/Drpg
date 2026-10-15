@@ -5,7 +5,7 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'shoot' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'shoot' | 'cleave' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
@@ -15,6 +15,7 @@ export type Snapshot = {
   items: Set<number>;
   shots: Set<number>;
   level: number;
+  cleaves: number;
 };
 
 export function snapshot(w: World): Snapshot {
@@ -26,6 +27,7 @@ export function snapshot(w: World): Snapshot {
     items: new Set(w.items.map((i) => i.id)),
     shots: new Set(w.shots.map((s) => s.id)),
     level: w.level,
+    cleaves: w.cleaves,
   };
 }
 
@@ -50,5 +52,6 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (w.gear.weapon > prev.gear.weapon) at('equip_weapon');
   if (w.gear.armor > prev.gear.armor) at('equip_armor');
   if (w.level > prev.level) at('level_up');
+  if (w.cleaves > prev.cleaves) at('cleave');
   return out;
 }

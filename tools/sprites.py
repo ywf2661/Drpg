@@ -55,6 +55,7 @@ SOUND_FILES = ['level_up', 'melee_attack', 'melee_attack_2', 'melee_attack_3', '
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
                'inventory/inventory_potion', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
+SKILL_ICON = 22  # 가르기(Cleave)
 CURSORS = ['cursor_normal', 'cursor_attack']
 CANVAS, FOOT = 512, (256, 384)  # 합성용 캔버스와 그 안의 발 위치
 TILE_SCALE = 42.43 / 192  # FLARE 타일 1개(마름모 가로 192px) = 우리 칸 1개(화면 42.4px)
@@ -254,22 +255,24 @@ def tiles():
     pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
 
 
-def arrow():
-    # 화살: FLARE powers/arrows 'power' 동작(8방향 3프레임). 기준점 아래로 비행 높이가 들어 있다
-    sh = sheet('powers/arrows')
+def effect(name, src):
+    # FLARE 기술 효과('power' 동작, 8방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
+    # — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
+    sh = sheet(f'powers/{src}')
     a = sh.anims['power']
     n = int(a['frames'])
     frames = {}
     for d in range(8):
         for i in range(n):
             x, y, w, h, ox, oy = a['rects'][(i, d)]
-            frames[('fly', d, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
-    # 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함 — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
+            frames[('fly' if name == 'arrow' else name, d, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
     x0 = min(min(o[0] for _, o in frames.values()), FOOT[0])
-    y0 = min(o[1] for _, o in frames.values())
+    y0 = min(min(o[1] for _, o in frames.values()), FOOT[1])
     x1 = max(max(o[0] + im.width for im, o in frames.values()), FOOT[0] + 1)
     y1 = max(max(o[1] + im.height for im, o in frames.values()), FOOT[1] + 1)
-    pack('arrow', frames, {'fly': (n, int(a['duration'].removesuffix('ms')), 'looped')}, SCALE, 8, bbox=(x0, y0, x1, y1))
+    loop = 'looped' if a.get('type') == 'looped' else 'play_once'
+    clip = 'fly' if name == 'arrow' else name
+    pack(name, frames, {clip: (n, int(a['duration'].removesuffix('ms')), loop)}, SCALE, 8, bbox=(x0, y0, x1, y1))
 
 
 def loot():
@@ -293,6 +296,7 @@ def loot():
         return icons.crop((x, y, x + 64, y + 64))
 
     icon(POTION_ICON).save(SHEETS / 'potion_icon.png', optimize=True)
+    icon(SKILL_ICON).save(SHEETS / 'skill_icon.png', optimize=True)
     strip = Image.new('RGBA', (64 * len(GEAR_ICONS), 64))
     for k, i in enumerate(GEAR_ICONS):
         strip.paste(icon(i), (64 * k, 0))
@@ -328,7 +332,8 @@ if __name__ == '__main__':
     TILES.mkdir(parents=True, exist_ok=True)
     for kind in KINDS:
         pack(kind, *frames_of(KINDS[kind], KIND_ANIMS.get(kind, ANIMS)), KIND_SCALE.get(kind, SCALE), 8)
-    arrow()
+    effect('arrow', 'arrows')  # 화살: 8방향 3프레임, 기준점 위로 비행 높이가 들어 있다
+    effect('cleave', 'cleave')
     hero()
     tiles()
     loot()

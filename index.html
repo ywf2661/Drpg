@@ -19,7 +19,9 @@
       #xp { height: 4px; margin-top: 2px; background: #1a1608; border: 1px solid #000; }
       #xp i { display: block; width: 0; height: 100%; background: #d0a030; }
       #level { position: absolute; left: 0; bottom: 24px; font-size: 12px; color: #d0c0a0; text-shadow: 0 1px 2px #000; }
-      #potion, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      #potion, #skill, .slot { position: relative; width: 40px; height: 40px; padding: 0; background-color: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      #skill { background-size: 40px 40px; image-rendering: pixelated; overflow: hidden; }
+      #skill i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #000b; }
       .slot { background-size: 320px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
       #potion img { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
       #potion span { position: absolute; right: 2px; bottom: 0; font-size: 12px; color: #e8dcc8; text-shadow: 0 1px 2px #000; }
@@ -34,7 +36,7 @@
       #restart { pointer-events: auto; font: inherit; font-size: 20px; padding: 10px 28px; color: #e8dcc8; background: #2a1414; border: 1px solid #b3261e; cursor: pointer; }
       html { cursor: url(sprites/cursor_normal.png) 0 0, auto; }
       canvas.attack { cursor: url(sprites/cursor_attack.png) 0 0, crosshair; }
-      #credits-btn { position: fixed; right: 12px; bottom: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: none; border: 1px solid #3a3530; padding: 4px 10px; cursor: inherit; }
+      #credits-btn { position: fixed; right: 150px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: none; border: 1px solid #3a3530; padding: 4px 10px; cursor: inherit; }
       #credits { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
       #credits a { color: #e0a060; }
       #credits::backdrop { background: #000a; }
@@ -44,6 +46,7 @@
       #automap { position: fixed; right: 12px; top: 40px; z-index: 2; background: #000a; border: 1px solid #3a3530; pointer-events: none; }
       #map-btn { position: fixed; right: 12px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: #0008; border: 1px solid #3a3530; padding: 3px 10px; cursor: inherit; }
       #sound-btn { position: fixed; right: 64px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: #0008; border: 1px solid #3a3530; padding: 3px 10px; cursor: inherit; }
+      @media (max-width: 600px) { #boss, #target { top: 148px; } #target.below { top: 194px; } } /* 좁은 화면: 위쪽 버튼·지도 아래로 */
       #toast { position: fixed; left: 0; right: 0; bottom: 70px; z-index: 2; text-align: center; font-size: 18px; color: #f0c060; text-shadow: 0 1px 3px #000; pointer-events: none; opacity: 0; }
       #toast.show { animation: floor-title 2s ease-out; }
       @keyframes floor-title { 0% { opacity: 0; } 15%, 60% { opacity: 1; } 100% { opacity: 0; } }
@@ -54,6 +57,7 @@
     <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
     <div id="hud">
       <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
+      <button id="skill" title="가르기 (우클릭 / E): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
       <button id="potion" title="물약 마시기 (Q)"><img alt="물약" /><span>0</span></button>
       <div id="weapon" class="slot"></div>
       <div id="armor" class="slot"></div>

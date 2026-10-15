@@ -5,6 +5,8 @@ import lootInfo from '../assets/sprites/loot.json';
 import lootUrl from '../assets/sprites/loot.png';
 import arrowInfo from '../assets/sprites/arrow.json';
 import arrowUrl from '../assets/sprites/arrow.png';
+import cleaveInfo from '../assets/sprites/cleave.json';
+import cleaveUrl from '../assets/sprites/cleave.png';
 import propsInfo from '../assets/sprites/props.json';
 import propsUrl from '../assets/sprites/props.png';
 import stairsInfo from '../assets/sprites/stairs.json';
@@ -34,10 +36,13 @@ const props: Sheet = { info: propsInfo as SheetInfo, url: propsUrl };
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
 const arrow: Sheet = { info: arrowInfo as SheetInfo, url: arrowUrl };
+const cleaveFx: Sheet = { info: cleaveInfo as SheetInfo, url: cleaveUrl };
 let cards: Card[] = [];
 let group = new THREE.Group();
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
+let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
+let cleavesSeen = 0;
 let lights: THREE.PointLight[] = [];
 let time = 0;
 export let braziers: { x: number; z: number }[] = []; // 화로 위치(월드 좌표, 칸 중심)
@@ -56,7 +61,7 @@ export function floorVariant(x: number, z: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [props, stairs, loot, arrow]) {
+  for (const s of [props, stairs, loot, arrow, cleaveFx]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -78,6 +83,27 @@ const free = (c: Card) => {
   c.mat.map!.dispose();
   c.mat.dispose();
 };
+
+// 가르기가 새로 일어났으면 주인공 위치·방향에 효과를 한 번 재생
+export function syncEffects(world: World) {
+  if (world.cleaves > cleavesSeen) {
+    const hero = world.entities[0];
+    const c = card(cleaveFx, 'cleave', hero.x, hero.z, false);
+    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing) });
+    c.mesh.renderOrder = 2;
+    effects.push(c);
+    cards.push(c);
+    group.add(c.mesh);
+  }
+  cleavesSeen = world.cleaves;
+  effects = effects.filter((c) => {
+    if (c.t * 1000 < c.clip.ms) return true;
+    c.mesh.removeFromParent();
+    free(c);
+    cards.splice(cards.indexOf(c), 1);
+    return false;
+  });
+}
 
 // 날아가는 화살 판자를 world.shots에 맞춘다(위치는 매 프레임)
 export function syncShots(world: World) {
@@ -131,6 +157,8 @@ export function buildProps(world: World): THREE.Group {
   cards.forEach(free);
   items.clear();
   shots.clear();
+  effects = [];
+  cleavesSeen = world.cleaves;
   for (const l of lights) l.dispose();
   cards = world.props.map((p) => {
     const names = VARIANTS[p.kind];

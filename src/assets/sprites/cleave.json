@@ -1,0 +1,21 @@
+{
+  "cell": [
+    90,
+    46
+  ],
+  "anchor": [
+    45,
+    23
+  ],
+  "ppm": 30,
+  "cols": 6,
+  "rows": 8,
+  "anims": {
+    "cleave": {
+      "row": 0,
+      "frames": 6,
+      "ms": 400,
+      "loop": "play_once"
+    }
+  }
+}

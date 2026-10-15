@@ -22,7 +22,14 @@ export let hovered: number | null = null;
 export function initInput() {
   const el = renderer.domElement;
   el.addEventListener('pointermove', setPointer);
+  el.addEventListener('contextmenu', (e) => e.preventDefault()); // 우클릭 = 가르기
   el.addEventListener('pointerdown', (e) => {
+    if (e.button === 2) {
+      setPointer(e);
+      ray.setFromCamera(pointer, camera);
+      if (ray.ray.intersectPlane(ground, hit)) commands.push({ type: 'skill', x: hit.x, z: hit.z });
+      return;
+    }
     if (e.button !== 0) return;
     setPointer(e);
     clickAt.copy(pointer);

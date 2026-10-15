@@ -28,6 +28,8 @@ Files used:
   mods/fantasycore/images/enemies/minotaur/minotaur_die.png
   mods/fantasycore/animations/powers/arrows.txt
   mods/fantasycore/images/powers/arrows.png
+  mods/fantasycore/animations/powers/cleave.txt
+  mods/fantasycore/images/powers/cleave.png
   mods/fantasycore/animations/avatar/male/head_short.txt
   mods/fantasycore/images/avatar/male/head_short.png
   mods/fantasycore/animations/avatar/male/cloth_shirt.txt

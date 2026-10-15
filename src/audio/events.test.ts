@@ -80,3 +80,10 @@ test('궁수: 활을 당길 때가 아니라 화살이 나갈 때 shoot, 피격�
   a.hp -= 3;
   expect(names(soundEvents(prev, w))).toEqual(['skel_hit', 'shoot']);
 });
+
+test('가르기 타격', () => {
+  const w = createWorld(1, ['H..']);
+  const prev = snapshot(w);
+  w.cleaves = 1;
+  expect(names(soundEvents(prev, w))).toEqual(['cleave']);
+});

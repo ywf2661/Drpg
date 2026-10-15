@@ -2,12 +2,13 @@ import gearIcons from './assets/sprites/gear_icons.png';
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
 import potionIcon from './assets/sprites/potion_icon.png';
+import skillIcon from './assets/sprites/skill_icon.png';
 import { commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { draw, initRender, renderer, setWorld } from './render/render';
 import { setHeroGear } from './render/sprites';
 import { FLOORS, generateFloor } from './sim/dungeon';
-import { ARMORS, createWorld, DT, outcome, setLevel, STATS, step, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
+import { ARMORS, createWorld, DT, outcome, setLevel, SKILL, STATS, step, WEAPONS, xpToNext, type Gear, type World } from './sim/world';
 
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -25,6 +26,8 @@ const weaponSlot = $('#weapon');
 const armorSlot = $('#armor');
 const toast = $('#toast');
 const xpFill = $('#xp i');
+const skillBtn = $('#skill');
+const skillShade = $('#skill i');
 const levelLabel = $('#level');
 const bossBar = $('#boss');
 const bossFill = $('#boss i');
@@ -116,16 +119,20 @@ function restart() {
   else if (o === 'clear') enterFloor(1, START);
 }
 const drink = () => commands.push({ type: 'drink' });
+const skill = () => commands.push({ type: 'skill' });
 // e.code: 한글 입력 상태에서도 물리 키
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') restart();
   else if (e.code === 'KeyQ' || e.code === 'Digit1') drink();
+  else if (e.code === 'KeyE' || e.code === 'Digit2') skill();
   else if (e.code === 'KeyM') toggleAutomap();
 });
 restartBtn.addEventListener('click', restart); // 모바일용
 $('#map-btn').addEventListener('click', toggleAutomap);
 potionBtn.querySelector('img')!.src = potionIcon;
 potionBtn.addEventListener('click', drink);
+skillBtn.style.backgroundImage = `url(${skillIcon})`;
+skillBtn.addEventListener('click', skill);
 for (const slot of [weaponSlot, armorSlot]) slot.style.backgroundImage = `url(${gearIcons})`;
 
 let acc = 0;
@@ -155,6 +162,7 @@ function hud() {
     replay(toast);
   }
   shownLevel = world.level;
+  skillShade.style.height = `${(world.skillCd / SKILL.cd) * 100}%`; // 재사용 대기 남은 비율
   potionCount.textContent = String(world.potions);
   potionBtn.classList.toggle('empty', world.potions === 0);
   const key = gearKey(world.gear);
