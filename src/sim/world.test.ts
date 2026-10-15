@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { ARMORS, attackInterval, createWorld, DT, outcome, RADIUS, STATS, step, WEAPONS, type Command, type World } from './world';
+import { ARMORS, attackInterval, createWorld, DT, outcome, RADIUS, setLevel, STATS, step, WEAPONS, xpToNext, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
 const MAP = [
@@ -532,14 +532,15 @@ test('M은 보스: 5층 기준 수치라 층 배율을 쓰지 않는다', () => 
   const w = createWorld(1, ['H...M'], 1.8);
   const b = w.entities[1];
   expect(b.kind).toBe('boss');
-  expect([b.maxHp, b.power]).toEqual([300, 1]);
+  expect([b.maxHp, b.power]).toEqual([600, 1]);
 });
 
 // 주인공이 보스만 공격하고 체력이 40 미만이면 물약을 마신다. 이기면 true
-function bossFight(seed: number, gear: { weapon: number; armor: number }, potions: number) {
+function bossFight(seed: number, gear: { weapon: number; armor: number }, potions: number, level = 1) {
   const w = createWorld(seed, ['H.M']);
   w.gear = gear;
   w.potions = potions;
+  setLevel(w, level, 0);
   for (let t = 0; t < 120 / DT && !outcome(w); t++) {
     const cmds: Command[] = t === 0 ? [{ type: 'attack', targetId: 1 }] : [];
     if (w.entities[0].hp < 40) cmds.push({ type: 'drink' });
@@ -548,11 +549,13 @@ function bossFight(seed: number, gear: { weapon: number; armor: number }, potion
   return outcome(w) === 'clear';
 }
 
-test('보스 밸런스: 물약을 써야 이긴다(시작 장비 + 4개, 최고 장비 + 2개면 대체로 승리, 최고 장비라도 물약 없으면 패배)', () => {
+test('보스 밸런스: 5층에 올 만한 레벨(8)이라도 물약을 써야 이기고, 레벨이 낮으면 진다', () => {
   const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
-  expect(seeds.filter((s) => bossFight(s, { weapon: 2, armor: 2 }, 4)).length).toBeGreaterThan(30);
-  expect(seeds.filter((s) => bossFight(s, { weapon: 4, armor: 4 }, 2)).length).toBeGreaterThan(30);
-  expect(seeds.filter((s) => bossFight(s, { weapon: 4, armor: 4 }, 0)).length).toBeLessThan(10);
+  const wins = (gear: { weapon: number; armor: number }, potions: number, level: number) =>
+    seeds.filter((s) => bossFight(s, gear, potions, level)).length;
+  expect(wins({ weapon: 3, armor: 3 }, 3, 8)).toBeGreaterThan(30);
+  expect(wins({ weapon: 3, armor: 3 }, 0, 8)).toBeLessThan(10);
+  expect(wins({ weapon: 2, armor: 2 }, 4, 1)).toBeLessThan(10);
 });
 
 test('보스가 있는 층은 보스가 죽으면 클리어(다른 몬스터 생존 무관)', () => {
@@ -573,4 +576,50 @@ test('보스는 아무것도 떨어뜨리지 않는다', () => {
     expect(w.entities[1].state).toBe('dead');
     expect(w.items).toEqual([]);
   }
+});
+
+// 주인공 옆 몬스터 한 마리를 체력 1로 만들어 잡는다
+const slay = (w: World, id = 1) => {
+  w.entities[id].hp = 1;
+  run(w, 90, [{ type: 'attack', targetId: id }]);
+  expect(w.entities[id].state).toBe('dead');
+};
+
+test('처치 경험치: 졸개 10·전사 25 × 몬스터 층 배율, 보스 0', () => {
+  const a = createWorld(1, ['Hm'], 1.4);
+  slay(a);
+  expect([a.level, a.xp]).toEqual([1, 14]);
+  const b = createWorld(1, ['Hw']);
+  slay(b);
+  expect(b.xp).toBe(25);
+  const c = createWorld(1, ['HM']);
+  slay(c);
+  expect(c.xp).toBe(0);
+});
+
+test('레벨업: 경계에서 오르고 남는 경험치는 이월, 한 번에 여러 레벨, 체력 완전 회복', () => {
+  expect([1, 2, 3].map(xpToNext)).toEqual([40, 70, 100]);
+  const w = createWorld(1, ['Hm']);
+  setLevel(w, 1, 35);
+  w.entities[0].hp = 20;
+  slay(w);
+  expect([w.level, w.xp]).toEqual([2, 5]);
+  expect([w.entities[0].hp, w.entities[0].maxHp]).toEqual([110, 110]);
+  const big = createWorld(1, ['Hw'], 5); // 125 경험치: 40 + 70 + 15
+  setLevel(big, 1, 0);
+  slay(big);
+  expect([big.level, big.xp]).toEqual([3, 15]);
+});
+
+test('setLevel은 주인공 최대 체력·체력을 맞추고, 레벨은 주인공 데미지를 5%씩 올린다', () => {
+  const w = createWorld(3, ['Hw.'], 1);
+  setLevel(w, 11, 7);
+  expect([w.level, w.xp, w.entities[0].maxHp, w.entities[0].hp]).toEqual([11, 7, 200, 200]);
+  w.gear.weapon = 1; // 단검 4–7 × 1.5
+  const m = w.entities[1];
+  m.hp = m.maxHp = 1000;
+  w.entities[0].hp = w.entities[0].maxHp = 1e6;
+  run(w, Math.round((0.6 * 10) / DT), [{ type: 'attack', targetId: 1 }]);
+  expect(1000 - m.hp).toBeGreaterThanOrEqual(6 * 9);
+  expect(1000 - m.hp).toBeLessThanOrEqual(11 * 11);
 });

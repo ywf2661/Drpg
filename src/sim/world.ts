@@ -32,6 +32,7 @@ export type Gear = { weapon: number; armor: number };
 
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
 // potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
+// level·xp: 주인공 레벨과 현재 레벨에서 쌓인 경험치
 export type World = {
   grid: Grid;
   entities: Entity[];
@@ -44,6 +45,8 @@ export type World = {
   potions: number;
   gear: Gear;
   maxTier: number;
+  level: number;
+  xp: number;
 };
 
 export const DT = 1 / 60;
@@ -56,6 +59,27 @@ export const REPATH = 0.5;
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
 export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
 export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, boss: 0 };
+// 처치 경험치(× 몬스터 층 배율). 레벨마다 최대 체력 +10, 주인공 데미지 +5%
+export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, boss: 0 };
+export const xpToNext = (level: number) => 40 + 30 * (level - 1);
+const heroMaxHp = (level: number) => STATS.hero.hp + 10 * (level - 1);
+
+// 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
+export function setLevel(w: World, level: number, xp: number) {
+  w.level = level;
+  w.xp = xp;
+  const hero = w.entities[0];
+  hero.maxHp = hero.hp = heroMaxHp(level);
+}
+
+// 경험치를 얻고, 다음 레벨 몫을 넘을 때마다 레벨업(남는 양은 이월). 레벨업하면 체력 완전 회복
+function gainXp(w: World, n: number) {
+  w.xp += n;
+  const before = w.level;
+  while (w.xp >= xpToNext(w.level)) w.xp -= xpToNext(w.level++);
+  if (w.level !== before) setLevel(w, w.level, w.xp);
+}
+
 export const WEAPONS: { name: string; dmg: [number, number]; interval: number }[] = [
   { name: '단검', dmg: [4, 7], interval: 0.6 },
   { name: '숏소드', dmg: [6, 10], interval: 0.7 },
@@ -73,7 +97,7 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)
   minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
   warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
-  boss: { name: '미노타우르스', hp: 300, dmg: [10, 16], interval: 1.6, speed: 2.4 },
+  boss: { name: '미노타우르스', hp: 600, dmg: [14, 22], interval: 1.6, speed: 2.4 },
 };
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'M' 보스, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
@@ -105,7 +129,7 @@ export function createWorld(seed: number, map: string[], power = 1): World {
     return { id, ...s, facing: 0, hp, maxHp: hp, power: p, state: 'idle', path: [], target: null, attackT: 0, repathT: 0 };
   });
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, items: [], nextItem: 0, potions: 0, gear: { weapon: 3, armor: 1 }, maxTier: 2, level: 1, xp: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -246,7 +270,8 @@ function swing(w: World, e: Entity, t: Entity | null) {
 
 function damage(w: World, a: Entity, t: Entity) {
   const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
-  let dmg = Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power);
+  const bonus = a.kind === 'hero' ? 1 + 0.05 * (w.level - 1) : 1; // 레벨 보너스
+  let dmg = Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * a.power * bonus);
   if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - ARMORS[w.gear.armor - 1].reduce)));
   t.hp = Math.max(0, t.hp - dmg);
   if (t.hp > 0) return;
@@ -254,6 +279,7 @@ function damage(w: World, a: Entity, t: Entity) {
   t.path = [];
   t.target = null;
   if (t.kind === 'hero') return;
+  gainXp(w, Math.round(XP[t.kind] * t.power));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
   if (rand(w) < GEAR_DROP[t.kind]) drop(rand(w) < 0.5 ? 'weapon' : 'armor', 1 + Math.floor(rand(w) * w.maxTier));
