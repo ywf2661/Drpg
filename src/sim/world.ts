@@ -254,7 +254,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
   const hitAt = interval * HIT_AT;
   const before = e.attackT;
   e.attackT += DT;
-  if (t) face(e, t);
+  if (t && !e.skill) face(e, t); // 가르기는 조준한 쪽으로 나간다
   const hitNow = before < hitAt && e.attackT >= hitAt;
   if (e.skill && hitNow) cleave(w, e);
   else if (t && hitNow && canHit(w, e, t)) {
@@ -264,7 +264,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
   }
   if (e.attackT < interval) return;
   if (e.skill) {
-    e.skill = false; // 가르기는 한 번만 휘두르고 멈춘다
+    e.skill = false; // 가르기는 한 번만 휘두른다. 대상이 있으면 다음 틱에 기본 공격으로 돌아간다
     e.state = 'idle';
     e.attackT = 0;
     return;

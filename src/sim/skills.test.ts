@@ -62,3 +62,82 @@ test('도끼 던지기: 조준 방향으로 날아가 처음 닿는 적에게 12
   expect(wall.entities[1].hp).toBe(1000);
   expect(walkable(wall.grid, 2, 0)).toBe(false);
 });
+
+test('공격 중 가르기를 써도 끝나면 그 대상을 계속 공격한다', () => {
+  const w = createWorld(1, ['.....', '.Hm..', '.....']);
+  const [hero, m] = w.entities;
+  m.hp = m.maxHp = 1000; // 오래 버티게
+  for (let i = 0; i < 10; i++) step(w, i ? [] : [{ type: 'attack', targetId: 1 }]);
+  step(w, [{ type: 'skill' }]);
+  expect(hero.skill).toBe(true);
+  expect(hero.target).toBe(1);
+  while (hero.skill) step(w, []);
+  step(w, []);
+  expect(hero).toMatchObject({ state: 'attack', target: 1, skill: false });
+  const hp = m.hp;
+  for (let i = 0; i < 120; i++) step(w, []);
+  expect(m.hp).toBeLessThan(hp); // 기본 공격이 이어진다
+});
+
+test('다른 쪽을 조준한 가르기는 그쪽으로 나가고, 끝나면 대상에게 돌아온다', () => {
+  const w = createWorld(1, ['.....', 'm.H.m', '.....']);
+  const [hero, left, right] = w.entities;
+  left.x = hero.x - 1;
+  right.x = hero.x + 1;
+  left.hp = left.maxHp = right.hp = right.maxHp = 1000;
+  step(w, [{ type: 'attack', targetId: right.id }]);
+  step(w, [{ type: 'skill', x: 0, z: hero.z }]); // 왼쪽 조준
+  const [l0, r0] = [left.hp, right.hp];
+  while (hero.skill) step(w, []);
+  expect(left.hp).toBeLessThan(l0); // 조준한 쪽이 맞고
+  expect(right.hp).toBe(r0); // 대상 쪽은 가르기를 맞지 않는다
+  step(w, []);
+  expect(hero).toMatchObject({ target: right.id, state: 'attack' });
+});
+
+test('가르기 중 공격하던 대상을 다시 눌러도 가르기가 취소되지 않는다', () => {
+  const w = createWorld(1, ['.....', '.Hm..', '.....']);
+  const [hero, m] = w.entities;
+  m.hp = m.maxHp = 1000;
+  step(w, [{ type: 'attack', targetId: 1 }]);
+  step(w, [{ type: 'skill' }]);
+  step(w, [{ type: 'attack', targetId: 1 }]);
+  expect(hero.skill).toBe(true);
+  while (hero.skill) step(w, []);
+  expect(w.cleaves).toBe(1);
+});
+
+test('가르기 뒤 대상이 멀어졌으면 멈칫하지 않고 바로 쫓아간다', () => {
+  const w = createWorld(1, ['..........', '.Hm.......', '..........']);
+  const [hero, m] = w.entities;
+  m.hp = m.maxHp = 1000;
+  m.stunT = 100; // 몬스터는 가만히
+  for (let i = 0; i < 5; i++) step(w, i ? [] : [{ type: 'attack', targetId: 1 }]);
+  step(w, [{ type: 'skill' }]);
+  m.x = 7.5; // 사거리 밖으로
+  while (hero.skill) step(w, []);
+  step(w, []);
+  expect(hero.state).toBe('move');
+  expect(hero.target).toBe(1);
+});
+
+test('가르기로 대상이 죽으면 멈춘다', () => {
+  const w = createWorld(1, ['.....', '.Hm..', '.....']);
+  const [hero, m] = w.entities;
+  m.hp = 1;
+  step(w, [{ type: 'attack', targetId: 1 }]);
+  step(w, [{ type: 'skill' }]);
+  while (hero.skill) step(w, []);
+  step(w, []);
+  expect(m.state).toBe('dead');
+  expect(hero).toMatchObject({ state: 'idle', target: null });
+});
+
+test('대상 없이 쓴 가르기는 끝나면 그대로 멈춘다', () => {
+  const w = createWorld(1, ['.....', '.H...', '.....']);
+  const hero = w.entities[0];
+  step(w, [{ type: 'skill' }]);
+  while (hero.skill) step(w, []);
+  step(w, []);
+  expect(hero).toMatchObject({ state: 'idle', target: null });
+});

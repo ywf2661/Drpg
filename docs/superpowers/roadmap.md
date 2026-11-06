@@ -2,7 +2,7 @@
 
 - 갱신: 2026-11-06
 - 플레이: https://ywf2661.github.io/Drpg/
-- 방식: 단계마다 `docs/superpowers/specs/`에 설계서 → 테스트 먼저(TDD) → 구현 → 헤드리스 Chrome으로 PC·모바일 화면 확인 → `main`에 병합·푸시(GitHub Actions가 테스트·빌드 후 Pages 배포). 밸런스는 `src/sim/playthrough.test.ts`(봇이 1~5층을 10판 플레이)로 지킨다.
+- 방식: 단계마다 `docs/superpowers/specs/`에 설계서 → 테스트 먼저(TDD) → 구현 → 헤드리스 Chrome으로 PC·모바일 화면 확인 → `main`에 병합·푸시(GitHub Actions가 테스트·빌드 후 Pages 배포). 밸런스는 `src/sim/playthrough.test.ts`(봇이 1~5층을 30판 플레이)로 지킨다.
 
 ## 완료
 
