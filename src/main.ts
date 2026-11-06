@@ -95,7 +95,7 @@ function restart() {
   const o = outcome(world);
   if (o === 'dead') {
     stats.deaths++;
-    enterFloor(floor, { ...entry, autoEquip: world.autoEquip }); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로(설정은 지금 값)
+    enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
   } else if (o === 'clear') {
     stats = newStats();
     cycle = 0;
@@ -122,7 +122,9 @@ function renderBag() {
       renderBag();
     },
     auto: (on) => {
-      world.autoEquip = on;
+      // 설정은 진행이 아니므로 바로 저장한다(사망·새로고침에도 유지)
+      world.autoEquip = entry.autoEquip = on;
+      saveRun({ floor, ...entry, cycle, stats });
     },
   });
 }
@@ -186,7 +188,10 @@ showFloor(floor, cycle);
 const ended = () => ['dead', 'clear'].includes(outcome(world) ?? '');
 const SKILL_KEYS: Record<string, SkillName> = { KeyQ: 'cleave', KeyW: 'dash', KeyE: 'shout', KeyR: 'throw' };
 addEventListener('keydown', (e) => {
-  if (e.code === 'KeyI') return bag.open ? bag.close() : openBag();
+  if (e.code === 'KeyI') {
+    if (!e.repeat && !e.ctrlKey && !e.metaKey) (bag.open ? bag.close() : openBag()); // 누르고 있을 때·개발자 도구 단축키는 무시
+    return;
+  }
   if (document.querySelector('dialog[open]')) return; // 창을 보는 동안은 게임 키를 쌓지 않는다
   if (e.shiftKey && SKILL_KEYS[e.code]) return learn(SKILL_KEYS[e.code]); // Shift + 스킬 키 = 포인트로 단계 올리기
   if (e.code === 'KeyQ') skill();
@@ -205,8 +210,8 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  pollInput(world, dt);
   const paused = credits.open || help.open || bag.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  pollInput(world, dt, paused);
   if (paused) acc = 0;
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   const events = soundEvents(heard, world);

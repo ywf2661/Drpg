@@ -20,7 +20,7 @@ export function offers(c: Wallet): { item: ShopItem; price: number; ok: boolean 
   });
 }
 
-export const sellPrice = (it: BagItem) => 15 * it.tier + 25 * it.affixes.length;
+export const sellPrice = (it: BagItem) => 10 * it.tier + 15 * it.affixes.length;
 
 // 판 뒤의 새 상태. 잘못된 칸이면 받은 그대로
 export function sell<T extends Wallet>(c: T, i: number): T {

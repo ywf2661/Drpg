@@ -50,7 +50,7 @@ test('카드: 발 기준선 위는 서고, 아래(발끝·그림자·시체)는 
 test('시체는 아래 층(깊이 기록 없음)에, 산 캐릭터는 그 위에 그린다', () => {
   const w = createWorld(1, ['H.m']);
   const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
-  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, hitT: 0, tint: new THREE.Color(1, 1, 1) };
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, maxHp: 30, hitT: 0, tint: new THREE.Color(1, 1, 1) };
   const m = w.entities[1];
   updateSprite(s, m, 0.016, 1.2);
   expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([2, true]);
@@ -62,4 +62,18 @@ test('시체는 아래 층(깊이 기록 없음)에, 산 캐릭터는 그 위에
 test('화면 범위는 항상 렌더 픽셀 30개 = 1m', () => {
   expect(viewHalf(640, 360)).toEqual([640 / 60, 6]);
   expect(viewHalf(390, 844)).toEqual([6.5, 844 / 60]);
+});
+
+test('맞으면 피격 동작, 갑옷을 바꿔 체력이 줄면 피격 동작 없음', () => {
+  const w = createWorld(1, ['H..']);
+  const e = w.entities[0];
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 130, maxHp: 130, hitT: 0, tint: new THREE.Color(1, 1, 1) };
+  e.hp = 100;
+  e.maxHp = 100;
+  updateSprite(s, e, 0.016, 1);
+  expect(s.anim).toBe('stance');
+  e.hp = 90;
+  updateSprite(s, e, 0.016, 1);
+  expect(s.anim).toBe('hit');
 });

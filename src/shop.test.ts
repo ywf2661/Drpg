@@ -27,17 +27,17 @@ test('구매: 금화를 빼고 물약·장비를 올린다, 못 사면 그대로
   expect(base.gold).toBe(300);
 });
 
-test('판매 가격: 15 × 단계 + 25 × 옵션 수', () => {
-  expect(sellPrice({ kind: 'weapon', tier: 1, affixes: [] })).toBe(15);
-  expect(sellPrice({ kind: 'armor', tier: 4, affixes: [{ kind: 'life', value: 20 }, { kind: 'guard', value: 5 }] })).toBe(110);
+test('판매 가격: 10 × 단계 + 15 × 옵션 수', () => {
+  expect(sellPrice({ kind: 'weapon', tier: 1, affixes: [] })).toBe(10);
+  expect(sellPrice({ kind: 'armor', tier: 4, affixes: [{ kind: 'life', value: 20 }, { kind: 'guard', value: 5 }] })).toBe(70);
 });
 
 test('팔기: 그 칸을 빼고 금화를 더한다, 잘못된 칸이면 그대로(원본은 바꾸지 않음)', () => {
   const a = { kind: 'weapon' as const, tier: 2, affixes: [] };
   const b = { kind: 'armor' as const, tier: 1, affixes: [] };
   const c = { ...base, gold: 10, bag: [a, b] };
-  expect(sell(c, 0)).toEqual({ ...c, gold: 40, bag: [b] });
-  expect(sell(c, 1)).toEqual({ ...c, gold: 25, bag: [a] });
+  expect(sell(c, 0)).toEqual({ ...c, gold: 30, bag: [b] });
+  expect(sell(c, 1)).toEqual({ ...c, gold: 20, bag: [a] });
   for (const i of [-1, 2, 0.5, Number.NaN]) expect(sell(c, i)).toBe(c);
   expect(c.bag).toHaveLength(2);
 });

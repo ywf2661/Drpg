@@ -49,7 +49,13 @@ function setPointer(e: PointerEvent) {
   pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 }
 
-export function pollInput(world: World, dt: number) {
+// paused: 창을 보는 동안은 명령을 쌓지 않고 누름도 푼다(닫은 뒤 옛 지점으로 걸어가지 않게)
+export function pollInput(world: World, dt: number, paused: boolean) {
+  if (paused) {
+    held = clicked = false;
+    hovered = null;
+    return;
+  }
   if (clicked) {
     // 프레임 사이에 눌렀다 뗀 짧은 클릭도 한 번은 처리한다
     clicked = false;

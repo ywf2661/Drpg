@@ -10,6 +10,6 @@ test('봇이 5층 보스까지 깰 수 있고, 스킬을 쓰면 확실히 덜 �
   expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(9);
   for (const r of withSkills.filter((r) => r.cleared)) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
   expect(deaths(withSkills)).toBeLessThanOrEqual(15);
-  expect(deaths(without)).toBeGreaterThanOrEqual(8); // 너무 쉬워지면 걸린다
+  expect(deaths(without)).toBeGreaterThanOrEqual(8); // 너무 쉬워지면 걸린다. 지금 정확히 8(팔기 도입으로 13 → 8, 설계서 2026-11-06-bag §4)이라 여유가 없다
   expect(deaths(withSkills)).toBeLessThan(deaths(without));
 });

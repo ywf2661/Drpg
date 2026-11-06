@@ -17,7 +17,7 @@ export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 // tint: 불빛에 곱하는 고유 색(정예는 금빛)
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; hitT: number; tint: THREE.Color };
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; tint: THREE.Color };
 const ELITE_TINT = new THREE.Color(1.35, 1.05, 0.45);
 const WHITE = new THREE.Color(1, 1, 1);
 const ELITE_SIZE = 1.25;
@@ -134,15 +134,16 @@ export function makeSprite(e: Entity): Sprite {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
   if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
-  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, hitT: 0, tint: e.kind === 'king' ? KING_TINT : e.elite ? ELITE_TINT : WHITE };
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, tint: e.kind === 'king' ? KING_TINT : e.elite ? ELITE_TINT : WHITE };
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }
 
 // interval: 이 캐릭터의 휘두르기 시간(주인공은 무기마다 다름)
 export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number) {
-  if (e.hp < s.hp && e.state !== 'attack') s.hitT = HIT_SHOW;
+  if (e.hp < s.hp && e.maxHp === s.maxHp && e.state !== 'attack') s.hitT = HIT_SHOW; // 갑옷 교체로 줄어든 것은 맞은 것이 아니다
   s.hp = e.hp;
+  s.maxHp = e.maxHp;
   s.hitT -= dt;
   const anim = animFor(e, s.hitT);
   if (anim !== s.anim) {

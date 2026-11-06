@@ -9,7 +9,7 @@ export type SoundName =
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
-  ents: { hp: number; state: Entity['state']; attackT: number; phase: Entity['phase'] }[];
+  ents: { hp: number; maxHp: number; state: Entity['state']; attackT: number; phase: Entity['phase'] }[];
   potions: number;
   gold: number;
   bag: number;
@@ -28,7 +28,7 @@ export type Snapshot = {
 export function snapshot(w: World): Snapshot {
   return {
     world: w,
-    ents: w.entities.map((e) => ({ hp: e.hp, state: e.state, attackT: e.attackT, phase: e.phase })),
+    ents: w.entities.map((e) => ({ hp: e.hp, maxHp: e.maxHp, state: e.state, attackT: e.attackT, phase: e.phase })),
     potions: w.potions,
     gold: w.gold,
     bag: w.bag.length,
@@ -61,7 +61,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
     if (swung && !ranged) at(v === 'hero' ? 'swing' : `${v}_attack`, e.x, e.z);
     if (e.phase === 'windup' && p.phase !== 'windup') at('boss_attack', e.x, e.z); // 돌진 예고
     if (e.state === 'dead' && p.state !== 'dead') at(`${v}_die`, e.x, e.z);
-    else if (e.hp < p.hp) at(`${v}_hit`, e.x, e.z);
+    else if (e.hp < p.hp && e.maxHp === p.maxHp) at(`${v}_hit`, e.x, e.z); // 최대 체력이 바뀐 것(갑옷 교체)은 맞은 것이 아니다
   });
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
   for (const b of w.blasts) if (!prev.blasts.has(b.id)) at('blast', b.x, b.z);

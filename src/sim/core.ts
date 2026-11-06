@@ -53,15 +53,16 @@ export function isBetter(w: World, it: Item | BagItem): boolean {
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
 
-// 장비를 입고 벗은 장비를 돌려준다. '튼튼한'이 바뀌어도 체력은 늘지 않고, 줄어든 최대치를 넘는 만큼만 깎인다
-// (맞바꿈이 공짜라서, 늘어난 만큼 채우면 번갈아 입어 회복할 수 있다)
+// 장비를 입고 벗은 장비를 돌려준다. '튼튼한'이 바뀌면 체력 비율을 유지한다(맞바꿈이 공짜라서 이득도 손해도 없게).
+// 반올림하지 않는다: 서로 다른 갑옷을 번갈아 입을 때 반올림이 쌓이면 체력이 오를 수 있다
 export function wear(w: World, it: BagItem): BagItem {
   const old: BagItem = { kind: it.kind, tier: w.gear[it.kind], affixes: w.mods[it.kind] };
   w.gear[it.kind] = it.tier;
   w.mods[it.kind] = it.affixes;
   const hero = w.entities[0];
-  hero.maxHp = heroMax(w);
-  hero.hp = Math.min(hero.hp, hero.maxHp);
+  const max = heroMax(w);
+  hero.hp *= max / hero.maxHp;
+  hero.maxHp = max;
   return old;
 }
 

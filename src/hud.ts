@@ -198,6 +198,11 @@ function say(text: string) {
   replay(toast);
 }
 
+// 팔기·버리기는 목록이 바로 올라오므로, 더블클릭의 두 번째가 아래 장비까지 없애지 않게 무시한다
+const once = (fn: () => void) => (e: MouseEvent) => {
+  if (e.detail <= 1) fn();
+};
+
 // 보관함 창의 장비 한 줄: 아이콘, 등급 색 이름(mark 포함), 수치·옵션, 버튼들
 function gearRow(it: BagItem, mark: string, buttons: [string, () => void][]) {
   const row = Object.assign(document.createElement('div'), { className: 'gear-row' });
@@ -211,7 +216,7 @@ function gearRow(it: BagItem, mark: string, buttons: [string, () => void][]) {
   row.append(icon, info);
   for (const [text, fn] of buttons) {
     const b = Object.assign(document.createElement('button'), { textContent: text });
-    b.addEventListener('click', fn);
+    b.addEventListener('click', once(fn));
     row.append(b);
   }
   return row;
@@ -270,7 +275,7 @@ export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onSell: (i:
         ` — 금화 ${sellPrice(it)}`,
         Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }),
       );
-      b.addEventListener('click', () => onSell(i));
+      b.addEventListener('click', once(() => onSell(i)));
       return b;
     }),
   );
@@ -326,7 +331,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   if (got && world.bag.length > shownBag && !worn) say(`${gearName(got.kind, got.tier, got.affixes)} — 보관함으로`);
   shownBag = world.bag.length;
   const blocked = bagBlocked(world);
-  if (blocked && !shownBlocked) say('보관함이 가득 찼습니다');
+  if (blocked && !shownBlocked && !worn) say('보관함이 가득 찼습니다');
   shownBlocked = blocked;
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);

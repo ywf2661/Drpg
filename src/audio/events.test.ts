@@ -157,3 +157,12 @@ test('보관함에 장비가 들어오면 줍는 소리', () => {
   w.bag.push({ kind: 'weapon', tier: 1, affixes: [] });
   expect(names(soundEvents(prev, w))).toEqual(['loot']);
 });
+
+test('갑옷을 바꿔 체력이 줄어도 맞은 소리는 나지 않는다', () => {
+  const w = createWorld(1, ['H..']);
+  const hero = w.entities[0];
+  hero.maxHp = hero.hp = 130;
+  const prev = snapshot(w);
+  hero.maxHp = hero.hp = 100;
+  expect(names(soundEvents(prev, w))).toEqual([]);
+});

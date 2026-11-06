@@ -71,6 +71,29 @@ test('가득 찼을 때 자동 장착: 벗은 장비는 발밑에 떨어지고, 
   expect(w.items[0]).toMatchObject({ kind: 'weapon', tier: 3, x: w.entities[0].x, z: w.entities[0].z });
 });
 
+test('발밑에 떨어진 장비는 옵션을 유지하고, 칸이 비면 옵션째 다시 주워진다', () => {
+  const w = make();
+  w.mods.weapon = [{ kind: 'crit', value: 10 }];
+  w.bag = junk(BAG_MAX);
+  drop(w, 'weapon', 4, [{ kind: 'dmg', value: 30 }]);
+  step(w, []);
+  expect(w.items[0].affixes).toEqual([{ kind: 'crit', value: 10 }]);
+  discardFromBag(w, 0);
+  step(w, []);
+  expect(w.items).toEqual([]);
+  expect(w.bag.at(-1)).toEqual({ kind: 'weapon', tier: 3, affixes: [{ kind: 'crit', value: 10 }] });
+});
+
+test('한 틱에 두 장비를 밟아도 빈칸만큼만 줍고 나머지는 남는다', () => {
+  const w = make();
+  w.bag = junk(BAG_MAX - 1);
+  drop(w, 'weapon', 1);
+  drop(w, 'armor', 1);
+  step(w, []);
+  expect(w.bag).toHaveLength(BAG_MAX);
+  expect(w.items.map((i) => i.kind)).toEqual(['armor']);
+});
+
 test('직접 장착: 그 칸과 맞바꾼다(가득 차도, 점수가 낮아도)', () => {
   const w = make();
   w.bag = junk(BAG_MAX);
@@ -92,37 +115,75 @@ test('직접 입은 낮은 장비는 보관함의 더 좋은 장비로 저절로
   expect(w.bag).toEqual([{ kind: 'weapon', tier: 3, affixes: [] }]);
 });
 
-test('튼튼한 갑옷을 번갈아 입어도 체력이 회복되지 않는다', () => {
+const LIFE = (value: number): BagItem => ({ kind: 'armor', tier: 1, affixes: [{ kind: 'life', value }] });
+
+test('갑옷을 바꾸면 체력 비율을 유지한다', () => {
   const w = make();
   const hero = w.entities[0];
-  setLevel(w, 1, 0);
   hero.hp = 50;
-  w.bag = [{ kind: 'armor', tier: 1, affixes: [{ kind: 'life', value: 30 }] }];
-  for (let i = 0; i < 10; i++) {
-    equipFromBag(w, 0);
-    expect(hero.hp).toBe(50);
-  }
+  w.bag = [LIFE(30)];
   equipFromBag(w, 0);
   expect(hero.maxHp).toBe(130);
+  expect(hero.hp).toBeCloseTo(65, 9);
+  equipFromBag(w, 0);
+  expect(hero.maxHp).toBe(100);
+  expect(hero.hp).toBeCloseTo(50, 9);
 });
 
-test('최대 체력이 줄면 넘치는 만큼만 깎인다', () => {
+test('체력이 가득 차 있으면 입고 벗어도 가득 찬 채로(비교만 해도 깎이지 않는다)', () => {
+  const w = make();
+  const hero = w.entities[0];
+  w.bag = [LIFE(30)];
+  equipFromBag(w, 0);
+  expect(hero.hp / hero.maxHp).toBeCloseTo(1, 9);
+  equipFromBag(w, 0);
+  expect(hero.hp / hero.maxHp).toBeCloseTo(1, 9);
+});
+
+test('서로 다른 갑옷을 계속 번갈아 입어도 체력이 오르지 않는다', () => {
+  const w = make();
+  const hero = w.entities[0];
+  hero.hp = 37;
+  w.bag = [LIFE(17), LIFE(29), LIFE(23)];
+  for (let i = 0; i < 3000; i++) equipFromBag(w, i % 3);
+  expect(hero.hp / hero.maxHp).toBeCloseTo(0.37, 9);
+});
+
+test('물약 직전에 갑옷을 바꿔도 이득이 없다', () => {
+  const plain = make();
+  plain.entities[0].hp = 20;
+  plain.potions = 1;
+  step(plain, [{ type: 'drink' }]);
+
+  const swap = make();
+  swap.entities[0].hp = 20;
+  swap.potions = 1;
+  swap.bag = [LIFE(30)];
+  equipFromBag(swap, 0);
+  step(swap, [{ type: 'drink' }]);
+  equipFromBag(swap, 0);
+  expect(swap.entities[0].hp).toBeLessThanOrEqual(plain.entities[0].hp + 1e-9);
+});
+
+test('체력이 아주 낮아도 갑옷을 바꿔서 0이 되지 않는다', () => {
   const w = make();
   const hero = w.entities[0];
   w.mods.armor = [{ kind: 'life', value: 30 }];
   setLevel(w, 1, 0);
-  expect(hero.hp).toBe(130);
+  hero.hp = 1;
   w.bag = [{ kind: 'armor', tier: 1, affixes: [] }];
   equipFromBag(w, 0);
-  expect([hero.hp, hero.maxHp]).toEqual([100, 100]);
+  expect(hero.hp).toBeGreaterThan(0);
+  expect(hero.state).not.toBe('dead');
 });
 
-test('밟아서 자동 장착해도 체력은 늘지 않고 최대치만 는다', () => {
+test('밟아서 자동 장착해도 비율을 유지한다', () => {
   const w = make();
   const hero = w.entities[0];
   drop(w, 'armor', 1, [{ kind: 'life', value: 30 }]);
   step(w, []);
-  expect([hero.hp, hero.maxHp]).toEqual([100, 130]);
+  expect(hero.maxHp).toBe(130);
+  expect(hero.hp).toBeCloseTo(130, 9);
 });
 
 test('버리기는 그 칸만 없앤다', () => {
