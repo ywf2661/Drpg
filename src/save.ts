@@ -1,16 +1,16 @@
 // 진행 저장: 층에 들어갈 때의 상태(층·물약·장비·레벨). localStorage는 손상·조작될 수 있어 읽을 때 검증한다.
 import { FLOORS } from './sim/dungeon';
-import { AFFIXES, POTION, RANK_MAX, type Affix, type AffixKind, type Gear, type SkillName } from './sim/world';
+import { AFFIXES, BAG_MAX, POTION, RANK_MAX, type Affix, type AffixKind, type BagItem, type Gear, type SkillName } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = { weapon: Affix[]; armor: Affix[] };
 export type Ranks = Record<SkillName, number>;
-export type Run = { floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; level: number; xp: number; gold: number; cycle: number; stats: Stats };
+export type Run = { floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats };
 const VERSION = 1;
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, stats: r.stats });
+  return JSON.stringify({ v: VERSION, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -23,6 +23,19 @@ function affixes(v: unknown, slot: 'weapon' | 'armor'): Affix[] | null {
     const def = a && AFFIXES[a.kind as AffixKind];
     if (!def || def.slot !== slot || !int(a.value, def.lo, def.hi) || out.some((o) => o.kind === a.kind)) return null;
     out.push({ kind: a.kind, value: a.value });
+  }
+  return out;
+}
+
+// 보관함: 칸 수, 부위, 단계, 옵션을 확인. 아니면 null
+function bagItems(v: unknown): BagItem[] | null {
+  if (!Array.isArray(v) || v.length > BAG_MAX) return null;
+  const out: BagItem[] = [];
+  for (const it of v) {
+    if (!it || (it.kind !== 'weapon' && it.kind !== 'armor') || !int(it.tier, 1, 4)) return null;
+    const list = affixes(it.affixes, it.kind);
+    if (!list) return null;
+    out.push({ kind: it.kind, tier: it.tier, affixes: list });
   }
   return out;
 }
@@ -52,6 +65,10 @@ export function decodeSave(text: string | null): Run | null {
   const names: SkillName[] = ['cleave', 'dash', 'shout', 'throw'];
   const points = d.points ?? 0;
   if (!r || typeof r !== 'object' || !names.every((n) => int(r[n], 1, RANK_MAX)) || !int(points, 0, 1000)) return null;
+  // 보관함(나중에 생긴 항목: 없으면 빈 칸·자동 장착)
+  const bag = bagItems(d.bag ?? []);
+  const autoEquip = d.autoEquip ?? true;
+  if (!bag || typeof autoEquip !== 'boolean') return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
@@ -66,6 +83,8 @@ export function decodeSave(text: string | null): Run | null {
     mods: { weapon, armor },
     ranks: { cleave: r.cleave as number, dash: r.dash as number, shout: r.shout as number, throw: r.throw as number },
     points: points as number,
+    bag,
+    autoEquip,
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },
   };
 }

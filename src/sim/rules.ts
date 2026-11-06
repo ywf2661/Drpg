@@ -55,6 +55,10 @@ export type Item = { id: number; x: number; z: number; kind: 'potion' | 'weapon'
 export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns';
 export type Affix = { kind: AffixKind; value: number };
 
+// 보관함의 장비 한 칸
+export type BagItem = { kind: 'weapon' | 'armor'; tier: number; affixes: Affix[] };
+export const BAG_MAX = 8;
+
 // 보물 상자(칸 좌표). 한 번 열면 끝
 export type Chest = { id: number; x: number; z: number; open: boolean };
 
@@ -88,6 +92,8 @@ export type World = {
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
   gear: Gear;
   mods: { weapon: Affix[]; armor: Affix[] }; // 장착 장비의 마법 옵션
+  bag: BagItem[]; // 보관함(최대 BAG_MAX칸)
+  autoEquip: boolean; // 밟은 장비가 더 좋으면 바로 입는다
   regenAcc: number; // 재생 옵션의 소수점 회복 누적
   maxTier: number;
   level: number;

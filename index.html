@@ -48,21 +48,35 @@
       #help td { padding: 3px 8px; border-bottom: 1px solid #2a2420; }
       #help td:first-child { color: #f0c060; white-space: nowrap; }
       #gold { min-width: 34px; font-size: 13px; color: #f0c060; text-shadow: 0 1px 2px #000; }
-      #shop-items { display: grid; gap: 8px; margin: 12px 0; }
-      #shop-items button, #shop-leave { font: inherit; text-align: left; padding: 8px 12px; color: #e8dcc8; background: #2a1414; border: 1px solid #5a3a30; cursor: pointer; }
+      #shop-items, #shop-sell-items { display: grid; gap: 8px; margin: 12px 0; }
+      #shop-items button, #shop-sell-items button, #shop-leave { font: inherit; text-align: left; padding: 8px 12px; color: #e8dcc8; background: #2a1414; border: 1px solid #5a3a30; cursor: pointer; }
       #shop-items button:disabled { opacity: 0.4; cursor: default; }
       #shop-items small { color: #b8ab98; }
+      #shop-sell-items small { display: block; color: #b8ab98; }
+      #bag-btn { position: relative; width: 40px; height: 40px; padding: 0; font: 11px system-ui, sans-serif; color: #e8dcc8; background: #14100e; border: 1px solid #3a3530; cursor: inherit; }
+      #bag-btn span { display: block; font-size: 10px; color: #b8ab98; }
+      .q1 { color: #7d9bff; }
+      .q2 { color: #f0c040; }
+      .gear-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2a2420; }
+      .gear-row > div:nth-child(2) { flex: 1; min-width: 0; }
+      .gear-row .slot { flex: none; }
+      .gear-row small { display: block; color: #b8ab98; }
+      .gear-row button, #bag form button { flex: none; padding: 6px 8px; font: inherit; font-size: 13px; color: #e8dcc8; background: #2a1414; border: 1px solid #5a3a30; cursor: pointer; }
+      #bag h4, #shop-sell h4 { margin: 12px 0 2px; color: #b8ab98; font-weight: normal; }
+      #bag label { display: block; margin: 8px 0; font-size: 13px; }
+      #bag-head { display: flex; align-items: center; gap: 6px; }
+      #bag-head form { margin-left: auto; }
       #shop-leave { border-color: #b3261e; }
-      #credits, #help, #shop { max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
+      #credits, #help, #shop, #bag { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); color: #e8dcc8; background: #14100e; border: 1px solid #b3261e; line-height: 1.6; }
       #credits a { color: #e0a060; }
-      #credits::backdrop, #help::backdrop, #shop::backdrop { background: #000a; }
+      #credits::backdrop, #help::backdrop, #shop::backdrop, #bag::backdrop { background: #000a; }
       #floor { position: fixed; left: 16px; top: 12px; z-index: 2; font-size: 14px; color: #b8ab98; text-shadow: 0 1px 2px #000; pointer-events: none; }
       #floor-title { position: fixed; left: 0; right: 0; top: 30%; z-index: 2; text-align: center; font-size: 34px; letter-spacing: 4px; color: #e8dcc8; text-shadow: 0 2px 6px #000; pointer-events: none; opacity: 0; }
       #floor-title.show { animation: floor-title 2.4s ease-out; }
       #automap { position: fixed; right: 12px; top: 40px; z-index: 2; background: #000a; border: 1px solid #3a3530; pointer-events: none; }
       #map-btn { position: fixed; right: 12px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: #0008; border: 1px solid #3a3530; padding: 3px 10px; cursor: inherit; }
       #sound-btn { position: fixed; right: 64px; top: 12px; z-index: 2; font: 12px system-ui, sans-serif; color: #8a7f70; background: #0008; border: 1px solid #3a3530; padding: 3px 10px; cursor: inherit; }
-      @media (max-width: 600px) { #boss, #target { top: 148px; } #target.below { top: 194px; } } /* 좁은 화면: 위쪽 버튼·지도 아래로 */
+      @media (max-width: 600px) { #boss, #target { top: 148px; } #target.below { top: 194px; } #toast { bottom: 130px; } } /* 좁은 화면: 위쪽 버튼·지도 아래로, 알림은 두 줄 HUD 위로 */
       #labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
       .label.q1 { color: #7d9bff; }
@@ -88,6 +102,7 @@
       <div id="gold" title="금화">0</div>
       <div id="weapon" class="slot"></div>
       <div id="armor" class="slot"></div>
+      <button id="bag-btn" title="보관함 (I)">가방<span>0/8</span></button>
     </div>
     <div id="toast"></div>
     <div id="labels"></div>
@@ -116,8 +131,9 @@
         <tr><td>상자·계단</td><td>클릭해서 열기 · 내려가기</td></tr>
         <tr><td>지도</td><td>M · 지도 버튼</td></tr>
         <tr><td>스킬 성장</td><td>레벨업마다 포인트 1. 스킬 버튼의 [+] 또는 Shift+Q·W·E·R로 단계 올리기(최대 5)</td></tr>
-        <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화</td></tr>
-        <tr><td>장비</td><td>더 좋은 장비(▲ 표시)는 밟으면 자동 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
+        <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화, 보관함 장비 팔기</td></tr>
+        <tr><td>장비</td><td>밟으면 보관함으로, 더 좋은 장비(▲ 표시)는 바로 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
+        <tr><td>보관함</td><td>I · 가방 버튼 · 장비 칸 — 8칸. 직접 장착·버리기, 자동 장착 끄기</td></tr>
         <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>
       </table>
       <form method="dialog"><button>시작</button></form>
@@ -126,6 +142,16 @@
       <p><b>상인</b> — 다음 층으로 내려가기 전에 준비하세요. 금화 <b id="shop-gold">0</b></p>
       <div id="shop-items"></div>
       <button id="shop-leave">다음 층으로 ▶</button>
+      <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
+    </dialog>
+    <dialog id="bag">
+      <div id="bag-head"><b>보관함</b> <span id="bag-count"></span><form method="dialog"><button>닫기 (I)</button></form></div>
+      <label><input id="auto-equip" type="checkbox" /> 더 좋은 장비는 밟으면 바로 장착</label>
+      <h4>입은 장비</h4>
+      <div id="bag-worn"></div>
+      <h4>보관함</h4>
+      <div id="bag-items"></div>
+      <p id="bag-empty">비어 있습니다. 장비를 밟으면 여기로 들어옵니다.</p>
     </dialog>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">

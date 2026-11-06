@@ -12,6 +12,7 @@ export type Snapshot = {
   ents: { hp: number; state: Entity['state']; attackT: number; phase: Entity['phase'] }[];
   potions: number;
   gold: number;
+  bag: number;
   gear: Gear;
   mods: string; // 장착 옵션(비교용 문자열)
   items: Set<number>;
@@ -30,6 +31,7 @@ export function snapshot(w: World): Snapshot {
     ents: w.entities.map((e) => ({ hp: e.hp, state: e.state, attackT: e.attackT, phase: e.phase })),
     potions: w.potions,
     gold: w.gold,
+    bag: w.bag.length,
     gear: { ...w.gear },
     mods: JSON.stringify(w.mods),
     items: new Set(w.items.map((i) => i.id)),
@@ -66,8 +68,9 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
   if (w.potions !== prev.potions) at('potion');
   if (w.gold > prev.gold) at('gold');
+  if (w.bag.length > prev.bag) at('loot');
   if (w.items.some((i) => !prev.items.has(i.id))) at('loot', w.items[w.items.length - 1].x, w.items[w.items.length - 1].z);
-  // 장착이 바뀜(단계나 옵션). 줍기는 더 좋은 것만 하므로 바뀌면 장착이다
+  // 장착이 바뀜(단계나 옵션)
   const [mw, ma] = [JSON.stringify(w.mods.weapon), JSON.stringify(w.mods.armor)];
   const old = JSON.parse(prev.mods) as World['mods'];
   if (w.gear.weapon !== prev.gear.weapon || mw !== JSON.stringify(old.weapon)) at('equip_weapon');

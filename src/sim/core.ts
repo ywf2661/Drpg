@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, ARMORS, AXE, DASH, DMG_SCALE, DT, ELITE, MONSTER_DMG, SHOUT, SKILL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, DASH, DMG_SCALE, DT, ELITE, MONSTER_DMG, SHOUT, SKILL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -41,11 +41,44 @@ export function armorScore(tier: number, aff: Affix[]): number {
   return ((100 + mod(aff, 'life')) / (1 - reduce)) * (1 + mod(aff, 'regen') / 100) * (1 + (0.3 * mod(aff, 'thorns')) / 100);
 }
 
-// 바닥 장비가 지금 장착한 것보다 나은가
-export function isBetter(w: World, it: Item): boolean {
-  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes ?? []) > weaponScore(w.gear.weapon, w.mods.weapon) + 1e-9;
-  if (it.kind === 'armor') return armorScore(it.tier, it.affixes ?? []) > armorScore(w.gear.armor, w.mods.armor) + 1e-9;
-  return false;
+// 장비 점수 − 입은 장비의 점수(양수면 더 좋다)
+export function gearDiff(w: World, it: BagItem): number {
+  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes) - weaponScore(w.gear.weapon, w.mods.weapon);
+  return armorScore(it.tier, it.affixes) - armorScore(w.gear.armor, w.mods.armor);
+}
+
+// 장비가 지금 장착한 것보다 나은가
+export function isBetter(w: World, it: Item | BagItem): boolean {
+  if (it.kind !== 'weapon' && it.kind !== 'armor') return false;
+  return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
+}
+
+// 장비를 입고 벗은 장비를 돌려준다. '튼튼한'이 바뀌어도 체력은 늘지 않고, 줄어든 최대치를 넘는 만큼만 깎인다
+// (맞바꿈이 공짜라서, 늘어난 만큼 채우면 번갈아 입어 회복할 수 있다)
+export function wear(w: World, it: BagItem): BagItem {
+  const old: BagItem = { kind: it.kind, tier: w.gear[it.kind], affixes: w.mods[it.kind] };
+  w.gear[it.kind] = it.tier;
+  w.mods[it.kind] = it.affixes;
+  const hero = w.entities[0];
+  hero.maxHp = heroMax(w);
+  hero.hp = Math.min(hero.hp, hero.maxHp);
+  return old;
+}
+
+// 보관함 조작. 창이 열린 동안 sim이 멈추므로 명령 큐를 거치지 않고 바로 부른다(난수 없음).
+// ponytail: 멀티플레이를 넣을 때 명령으로 옮기고, 서버가 틱 사이에 처리하게 할 것
+export function equipFromBag(w: World, i: number) {
+  if (w.entities[0].state !== 'dead' && w.bag[i]) w.bag[i] = wear(w, w.bag[i]);
+}
+
+export function discardFromBag(w: World, i: number) {
+  if (w.entities[0].state !== 'dead' && w.bag[i]) w.bag.splice(i, 1);
+}
+
+// 보관함이 가득 차서 발밑 장비를 못 줍는 중인가
+export function bagBlocked(w: World): boolean {
+  const hero = w.entities[0];
+  return w.bag.length >= BAG_MAX && w.items.some((it) => (it.kind === 'weapon' || it.kind === 'armor') && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup);
 }
 
 // 장비 아이템 굴림: 등급(옵션 0·1·2개) → 부위에 맞는 서로 다른 옵션, 값은 범위 안 균등

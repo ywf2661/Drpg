@@ -517,7 +517,7 @@ test('장비 드롭: 확률, 종류 반반, 단계는 1..maxTier', () => {
   expect([...kinds].sort()).toEqual(['armor', 'weapon']);
 });
 
-test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 남긴다', () => {
+test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 보관함으로', () => {
   const w = createWorld(1, ['H.....']);
   w.gear = { weapon: 2, armor: 2 };
   w.items.push({ id: w.nextItem++, x: 1.5, z: 0.5, kind: 'weapon', tier: 2 });
@@ -526,7 +526,8 @@ test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 남�
   w.items.push({ id: w.nextItem++, x: 4.5, z: 0.5, kind: 'armor', tier: 3 });
   run(w, 90, [{ type: 'move', x: 5.5, z: 0.5 }]);
   expect(w.gear).toEqual({ weapon: 4, armor: 3 });
-  expect(w.items.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['armor', 1]]);
+  expect(w.items).toEqual([]);
+  expect(w.bag.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['weapon', 2], ['armor', 1], ['armor', 2]]);
 });
 
 test('M은 보스: 5층 기준 수치라 층 배율을 쓰지 않는다', () => {
@@ -751,11 +752,11 @@ test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () =
   for (let seed = 1; seed <= 300; seed++) {
     const w = createWorld(seed, ['Hc']);
     w.maxTier = 2;
-    w.gear = { weapon: 4, armor: 4 }; // 장비는 줍지 않게(물약은 바로 허리띠로) — 옵션까지 강하게
+    w.gear = { weapon: 4, armor: 4 }; // 장비는 입지 않게(물약은 허리띠로, 장비는 바닥이나 보관함으로) — 옵션까지 강하게
     w.mods = { weapon: [{ kind: 'dmg', value: 500 }], armor: [{ kind: 'life', value: 500 }] };
     run(w, 30, [{ type: 'open', chestId: 0 }]);
     if (w.potions === 1) potions++;
-    else expect(w.items.find((i) => i.kind !== 'gold')!.tier).toBeLessThanOrEqual(2);
+    else expect([...w.items.filter((i) => i.kind !== 'gold'), ...w.bag][0].tier).toBeLessThanOrEqual(2);
   }
   expect(potions / 300).toBeGreaterThan(0.5);
   expect(potions / 300).toBeLessThan(0.7);

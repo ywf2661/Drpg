@@ -1,12 +1,12 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, heroMax, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints } from './core';
+import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints, wear } from './core';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, shoot, shout, summon, throwAxe } from './abilities';
-import { AGGRO, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, type Chest, type SkillName, type Command, type Entity, type Kind, type Prop, type World } from './rules';
+import { AGGRO, BAG_MAX, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, type Chest, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
-export { armorScore, attackInterval, axeStat, cleaveStat, dashStat, heroMax, isBetter, mod, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { armorScore, attackInterval, axeStat, bagBlocked, cleaveStat, dashStat, discardFromBag, equipFromBag, gearDiff, heroMax, isBetter, mod, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', K: 'king', M: 'boss' };
@@ -36,7 +36,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -75,9 +75,11 @@ function regen(w: World, hero: Entity) {
   }
 }
 
-// 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가 찰 때까지, 장비는 지금보다 좋을 때만 줍는다
+// 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가, 장비는 보관함이 찰 때까지 줍는다.
+// 자동 장착이면 더 좋은 장비는 바로 입는다. 벗은 장비는 보관함으로, 가득 찼으면 발밑에(사라지는 장비는 없다)
 function pickup(w: World, hero: Entity) {
   if (hero.state === 'dead') return;
+  const fallen: Item[] = [];
   w.items = w.items.filter((it) => {
     if (Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
     if (it.kind === 'gold') {
@@ -89,17 +91,18 @@ function pickup(w: World, hero: Entity) {
       w.potions++;
       return false;
     }
-    if (!isBetter(w, it)) return true;
-    w.gear[it.kind] = it.tier;
-    w.mods[it.kind] = it.affixes ?? [];
-    if (it.kind === 'armor') {
-      // '튼튼한'이 바뀌면 최대 체력도: 늘어난 만큼은 채우고, 줄면 넘치는 만큼만 깎는다
-      const max = heroMax(w);
-      hero.hp = Math.min(max, hero.hp + Math.max(0, max - hero.maxHp));
-      hero.maxHp = max;
+    const gear = { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] };
+    if (w.autoEquip && isBetter(w, gear)) {
+      const old = wear(w, gear);
+      if (w.bag.length < BAG_MAX) w.bag.push(old);
+      else fallen.push({ id: w.nextItem++, x: hero.x, z: hero.z, ...old });
+      return false;
     }
+    if (w.bag.length >= BAG_MAX) return true;
+    w.bag.push(gear);
     return false;
   });
+  w.items.push(...fallen);
 }
 
 // 스킬 포인트 1을 써서 단계 +1(최대 RANK_MAX)

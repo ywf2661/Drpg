@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [] }, ranks: { cleave: 3, dash: 1, shout: 2, throw: 5 }, points: 1, stats: { time: 754.2, kills: 41, deaths: 2 } };
+const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [] }, ranks: { cleave: 3, dash: 1, shout: 2, throw: 5 }, points: 1, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }] }, { kind: 'weapon' as const, tier: 4, affixes: [] }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 } };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -34,6 +34,15 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(bad({ ranks: { cleave: 6, dash: 1, shout: 1, throw: 1 } })).toBeNull();
   expect(bad({ ranks: { cleave: 1 } })).toBeNull();
   expect(bad({ points: -1 })).toBeNull();
+  expect(bad({ bag: 'x' })).toBeNull();
+  expect(bad({ bag: Array(9).fill({ kind: 'weapon', tier: 1, affixes: [] }) })).toBeNull(); // 칸 수 초과
+  expect(bad({ bag: [null] })).toBeNull();
+  expect(bad({ bag: [{ kind: 'potion', tier: 1, affixes: [] }] })).toBeNull();
+  expect(bad({ bag: [{ kind: 'weapon', tier: 5, affixes: [] }] })).toBeNull();
+  expect(bad({ bag: [{ kind: 'weapon', tier: 1 }] })).toBeNull();
+  expect(bad({ bag: [{ kind: 'weapon', tier: 1, affixes: [{ kind: 'life', value: 20 }] }] })).toBeNull(); // 부위가 다른 옵션
+  expect(bad({ bag: [{ kind: 'weapon', tier: 1, affixes: [{ kind: 'dmg', value: 999 }] }] })).toBeNull();
+  expect(bad({ autoEquip: 'yes' })).toBeNull();
 });
 
 test('기록(stats)이 없는 이전 저장은 0으로 채운다, 이상한 기록은 무시', () => {
@@ -44,6 +53,8 @@ test('기록(stats)이 없는 이전 저장은 0으로 채운다, 이상한 기�
   expect(decodeSave(old)?.mods).toEqual({ weapon: [], armor: [] }); // 마법 옵션이 생기기 전 저장
   expect(decodeSave(old)?.ranks).toEqual({ cleave: 1, dash: 1, shout: 1, throw: 1 }); // 스킬 성장이 생기기 전 저장
   expect(decodeSave(old)?.points).toBe(0);
+  expect(decodeSave(old)?.bag).toEqual([]); // 보관함이 생기기 전 저장
+  expect(decodeSave(old)?.autoEquip).toBe(true);
   const weird = JSON.stringify({ v: 1, floor: 2, potions: 1, gear: { weapon: 2, armor: 2 }, level: 3, xp: 5, stats: { time: -1, kills: 'x' } });
   expect(decodeSave(weird)).toBeNull();
 });

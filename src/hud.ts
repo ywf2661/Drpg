@@ -9,10 +9,10 @@ import { renderer } from './render/render';
 import { setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
-import { offers, type ShopItem, type Wallet } from './shop';
+import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, axeStat, cleaveStat, dashStat, outcome, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type SkillName, type World } from './sim/world';
+import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, outcome, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -49,12 +49,17 @@ const goldLabel = $('#gold');
 const shop = document.querySelector<HTMLDialogElement>('#shop')!;
 const shopGold = $('#shop-gold');
 const shopItems = $('#shop-items');
+const shopSell = $('#shop-sell');
+const bagBtn = $('#bag-btn');
+const bagDlg = document.querySelector<HTMLDialogElement>('#bag')!;
 const BOSS_BAR_RANGE = 12; // 보스와 이만큼 가까우면 상단 체력바(m)
 let shownGear = '';
+let shownBag = 0; // 층이 바뀌거나 보관함이 늘었는지 비교
+let shownBlocked = false; // '가득 찼습니다'는 밟은 순간 한 번만
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; learn(s: SkillName): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; learn(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -79,6 +84,7 @@ export function initHud(h: Handlers) {
     btn.append(rank, up);
   }
   restartBtn.addEventListener('click', h.restart); // 모바일용
+  for (const el of [bagBtn, weaponSlot, armorSlot]) el.addEventListener('click', h.bag);
   nextCycleBtn.addEventListener('click', h.nextCycle);
   $('#map-btn').addEventListener('click', h.toggleMap);
   const panel = $('#sound-panel');
@@ -164,16 +170,26 @@ const AFFIX_TEXT: Record<Affix['kind'], (v: number) => string> = {
   thorns: (v) => `근접 피해 ${v}% 반사`,
 };
 
-// 장비 칸: 아이콘(gear_icons.png = 무기 4 + 갑옷 4)과 이름·수치·옵션(툴팁)
+// 장비의 수치·옵션 설명 줄들
+function gearLines(it: BagItem): string[] {
+  const wpn = WEAPONS[it.tier - 1];
+  const base = it.kind === 'weapon' ? `공격 ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초` : `받는 피해 −${ARMORS[it.tier - 1].reduce * 100}%`;
+  return [base, ...it.affixes.map((a) => AFFIX_TEXT[a.kind](a.value))];
+}
+
+// 장비 아이콘 위치(gear_icons.png = 무기 4 + 갑옷 4)
+const iconX = (it: BagItem) => `${-((it.kind === 'weapon' ? 0 : 4) + it.tier - 1) * 40}px`;
+
+// 장비 칸: 아이콘과 이름·수치·옵션(툴팁)
 function showGear(w: World) {
   const g = w.gear;
-  const wpn = WEAPONS[g.weapon - 1];
-  const arm = ARMORS[g.armor - 1];
-  const lines = (list: Affix[]) => list.map((a) => `\n· ${AFFIX_TEXT[a.kind](a.value)}`).join('');
-  weaponSlot.style.backgroundPositionX = `${-(g.weapon - 1) * 40}px`;
-  armorSlot.style.backgroundPositionX = `${-(4 + g.armor - 1) * 40}px`;
-  weaponSlot.title = `${gearName('weapon', g.weapon, w.mods.weapon)}\n공격 ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초${lines(w.mods.weapon)}`;
-  armorSlot.title = `${gearName('armor', g.armor, w.mods.armor)}\n받는 피해 −${arm.reduce * 100}%${lines(w.mods.armor)}`;
+  for (const [slot, it] of [
+    [weaponSlot, { kind: 'weapon', tier: g.weapon, affixes: w.mods.weapon }],
+    [armorSlot, { kind: 'armor', tier: g.armor, affixes: w.mods.armor }],
+  ] as const) {
+    slot.style.backgroundPositionX = iconX(it);
+    slot.title = `${gearName(it.kind, it.tier, it.affixes)}\n${gearLines(it).join('\n')}\n눌러서 보관함 열기`;
+  }
   for (const [slot, list] of [[weaponSlot, w.mods.weapon], [armorSlot, w.mods.armor]] as const) slot.dataset.q = String(list.length);
 }
 
@@ -182,8 +198,53 @@ function say(text: string) {
   replay(toast);
 }
 
-// 상점 화면. 항목을 누르면 onBuy, 닫으면(버튼·Esc) onLeave. 산 뒤에는 다시 불러 갱신한다
-export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onLeave: () => void) {
+// 보관함 창의 장비 한 줄: 아이콘, 등급 색 이름(mark 포함), 수치·옵션, 버튼들
+function gearRow(it: BagItem, mark: string, buttons: [string, () => void][]) {
+  const row = Object.assign(document.createElement('div'), { className: 'gear-row' });
+  const icon = Object.assign(document.createElement('div'), { className: 'slot' });
+  icon.style.backgroundImage = `url(${gearIcons})`;
+  icon.style.backgroundPositionX = iconX(it);
+  icon.dataset.q = String(it.affixes.length);
+  const info = document.createElement('div');
+  const name = Object.assign(document.createElement('b'), { className: `q${it.affixes.length}`, textContent: gearName(it.kind, it.tier, it.affixes) + mark });
+  info.append(name, Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }));
+  row.append(icon, info);
+  for (const [text, fn] of buttons) {
+    const b = Object.assign(document.createElement('button'), { textContent: text });
+    b.addEventListener('click', fn);
+    row.append(b);
+  }
+  return row;
+}
+
+// 보관함 창. 고친 뒤에는 다시 불러 갱신한다
+export function showBag(w: World, h: { equip(i: number): void; discard(i: number): void; auto(on: boolean): void }) {
+  const mark = (it: BagItem) => {
+    const d = gearDiff(w, it);
+    return d > 1e-9 ? ' ▲' : d < -1e-9 ? ' ▼' : '';
+  };
+  $('#bag-count').textContent = `${w.bag.length}/${BAG_MAX}`;
+  $('#bag-worn').replaceChildren(
+    gearRow({ kind: 'weapon', tier: w.gear.weapon, affixes: w.mods.weapon }, '', []),
+    gearRow({ kind: 'armor', tier: w.gear.armor, affixes: w.mods.armor }, '', []),
+  );
+  $('#bag-items').replaceChildren(
+    ...w.bag.map((it, i) =>
+      gearRow(it, mark(it), [
+        ['장착', () => h.equip(i)],
+        ['버리기', () => h.discard(i)],
+      ]),
+    ),
+  );
+  $('#bag-empty').hidden = w.bag.length > 0;
+  const auto = $('#auto-equip') as HTMLInputElement;
+  auto.checked = w.autoEquip;
+  auto.onchange = () => h.auto(auto.checked);
+  if (!bagDlg.open) bagDlg.showModal();
+}
+
+// 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, 닫으면(버튼·Esc) onLeave. 사고판 뒤에는 다시 불러 갱신한다
+export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void) {
   const next = (t: number) => (t < 4 ? `(${t + 1}단계)` : '(최고 단계)');
   const label: Record<ShopItem, string> = {
     potion: `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`,
@@ -200,6 +261,19 @@ export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onLeave: ()
       return b;
     }),
   );
+  shopSell.hidden = c.bag.length === 0;
+  $('#shop-sell-items').replaceChildren(
+    ...c.bag.map((it, i) => {
+      const b = document.createElement('button');
+      b.append(
+        Object.assign(document.createElement('span'), { className: `q${it.affixes.length}`, textContent: gearName(it.kind, it.tier, it.affixes) }),
+        ` — 금화 ${sellPrice(it)}`,
+        Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }),
+      );
+      b.addEventListener('click', () => onSell(i));
+      return b;
+    }),
+  );
   $('#shop-leave').onclick = () => shop.close();
   shop.onclose = onLeave;
   if (!shop.open) shop.showModal();
@@ -212,6 +286,8 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownWorld = world;
     shownLevel = 0;
     shownGear = '';
+    shownBag = world.bag.length;
+    shownBlocked = false;
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
@@ -226,19 +302,32 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   potionCount.textContent = String(world.potions);
   goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);
+  bagBtn.querySelector('span')!.textContent = `${world.bag.length}/${BAG_MAX}`;
+  let worn = false;
   const key = JSON.stringify([world.gear, world.mods]);
   if (key !== shownGear) {
     // 주운 장비는 알림. 층에 들어와 처음 그릴 때는 알리지 않는다
     if (shownGear) {
-      // 바뀐 부위의 전체 이름으로 알림(줍기는 더 좋은 것만 하므로 바뀌면 장착)
+      // 바뀐 부위의 전체 이름으로 알림
       const [g0, m0] = JSON.parse(shownGear) as [World['gear'], World['mods']];
       const changed = (k: 'weapon' | 'armor') => g0[k] !== world.gear[k] || JSON.stringify(m0[k]) !== JSON.stringify(world.mods[k]);
-      for (const k of ['weapon', 'armor'] as const) if (changed(k)) say(`${gearName(k, world.gear[k], world.mods[k])} 장착`);
+      for (const k of ['weapon', 'armor'] as const) {
+        if (!changed(k)) continue;
+        worn = true;
+        say(`${gearName(k, world.gear[k], world.mods[k])} 장착`);
+      }
     }
     shownGear = key;
     showGear(world);
     void setHeroGear(world.gear);
   }
+  // 장착 알림이 없을 때만 줍기 알림(자동 장착은 벗은 장비가 보관함으로 들어온다)
+  const got = world.bag.at(-1);
+  if (got && world.bag.length > shownBag && !worn) say(`${gearName(got.kind, got.tier, got.affixes)} — 보관함으로`);
+  shownBag = world.bag.length;
+  const blocked = bagBlocked(world);
+  if (blocked && !shownBlocked) say('보관함이 가득 찼습니다');
+  shownBlocked = blocked;
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
   bossBar.hidden = !boss;

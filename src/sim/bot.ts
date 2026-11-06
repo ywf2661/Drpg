@@ -1,10 +1,10 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
-import { buy } from '../shop';
-import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type Command, type Gear, type SkillName, type World } from './world';
+import { buy, sell } from '../shop';
+import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type BagItem, type Command, type Gear, type SkillName, type World } from './world';
 
-type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number };
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 };
+type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number; bag: BagItem[] };
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, bag: [] };
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry): World {
@@ -15,6 +15,7 @@ function makeFloor(seed: number, n: number, c: Carry): World {
   w.gold = c.gold;
   w.ranks = { ...c.ranks };
   w.points = c.points;
+  w.bag = [...c.bag];
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, c.level, c.xp);
   return w;
@@ -50,8 +51,9 @@ function think(w: World, skills: boolean): Command[] {
   return cmds;
 }
 
-// 상점: 물약을 5개까지 채우고, 남으면 무기·갑옷 강화, 그래도 남으면 물약
+// 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 5개까지 채우고, 남으면 무기·갑옷 강화, 그래도 남으면 물약
 function shopping(c: Carry): Carry {
+  while (c.bag.length) c = sell(c, 0);
   while (c.potions < 5 && buy(c, 'potion') !== c) c = buy(c, 'potion');
   for (const item of ['weapon', 'armor', 'potion', 'potion', 'potion'] as const) c = buy(c, item);
   return c;
@@ -70,7 +72,7 @@ export function playthrough(seed: number, skills = true) {
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = shopping({ potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, points: w.points });
+          carry = shopping({ potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, points: w.points, bag: w.bag });
           done = true;
           break;
         }

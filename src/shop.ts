@@ -1,7 +1,7 @@
 // 층 사이 상점: 물약 구매, 무기·갑옷 한 단계 강화. 상태를 바꾸지 않는 순수 함수.
-import { POTION, type Gear } from './sim/world';
+import { POTION, type BagItem, type Gear } from './sim/world';
 
-export type Wallet = { potions: number; gear: Gear; gold: number };
+export type Wallet = { potions: number; gear: Gear; gold: number; bag: BagItem[] };
 export type ShopItem = 'potion' | 'weapon' | 'armor';
 const MAX_TIER = 4;
 
@@ -18,6 +18,15 @@ export function offers(c: Wallet): { item: ShopItem; price: number; ok: boolean 
     const p = price(c, item);
     return { item, price: p, ok: available(c, item) && c.gold >= p };
   });
+}
+
+export const sellPrice = (it: BagItem) => 15 * it.tier + 25 * it.affixes.length;
+
+// 판 뒤의 새 상태. 잘못된 칸이면 받은 그대로
+export function sell<T extends Wallet>(c: T, i: number): T {
+  const it = c.bag[i];
+  if (!it) return c;
+  return { ...c, gold: c.gold + sellPrice(it), bag: c.bag.filter((_, k) => k !== i) };
 }
 
 // 산 뒤의 새 상태. 못 사면 받은 그대로
