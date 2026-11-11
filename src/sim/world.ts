@@ -36,7 +36,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {

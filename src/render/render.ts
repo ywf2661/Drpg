@@ -7,6 +7,7 @@ import caveFloorUrl from '../assets/tiles/floor_cave.png';
 import caveWallUrl from '../assets/tiles/wall_cave.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
+import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncItems, syncShots, updateProps } from './props';
 import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
@@ -31,6 +32,11 @@ let sprites: Sprite[] = [];
 let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
+// 타격감용 캐릭터별 상태: 번쩍임 남은 시간, 밀려난 뒤 판자가 따라가는 중인 차이(kx, kz), 직전 프레임 sim 위치
+let fx: { flashT: number; kx: number; kz: number; lx: number; lz: number }[] = [];
+let impactsSeen = 0;
+let shoutsSeen = 0;
+const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸은 것이 아니라 밀려난 것(가장 빠른 걸음도 0.15m)
 const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
 let floorTex: THREE.Texture;
 let wallTex: THREE.Texture;
@@ -62,6 +68,9 @@ export function setWorld(world: World, theme: Theme) {
   for (const s of sprites) s.mesh.removeFromParent();
   sprites = world.entities.map(makeSprite);
   for (const s of sprites) scene.add(s.mesh);
+  fx = [];
+  impactsSeen = world.impacts;
+  shoutsSeen = world.shouts;
   focus.set(world.entities[0].x, 0, world.entities[0].z);
 }
 
@@ -79,10 +88,31 @@ export function draw(world: World, dt: number) {
   };
   // 게임 중에 생긴 엔티티(해골 왕의 소환)도 판자를 만든다
   for (let i = sprites.length; i < world.entities.length; i++) scene.add((sprites[i] = makeSprite(world.entities[i])).mesh);
+  const hits = world.impacts - impactsSeen; // 이번 프레임에 스킬이 맞힌 적 수
+  impactsSeen = world.impacts;
+  if (world.shouts > shoutsSeen) rumble(0.3);
+  shoutsSeen = world.shouts;
+  const frozen = hitstop > 0; // 멈춤 동안은 번쩍임·미끄러짐도 멈춘다 → 풀리면서 날아간다
   for (const e of world.entities) {
     const s = sprites[e.id];
+    const f = (fx[e.id] ??= { flashT: 0, kx: 0, kz: 0, lx: e.x, lz: e.z });
+    const lost = e.maxHp === s.maxHp ? Math.round(s.hp - e.hp) : 0; // 갑옷 교체로 줄어든 것은 맞은 것이 아니다
+    if (e !== hero && Math.hypot(e.x - f.lx, e.z - f.lz) > SLIDE_MIN) [f.kx, f.kz] = [f.kx + f.lx - e.x, f.kz + f.lz - e.z];
+    [f.lx, f.lz] = [e.x, e.z];
     updateSprite(s, e, dt, attackInterval(world, e));
+    if (lost > 0) {
+      popNumber(camera, renderer.domElement, e.x, e.z, lost, e === hero ? 'hurt' : hits > 0 ? 'skill' : 'hit');
+      if (e !== hero) f.flashT = hits > 0 ? 0.09 : 0.05;
+    }
+    if (!frozen) {
+      f.flashT -= dt;
+      const k = Math.exp(-20 * dt);
+      [f.kx, f.kz] = [f.kx * k, f.kz * k];
+    }
+    s.mesh.position.x += f.kx;
+    s.mesh.position.z += f.kz;
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
+    if (f.flashT > 0) s.mat.color.setScalar(10); // 맞은 순간 하얗게
     if (e.phase === 'windup') s.mat.color.lerp(WINDUP, 0.5 + 0.3 * Math.sin(time * 25)); // 돌진 예고: 붉게 맥동
     if (e.stunT > 0) s.mat.color.lerp(STUNNED, 0.5);
   }
@@ -95,6 +125,8 @@ export function draw(world: World, dt: number) {
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
   camera.position.copy(focus).add(CAM_OFFSET);
   camera.lookAt(focus);
+  updateFeel(dt, camera);
+  impact(hits);
   snapToPixel();
   renderer.render(scene, camera);
 }

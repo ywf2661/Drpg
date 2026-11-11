@@ -9,7 +9,7 @@ test('봇이 5층 보스까지 깰 수 있고, 스킬을 쓰면 확실히 덜 �
   const without = play(false);
   expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(27);
   for (const r of withSkills.filter((r) => r.cleared)) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
-  expect(deaths(withSkills)).toBeLessThanOrEqual(20); // 지금 10
-  expect(deaths(without)).toBeGreaterThanOrEqual(10); // 너무 쉬워지면 걸린다. 지금 17(가르기가 끝나도 대상을 유지하게 되어 봇이 가르기를 제대로 쓰면서 새로 잡은 기준)
+  expect(deaths(withSkills)).toBeLessThanOrEqual(20); // 지금 17(밀려난 적을 봇이 다시 쫓아가느라 조금 더 맞는다)
+  expect(deaths(without)).toBeGreaterThanOrEqual(10); // 너무 쉬워지면 걸린다. 지금 25
   expect(deaths(withSkills)).toBeLessThan(deaths(without));
 });

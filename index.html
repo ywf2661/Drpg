@@ -82,6 +82,9 @@
       .label.q1 { color: #7d9bff; }
       .label.q2 { color: #f0c040; }
       .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
+      .pop { position: fixed; z-index: 2; pointer-events: none; font-weight: 900; font-size: 15px; color: #fff; text-shadow: 0 2px 0 #000, 0 0 4px #000; } /* 떠오르는 데미지 숫자 */
+      .pop.skill { font-size: 30px; color: #ffd23c; }
+      .pop.hurt { color: #ff5a4a; }
       #sound-panel { position: fixed; right: 12px; top: 40px; z-index: 3; padding: 10px 12px; font-size: 13px; color: #e8dcc8; background: #14100ef0; border: 1px solid #3a3530; display: grid; gap: 6px; }
       #sound-panel label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
       #toast { position: fixed; left: 0; right: 0; bottom: 70px; z-index: 2; text-align: center; font-size: 18px; color: #f0c060; text-shadow: 0 1px 3px #000; pointer-events: none; opacity: 0; }

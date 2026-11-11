@@ -109,6 +109,7 @@ export type World = {
   throwCd: number; // 도끼 던지기 재사용까지(초)
   ranks: Record<SkillName, number>; // 스킬 단계 1~RANK_MAX
   points: number; // 남은 스킬 포인트(레벨업마다 1)
+  impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
 };
 
 export const DT = 1 / 60;
@@ -158,6 +159,7 @@ export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, �
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 
 export const RANK_MAX = 5;
+export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준
 export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베기: 재사용, 거리, 속도, 길 폭(반경), 자동 조준 거리

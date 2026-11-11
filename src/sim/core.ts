@@ -167,6 +167,18 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   return dealt;
 }
 
+// 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동이 끊긴다.
+// 보스·해골 왕은 밀리지도 끊기지도 않는다. 죽은 적도 밀린다(시체가 날아간다). 난수를 쓰지 않는다
+export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
+  w.impacts++;
+  if (e.kind === 'boss' || e.kind === 'king') return;
+  for (let i = Math.round(d / 0.1); i > 0 && walkable(w.grid, Math.floor(e.x + dx * 0.1), Math.floor(e.z + dz * 0.1)); i--) {
+    e.x += dx * 0.1;
+    e.z += dz * 0.1;
+  }
+  if (e.hp > 0) Object.assign(e, { state: 'idle', attackT: 0, path: [], repathT: 0 });
+}
+
 // 금화 더미(lo..hi × 배율)
 export function dropGold(w: World, x: number, z: number, lo: number, hi: number, power: number) {
   w.items.push({ id: w.nextItem++, x, z, kind: 'gold', tier: 0, amount: Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * power) });

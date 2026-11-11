@@ -1,7 +1,7 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, CHARGE, DASH, DT, KING, MAGE, REPATH, SHOUT, SKILL, type Entity, type Shot, type World } from './rules';
-import { axeStat, cellOf, cleaveStat, clearLine, dashStat, dist, face, hurt, makeEntity, roll, shoutStat, walk, waypoints } from './core';
+import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, REPATH, SHOUT, SKILL, type Entity, type Shot, type World } from './rules';
+import { axeStat, cellOf, cleaveStat, clearLine, dashStat, dist, face, hurt, knock, makeEntity, roll, shoutStat, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
@@ -29,6 +29,8 @@ export function cleave(w: World, hero: Entity) {
     const st = cleaveStat(w);
     if (Math.hypot(dx, dz) > st.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
     hurt(w, e, Math.round(roll(w, hero) * st.mult), hero);
+    const d = Math.hypot(dx, dz);
+    knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
   }
   w.cleaves++;
 }
@@ -122,6 +124,8 @@ export function dashStep(w: World, hero: Entity) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
     w.dashHit.push(e.id);
     hurt(w, e, Math.round(roll(w, hero) * dashStat(w).mult), hero);
+    const side = (e.x - hero.x) * -hero.dz + (e.z - hero.z) * hero.dx < 0 ? -1 : 1; // 돌진 길의 어느 쪽에 있는가
+    knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
   }
 }
 
@@ -163,6 +167,8 @@ export function shout(w: World, hero: Entity) {
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius) continue;
     Object.assign(e, { stunT: st.stun, state: 'idle', attackT: 0, path: [], phase: 'none' });
+    const d = dist(e, hero);
+    knock(w, e, d > 1e-6 ? (e.x - hero.x) / d : 1, d > 1e-6 ? (e.z - hero.z) / d : 0, KNOCK.shout);
   }
   Object.assign(w, { shoutCd: st.cd, shoutT: SHOUT.time });
   w.shouts++;
@@ -198,7 +204,10 @@ export function fly(w: World, hero: Entity) {
     [s.x, s.z] = [nx, nz];
     if (s.kind === 'axe') {
       const t = w.entities.find((e) => e !== hero && e.state !== 'dead' && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);
-      if (t) hurt(w, t, s.dmg, hero);
+      if (t) {
+        hurt(w, t, s.dmg, hero);
+        knock(w, t, s.dx, s.dz, KNOCK.axe);
+      }
       return !t;
     }
     if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > (fire ? MAGE.hitRadius : ARCHER.hitRadius)) return true;

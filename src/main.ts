@@ -4,6 +4,7 @@ import * as sound from './audio/sound';
 import { $, initHud, showBag, showChoice, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
 import { aim, commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
+import { hitstop } from './render/feel';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
 import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats } from './save';
@@ -212,7 +213,7 @@ requestAnimationFrame(function frame(now) {
   last = now;
   const paused = credits.open || help.open || bag.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
   pollInput(world, dt, paused);
-  if (paused) acc = 0;
+  if (paused || hitstop > 0) acc = 0; // 타격 멈춤 동안은 sim이 서 있다(명령은 큐에 남는다)
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   const events = soundEvents(heard, world);
   sound.play(events, world.entities[0].x, world.entities[0].z);
