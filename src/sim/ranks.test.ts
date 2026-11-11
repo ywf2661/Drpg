@@ -25,7 +25,7 @@ test('레벨이 오르면 오른 만큼 스킬 포인트, 찍으면 단계 +1(�
 
 test('가르기 단계: 배율·범위가 커지고 재사용이 짧아진다', () => {
   const hits = (rank: number) => {
-    const w = createWorld(1, ['......', '..Hm..', '......']);
+    const w = createWorld(1, ['......', '..Ha..', '......']); // 궁수: 준비 동작이 없어 받아치기 배율이 안 붙는다
     w.ranks.cleave = rank;
     w.gear.weapon = 1; // 단검 4–7
     Object.assign(w.entities[1], { hp: 1000, maxHp: 1000, target: 0, repathT: 1e9 });

@@ -20,8 +20,8 @@ const AXE: Command = { type: 'throw', x: 5, z: 0.5 };
 const CLEAVE: Command = { type: 'skill', x: 5, z: 0.5 };
 
 test('받아치기: 예고 중인 적을 스킬로 맞히면 피해 2배', () => {
-  // 같은 시드 → 같은 굴림. 기절하지 않은(예고 중) 적과 그냥 서 있는 적을 비교
-  const base = dealt(AXE, (w) => (w.entities[1].stunT = 0)).dmg;
+  // 같은 시드 → 같은 굴림. 준비 동작이 없는 궁수(배율 없음)와 예고 중인 적을 비교
+  const base = dealt(AXE, (w) => (w.entities[1].stunT = 0), 'Ha....').dmg;
   let seen: string[] = [];
   const w = createWorld(1, ['Hm....']);
   const m = w.entities[1];
@@ -37,7 +37,7 @@ test('받아치기: 예고 중인 적을 스킬로 맞히면 피해 2배', () =>
 });
 
 test('약점: 기절한 적에게 스킬 피해 1.5배, 평타는 그대로', () => {
-  const plain = dealt(CLEAVE, (w) => (w.entities[1].stunT = 0)).dmg;
+  const plain = dealt(CLEAVE, (w) => (w.entities[1].stunT = 0), 'Ha....').dmg; // 궁수: 준비 동작이 없어 받아치기가 아니다
   const stunned = dealt(CLEAVE);
   expect(stunned.dmg).toBe(Math.round(plain * 1.5));
   expect(kinds(stunned.w)).toEqual([]); // 기록은 잠시 뒤 지워진다

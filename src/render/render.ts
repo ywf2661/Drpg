@@ -1,6 +1,6 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, type World } from '../sim/world';
+import { attackInterval, winding, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
 import caveFloorUrl from '../assets/tiles/floor_cave.png';
@@ -16,7 +16,7 @@ const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그�
 const TORCH = 80; // 횃불 밝기(칸델라)
 const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
 const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색
-const WINDUP = new THREE.Color(1.6, 0.15, 0.1); // 보스 돌진 예고 색
+const WINDUP = new THREE.Color(2.2, 0.2, 0.12); // 공격 준비(평타·내려찍기·돌진 예고) 색
 const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -38,7 +38,7 @@ let fx: { flashT: number; kx: number; kz: number; lx: number; lz: number }[] = [
 let impactsSeen = 0;
 let shoutsSeen = 0;
 let comboSeen = -1; // 글자를 띄운 마지막 연계 기록 id(id는 늘 커진다)
-const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', reset: '가르기 준비!' };
+const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', reset: '가르기 준비!', dodge: '회피!' };
 const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸은 것이 아니라 밀려난 것(가장 빠른 걸음도 0.15m)
 const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
 let floorTex: THREE.Texture;
@@ -116,11 +116,12 @@ export function draw(world: World, dt: number) {
       const k = Math.exp(-20 * dt);
       [f.kx, f.kz] = [f.kx * k, f.kz * k];
     }
+    if (e === hero) s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1; // 구르기: 몸을 낮춘다
     s.mesh.position.x += f.kx;
     s.mesh.position.z += f.kz;
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
     if (f.flashT > 0) s.mat.color.setScalar(10); // 맞은 순간 하얗게
-    if (e.phase === 'windup') s.mat.color.lerp(WINDUP, 0.5 + 0.3 * Math.sin(time * 25)); // 돌진 예고: 붉게 맥동
+    if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0) s.mat.color.lerp(STUNNED, 0.5);
   }
   cutaway(hero.x, hero.z);

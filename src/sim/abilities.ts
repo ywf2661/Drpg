@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, METEOR, REPATH, SHOUT, SKILL, SLAM, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, METEOR, REPATH, ROLL, SHOUT, SKILL, SLAM, type Entity, type Shot, type World } from './rules';
 import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, roll, shoutStat, skillHit, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
@@ -115,6 +115,28 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number) {
   hero.facing = Math.atan2(dx, dz);
   Object.assign(w, { dashCd: dashStat(w).cd, dashHit: [], opening: null, toStairs: false });
   w.dashes++;
+}
+
+// 구르기 시작: 조준점(없으면 가까운 적의 반대쪽, 적도 없으면 바라보는 쪽)으로. 휘두르기는 끊기고 공격 대상은 유지한다
+export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
+  if (w.rollCd > 0) return;
+  let [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
+  const near = w.entities
+    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= ROLL.away)
+    .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+  const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [2 * hero.x - near.x, 2 * hero.z - near.z] : [hero.x + dx, hero.z + dz];
+  const d = Math.hypot(tx - hero.x, tz - hero.z);
+  if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
+  Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: [], attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
+  Object.assign(w, { rollCd: ROLL.cd, opening: null, toStairs: false });
+}
+
+// 구르기 한 틱: 벽에 막히면 제자리에서 구른다(무적 시간은 같다)
+export function rollStep(w: World, hero: Entity) {
+  const step = ROLL.speed * DT;
+  const [nx, nz] = [hero.x + hero.dx * step, hero.z + hero.dz * step];
+  if (walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];
+  if ((hero.phaseT -= step) <= 0) Object.assign(hero, { phase: 'none', state: 'idle' });
 }
 
 // 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해

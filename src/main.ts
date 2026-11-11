@@ -141,6 +141,7 @@ const skill = () => commands.push({ type: 'skill' });
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
 const shout = () => commands.push({ type: 'shout' });
 const throwAxe = (aimed: boolean) => commands.push({ type: 'throw', ...((aimed && aim()) || {}) });
+const roll = (aimed: boolean) => commands.push({ type: 'roll', ...((aimed && aim()) || {}) }); // 버튼은 가까운 적의 반대쪽
 const learn = (skill: SkillName) => commands.push({ type: 'learn', skill });
 
 try {
@@ -161,6 +162,7 @@ initHud({
   dash: () => dash(false),
   shout,
   throwAxe: () => throwAxe(false),
+  roll: () => roll(false),
   learn,
   bag: openBag,
   restart,
@@ -201,6 +203,7 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyW') dash(true);
   else if (e.code === 'KeyE') shout();
   else if (e.code === 'KeyR') (ended() ? restart() : throwAxe(true));
+  else if (e.code === 'Space') (e.preventDefault(), roll(true));
   else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
 });

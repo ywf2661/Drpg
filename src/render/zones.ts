@@ -1,6 +1,6 @@
-// 바닥의 위험 구역(예고 공격): 붉은 테두리 + 안에서 차오르는 원(다 차면 터진다). world.zones를 읽기만 한다.
+// 바닥의 위험 구역(예고 공격): 붉은 테두리 + 안에서 차오르는 원(다 차면 터진다). world.zones와 평타 준비 중인 적을 읽기만 한다.
 import * as THREE from 'three';
-import type { World } from '../sim/world';
+import { TELL, type World } from '../sim/world';
 
 const flat = (color: number, opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false });
 const RING = new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2);
@@ -12,7 +12,12 @@ const shown = new Map<number, { g: THREE.Group; fill: THREE.Mesh }>();
 export const zoneGroup = new THREE.Group();
 
 export function syncZones(world: World) {
-  for (const z of world.zones) {
+  // 근접 평타를 준비 중인 적의 발밑에도 같은 원(다 차면 맞는다). id는 음수로 구역과 겹치지 않게
+  const tells = world.entities
+    .filter((e) => e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0))
+    .map((e) => ({ id: -1 - e.id, x: e.x, z: e.z, r: 0.6, t: TELL[e.kind]! - e.attackT, total: TELL[e.kind]! }));
+  const zones = [...world.zones, ...tells];
+  for (const z of zones) {
     let s = shown.get(z.id);
     if (!s) {
       const g = new THREE.Group();
@@ -27,7 +32,7 @@ export function syncZones(world: World) {
     s.fill.scale.setScalar(Math.max(0.001, 1 - z.t / z.total));
   }
   for (const [id, s] of shown) {
-    if (world.zones.some((z) => z.id === id)) continue;
+    if (zones.some((z) => z.id === id)) continue;
     s.g.removeFromParent();
     shown.delete(id);
   }

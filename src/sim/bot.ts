@@ -1,7 +1,7 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
 import { buy, deathGold, sell } from '../shop';
-import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type BagItem, type Command, type Gear, type SkillName, type World } from './world';
+import { createWorld, DT, isBetter, outcome, RANGE, setLevel, step, TELL, winding, type Affix, type BagItem, type Command, type Gear, type SkillName, type World } from './world';
 
 type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number; bag: BagItem[] };
 const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, bag: [] };
@@ -22,7 +22,7 @@ function makeFloor(seed: number, n: number, c: Carry): World {
 }
 
 // 간단한 플레이어: 체력이 낮으면 물약, 가까운 적부터 공격, 스킬은 뻔한 상황에만(무리면 가르기, 둘러싸이거나 보스 예고면 함성,
-// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단. 화살·화염구는 피하지 않고 바닥의 예고 구역만 피한다
+// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단. dodge면 바닥의 예고 구역은 걸어 나가고 평타·화살·화염구는 굴러서 피한다
 function think(w: World, skills: boolean, dodge: boolean): Command[] {
   const hero = w.entities[0];
   const cmds: Command[] = [];
@@ -41,10 +41,18 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
     const k = d(zone.x, zone.z) || 1;
     return [...cmds, { type: 'move', x: zone.x + ((hero.x - zone.x) / k) * (zone.r + 1.2), z: zone.z + ((hero.z - zone.z) / k) * (zone.r + 1.2) }];
   }
+  // 평타를 준비 중인 적이 닿을 거리거나 화살·화염구가 코앞이면 구른다(적 반대쪽, 구르는 동안 무적)
+  const swings = foes.filter((e) => e.state === 'attack' && winding(e) && d(e.x, e.z) < RANGE + 0.3);
+  if (dodge && swings.length && hero.phase === 'none') {
+    // 받아치기가 되면 가르기로 끊고(밀려나며 준비가 끊긴다), 아니면 맞기 직전에 구른다
+    if (skills && w.skillCd <= 0) return [...cmds, { type: 'skill', x: swings[0].x, z: swings[0].z }];
+    if (w.rollCd <= 0 && swings.some((e) => e.attackT >= TELL[e.kind]! - 0.3)) return [...cmds, { type: 'roll' }];
+  }
+  if (dodge && w.rollCd <= 0 && hero.phase === 'none' && w.shots.some((s) => s.kind !== 'axe' && d(s.x, s.z) < 2.5)) return [...cmds, { type: 'roll' }];
   if (near(2) >= 2) cmds.push({ type: 'skill' });
   if (skills) {
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
-    if (w.shoutCd <= 0 && (near(4) >= 3 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
+    if (w.shoutCd <= 0 && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
     const shooter = foes.find((e) => (e.kind === 'archer' || e.kind === 'mage') && d(e.x, e.z) > 2.5 && d(e.x, e.z) < 8);
     if (shooter && w.throwCd <= 0) cmds.push({ type: 'throw', x: shooter.x, z: shooter.z });
     else if (shooter && w.dashCd <= 0 && d(shooter.x, shooter.z) > 3.5) cmds.push({ type: 'dash', x: shooter.x, z: shooter.z });

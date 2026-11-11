@@ -13,6 +13,7 @@ export type Command =
   | { type: 'open'; chestId: number } // 상자 열기(걸어가서)
   | { type: 'dash'; x?: number; z?: number } // 돌진 베기. (x, z)가 있으면 그쪽으로
   | { type: 'shout' } // 전투의 함성
+  | { type: 'roll'; x?: number; z?: number } // 구르기(무적). (x, z)가 있으면 그쪽으로, 없으면 가까운 적의 반대쪽
   | { type: 'throw'; x?: number; z?: number } // 도끼 던지기. (x, z)가 있으면 그쪽으로
   | { type: 'learn'; skill: SkillName }; // 스킬 포인트로 단계 올리기
 export type SkillName = 'cleave' | 'dash' | 'shout' | 'throw';
@@ -36,7 +37,7 @@ export type Entity = {
   skill: boolean; // 지금 휘두르는 것이 가르기인가
   elite: boolean; // 정예: 체력 ×3, 데미지 ×1.15, 경험치 ×4, 최고 단계 장비 확정
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
-  phase: 'none' | 'windup' | 'charge';
+  phase: 'none' | 'windup' | 'charge' | 'roll'; // roll = 주인공 구르기(phaseT 남은 거리)
   phaseT: number;
   cd: number;
   dx: number;
@@ -67,7 +68,7 @@ export type Chest = { id: number; x: number; z: number; open: boolean };
 export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe'; hit?: number[] }; // axe = 주인공의 도끼(몬스터만 맞음)
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
-export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'reset'; age: number };
+export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'reset' | 'dodge'; age: number };
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 export type Blast = { id: number; x: number; z: number; age: number; kind: 'fire' | 'slam' }; // slam = 전사 내려찍기가 떨어진 자리
@@ -118,6 +119,7 @@ export type World = {
   shoutT: number; // 함성의 받는 피해 감소가 남은 시간(초)
   shouts: number; // 함성 횟수(렌더·소리용)
   throwCd: number; // 도끼 던지기 재사용까지(초)
+  rollCd: number; // 구르기 재사용까지(초)
   ranks: Record<SkillName, number>; // 스킬 단계 1~RANK_MAX
   points: number; // 남은 스킬 포인트(레벨업마다 1)
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
@@ -130,7 +132,7 @@ export const RANGE = 1.5;
 // 몬스터 데미지 = 기본 × (1 + (층 배율 − 1) × DMG_SCALE) × MONSTER_DMG. 1~2층은 거의 그대로, 깊을수록 가파르게
 // (마법 옵션·스킬 도입 후 봇 테스트로 정함: 5층 ×2.2. 스킬을 쓰면 확실히 덜 죽게)
 export const DMG_SCALE = 2;
-export const MONSTER_DMG = 1; // 공통 배율(밸런스 손잡이)
+export const MONSTER_DMG = 2; // 공통 배율(밸런스 손잡이)
 export const ELITE = { hp: 3, dmg: 1.15, xp: 4 };
 // 마법 옵션: 붙는 부위, 이름(접두어), 값 범위. dmg·speed·leech·crit·guard·thorns는 %, life는 체력, regen은 초당 1/10
 export const AFFIXES: Record<AffixKind, { slot: 'weapon' | 'armor'; name: string; lo: number; hi: number }> = {
@@ -175,6 +177,11 @@ export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준
 export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베기: 재사용, 거리, 속도, 길 폭(반경), 자동 조준 거리
+
+// 구르기: 재사용, 거리, 속도(거리 ÷ 속도 = 무적 시간), 조준이 없을 때 피할 적을 찾는 거리
+export const ROLL = { cd: 1, dist: 3, speed: 9, away: 4 };
+// 근접 평타의 준비 시간(초): 휘두르기 시작 후 이만큼 지나야 맞는다. 남은 휘두르기 시간이 빈틈. 없는 종류는 간격 × HIT_AT
+export const TELL: Partial<Record<Kind, number>> = { minion: 0.5, warrior: 0.8, king: 0.9, boss: 0.9 };
 
 export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁수 사거리, 화살 속도(m/s)·비행 거리·맞는 반경
 
@@ -222,10 +229,10 @@ export const ARMORS: { name: string; reduce: number }[] = [
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)
-  minion: { name: '스켈레톤 졸개', hp: 30, dmg: [3, 5], interval: 1.2, speed: 2.5 },
-  warrior: { name: '스켈레톤 전사', hp: 60, dmg: [6, 9], interval: 1.4, speed: 2 },
-  archer: { name: '스켈레톤 궁수', hp: 25, dmg: [4, 7], interval: 1.8, speed: 2.2 },
-  mage: { name: '스켈레톤 마법사', hp: 22, dmg: [5, 8], interval: 2.4, speed: 2 },
-  king: { name: '해골 왕', hp: 260, dmg: [9, 14], interval: 1.5, speed: 2.2 },
-  boss: { name: '미노타우르스', hp: 500, dmg: [12, 20], interval: 1.6, speed: 2.4 },
+  minion: { name: '스켈레톤 졸개', hp: 45, dmg: [3, 5], interval: 1.5, speed: 2.5 },
+  warrior: { name: '스켈레톤 전사', hp: 90, dmg: [6, 9], interval: 2, speed: 2 },
+  archer: { name: '스켈레톤 궁수', hp: 38, dmg: [4, 7], interval: 1.8, speed: 2.2 },
+  mage: { name: '스켈레톤 마법사', hp: 33, dmg: [5, 8], interval: 2.4, speed: 2 },
+  king: { name: '해골 왕', hp: 260, dmg: [9, 14], interval: 2, speed: 2.2 },
+  boss: { name: '미노타우르스', hp: 500, dmg: [15, 24], interval: 1.8, speed: 2.4 },
 };

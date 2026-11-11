@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, MONSTER_DMG, outcome, RADIUS, setLevel, STATS, step, WEAPONS, xpToNext, type Command, type World } from './world';
+import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, MONSTER_DMG, outcome, RADIUS, setLevel, STATS, step, TELL, WEAPONS, winding, xpToNext, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
 const MAP = [
@@ -138,10 +138,10 @@ test('공격은 휘두르기 40% 시점에 들어가고 데미지는 8~12', () =
   const m = w.entities[1];
   run(w, 15, [{ type: 'attack', targetId: 1 }]);
   expect(w.entities[0].state).toBe('attack');
-  expect(m.hp).toBe(30);
+  expect(m.hp).toBe(45);
   run(w, 10);
-  expect(m.hp).toBeGreaterThanOrEqual(30 - 12);
-  expect(m.hp).toBeLessThanOrEqual(30 - 8);
+  expect(m.hp).toBeGreaterThanOrEqual(45 - 12);
+  expect(m.hp).toBeLessThanOrEqual(45 - 8);
 });
 
 test('타격 순간 사거리 밖이면 빗나간다', () => {
@@ -150,7 +150,7 @@ test('타격 순간 사거리 밖이면 빗나간다', () => {
   run(w, 5, [{ type: 'attack', targetId: 1 }]);
   m.x = 4.5; // 3m 떨어뜨림 (졸개도 자기 휘두르기 중이라 그 자리에 있음)
   run(w, 20);
-  expect(m.hp).toBe(30);
+  expect(m.hp).toBe(45);
   expect(w.entities[0].hp).toBe(100);
 });
 
@@ -268,7 +268,7 @@ test('휘두르는 중 사이에 벽이 생기면 빗나간다', () => {
   expect(hero.state).toBe('attack');
   w.grid.blocked[1 * w.grid.w + 1] = 1; // 둘 사이 칸을 벽으로
   run(w, 40);
-  expect(m.hp).toBe(30);
+  expect(m.hp).toBe(45);
   expect(hero.hp).toBe(100);
 });
 
@@ -295,7 +295,7 @@ test('층 배율: 몬스터 체력·데미지가 배율만큼 커지고 주인�
   const w = createWorld(1, DUEL, 2);
   const [hero, m] = w.entities;
   expect(hero).toMatchObject({ hp: 100, maxHp: 100, power: 1 });
-  expect(m).toMatchObject({ hp: 60, maxHp: 60, power: 2 });
+  expect(m).toMatchObject({ hp: 90, maxHp: 90, power: 2 });
   run(w, 35); // 졸개는 30틱째에 한 번 때린다(3~5 × 데미지 배율)
   const s = (1 + (2 - 1) * DMG_SCALE) * MONSTER_DMG;
   expect(hero.hp).toBeGreaterThanOrEqual(100 - Math.round(5 * s));
@@ -539,8 +539,8 @@ test('M은 보스: 5층 기준 수치라 층 배율을 쓰지 않는다', () => 
   expect([b.maxHp, b.power]).toEqual([500, 1]);
 });
 
-// 주인공이 보스만 공격하고 체력이 40 미만이면 물약을 마신다. 이기면 true
-function bossFight(seed: number, gear: { weapon: number; armor: number }, potions: number, level = 1) {
+// 주인공이 보스만 공격하고 체력이 40 미만이면 물약을 마신다. dodge면 평타가 맞기 직전·돌진이 닿기 직전에 구른다. 이기면 true
+function bossFight(seed: number, gear: { weapon: number; armor: number }, potions: number, level = 1, dodge = false) {
   const w = createWorld(seed, ['H.M']);
   w.gear = gear;
   w.potions = potions;
@@ -548,18 +548,20 @@ function bossFight(seed: number, gear: { weapon: number; armor: number }, potion
   for (let t = 0; t < 120 / DT && !outcome(w); t++) {
     const cmds: Command[] = t === 0 ? [{ type: 'attack', targetId: 1 }] : [];
     if (w.entities[0].hp < 40) cmds.push({ type: 'drink' });
+    const [hero, boss] = w.entities;
+    const swing = boss.state === 'attack' && winding(boss) && boss.attackT >= TELL.boss! - 0.3;
+    if (dodge && (swing || (boss.phase === 'charge' && Math.abs(boss.x - hero.x) < 2))) cmds.push({ type: 'roll' });
     step(w, cmds);
   }
   return outcome(w) === 'clear';
 }
 
-test('보스 밸런스: 5층에 올 만한 레벨(8)이라도 물약을 써야 이기고, 레벨이 낮으면 진다', () => {
+test('보스 밸런스: 5층에 올 만한 레벨(8)이라도 서서 맞으면 물약이 있어도 지고, 구르기로 피하면 이긴다', () => {
   const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
-  const wins = (gear: { weapon: number; armor: number }, potions: number, level: number) =>
-    seeds.filter((s) => bossFight(s, gear, potions, level)).length;
-  expect(wins({ weapon: 3, armor: 3 }, 3, 8)).toBeGreaterThan(30);
-  expect(wins({ weapon: 3, armor: 3 }, 0, 8)).toBeLessThan(10);
-  expect(wins({ weapon: 2, armor: 2 }, 4, 1)).toBeLessThan(10);
+  const wins = (gear: { weapon: number; armor: number }, potions: number, level: number, dodge: boolean) =>
+    seeds.filter((s) => bossFight(s, gear, potions, level, dodge)).length;
+  expect(wins({ weapon: 3, armor: 3 }, 3, 8, true)).toBeGreaterThan(30);
+  expect(wins({ weapon: 3, armor: 3 }, 3, 8, false)).toBeLessThan(10);
 });
 
 test('보스가 있는 층은 보스가 죽으면 클리어(다른 몬스터 생존 무관)', () => {
@@ -664,8 +666,8 @@ test('시야가 막히면 쏘지 않고 다가간다', () => {
 });
 
 test('가르기: 바라보는 방향 반원 2m 안의 적 모두에게 150%, 뒤·범위 밖은 제외', () => {
-  // 주인공 (2.5, 2.5)이 +x를 조준. 앞 (3,1)(3,2)(3,3)은 맞고 뒤 (1,2)와 먼 (5,2)는 아님
-  const w = createWorld(1, ['.......', '...m...', '.mHm.m.', '...m...', '.......']);
+  // 궁수로 둘러싼다(준비 동작이 없어 받아치기 배율이 안 붙는다). 주인공 (2.5, 2.5)이 +x를 조준. 앞 (3,1)(3,2)(3,3)은 맞고 뒤 (1,2)와 먼 (5,2)는 아님
+  const w = createWorld(1, ['.......', '...a...', '.aHa.a.', '...a...', '.......']);
   const [hero, ...mobs] = w.entities;
   const start = mobs.map((e) => [e.x, e.z]);
   for (const e of mobs) e.hp = e.maxHp = 1000;
@@ -714,7 +716,7 @@ test('가르기 재사용 대기 4초, 죽으면 못 쓴다, 대상 없이도 �
 test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 층 최고 단계 장비를 반드시 떨어뜨린다', () => {
   const w = createWorld(1, ['HW'], 1.3);
   const e = w.entities[1];
-  expect([e.kind, e.elite, e.maxHp]).toEqual(['warrior', true, Math.round(60 * 3 * 1.3)]);
+  expect([e.kind, e.elite, e.maxHp]).toEqual(['warrior', true, Math.round(90 * 3 * 1.3)]);
   w.maxTier = 3;
   slay(w);
   expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
@@ -798,8 +800,8 @@ test('보스 돌진: 0.7초 예고 후 직선으로 달려와 가만히 있는 �
     step(w, []);
     if (hero.hp < before) hit = before - hero.hp;
   }
-  expect(hit).toBeGreaterThanOrEqual(Math.round(12 * 1.5)); // 12–20 × 1.5, 천옷
-  expect(hit).toBeLessThanOrEqual(Math.round(20 * 1.5));
+  expect(hit).toBeGreaterThanOrEqual(Math.round(STATS.boss.dmg[0] * MONSTER_DMG * 1.5)); // 평타 × 1.5, 천옷
+  expect(hit).toBeLessThanOrEqual(Math.round(STATS.boss.dmg[1] * MONSTER_DMG * 1.5));
   expect(boss.phase).toBe('none');
   expect(Math.hypot(boss.x - hero.x, boss.z - hero.z)).toBeLessThan(1.5);
 });
@@ -920,7 +922,7 @@ test('금화는 지나가면 줍고 개수 제한이 없다', () => {
 
 test('돌진 베기: 조준 방향으로 최대 5m, 지나간 길 1m 안의 적만 한 번씩 피해', () => {
   // 주인공 (0.5, 1.7), +x로 돌진. 길 위 (2,1)·(3,2)(길에서 0.8m)는 맞고, 길에서 먼 (2,3)과 너무 먼 (9,1)은 아님
-  const w = createWorld(1, ['..........', 'H.m......m', '...m......', '..m.......']);
+  const w = createWorld(1, ['..........', 'H.a......a', '...a......', '..a.......']);
   const [hero, ...mobs] = w.entities;
   for (const e of mobs) Object.assign(e, { hp: 1000, maxHp: 1000, target: 0, repathT: 1e9 }); // 제자리에 묶어 둔다
   w.gear.weapon = 1; // 단검 4–7

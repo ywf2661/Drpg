@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -25,9 +25,12 @@ export const axeStat = (w: World) => ({ cd: AXE.cd - 0.2 * extra(w, 'throw'), mu
 // 5단계 완성 효과가 있는가(가르기 한 바퀴, 돌진 처치 시 초기화, 함성 회복, 도끼 관통)
 export const mastered = (w: World, s: SkillName) => w.ranks[s] >= RANK_MAX;
 
+// 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
+export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));
+
 // 스킬 피해(가르기·돌진·도끼). 연계: 예고 중인 적은 받아치기 ×2, 기절한 적은 약점 ×1.5(기록을 남겨 화면에 글자가 뜬다)
 export function skillHit(w: World, e: Entity, raw: number) {
-  const kind = e.phase === 'windup' ? 'counter' : e.stunT > 0 ? 'stunned' : null;
+  const kind = winding(e) ? 'counter' : e.stunT > 0 ? 'stunned' : null;
   if (kind) w.combos.push({ id: w.nextItem++, x: e.x, z: e.z, kind, age: 0 });
   hurt(w, e, kind ? Math.round(raw * COMBO[kind]) : raw, w.entities[0]);
 }
@@ -144,6 +147,10 @@ export function damage(w: World, a: Entity, t: Entity) {
 // 피해 적용: 주인공은 갑옷(+단단한)으로 줄이되 최소 1. from이 주인공이면 흡혈, 근접(from)이 주인공을 치면 가시 반사.
 // 몬스터가 죽으면 경험치·드롭. 실제로 준 피해를 돌려준다
 export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
+  if (t.kind === 'hero' && t.phase === 'roll') {
+    w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'dodge', age: 0 }); // 구르는 중: 무적
+    return 0;
+  }
   let dmg = raw;
   // 주인공: 갑옷(+단단한) 감소, 전투의 함성 중이면 추가 감소
   if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, ARMORS[w.gear.armor - 1].reduce + mod(w.mods.armor, 'guard') / 100)) * (w.shoutT > 0 ? 1 - shoutStat(w).reduce : 1)));

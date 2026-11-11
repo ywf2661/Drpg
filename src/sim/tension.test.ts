@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { deathGold } from '../shop';
-import { createWorld, DT, step, type World } from './world';
+import { createWorld, DT, MONSTER_DMG, step, type World } from './world';
 
 const run = (w: World, sec: number) => {
   for (let i = Math.round(sec / DT); i > 0; i--) step(w, []);
@@ -50,8 +50,8 @@ test('전사 내려찍기: 0.8초 예고 뒤 앞쪽 원 안의 주인공에게 �
   run(w, 0.7);
   expect(hero.hp).toBe(100); // 예고 중엔 안 맞는다
   run(w, 0.15);
-  expect(100 - hero.hp).toBeGreaterThanOrEqual(12); // 전사 6–9 × 2
-  expect(100 - hero.hp).toBeLessThanOrEqual(18);
+  expect(100 - hero.hp).toBeGreaterThanOrEqual(12 * MONSTER_DMG); // 전사 6–9 × 2
+  expect(100 - hero.hp).toBeLessThanOrEqual(18 * MONSTER_DMG);
   expect(w.zones).toHaveLength(0);
   expect(war.phase).toBe('none');
   expect(w.blasts.some((b) => b.kind === 'slam')).toBe(true);
@@ -101,8 +101,8 @@ test('마법사 불기둥: 주인공 발밑에 1.2초 뒤 폭발(평타의 1.5�
   run(w, 1.1);
   expect(hero.hp).toBe(100);
   run(w, 0.15);
-  expect(100 - hero.hp).toBeGreaterThanOrEqual(8); // 마법사 5–8 × 1.5 → 8–12
-  expect(100 - hero.hp).toBeLessThanOrEqual(12);
+  expect(100 - hero.hp).toBeGreaterThanOrEqual(Math.round(5 * MONSTER_DMG * 1.5)); // 마법사 5–8 × 1.5
+  expect(100 - hero.hp).toBeLessThanOrEqual(Math.round(8 * MONSTER_DMG * 1.5));
   expect(w.blasts.some((b) => b.kind === 'fire')).toBe(true);
   const away = cast();
   away.entities[0].z = 0.5;

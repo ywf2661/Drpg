@@ -12,7 +12,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, mastered, outcome, POTION, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
+import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, mastered, outcome, POTION, RANK_MAX, ROLL, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -59,7 +59,7 @@ let shownBlocked = false; // '가득 찼습니다'는 밟은 순간 한 번만
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; learn(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -73,6 +73,7 @@ export function initHud(h: Handlers) {
   dashBtn.addEventListener('click', h.dash);
   shoutBtn.addEventListener('click', h.shout);
   throwBtn.addEventListener('click', h.throwAxe);
+  $('#roll').addEventListener('click', h.roll);
   // 스킬 버튼마다 단계 숫자와 [+](포인트가 있을 때). [+]를 누르면 쓰지 않고 단계만 올린다
   for (const [btn, s] of SKILL_BUTTONS()) {
     const rank = Object.assign(document.createElement('b'), { className: 'rank' });
@@ -305,6 +306,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   dashShade.style.height = `${(world.dashCd / dashStat(world).cd) * 100}%`;
   $('#shout i').style.height = `${(world.shoutCd / shoutStat(world).cd) * 100}%`;
   $('#throw i').style.height = `${(world.throwCd / axeStat(world).cd) * 100}%`;
+  $('#roll i').style.height = `${(world.rollCd / ROLL.cd) * 100}%`;
   showRanks(world);
   potionCount.textContent = String(world.potions);
   $('#potion i').style.height = `${world.healing ? (1 - world.healing.t / POTION.time) * 100 : 0}%`; // 차는 동안은 다시 못 마신다

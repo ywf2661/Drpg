@@ -2,15 +2,16 @@
 import { expect, test } from 'vitest';
 import { playthrough } from './bot';
 
-test('봇이 5층 보스까지 깰 수 있고, 스킬을 쓰고 예고 공격을 피하면 확실히 덜 죽으며, 그러지 않으면 쉽지 않다', { timeout: 300_000 }, () => {
+test('봇이 구르고 받아치면 5층 보스까지 깨지만 여러 번 죽고, 서서 맞으면 거의 못 깬다', { timeout: 300_000 }, () => {
   const play = (skills: boolean, dodge = true) => Array.from({ length: 30 }, (_, i) => playthrough(i + 1, skills, dodge)); // 맵 무작위성 편차를 줄이려고 30판
   const deaths = (rs: ReturnType<typeof play>) => rs.reduce((a, r) => a + r.deaths, 0);
   const withSkills = play(true);
   const without = play(false);
-  const standing = play(true, false); // 스킬은 쓰지만 바닥의 예고를 피하지 않는다
-  expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(27);
+  const standing = play(true, false); // 스킬은 쓰지만 구르지도, 바닥의 예고를 피하지도 않는다
+  expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(26); // 지금 28
   for (const r of withSkills.filter((r) => r.cleared)) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
-  expect(deaths(withSkills)).toBeLessThanOrEqual(25); // 지금 17
-  expect(deaths(without)).toBeGreaterThanOrEqual(25); // 너무 쉬워지면 걸린다. 지금 36
-  expect(deaths(standing)).toBeGreaterThan(deaths(withSkills) + 4); // 서서 맞으면 손해여야 한다. 지금 26
+  expect(deaths(withSkills)).toBeLessThanOrEqual(75); // 지금 61(판당 2번)
+  expect(deaths(withSkills)).toBeGreaterThanOrEqual(30); // 너무 쉬워지면 걸린다
+  expect(deaths(without)).toBeGreaterThan(deaths(withSkills) + 30); // 받아치기 없이는 훨씬 어렵다. 지금 129
+  expect(standing.filter((r) => r.cleared).length).toBeLessThanOrEqual(5); // 서서 맞교환하면 진다. 지금 2
 });
