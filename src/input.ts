@@ -4,7 +4,8 @@ import { camera, renderer } from './render/render';
 import type { Command, World } from './sim/world';
 
 const REPEAT = 0.15; // 누르고 있을 때 move 재발행 간격(초)
-const PICK_RADIUS = 0.5; // 몬스터 선택 판정 반경(m)
+const PICK_RADIUS = 0.5; // 몬스터·상자 선택 판정 반경(m)
+const PICK_TOUCH = 0.9; // 터치는 넓게: 0.5m는 휴대폰에서 폭 약 32px이라 손가락(44px 이상)으로 누르기 어렵다
 const ray = new THREE.Raycaster();
 const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const pointer = new THREE.Vector2();
@@ -16,6 +17,7 @@ let held = false;
 let hasPointer = false; // 마우스가 캔버스 위를 움직인 적이 있는가
 let clicked = false;
 let repeatT = 0;
+let pickRadius = PICK_RADIUS; // 마지막 입력이 터치면 PICK_TOUCH
 
 export const commands: Command[] = [];
 export let hovered: number | null = null;
@@ -45,6 +47,7 @@ export function initInput() {
 }
 
 function setPointer(e: PointerEvent) {
+  pickRadius = e.pointerType === 'touch' ? PICK_TOUCH : PICK_RADIUS;
   const r = renderer.domElement.getBoundingClientRect();
   pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 }
@@ -90,7 +93,7 @@ function moveToRay() {
 // 닫힌 상자를 칸 중심의 낮은 세로 선분으로 보고 마우스 광선에 가장 가까운 것
 function pickChest(world: World): number | null {
   let best: number | null = null;
-  let bestD = PICK_RADIUS ** 2;
+  let bestD = pickRadius ** 2;
   for (const c of world.chests) {
     if (c.open) continue;
     const d = ray.ray.distanceSqToSegment(a.set(c.x + 0.5, 0, c.z + 0.5), b.set(c.x + 0.5, 0.8, c.z + 0.5));
@@ -104,7 +107,7 @@ function pickChest(world: World): number | null {
 
 function pick(world: World): number | null {
   let best: number | null = null;
-  let bestD = PICK_RADIUS ** 2;
+  let bestD = pickRadius ** 2;
   for (const e of world.entities) {
     if (e.kind === 'hero' || e.state === 'dead') continue;
     const d = ray.ray.distanceSqToSegment(a.set(e.x, 0.2, e.z), b.set(e.x, 1.5, e.z));
