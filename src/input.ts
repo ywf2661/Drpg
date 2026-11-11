@@ -1,6 +1,7 @@
 // 마우스 입력 → sim 명령. 몬스터 위 클릭은 attack, 땅 클릭·누르고 있기는 move.
 import * as THREE from 'three';
-import { camera, renderer } from './render/render';
+import { camera, markMove, renderer } from './render/render';
+import { walkable } from './sim/path';
 import type { Command, World } from './sim/world';
 
 const REPEAT = 0.15; // 누르고 있을 때 move 재발행 간격(초)
@@ -71,7 +72,7 @@ export function pollInput(world: World, dt: number, paused: boolean) {
     const chest = id === null ? pickChest(world) : null;
     if (id !== null) commands.push({ type: 'attack', targetId: id });
     else if (chest !== null) commands.push({ type: 'open', chestId: chest });
-    else moveToRay();
+    else if (moveToRay() && walkable(world.grid, Math.floor(hit.x), Math.floor(hit.z))) markMove(hit.x, hit.z); // 누른 순간 그 자리에 표시(끌고 있는 동안은 다시 띄우지 않는다)
     if (id !== null || chest !== null) held = false; // 몬스터·상자 클릭은 이동 반복을 시작하지 않는다
   } else if (held && (repeatT -= dt) <= 0) {
     repeatT = REPEAT;
@@ -91,8 +92,10 @@ export function aim(): { x: number; z: number } | null {
   return ray.ray.intersectPlane(chest, hit) ? { x: hit.x, z: hit.z } : null;
 }
 
-function moveToRay() {
-  if (ray.ray.intersectPlane(ground, hit)) commands.push({ type: 'move', x: hit.x, z: hit.z });
+function moveToRay(): boolean {
+  if (!ray.ray.intersectPlane(ground, hit)) return false;
+  commands.push({ type: 'move', x: hit.x, z: hit.z });
+  return true;
 }
 
 // 각 몬스터를 세로 선분(발목~머리)으로 보고, 마우스 광선과 가장 가까운 것을 고른다

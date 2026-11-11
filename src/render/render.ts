@@ -29,6 +29,15 @@ const right = new THREE.Vector3();
 const up = new THREE.Vector3();
 // 수평 45°, 내려다보는 각 30°(극각 60°) = FLARE 스프라이트를 그린 각도, 거리 30
 const CAM_OFFSET = new THREE.Vector3().setFromSphericalCoords(30, THREE.MathUtils.degToRad(60), THREE.MathUtils.degToRad(45));
+// 이동 클릭 표시: 누른 지점에서 안쪽으로 줄어들며 사라지는 고리
+const MARK = 0.45;
+const marker = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.44, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, depthWrite: false, toneMapped: false }));
+marker.renderOrder = 1; // 바닥 다음, 캐릭터 전에
+let markT = 0;
+export function markMove(x: number, z: number) {
+  marker.position.set(x, 0.04, z);
+  markT = MARK;
+}
 let sprites: Sprite[] = [];
 let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
@@ -57,7 +66,7 @@ export async function initRender(world: World, theme: Theme) {
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.002;
   scene.add(torch);
-  scene.add(zoneGroup);
+  scene.add(zoneGroup, marker);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear)]);
@@ -124,6 +133,10 @@ export function draw(world: World, dt: number) {
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0) s.mat.color.lerp(STUNNED, 0.5);
   }
+  markT -= dt;
+  marker.visible = markT > 0;
+  marker.scale.setScalar(0.45 + (0.55 * markT) / MARK);
+  marker.material.opacity = Math.min(1, (2 * markT) / MARK);
   cutaway(hero.x, hero.z);
   syncItems(world);
   syncShots(world);
