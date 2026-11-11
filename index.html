@@ -85,6 +85,7 @@
       .pop { position: fixed; z-index: 2; pointer-events: none; font-weight: 900; font-size: 15px; color: #fff; text-shadow: 0 2px 0 #000, 0 0 4px #000; } /* 떠오르는 데미지 숫자 */
       .pop.skill { font-size: 30px; color: #ffd23c; }
       .pop.hurt { color: #ff5a4a; }
+      .pop.combo { font-size: 17px; color: #8fe6ff; }
       #sound-panel { position: fixed; right: 12px; top: 40px; z-index: 3; padding: 10px 12px; font-size: 13px; color: #e8dcc8; background: #14100ef0; border: 1px solid #3a3530; display: grid; gap: 6px; }
       #sound-panel label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
       #toast { position: fixed; left: 0; right: 0; bottom: 70px; z-index: 2; text-align: center; font-size: 18px; color: #f0c060; text-shadow: 0 1px 3px #000; pointer-events: none; opacity: 0; }
@@ -136,7 +137,8 @@
         <tr><td>죽으면</td><td>금화 절반을 잃고 같은 층을 다시 시작</td></tr>
         <tr><td>상자·계단</td><td>클릭해서 열기 · 내려가기</td></tr>
         <tr><td>지도</td><td>M · 지도 버튼</td></tr>
-        <tr><td>스킬 성장</td><td>레벨업마다 포인트 1. 스킬 버튼의 [+] 또는 Shift+Q·W·E·R로 단계 올리기(최대 5)</td></tr>
+        <tr><td>스킬 성장</td><td>레벨업마다 포인트 1. 스킬 버튼의 [+] 또는 Shift+Q·W·E·R로 단계 올리기(최대 5). 5단계에는 스킬마다 특별한 효과</td></tr>
+        <tr><td>연계</td><td>붉게 예고 중인 적을 스킬로 치면 2배(받아치기), 기절한 적은 1.5배(약점), 돌진 베기가 맞으면 가르기가 바로 준비</td></tr>
         <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화, 보관함 장비 팔기</td></tr>
         <tr><td>장비</td><td>밟으면 보관함으로, 더 좋은 장비(▲ 표시)는 바로 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
         <tr><td>보관함</td><td>I · 가방 버튼 · 장비 칸 — 8칸. 직접 장착·버리기, 자동 장착 끄기</td></tr>

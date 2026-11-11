@@ -11,6 +11,6 @@ test('봇이 5층 보스까지 깰 수 있고, 스킬을 쓰고 예고 공격을
   expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(27);
   for (const r of withSkills.filter((r) => r.cleared)) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
   expect(deaths(withSkills)).toBeLessThanOrEqual(25); // 지금 17
-  expect(deaths(without)).toBeGreaterThanOrEqual(25); // 너무 쉬워지면 걸린다. 지금 40
+  expect(deaths(without)).toBeGreaterThanOrEqual(25); // 너무 쉬워지면 걸린다. 지금 36
   expect(deaths(standing)).toBeGreaterThan(deaths(withSkills) + 4); // 서서 맞으면 손해여야 한다. 지금 26
 });

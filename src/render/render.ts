@@ -37,6 +37,8 @@ let time = 0;
 let fx: { flashT: number; kx: number; kz: number; lx: number; lz: number }[] = [];
 let impactsSeen = 0;
 let shoutsSeen = 0;
+let comboSeen = -1; // 글자를 띄운 마지막 연계 기록 id(id는 늘 커진다)
+const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', reset: '가르기 준비!' };
 const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸은 것이 아니라 밀려난 것(가장 빠른 걸음도 0.15m)
 const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
 let floorTex: THREE.Texture;
@@ -73,6 +75,7 @@ export function setWorld(world: World, theme: Theme) {
   fx = [];
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
+  comboSeen = -1;
   focus.set(world.entities[0].x, 0, world.entities[0].z);
 }
 
@@ -94,6 +97,8 @@ export function draw(world: World, dt: number) {
   impactsSeen = world.impacts;
   if (world.shouts > shoutsSeen) rumble(0.3);
   shoutsSeen = world.shouts;
+  for (const c of world.combos) if (c.id > comboSeen) popNumber(camera, renderer.domElement, c.x, c.z, COMBO_TEXT[c.kind], 'combo');
+  comboSeen = Math.max(comboSeen, ...world.combos.map((c) => c.id));
   const frozen = hitstop > 0; // 멈춤 동안은 번쩍임·미끄러짐도 멈춘다 → 풀리면서 날아간다
   for (const e of world.entities) {
     const s = sprites[e.id];

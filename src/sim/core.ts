@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, SHOUT, SKILL, SLAM, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -21,6 +21,16 @@ export const shoutStat = (w: World) => ({
   radius: SHOUT.radius + 0.3 * extra(w, 'shout'),
 });
 export const axeStat = (w: World) => ({ cd: AXE.cd - 0.2 * extra(w, 'throw'), mult: AXE.mult + 0.25 * extra(w, 'throw') });
+
+// 5단계 완성 효과가 있는가(가르기 한 바퀴, 돌진 처치 시 초기화, 함성 회복, 도끼 관통)
+export const mastered = (w: World, s: SkillName) => w.ranks[s] >= RANK_MAX;
+
+// 스킬 피해(가르기·돌진·도끼). 연계: 예고 중인 적은 받아치기 ×2, 기절한 적은 약점 ×1.5(기록을 남겨 화면에 글자가 뜬다)
+export function skillHit(w: World, e: Entity, raw: number) {
+  const kind = e.phase === 'windup' ? 'counter' : e.stunT > 0 ? 'stunned' : null;
+  if (kind) w.combos.push({ id: w.nextItem++, x: e.x, z: e.z, kind, age: 0 });
+  hurt(w, e, kind ? Math.round(raw * COMBO[kind]) : raw, w.entities[0]);
+}
 
 // 주인공 최대 체력 = 레벨 + 갑옷의 '튼튼한' 옵션
 export const heroMax = (w: World) => heroMaxHp(w.level) + mod(w.mods.armor, 'life');

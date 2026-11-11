@@ -1,7 +1,7 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
 import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, METEOR, REPATH, SHOUT, SKILL, SLAM, type Entity, type Shot, type World } from './rules';
-import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, hurt, knock, makeEntity, roll, shoutStat, walk, waypoints } from './core';
+import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, roll, shoutStat, skillHit, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
@@ -18,7 +18,7 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
   w.skillCd = cleaveStat(w).cd;
 }
 
-// 가르기 타격: 바라보는 방향 반원(내적 ≥ 0)·반경 안, 벽에 막히지 않은 적 모두
+// 가르기 타격: 바라보는 방향 반원(내적 ≥ 0, 5단계는 한 바퀴)·반경 안, 벽에 막히지 않은 적 모두
 export function cleave(w: World, hero: Entity) {
   const fx = Math.sin(hero.facing);
   const fz = Math.cos(hero.facing);
@@ -27,8 +27,8 @@ export function cleave(w: World, hero: Entity) {
     const dx = e.x - hero.x;
     const dz = e.z - hero.z;
     const st = cleaveStat(w);
-    if (Math.hypot(dx, dz) > st.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
-    hurt(w, e, Math.round(roll(w, hero) * st.mult), hero);
+    if (Math.hypot(dx, dz) > st.radius || (!mastered(w, 'cleave') && dx * fx + dz * fz < 0) || !clearLine(w, hero, e)) continue; // 5단계는 한 바퀴
+    skillHit(w, e, Math.round(roll(w, hero) * st.mult));
     const d = Math.hypot(dx, dz);
     knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
   }
@@ -122,8 +122,14 @@ export function dashStep(w: World, hero: Entity) {
   if (!rush(w, hero, DASH.speed)) return;
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
+    if (!w.dashHit.length && w.skillCd > 0) {
+      // 연속: 돌진이 적을 맞히면 가르기가 바로 준비된다(돌진당 한 번)
+      w.skillCd = 0;
+      w.combos.push({ id: w.nextItem++, x: hero.x, z: hero.z, kind: 'reset', age: 0 });
+    }
     w.dashHit.push(e.id);
-    hurt(w, e, Math.round(roll(w, hero) * dashStat(w).mult), hero);
+    skillHit(w, e, Math.round(roll(w, hero) * dashStat(w).mult));
+    if (e.hp <= 0 && mastered(w, 'dash')) w.dashCd = 0; // 5단계: 처치하면 다시 돌진
     const side = (e.x - hero.x) * -hero.dz + (e.z - hero.z) * hero.dx < 0 ? -1 : 1; // 돌진 길의 어느 쪽에 있는가
     knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
   }
@@ -171,6 +177,7 @@ export function shout(w: World, hero: Entity) {
     knock(w, e, d > 1e-6 ? (e.x - hero.x) / d : 1, d > 1e-6 ? (e.z - hero.z) / d : 0, KNOCK.shout);
   }
   Object.assign(w, { shoutCd: st.cd, shoutT: SHOUT.time });
+  if (mastered(w, 'shout')) hero.hp = Math.min(hero.maxHp, hero.hp + Math.round(heroMax(w) * SHOUT.heal)); // 5단계: 회복
   w.shouts++;
 }
 
@@ -190,7 +197,7 @@ export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
 }
 
 // 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발.
-// 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해
+// 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해(5단계는 관통)
 export function fly(w: World, hero: Entity) {
   w.shots = w.shots.filter((s) => {
     const fire = s.kind === 'fire';
@@ -203,12 +210,14 @@ export function fly(w: World, hero: Entity) {
     }
     [s.x, s.z] = [nx, nz];
     if (s.kind === 'axe') {
-      const t = w.entities.find((e) => e !== hero && e.state !== 'dead' && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);
+      const hit = (s.hit ??= []);
+      const t = w.entities.find((e) => e !== hero && e.state !== 'dead' && !hit.includes(e.id) && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);
       if (t) {
-        hurt(w, t, s.dmg, hero);
+        hit.push(t.id);
+        skillHit(w, t, s.dmg);
         knock(w, t, s.dx, s.dz, KNOCK.axe);
       }
-      return !t;
+      return !t || mastered(w, 'throw'); // 5단계: 관통(맞힌 적은 다시 안 맞는다)
     }
     if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > (fire ? MAGE.hitRadius : ARCHER.hitRadius)) return true;
     if (fire) explode(w, hero, s.x, s.z, s.dmg);

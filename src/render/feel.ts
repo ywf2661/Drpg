@@ -30,10 +30,10 @@ export function updateFeel(dt: number, camera: THREE.Camera) {
   camera.position.z += (Math.random() - 0.5) * shake;
 }
 
-// 떠오르는 숫자. 월드 (x, z) 머리 위에서 시작해 위로 사라진다
-export function popNumber(camera: THREE.Camera, canvas: HTMLCanvasElement, x: number, z: number, n: number, kind: 'skill' | 'hit' | 'hurt') {
+// 떠오르는 숫자·글자. 월드 (x, z) 머리 위에서 시작해 위로 사라진다. combo = 연계 이름(숫자보다 위에서)
+export function popNumber(camera: THREE.Camera, canvas: HTMLCanvasElement, x: number, z: number, n: number | string, kind: 'skill' | 'hit' | 'hurt' | 'combo') {
   const r = canvas.getBoundingClientRect();
-  v.set(x, 1.4, z).project(camera);
+  v.set(x, kind === 'combo' ? 2.1 : 1.4, z).project(camera);
   const div = Object.assign(document.createElement('div'), { className: `pop ${kind}`, textContent: String(n) });
   div.style.left = `${r.left + ((v.x + 1) / 2) * r.width}px`;
   div.style.top = `${r.top + ((1 - v.y) / 2) * r.height}px`;
@@ -45,6 +45,6 @@ export function popNumber(camera: THREE.Camera, canvas: HTMLCanvasElement, x: nu
       { transform: `translate(calc(-50% + ${side / 2}px), -110%) scale(1)`, opacity: 1, offset: 0.25 },
       { transform: `translate(calc(-50% + ${side}px), -220%) scale(0.9)`, opacity: 0 },
     ],
-    { duration: kind === 'skill' ? 800 : 550, easing: 'ease-out' },
+    { duration: kind === 'skill' || kind === 'combo' ? 800 : 550, easing: 'ease-out' },
   ).onfinish = () => div.remove();
 }

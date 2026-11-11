@@ -12,7 +12,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, outcome, POTION, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
+import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, mastered, outcome, POTION, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -135,11 +135,12 @@ const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const sec = (v: number) => `${+v.toFixed(1)}초`;
 // 스킬 툴팁: 이름(키) · 단계, 지금 수치, 다음 단계 수치
-const SKILL_TEXT: Record<SkillName, { name: string; key: string; stat(w: World): string }> = {
-  cleave: { name: '가르기', key: 'Q / 우클릭', stat: (w) => { const s = cleaveStat(w); return `앞쪽 반원 ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  dash: { name: '돌진 베기', key: 'W', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 길 위 적 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  shout: { name: '전투의 함성', key: 'E', stat: (w) => { const s = shoutStat(w); return `${s.radius.toFixed(1)}m 안 적 ${sec(s.stun)} 기절, 받는 피해 −${pct(s.reduce)}, ${sec(s.cd)}`; } },
-  throw: { name: '도끼 던지기', key: 'R', stat: (w) => { const s = axeStat(w); return `처음 닿는 적에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+// cap: 5단계 완성 효과
+const SKILL_TEXT: Record<SkillName, { name: string; key: string; cap: string; stat(w: World): string }> = {
+  cleave: { name: '가르기', key: 'Q / 우클릭', cap: '반원 대신 한 바퀴를 벤다', stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '한 바퀴' : '앞쪽 반원'} ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  dash: { name: '돌진 베기', key: 'W', cap: '돌진으로 처치하면 바로 다시 돌진', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 길 위 적 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  shout: { name: '전투의 함성', key: 'E', cap: '쓸 때 최대 체력의 15% 회복', stat: (w) => { const s = shoutStat(w); return `${s.radius.toFixed(1)}m 안 적 ${sec(s.stun)} 기절, 받는 피해 −${pct(s.reduce)}, ${sec(s.cd)}`; } },
+  throw: { name: '도끼 던지기', key: 'R', cap: '적을 관통한다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '길 위의 적 모두' : '처음 닿는 적'}에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
 };
 let shownRanks = '';
 
@@ -154,7 +155,7 @@ function showRanks(w: World) {
     btn.querySelector('.rank')!.textContent = String(r);
     (btn.querySelector('.up') as HTMLElement).hidden = !w.points || r >= RANK_MAX;
     const next = r < RANK_MAX ? `\n다음 단계: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: r + 1 } })}` : '\n(최고 단계)';
-    btn.title = `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
+    btn.title = `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}\n5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
   }
 }
 
