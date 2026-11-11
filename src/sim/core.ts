@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, DASH, DMG_SCALE, DT, ELITE, MONSTER_DMG, SHOUT, SKILL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, SHOUT, SKILL, SLAM, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -108,7 +108,7 @@ export function gainXp(w: World, n: number) {
 
 export function makeEntity(id: number, kind: Kind, x: number, z: number, power: number, elite = false, summoner = -1): Entity {
   const hp = Math.round(STATS[kind].hp * power * (elite ? ELITE.hp : 1));
-  return { id, kind, x, z, elite, summoner, stunT: 0, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: 0, dx: 0, dz: 0 };
+  return { id, kind, x, z, elite, summoner, stunT: 0, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: kind === 'warrior' ? SLAM.first + (id % 3) : kind === 'mage' ? METEOR.first + (id % 3) : 0, dx: 0, dz: 0 };
 }
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
@@ -167,7 +167,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   return dealt;
 }
 
-// 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동이 끊긴다.
+// 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동·예고가 끊긴다.
 // 보스·해골 왕은 밀리지도 끊기지도 않는다. 죽은 적도 밀린다(시체가 날아간다). 난수를 쓰지 않는다
 export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
   w.impacts++;
@@ -176,7 +176,7 @@ export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
     e.x += dx * 0.1;
     e.z += dz * 0.1;
   }
-  if (e.hp > 0) Object.assign(e, { state: 'idle', attackT: 0, path: [], repathT: 0 });
+  if (e.hp > 0) Object.assign(e, { state: 'idle', attackT: 0, path: [], repathT: 0, phase: 'none' }); // 예고 자세(내려찍기)도 끊긴다
 }
 
 // 금화 더미(lo..hi × 배율)

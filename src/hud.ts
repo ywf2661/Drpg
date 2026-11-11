@@ -12,7 +12,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, outcome, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
+import { ARMORS, axeStat, BAG_MAX, bagBlocked, cleaveStat, dashStat, gearDiff, outcome, POTION, RANK_MAX, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type SkillName, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -285,7 +285,8 @@ export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onSell: (i:
 }
 
 // 매 프레임. hovered: 마우스가 올라간 몬스터 id, choosing: 이어하기를 고르는 중(배너를 건드리지 않음)
-export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats) {
+// lostGold: 이번 죽음에서 잃은 금화
+export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats, lostGold = 0) {
   const hero = world.entities[0];
   if (world !== shownWorld) {
     shownWorld = world;
@@ -305,6 +306,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   $('#throw i').style.height = `${(world.throwCd / axeStat(world).cd) * 100}%`;
   showRanks(world);
   potionCount.textContent = String(world.potions);
+  $('#potion i').style.height = `${world.healing ? (1 - world.healing.t / POTION.time) * 100 : 0}%`; // 차는 동안은 다시 못 마신다
   goldLabel.textContent = String(world.gold);
   potionBtn.classList.toggle('empty', world.potions === 0);
   bagBtn.querySelector('span')!.textContent = `${world.bag.length}/${BAG_MAX}`;
@@ -352,7 +354,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   if (choosing) return;
   const o = outcome(world);
   banner.hidden = restartBtn.hidden = o !== 'dead' && o !== 'clear';
-  if (o === 'dead') bannerText.textContent = '사망했습니다';
+  if (o === 'dead') bannerText.textContent = '사망했습니다' + (lostGold ? ` — 금화 ${lostGold}을 잃었습니다` : '');
   if (o === 'clear') {
     bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
     summary.textContent = `플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;

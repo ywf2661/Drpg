@@ -1,7 +1,7 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, REPATH, SHOUT, SKILL, type Entity, type Shot, type World } from './rules';
-import { axeStat, cellOf, cleaveStat, clearLine, dashStat, dist, face, hurt, knock, makeEntity, roll, shoutStat, walk, waypoints } from './core';
+import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, METEOR, REPATH, SHOUT, SKILL, SLAM, type Entity, type Shot, type World } from './rules';
+import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, hurt, knock, makeEntity, roll, shoutStat, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
@@ -219,6 +219,44 @@ export function fly(w: World, hero: Entity) {
 
 // 화염구 폭발: 반경 안의 살아 있는 주인공에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다
 export function explode(w: World, hero: Entity, x: number, z: number, dmg: number) {
-  w.blasts.push({ id: w.nextItem++, x, z, age: 0 });
+  w.blasts.push({ id: w.nextItem++, x, z, age: 0, kind: 'fire' });
   if (hero.state !== 'dead' && Math.hypot(hero.x - x, hero.z - z) <= MAGE.blast) hurt(w, hero, dmg);
+}
+
+// 전사 내려찍기: 대상이 사거리 안이고 대기가 끝났으면 제자리 예고 + 앞쪽 바닥에 위험 구역. 피해·종료는 tickZones가.
+// 예고 중이면 true(평소 행동을 건너뜀). 대기는 대상이 있을 때만 흐른다(처음 만났을 때 한꺼번에 내려찍지 않게)
+export function slam(w: World, e: Entity, t: Entity | null): boolean {
+  if (e.phase === 'windup') return true;
+  if (!t) return false;
+  e.cd = Math.max(0, e.cd - DT);
+  if (e.cd > 0 || !canHit(w, e, t)) return false;
+  face(e, t);
+  Object.assign(e, { phase: 'windup', cd: SLAM.cd, state: 'idle', attackT: 0, path: [] });
+  const [x, z] = [e.x + Math.sin(e.facing) * SLAM.reach, e.z + Math.cos(e.facing) * SLAM.reach];
+  w.zones.push({ id: w.nextItem++, x, z, r: SLAM.radius, t: SLAM.windup, total: SLAM.windup, dmg: Math.round(roll(w, e) * SLAM.mult), owner: e.id });
+  return true;
+}
+
+// 마법사 불기둥: 대상이 보이는 사거리 안이고 대기가 끝났으면 대상 발밑에 위험 구역(하던 일은 계속한다)
+export function meteor(w: World, e: Entity, t: Entity) {
+  e.cd = Math.max(0, e.cd - DT);
+  if (e.cd > 0 || dist(e, t) > MAGE.range || !clearLine(w, e, t)) return;
+  e.cd = METEOR.cd;
+  w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: METEOR.delay, total: METEOR.delay, dmg: Math.round(roll(w, e) * METEOR.mult), owner: -1 });
+}
+
+// 위험 구역 한 틱: 주인이 죽었거나 예고가 끊겼으면 사라지고, 시간이 다 되면 반경 안의 주인공에게 피해
+export function tickZones(w: World, hero: Entity) {
+  w.zones = w.zones.filter((z) => {
+    const owner = z.owner < 0 ? null : w.entities[z.owner];
+    if (owner && (owner.state === 'dead' || owner.phase !== 'windup')) return false;
+    if ((z.t -= DT) > 0) return true;
+    if (!owner) explode(w, hero, z.x, z.z, z.dmg);
+    else {
+      owner.phase = 'none';
+      w.blasts.push({ id: w.nextItem++, x: z.x, z: z.z, age: 0, kind: 'slam' });
+      if (hero.state !== 'dead' && Math.hypot(hero.x - z.x, hero.z - z.z) <= z.r) hurt(w, hero, z.dmg, owner);
+    }
+    return false;
+  });
 }

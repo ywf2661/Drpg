@@ -8,7 +8,7 @@ import { hitstop } from './render/feel';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
 import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats } from './save';
-import { buy, sell } from './shop';
+import { buy, deathGold, sell } from './shop';
 import { cyclePower, floorPower, generateFloor, themeFor } from './sim/dungeon';
 import { createWorld, discardFromBag, DT, equipFromBag, outcome, setLevel, step, type BagItem, type Gear, type SkillName, type World } from './sim/world';
 
@@ -27,6 +27,7 @@ let floor = 1;
 let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 1씩
 let entry: Carry = START; // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
+let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(다음 층으로 가져갈 상태)
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
@@ -48,6 +49,7 @@ function makeFloor(n: number, carry: Carry): World {
 
 function enterFloor(n: number, carry: Carry) {
   floor = n;
+  lostGold = null;
   entry = carryOf(carry);
   saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
@@ -220,12 +222,18 @@ requestAnimationFrame(function frame(now) {
   stats.kills += events.filter((e) => e.name === 'skel_die' || e.name === 'boss_die').length;
   const o = outcome(world);
   if (!paused && !o) stats.time += dt;
+  if (o === 'dead' && lostGold === null) {
+    // 죽는 순간 금화 절반을 잃고 바로 저장(새로고침으로 피할 수 없게). 다시 시작하면 줄어든 금화로 같은 층
+    lostGold = entry.gold - deathGold(entry.gold);
+    entry = { ...entry, gold: deathGold(entry.gold) };
+    saveRun({ floor, ...entry, cycle, stats });
+  }
   if (o === 'clear') clearRun(); // 다 깼으면 이어할 것이 없다
   if (o === 'descend' && !shopping) openShop();
   heard = snapshot(world);
   draw(world, dt);
   drawAutomap(world);
   drawLabels(world, camera, renderer.domElement);
-  updateHud(world, hovered, choosing, stats);
+  updateHud(world, hovered, choosing, stats, lostGold ?? 0);
   requestAnimationFrame(frame);
 });

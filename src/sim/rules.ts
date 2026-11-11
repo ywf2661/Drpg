@@ -66,7 +66,11 @@ export type Chest = { id: number; x: number; z: number; open: boolean };
 export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' }; // axe = 주인공의 도끼(몬스터만 맞음)
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
-export type Blast = { id: number; x: number; z: number; age: number };
+export type Blast = { id: number; x: number; z: number; age: number; kind: 'fire' | 'slam' }; // slam = 전사 내려찍기가 떨어진 자리
+
+// 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
+// owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
+export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number };
 
 // 장착 장비 단계(1~4). WEAPONS·ARMORS[단계 − 1]
 export type Gear = { weapon: number; armor: number };
@@ -86,6 +90,8 @@ export type World = {
   items: Item[];
   shots: Shot[];
   blasts: Blast[];
+  zones: Zone[];
+  healing: { total: number; given: number; t: number } | null; // 마신 물약이 차는 중(합계·준 양·지난 시간)
   nextItem: number; // 아이템·화살 공용 id
   potions: number;
   gold: number;
@@ -169,6 +175,11 @@ export const ARCHER = { range: 6, speed: 9, flight: 8, hitRadius: 0.4 }; // 궁�
 // 마법사: 사거리, 화염구 속도·비행 거리·직격 반경·폭발 반경·폭발 기록 유지, 물러나는 거리
 export const MAGE = { range: 7, speed: 6, flight: 9, hitRadius: 0.5, blast: 1.2, blastAge: 0.6, flee: 3 };
 
+// 전사 내려찍기: 재사용, 첫 대기(대상을 잡은 뒤, + id % 3초로 엇갈림), 예고 시간, 앞쪽 거리, 반경, 배율
+export const SLAM = { cd: 6, first: 2, windup: 0.8, reach: 1, radius: 1.3, mult: 2 };
+// 마법사 불기둥: 재사용, 첫 대기(+ id % 3초), 떨어지기까지, 배율. 반경은 MAGE.blast
+export const METEOR = { cd: 7, first: 3, delay: 1.2, mult: 1.5 };
+
 export const RADIUS = 0.4;
 
 export const AGGRO = 8;
@@ -178,7 +189,7 @@ export const HIT_AT = 0.4;
 export const REPATH = 0.5;
 
 // 드롭 확률(종류별), 줍는 반경(m), 허리띠 칸 수, 회복량(최대 체력 비율)
-export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, mage: 0.25, king: 0, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5 };
+export const POTION = { drop: { hero: 0, minion: 0.2, warrior: 0.35, archer: 0.25, mage: 0.25, king: 0, boss: 0 } as Record<Kind, number>, pickup: 0.6, max: 8, heal: 0.5, time: 4 }; // time: 회복에 걸리는 시간(초)
 
 export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior: 0.12, archer: 0.08, mage: 0.1, king: 0, boss: 0 };
 

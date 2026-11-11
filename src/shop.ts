@@ -20,6 +20,9 @@ export function offers(c: Wallet): { item: ShopItem; price: number; ok: boolean 
   });
 }
 
+// 죽은 뒤 남는 금화: 절반(내림)
+export const deathGold = (gold: number) => Math.floor(gold / 2);
+
 export const sellPrice = (it: BagItem) => 10 * it.tier + 15 * it.affixes.length;
 
 // 판 뒤의 새 상태. 잘못된 칸이면 받은 그대로

@@ -1,6 +1,6 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
-import { buy, sell } from '../shop';
+import { buy, deathGold, sell } from '../shop';
 import { createWorld, DT, isBetter, outcome, setLevel, step, type Affix, type BagItem, type Command, type Gear, type SkillName, type World } from './world';
 
 type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number; bag: BagItem[] };
@@ -22,11 +22,11 @@ function makeFloor(seed: number, n: number, c: Carry): World {
 }
 
 // 간단한 플레이어: 체력이 낮으면 물약, 가까운 적부터 공격, 스킬은 뻔한 상황에만(무리면 가르기, 둘러싸이거나 보스 예고면 함성,
-// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단. 피하기는 하지 않는다
-function think(w: World, skills: boolean): Command[] {
+// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단. 화살·화염구는 피하지 않고 바닥의 예고 구역만 피한다
+function think(w: World, skills: boolean, dodge: boolean): Command[] {
   const hero = w.entities[0];
   const cmds: Command[] = [];
-  if (hero.hp < hero.maxHp * 0.45 && w.potions > 0) cmds.push({ type: 'drink' });
+  if (hero.hp < hero.maxHp * 0.6 && w.potions > 0) cmds.push({ type: 'drink' }); // 서서히 차므로 미리 마신다
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead').sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
@@ -34,6 +34,12 @@ function think(w: World, skills: boolean): Command[] {
     // 포인트는 가장 낮은 단계부터(같으면 가르기 → 도끼 → 함성 → 돌진)
     const order: SkillName[] = ['cleave', 'throw', 'shout', 'dash'];
     cmds.push({ type: 'learn', skill: order.reduce((a, b) => (w.ranks[b] < w.ranks[a] ? b : a)) });
+  }
+  // 예고된 위험 구역 안이면 다른 일은 접고 바깥으로 걸어 나간다
+  const zone = dodge && w.zones.find((z) => d(z.x, z.z) < z.r + 0.3);
+  if (zone) {
+    const k = d(zone.x, zone.z) || 1;
+    return [...cmds, { type: 'move', x: zone.x + ((hero.x - zone.x) / k) * (zone.r + 1.2), z: zone.z + ((hero.z - zone.z) / k) * (zone.r + 1.2) }];
   }
   if (near(2) >= 2) cmds.push({ type: 'skill' });
   if (skills) {
@@ -60,7 +66,7 @@ function shopping(c: Carry): Carry {
 }
 
 // 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨
-export function playthrough(seed: number, skills = true) {
+export function playthrough(seed: number, skills = true, dodge = true) {
   let carry = START;
   let deaths = 0;
   for (let n = 1; n <= FLOORS; n++) {
@@ -68,7 +74,7 @@ export function playthrough(seed: number, skills = true) {
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
       const w = makeFloor(seed * 100 + n * 10 + attempt, n, carry);
       for (let t = 0; t < 600 / DT; t++) {
-        step(w, t % THINK === 0 ? think(w, skills) : []);
+        step(w, t % THINK === 0 ? think(w, skills, dodge) : []);
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
@@ -77,7 +83,10 @@ export function playthrough(seed: number, skills = true) {
           break;
         }
       }
-      if (!done) deaths++;
+      if (!done) {
+        deaths++;
+        carry = { ...carry, gold: deathGold(carry.gold) };
+      }
     }
     if (!done) return { cleared: false, deaths, level: carry.level, floor: n };
   }

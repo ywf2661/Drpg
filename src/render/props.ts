@@ -1,4 +1,5 @@
 // 소품·계단·바닥 물약·화로 불빛. 모두 캐릭터와 같은 세로 판자(발 아래는 바닥에 눕힘), 화로마다 점광원 1개.
+import { rumble } from './feel';
 import * as THREE from 'three';
 import type { Item, Prop, World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
@@ -138,9 +139,11 @@ export function syncEffects(world: World) {
   for (const b of world.blasts) {
     if (blastsSeen.has(b.id)) continue;
     blastsSeen.add(b.id);
-    const c = card(blastFx, 'blast', b.x, b.z, false);
+    const slam = b.kind === 'slam'; // 내려찍기 = 땅 울림(눕힌 그림) + 화면 흔들림, 그 밖은 불꽃 폭발
+    const c = slam ? card(quakeFx, 'quake', b.x, b.z, true) : card(blastFx, 'blast', b.x, b.z, false);
     Object.assign(c, { t: 0, glow: 1 });
-    c.mesh.renderOrder = 2;
+    if (slam) rumble(0.2);
+    else c.mesh.renderOrder = 2;
     effects.push(c);
     cards.push(c);
     group.add(c.mesh);

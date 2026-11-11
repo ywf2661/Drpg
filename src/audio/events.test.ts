@@ -110,7 +110,7 @@ test('마법사: 시전할 때가 아니라 화염구가 나갈 때 fireball, �
   expect(names(soundEvents(prev, w))).toEqual([]);
   prev = snapshot(w);
   w.shots.push({ id: 5, x: g.x, z: g.z, dx: -1, dz: 0, dmg: 5, left: 9, kind: 'fire' });
-  w.blasts.push({ id: 6, x: 1, z: 0.5, age: 0 });
+  w.blasts.push({ id: 6, x: 1, z: 0.5, age: 0, kind: 'fire' });
   expect(names(soundEvents(prev, w))).toEqual(['fireball', 'blast']);
 });
 

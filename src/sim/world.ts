@@ -2,7 +2,7 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints, wear } from './core';
-import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, shoot, shout, summon, throwAxe } from './abilities';
+import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, shoot, shout, slam, summon, throwAxe, tickZones } from './abilities';
 import { AGGRO, BAG_MAX, CHEST, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, type Chest, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
@@ -36,7 +36,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, impacts: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], zones: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -59,6 +59,7 @@ export function step(w: World, cmds: Command[]): void {
     act(w, e);
   }
   fly(w, hero);
+  tickZones(w, hero);
   separate(w);
   reachChest(w, hero);
   pickup(w, hero);
@@ -66,8 +67,18 @@ export function step(w: World, cmds: Command[]): void {
 
 // 갑옷 '재생의': 초당 value/10. 소수점은 쌓아 두었다가 1씩
 function regen(w: World, hero: Entity) {
+  if (hero.state === 'dead') return void (w.healing = null);
+  // 물약: POTION.time에 걸쳐 고르게. 지금까지 줘야 할 양(내림)과 준 양의 차이만큼 → 합계가 정확하다
+  const h = w.healing;
+  if (h) {
+    h.t += DT;
+    const due = Math.min(h.total, Math.floor((h.total * h.t) / POTION.time + 1e-6));
+    hero.hp = Math.min(hero.maxHp, hero.hp + due - h.given);
+    h.given = due;
+    if (due === h.total) w.healing = null;
+  }
   const r = mod(w.mods.armor, 'regen');
-  if (!r || hero.state === 'dead') return;
+  if (!r) return;
   w.regenAcc += (r / 10) * DT;
   while (w.regenAcc >= 1) {
     w.regenAcc -= 1;
@@ -114,8 +125,8 @@ function learn(w: World, s: SkillName) {
 
 // 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
 function drink(w: World, hero: Entity) {
-  if (hero.state === 'dead' || w.potions <= 0 || hero.hp >= hero.maxHp) return;
-  hero.hp = Math.min(hero.maxHp, hero.hp + Math.round(hero.maxHp * POTION.heal));
+  if (hero.state === 'dead' || w.potions <= 0 || hero.hp >= hero.maxHp || w.healing) return; // 차는 중에는 다시 못 마신다
+  w.healing = { total: Math.round(hero.maxHp * POTION.heal), given: 0, t: 0 };
   w.potions--;
 }
 
@@ -213,6 +224,8 @@ function act(w: World, e: Entity) {
   if (e.kind === 'boss' && charge(w, e, t)) return;
   if (e.kind === 'hero' && e.phase === 'charge') return dashStep(w, e);
   if (e.kind === 'king' && summon(w, e, t)) return;
+  if (e.kind === 'warrior' && slam(w, e, t)) return;
+  if (e.kind === 'mage' && t) meteor(w, e, t);
   if (e.state === 'attack') return swing(w, e, t);
   if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {

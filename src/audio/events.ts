@@ -18,6 +18,7 @@ export type Snapshot = {
   items: Set<number>;
   shots: Set<number>;
   blasts: Set<number>;
+  zones: Set<number>;
   level: number;
   cleaves: number;
   dashes: number;
@@ -37,6 +38,7 @@ export function snapshot(w: World): Snapshot {
     items: new Set(w.items.map((i) => i.id)),
     shots: new Set(w.shots.map((s) => s.id)),
     blasts: new Set(w.blasts.map((b) => b.id)),
+    zones: new Set(w.zones.map((z) => z.id)),
     level: w.level,
     cleaves: w.cleaves,
     dashes: w.dashes,
@@ -64,7 +66,8 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
     else if (e.hp < p.hp && e.maxHp === p.maxHp) at(`${v}_hit`, e.x, e.z); // 최대 체력이 바뀐 것(갑옷 교체)은 맞은 것이 아니다
   });
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
-  for (const b of w.blasts) if (!prev.blasts.has(b.id)) at('blast', b.x, b.z);
+  for (const b of w.blasts) if (!prev.blasts.has(b.id)) at(b.kind === 'slam' ? 'skel_attack' : 'blast', b.x, b.z); // 내려찍기가 떨어짐 / 폭발
+  for (const z of w.zones) if (z.owner < 0 && !prev.zones.has(z.id)) at('fireball', z.x, z.z); // 불기둥 예고
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
   if (w.potions !== prev.potions) at('potion');
   if (w.gold > prev.gold) at('gold');

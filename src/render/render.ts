@@ -9,6 +9,7 @@ import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncItems, syncShots, updateProps } from './props';
+import { syncZones, zoneGroup } from './zones';
 import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -54,6 +55,7 @@ export async function initRender(world: World, theme: Theme) {
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.002;
   scene.add(torch);
+  scene.add(zoneGroup);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear)]);
@@ -120,6 +122,7 @@ export function draw(world: World, dt: number) {
   syncItems(world);
   syncShots(world);
   syncEffects(world);
+  syncZones(world);
   syncChests(world);
   updateProps(dt, light);
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));

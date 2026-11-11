@@ -433,8 +433,10 @@ test('물약을 마시면 최대 체력의 50% 회복(최대치까지), 가득�
   w.potions = 2;
   hero.hp = 30;
   step(w, [{ type: 'drink' }]);
+  run(w, 250); // 4초에 걸쳐 찬다(tension.test.ts)
   expect([hero.hp, w.potions]).toEqual([80, 1]);
   step(w, [{ type: 'drink' }]);
+  run(w, 250);
   expect([hero.hp, w.potions]).toEqual([100, 0]);
   w.potions = 1;
   step(w, [{ type: 'drink' }]);
@@ -722,6 +724,7 @@ test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 �
   const hitter = createWorld(2, ['HW'], 1.3);
   const hero = hitter.entities[0];
   hero.hp = hero.maxHp = 1e6;
+  hitter.entities[1].cd = 1e9; // 내려찍기 없이 평타만
   const hits: number[] = [];
   for (let t = 0; t < 900; t++) {
     const before = hero.hp;
