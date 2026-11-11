@@ -8,6 +8,8 @@ const PICK_RADIUS = 0.5; // 몬스터·상자 선택 판정 반경(m)
 const PICK_TOUCH = 0.9; // 터치는 넓게: 0.5m는 휴대폰에서 폭 약 32px이라 손가락(44px 이상)으로 누르기 어렵다
 const ray = new THREE.Raycaster();
 const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+// 조준은 가슴 높이 평면으로: 바닥으로 재면 몬스터 몸통을 가리킬 때 그 뒤쪽 바닥이 잡혀, 가까운 적일수록 방향이 20~45° 틀어진다
+const chest = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.9);
 const pointer = new THREE.Vector2();
 const clickAt = new THREE.Vector2(); // 누른 순간의 위치. 다음 프레임 전에 커서가 움직여도 이 위치로 판정
 const hit = new THREE.Vector3();
@@ -21,6 +23,7 @@ let pickRadius = PICK_RADIUS; // 마지막 입력이 터치면 PICK_TOUCH
 
 export const commands: Command[] = [];
 export let hovered: number | null = null;
+let hoveredAt: { x: number; z: number } | null = null; // 커서가 가리키는 몬스터(조준은 그 몬스터로)
 
 export function initInput() {
   const el = renderer.domElement;
@@ -33,7 +36,7 @@ export function initInput() {
     if (e.button === 2) {
       setPointer(e);
       ray.setFromCamera(pointer, camera);
-      if (ray.ray.intersectPlane(ground, hit)) commands.push({ type: 'skill', x: hit.x, z: hit.z });
+      if (ray.ray.intersectPlane(chest, hit)) commands.push({ type: 'skill', x: hit.x, z: hit.z });
       return;
     }
     if (e.button !== 0) return;
@@ -56,7 +59,7 @@ function setPointer(e: PointerEvent) {
 export function pollInput(world: World, dt: number, paused: boolean) {
   if (paused) {
     held = clicked = false;
-    hovered = null;
+    hovered = hoveredAt = null;
     return;
   }
   if (clicked) {
@@ -77,12 +80,15 @@ export function pollInput(world: World, dt: number, paused: boolean) {
   }
   ray.setFromCamera(pointer, camera);
   hovered = pick(world);
+  hoveredAt = hovered === null ? null : world.entities[hovered];
 }
 
-// 커서가 가리키는 바닥 지점(돌진 베기 조준). 마우스가 없으면(모바일) null
+// 커서가 가리키는 곳(스킬·구르기 조준): 몬스터 위면 그 몬스터, 아니면 가슴 높이 지점. 마우스가 없으면(모바일) null
 export function aim(): { x: number; z: number } | null {
+  if (!hasPointer) return null;
+  if (hoveredAt) return { x: hoveredAt.x, z: hoveredAt.z };
   ray.setFromCamera(pointer, camera);
-  return hasPointer && ray.ray.intersectPlane(ground, hit) ? { x: hit.x, z: hit.z } : null;
+  return ray.ray.intersectPlane(chest, hit) ? { x: hit.x, z: hit.z } : null;
 }
 
 function moveToRay() {
