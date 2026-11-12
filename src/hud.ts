@@ -12,7 +12,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { ARMORS, axeStat, BAG, bagBlocked, bagFits, cleaveStat, dashStat, gearDiff, gearSize, mastered, outcome, POTION, RANK_MAX, ROLL, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type GearItem, type SkillName, type World } from './sim/world';
+import { ARMORS, axeStat, BAG, bagBlocked, bagFits, cleaveStat, dashStat, gearDiff, gearSize, mastered, outcome, POTION, RANK_MAX, ROLL, TRAIT, shoutStat, STATS, WEAPONS, xpToNext, type Affix, type BagItem, type GearItem, type SkillName, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -59,7 +59,7 @@ let shownBlocked = false; // '가득 찼습니다'는 밟은 순간 한 번만
 let shownLevel = 0;
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; traits(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -82,7 +82,13 @@ export function initHud(h: Handlers) {
       e.stopPropagation();
       h.learn(s);
     });
-    btn.append(rank, up);
+    // ★: 특성 고르기(3단계부터). 아직 안 골랐으면 금색으로 깜빡인다
+    const star = Object.assign(document.createElement('span'), { className: 'trait', textContent: '★', hidden: true });
+    star.addEventListener('click', (e) => {
+      e.stopPropagation();
+      h.traits(s);
+    });
+    btn.append(rank, up, star);
   }
   restartBtn.addEventListener('click', h.restart); // 모바일용
   for (const el of [bagBtn, weaponSlot, armorSlot]) el.addEventListener('click', h.bag);
@@ -144,10 +150,50 @@ const SKILL_TEXT: Record<SkillName, { name: string; key: string; cap: string; st
   throw: { name: '도끼 던지기', key: 'R', cap: '적을 관통한다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '길 위의 적 모두' : '처음 닿는 적'}에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
 };
 let shownRanks = '';
+const shownTraitHint = new Set<SkillName>(); // 특성 알림을 띄운 스킬
+// 특성 [이름, 설명] — 스킬마다 1번·2번
+const TRAIT_TEXT: Record<SkillName, [string, string][]> = {
+  cleave: [
+    ['회오리', '휘두르는 대신 2초 동안 돌면서 걸어 다니며 주변 적을 계속 벤다 (5단계: 3초)'],
+    ['시체 폭발', '가르기로 죽은 적이 터져 주변에 피해를 준다. 터져서 죽은 적도 또 터진다'],
+  ],
+  dash: [
+    ['꼬치', '맞은 적을 끝까지 끌고 가 벽에 박는다. 박히면 추가 피해와 기절'],
+    ['불길', '지나간 길이 3초 동안 불타 그 위의 적을 태운다'],
+  ],
+  shout: [
+    ['끌어당김', '밀어내는 대신 주변 적을 발밑으로 끌어모은다'],
+    ['공포', '기절 대신 4초 동안 도망치게 한다. 도망치는 적은 스킬 피해 2배'],
+  ],
+  throw: [
+    ['튕기는 도끼', '맞으면 가까운 적으로 세 번 더 튄다 (5단계: 여섯 번)'],
+    ['박힌 도끼', '적에게 박혀 남는다. 다시 누르면 그 적 앞으로 순간이동해 뽑으며 폭발'],
+  ],
+};
+
+// 특성 고르기 창: 둘 중 하나. 이미 골랐으면 바꾸는 데 금화가 든다
+export function showTraits(w: World, s: SkillName, onPick: (pick: number) => void) {
+  const dlg = document.querySelector<HTMLDialogElement>('#traits')!;
+  const now = w.traits[s];
+  $('#traits-title').textContent = `${SKILL_TEXT[s].name} 특성` + (now ? ` — 바꾸기: 금화 ${TRAIT.respec} (지금 ${w.gold})` : ' — 하나를 고르세요');
+  $('#traits-list').replaceChildren(
+    ...TRAIT_TEXT[s].map(([name, text], k) => {
+      const b = document.createElement('button');
+      b.append(Object.assign(document.createElement('b'), { textContent: name + (now === k + 1 ? ' ✓' : '') }), Object.assign(document.createElement('small'), { textContent: text }));
+      b.disabled = now === k + 1 || (now > 0 && w.gold < TRAIT.respec);
+      b.addEventListener('click', () => {
+        onPick(k + 1);
+        dlg.close();
+      });
+      return b;
+    }),
+  );
+  dlg.showModal();
+}
 
 // 스킬 버튼의 단계 숫자·[+]·툴팁(단계나 포인트가 바뀔 때만 다시 씀)
 function showRanks(w: World) {
-  const key = JSON.stringify([w.ranks, w.points]);
+  const key = JSON.stringify([w.ranks, w.points, w.traits]);
   if (key === shownRanks) return;
   shownRanks = key;
   for (const [btn, s] of SKILL_BUTTONS()) {
@@ -155,8 +201,13 @@ function showRanks(w: World) {
     const t = SKILL_TEXT[s];
     btn.querySelector('.rank')!.textContent = String(r);
     (btn.querySelector('.up') as HTMLElement).hidden = !w.points || r >= RANK_MAX;
+    const star = btn.querySelector('.trait') as HTMLElement;
+    star.hidden = r < TRAIT.rank;
+    star.classList.toggle('new', !w.traits[s]);
+    const picked = TRAIT_TEXT[s][w.traits[s] - 1];
+    const trait = picked ? `\n특성 ★ ${picked[0]}: ${picked[1]}` : r >= TRAIT.rank ? '\n★를 눌러 특성 고르기' : `\n${TRAIT.rank}단계: 특성 둘 중 하나`;
     const next = r < RANK_MAX ? `\n다음 단계: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: r + 1 } })}` : '\n(최고 단계)';
-    btn.title = `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}\n5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
+    btn.title = `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}\n5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}${trait}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
   }
 }
 
@@ -353,6 +404,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownGear = '';
     shownBag = world.bag.length;
     shownBlocked = false;
+    shownTraitHint.clear();
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
@@ -365,6 +417,12 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   $('#throw i').style.height = `${(world.throwCd / axeStat(world).cd) * 100}%`;
   $('#roll i').style.height = `${(world.rollCd / ROLL.cd) * 100}%`;
   showRanks(world);
+  // 3단계가 된 순간 특성을 고르라고 알린다
+  const fresh = (Object.keys(world.ranks) as SkillName[]).find((s) => world.ranks[s] >= TRAIT.rank && !world.traits[s] && !shownTraitHint.has(s));
+  if (fresh) {
+    shownTraitHint.add(fresh);
+    if (shownLevel) say(`${SKILL_TEXT[fresh].name} 특성을 고를 수 있습니다 — 스킬 버튼의 ★`);
+  }
   potionCount.textContent = String(world.potions);
   $('#potion i').style.height = `${world.healing ? (1 - world.healing.t / POTION.time) * 100 : 0}%`; // 차는 동안은 다시 못 마신다
   goldLabel.textContent = String(world.gold);

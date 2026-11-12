@@ -28,9 +28,9 @@ export const mastered = (w: World, s: SkillName) => w.ranks[s] >= RANK_MAX;
 // 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
 export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));
 
-// 스킬 피해(가르기·돌진·도끼). 연계: 예고 중인 적은 받아치기 ×2, 기절한 적은 약점 ×1.5(기록을 남겨 화면에 글자가 뜬다)
+// 스킬 피해(가르기·돌진·도끼). 연계: 예고 중인 적은 받아치기 ×2, 기절한 적은 약점 ×1.5, 공포로 도망치는 적은 등 뒤 ×2(기록을 남겨 화면에 글자가 뜬다)
 export function skillHit(w: World, e: Entity, raw: number) {
-  const kind = winding(e) ? 'counter' : e.stunT > 0 ? 'stunned' : null;
+  const kind = winding(e) ? 'counter' : e.stunT > 0 ? 'stunned' : e.fearT > 0 ? 'back' : null;
   if (kind) w.combos.push({ id: w.nextItem++, x: e.x, z: e.z, kind, age: 0 });
   hurt(w, e, kind ? Math.round(raw * COMBO[kind]) : raw, w.entities[0]);
 }
@@ -154,7 +154,7 @@ export function gainXp(w: World, n: number) {
 
 export function makeEntity(id: number, kind: Kind, x: number, z: number, power: number, elite = false, summoner = -1): Entity {
   const hp = Math.round(STATS[kind].hp * power * (elite ? ELITE.hp : 1));
-  return { id, kind, x, z, elite, summoner, stunT: 0, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: kind === 'warrior' ? SLAM.first + (id % 3) : kind === 'mage' ? METEOR.first + (id % 3) : 0, dx: 0, dz: 0 };
+  return { id, kind, x, z, elite, summoner, stunT: 0, fearT: 0, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: kind === 'warrior' ? SLAM.first + (id % 3) : kind === 'mage' ? METEOR.first + (id % 3) : 0, dx: 0, dz: 0 };
 }
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다

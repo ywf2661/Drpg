@@ -120,7 +120,7 @@ export function syncEffects(world: World) {
   if (world.cleaves > cleavesSeen) {
     const hero = world.entities[0];
     const c = card(cleaveFx, 'cleave', hero.x, hero.z, false);
-    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing) });
+    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing + (world.spinT > 0 ? (world.cleaves * Math.PI) / 2 : 0)) }); // 회오리: 벨 때마다 90°씩 돌아간다
     c.mesh.renderOrder = 2;
     effects.push(c);
     cards.push(c);

@@ -1,11 +1,17 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, CHARGE, DASH, DT, KING, KNOCK, MAGE, METEOR, REPATH, ROLL, SHOUT, SKILL, SLAM, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, KING, KNOCK, MAGE, METEOR, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, type Entity, type Shot, type World } from './rules';
 import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, roll, shoutStat, skillHit, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
   if (w.skillCd > 0) return;
+  if (w.traits.cleave === 1) {
+    // 회오리: 휘두르지 않고 돈다. 걷던 길·공격 대상은 그대로(돌면서 따라간다)
+    Object.assign(w, { skillCd: cleaveStat(w).cd, spinT: WHIRL.time + (mastered(w, 'cleave') ? WHIRL.extra : 0), spinAcc: WHIRL.tick });
+    if (hero.state === 'attack') Object.assign(hero, { state: 'idle', attackT: 0, skill: false });
+    return;
+  }
   w.toStairs = false;
   if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
   else {
@@ -22,6 +28,7 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
 export function cleave(w: World, hero: Entity) {
   const fx = Math.sin(hero.facing);
   const fz = Math.cos(hero.facing);
+  const killed: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead') continue;
     const dx = e.x - hero.x;
@@ -31,8 +38,36 @@ export function cleave(w: World, hero: Entity) {
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
     const d = Math.hypot(dx, dz);
     knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
+    if (e.hp <= 0) killed.push(e);
+  }
+  if (w.traits.cleave === 2) burst(w, hero, killed);
+  w.cleaves++;
+}
+
+// 회오리 한 틱: WHIRL.tick마다 가르기 범위 한 바퀴의 적을 벤다(밀어내지 않는다 — 계속 붙어서 갈린다)
+export function spin(w: World, hero: Entity) {
+  w.spinT = Math.max(0, w.spinT - DT);
+  if ((w.spinAcc += DT) < WHIRL.tick - 1e-9) return;
+  w.spinAcc = 0;
+  const st = cleaveStat(w);
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius || !clearLine(w, hero, e)) continue;
+    skillHit(w, e, Math.round(roll(w, hero) * st.mult * WHIRL.mult));
   }
   w.cleaves++;
+}
+
+// 시체 폭발: 죽은 적마다 그 자리에서 터져 주변 적에게 최대 체력에 비례한 피해. 터져서 죽은 적도 줄에 넣어 이어서 터진다
+function burst(w: World, hero: Entity, dead: Entity[]) {
+  for (let i = 0; i < dead.length; i++) {
+    const c = dead[i];
+    w.blasts.push({ id: w.nextItem++, x: c.x, z: c.z, age: 0, kind: 'fire' });
+    for (const e of w.entities) {
+      if (e === hero || e.state === 'dead' || Math.hypot(e.x - c.x, e.z - c.z) > BURST.radius) continue;
+      hurt(w, e, Math.round(c.maxHp * BURST.hp), hero);
+      if (e.hp <= 0) dead.push(e);
+    }
+  }
 }
 
 // 보스 돌진. 3~7m·시야가 트이면 예고(제자리) → 그 순간 대상 방향으로 직선 돌진 → 벽·거리·명중에서 멈춤.
@@ -114,6 +149,7 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number) {
   Object.assign(hero, { phase: 'charge', phaseT: dashStat(w).dist, dx, dz, state: 'move', path: [], target: null, attackT: 0, skill: false });
   hero.facing = Math.atan2(dx, dz);
   Object.assign(w, { dashCd: dashStat(w).cd, dashHit: [], opening: null, toStairs: false });
+  if (w.traits.dash === 2) w.fires.push({ id: w.nextItem++, x0: hero.x, z0: hero.z, x1: hero.x, z1: hero.z, t: TRAIL.time, acc: 0 }); // 불길: 돌진하며 늘어난다
   w.dashes++;
 }
 
@@ -140,8 +176,30 @@ export function rollStep(w: World, hero: Entity) {
 }
 
 // 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해
+// 꼬치(특성 1): 맞은 적을 주인공 앞에 꿰어 끌고 가고, 벽에서 멈추면 박아서 기절 + 추가 피해. 보스·해골 왕은 끌려가지 않는다
 export function dashStep(w: World, hero: Entity) {
-  if (!rush(w, hero, DASH.speed)) return;
+  const skewer = w.traits.dash === 1;
+  const step = DASH.speed * DT;
+  const wall = hero.phaseT > 0 && !walkable(w.grid, Math.floor(hero.x + hero.dx * step), Math.floor(hero.z + hero.dz * step));
+  const going = rush(w, hero, DASH.speed);
+  const trail = w.traits.dash === 2 && w.fires.at(-1);
+  if (trail) [trail.x1, trail.z1] = [hero.x, hero.z];
+  const held = skewer ? w.dashHit.map((id) => w.entities[id]).filter((e) => e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king') : [];
+  if (!going) {
+    if (!wall) return;
+    for (const e of held) {
+      e.stunT = Math.max(e.stunT, SKEWER.stun); // 먼저 기절 → 박는 피해에 약점 배율이 붙는다
+      w.blasts.push({ id: w.nextItem++, x: e.x, z: e.z, age: 0, kind: 'slam' });
+      skillHit(w, e, Math.round(roll(w, hero) * dashStat(w).mult * SKEWER.mult));
+      if (e.hp <= 0 && mastered(w, 'dash')) w.dashCd = 0;
+    }
+    return;
+  }
+  for (const e of held) {
+    const [cx, cz] = [hero.x + hero.dx * SKEWER.hold, hero.z + hero.dz * SKEWER.hold];
+    if (walkable(w.grid, Math.floor(cx), Math.floor(cz))) [e.x, e.z] = [cx, cz];
+    Object.assign(e, { stunT: Math.max(e.stunT, 0.1), state: 'idle', attackT: 0, path: [], phase: 'none' }); // 꿰인 동안은 아무것도 못 한다
+  }
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
     if (!w.dashHit.length && w.skillCd > 0) {
@@ -153,7 +211,8 @@ export function dashStep(w: World, hero: Entity) {
     skillHit(w, e, Math.round(roll(w, hero) * dashStat(w).mult));
     if (e.hp <= 0 && mastered(w, 'dash')) w.dashCd = 0; // 5단계: 처치하면 다시 돌진
     const side = (e.x - hero.x) * -hero.dz + (e.z - hero.z) * hero.dx < 0 ? -1 : 1; // 돌진 길의 어느 쪽에 있는가
-    knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
+    if (skewer) knock(w, e, hero.dx, hero.dz, 0); // 옆으로 밀지 않고 꿴다(타격감·끊기만)
+    else knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
   }
 }
 
@@ -194,17 +253,73 @@ export function shout(w: World, hero: Entity) {
   const st = shoutStat(w);
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius) continue;
-    Object.assign(e, { stunT: st.stun, state: 'idle', attackT: 0, path: [], phase: 'none' });
+    const big = e.kind === 'boss' || e.kind === 'king'; // 보스·해골 왕은 겁먹지도 끌려오지도 않는다(기절만)
+    Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none' }, w.traits.shout === 2 && !big ? { fearT: FEAR.time } : { stunT: st.stun });
     const d = dist(e, hero);
-    knock(w, e, d > 1e-6 ? (e.x - hero.x) / d : 1, d > 1e-6 ? (e.z - hero.z) / d : 0, KNOCK.shout);
+    const [ux, uz] = d > 1e-6 ? [(e.x - hero.x) / d, (e.z - hero.z) / d] : [1, 0];
+    if (w.traits.shout === 1) knock(w, e, -ux, -uz, Math.max(0, d - PULL.to)); // 끌어당김
+    else knock(w, e, ux, uz, KNOCK.shout);
   }
   Object.assign(w, { shoutCd: st.cd, shoutT: SHOUT.time });
   if (mastered(w, 'shout')) hero.hp = Math.min(hero.maxHp, hero.hp + Math.round(heroMax(w) * SHOUT.heal)); // 5단계: 회복
   w.shouts++;
 }
 
-// 도끼 던지기: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 방향)으로. 주인공은 하던 일을 계속한다
+// 공포에 질린 적의 한 틱: 주인공 반대쪽으로 걷는다. 막히면 옆으로, 그것도 막히면(구석) 서서 떤다
+export function scare(w: World, e: Entity, hero: Entity) {
+  const d = dist(e, hero) || 1;
+  const [ux, uz] = [(e.x - hero.x) / d, (e.z - hero.z) / d];
+  const s = STATS[e.kind].speed * DT;
+  e.state = 'idle';
+  for (const [dx, dz] of [[ux, uz], [-uz, ux], [uz, -ux]]) {
+    if (!walkable(w.grid, Math.floor(e.x + dx * 0.5), Math.floor(e.z + dz * 0.5))) continue;
+    Object.assign(e, { x: e.x + dx * s, z: e.z + dz * s, facing: Math.atan2(dx, dz), state: 'move' });
+    return;
+  }
+}
+
+// 불길 한 틱: TRAIL.tick마다 길(선분)에서 TRAIL.width 안의 적에게 피해. 시간이 다 되면 꺼진다
+export function tickFires(w: World, hero: Entity) {
+  w.fires = w.fires.filter((f) => {
+    if ((f.acc += DT) >= TRAIL.tick - 1e-9) {
+      f.acc = 0;
+      const [sx, sz] = [f.x1 - f.x0, f.z1 - f.z0];
+      const len2 = sx * sx + sz * sz;
+      for (const e of w.entities) {
+        if (e === hero || e.state === 'dead') continue;
+        const k = len2 > 1e-9 ? Math.min(1, Math.max(0, ((e.x - f.x0) * sx + (e.z - f.z0) * sz) / len2)) : 0; // 선분 위 가장 가까운 점
+        if (Math.hypot(e.x - f.x0 - sx * k, e.z - f.z0 - sz * k) <= TRAIL.width) hurt(w, e, Math.round(roll(w, hero) * TRAIL.mult), hero);
+      }
+    }
+    return (f.t -= DT) > 0;
+  });
+}
+
+// 박힌 도끼 뽑기: 박힌 적 앞으로 순간이동(주인공 쪽 STUCK.gap, 막혔으면 적의 자리)해 뽑으며 주변을 터뜨린다
+function recall(w: World, hero: Entity, axe: Shot) {
+  const t = w.entities[axe.stuck!];
+  w.shots = w.shots.filter((s) => s !== axe);
+  const d = dist(hero, t) || 1;
+  const [x, z] = [t.x + ((hero.x - t.x) / d) * STUCK.gap, t.z + ((hero.z - t.z) / d) * STUCK.gap];
+  [hero.x, hero.z] = walkable(w.grid, Math.floor(x), Math.floor(z)) ? [x, z] : [t.x, t.z];
+  Object.assign(hero, { path: [], state: 'idle', attackT: 0, skill: false, target: t.id, repathT: 0 });
+  face(hero, t);
+  Object.assign(w, { opening: null, toStairs: false });
+  w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'fire' });
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead' || dist(e, t) > STUCK.radius) continue;
+    skillHit(w, e, Math.round(roll(w, hero) * axeStat(w).mult * STUCK.mult));
+    const k = dist(e, t);
+    if (e !== t && k > 1e-6) knock(w, e, (e.x - t.x) / k, (e.z - t.z) / k, KNOCK.axe);
+  }
+  w.dashes++; // 순간이동 소리
+}
+
+// 도끼 던지기: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 방향)으로. 주인공은 하던 일을 계속한다.
+// 박힌 도끼(특성 2)가 있으면 던지지 않고 뽑으러 간다(재사용 대기와 무관)
 export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
+  const stuck = w.shots.find((s) => s.stuck !== undefined);
+  if (stuck) return recall(w, hero, stuck);
   if (w.throwCd > 0) return;
   const near = w.entities
     .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= AXE.aim)
@@ -221,7 +336,14 @@ export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
 // 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발.
 // 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해(5단계는 관통)
 export function fly(w: World, hero: Entity) {
+  const added: Shot[] = [];
   w.shots = w.shots.filter((s) => {
+    if (s.stuck !== undefined) {
+      // 박힌 도끼: 적을 따라다니다가 그 적이 죽으면 사라진다
+      const t = w.entities[s.stuck];
+      [s.x, s.z] = [t.x, t.z];
+      return t.state !== 'dead';
+    }
     const fire = s.kind === 'fire';
     const step = (fire ? MAGE.speed : s.kind === 'axe' ? AXE.speed : ARCHER.speed) * DT;
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
@@ -238,6 +360,19 @@ export function fly(w: World, hero: Entity) {
         hit.push(t.id);
         skillHit(w, t, s.dmg);
         knock(w, t, s.dx, s.dz, KNOCK.axe);
+        if (w.traits.throw === 1) {
+          // 튕김: 아직 안 맞은 가까운 적(시야가 트인)에게로 방향을 바꾼다. 없거나 횟수를 다 쓰면 사라진다
+          const left = s.bounce ?? BOUNCE.count * (mastered(w, 'throw') ? 2 : 1);
+          const next = w.entities
+            .filter((e) => e !== hero && e.state !== 'dead' && !hit.includes(e.id) && dist(e, t) <= BOUNCE.range && clearLine(w, t, e))
+            .sort((a, b) => dist(a, t) - dist(b, t))[0];
+          if (!left || !next) return false;
+          const d = dist(next, t) || 1;
+          Object.assign(s, { bounce: left - 1, x: t.x, z: t.z, dx: (next.x - t.x) / d, dz: (next.z - t.z) / d, left: AXE.flight });
+          return true;
+        }
+        // 박힘: 살아남은 적에게 하나만 박힌다
+        if (w.traits.throw === 2 && t.hp > 0 && ![...w.shots, ...added].some((o) => o.stuck !== undefined)) added.push({ ...s, id: w.nextItem++, x: t.x, z: t.z, stuck: t.id });
       }
       return !t || mastered(w, 'throw'); // 5단계: 관통(맞힌 적은 다시 안 맞는다)
     }
@@ -246,6 +381,7 @@ export function fly(w: World, hero: Entity) {
     else hurt(w, hero, s.dmg);
     return false;
   });
+  w.shots.push(...added);
 }
 
 // 화염구 폭발: 반경 안의 살아 있는 주인공에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다

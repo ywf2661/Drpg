@@ -1,6 +1,6 @@
 // 바닥의 위험 구역(예고 공격): 붉은 테두리 + 안에서 차오르는 원(다 차면 터진다). world.zones와 평타 준비 중인 적을 읽기만 한다.
 import * as THREE from 'three';
-import { TELL, type World } from '../sim/world';
+import { TELL, TRAIL, type World } from '../sim/world';
 
 const flat = (color: number, opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false });
 const RING = new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2);
@@ -35,5 +35,32 @@ export function syncZones(world: World) {
     if (zones.some((z) => z.id === id)) continue;
     s.g.removeFromParent();
     shown.delete(id);
+  }
+}
+
+// 돌진 '불길'이 남긴 불타는 길: 바닥에 눕힌 주황 띠(일렁이고, 꺼질 때 옅어진다)
+const STRIP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const fires = new Map<number, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
+
+export function syncFires(world: World, time: number) {
+  for (const f of world.fires) {
+    let m = fires.get(f.id);
+    if (!m) {
+      m = new THREE.Mesh(STRIP, flat(0xff7a1a, 0.5));
+      m.renderOrder = 1;
+      zoneGroup.add(m);
+      fires.set(f.id, m);
+    }
+    const [dx, dz] = [f.x1 - f.x0, f.z1 - f.z0];
+    m.position.set((f.x0 + f.x1) / 2, 0.035, (f.z0 + f.z1) / 2);
+    m.rotation.y = Math.atan2(dx, dz);
+    m.scale.set(2 * TRAIL.width, 1, Math.hypot(dx, dz) + 2 * TRAIL.width);
+    m.material.opacity = Math.min(1, f.t) * (0.4 + 0.15 * Math.sin(time * 18 + f.id));
+  }
+  for (const [id, m] of fires) {
+    if (world.fires.some((f) => f.id === id)) continue;
+    m.removeFromParent();
+    m.material.dispose();
+    fires.delete(id);
   }
 }

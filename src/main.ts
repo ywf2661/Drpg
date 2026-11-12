@@ -1,13 +1,13 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, showBag, showChoice, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
+import { $, initHud, showBag, showChoice, showTraits, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
 import { aim, commands, hovered, initInput, pollInput } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setWorld } from './render/render';
-import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats } from './save';
+import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats, type Traits } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, floorPower, generateFloor, themeFor } from './sim/dungeon';
 import { createWorld, discardFromBag, DT, equipFromBag, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type SkillName, type World } from './sim/world';
@@ -15,10 +15,11 @@ import { createWorld, discardFromBag, DT, equipFromBag, moveInBag, outcome, setL
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
 const bag = document.querySelector<HTMLDialogElement>('#bag')!;
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, bag: [], autoEquip: true }; // 숏소드 + 가죽 갑옷
-type Carry = { potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; bag: BagItem[]; autoEquip: boolean };
+const traits = document.querySelector<HTMLDialogElement>('#traits')!;
+const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, bag: [], autoEquip: true }; // 숏소드 + 가죽 갑옷
+type Carry = { potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; traits: Traits; bag: BagItem[]; autoEquip: boolean };
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
-const carryOf = (c: Carry): Carry => ({ potions: c.potions, gear: { ...c.gear }, mods: { weapon: [...c.mods.weapon], armor: [...c.mods.armor] }, level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, bag: [...c.bag], autoEquip: c.autoEquip });
+const carryOf = (c: Carry): Carry => ({ potions: c.potions, gear: { ...c.gear }, mods: { weapon: [...c.mods.weapon], armor: [...c.mods.armor] }, level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, traits: { ...c.traits }, bag: [...c.bag], autoEquip: c.autoEquip });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const saved = loadRun(); // 지난번 진행(있으면 시작할 때 이어하기를 묻는다)
 let choosing = saved !== null;
@@ -40,6 +41,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.gold = carry.gold;
   w.ranks = { ...carry.ranks };
   w.points = carry.points;
+  w.traits = { ...carry.traits };
   w.bag = [...carry.bag];
   w.autoEquip = carry.autoEquip;
   w.maxTier = Math.min(4, n + 1);
@@ -141,6 +143,11 @@ function openBag() {
   if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) renderBag();
 }
 
+// 특성 고르기 창. 고르면 명령으로 쌓고 닫는다(창이 열린 동안은 sim이 멈춘다)
+function openTraits(skill: SkillName) {
+  if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) showTraits(world, skill, (pick) => commands.push({ type: 'trait', skill, pick }));
+}
+
 const drink = () => commands.push({ type: 'drink' });
 const skill = () => commands.push({ type: 'skill' });
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
@@ -170,6 +177,7 @@ initHud({
   roll: () => roll(false),
   learn,
   bag: openBag,
+  traits: openTraits,
   restart,
   nextCycle,
   toggleMap: toggleAutomap,
@@ -221,7 +229,7 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  const paused = credits.open || help.open || bag.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  const paused = credits.open || help.open || bag.open || traits.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
   pollInput(world, dt, paused);
   if (paused || hitstop > 0) acc = 0; // 타격 멈춤 동안은 sim이 서 있다(명령은 큐에 남는다)
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));

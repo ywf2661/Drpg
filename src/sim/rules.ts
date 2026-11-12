@@ -15,7 +15,8 @@ export type Command =
   | { type: 'shout' } // 전투의 함성
   | { type: 'roll'; x?: number; z?: number } // 구르기(무적). (x, z)가 있으면 그쪽으로, 없으면 가까운 적의 반대쪽
   | { type: 'throw'; x?: number; z?: number } // 도끼 던지기. (x, z)가 있으면 그쪽으로
-  | { type: 'learn'; skill: SkillName }; // 스킬 포인트로 단계 올리기
+  | { type: 'learn'; skill: SkillName } // 스킬 포인트로 단계 올리기
+  | { type: 'trait'; skill: SkillName; pick: number }; // 특성 고르기(1 또는 2). 3단계부터, 바꿀 때는 금화
 export type SkillName = 'cleave' | 'dash' | 'shout' | 'throw';
 
 export type Point = [x: number, z: number];
@@ -44,6 +45,7 @@ export type Entity = {
   dz: number;
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
+  fearT: number; // 공포 남은 시간(초). 주인공 반대쪽으로 도망친다
 };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
@@ -72,10 +74,13 @@ export type Chest = { id: number; x: number; z: number; open: boolean };
 
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)가 이미 맞힌 적 id
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe'; hit?: number[] }; // axe = 주인공의 도끼(몬스터만 맞음)
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe'; hit?: number[]; bounce?: number; stuck?: number }; // axe = 주인공의 도끼(몬스터만 맞음). bounce: 남은 튕김, stuck: 박힌 적 id(그 적을 따라다닌다)
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
-export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'reset' | 'dodge'; age: number };
+export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge'; age: number }; // back = 공포로 도망치는 적
+
+// 돌진 '불길'이 남긴 불타는 길(선분). t초 동안, acc가 TRAIL.tick을 넘을 때마다 길 위의 적에게 피해
+export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number; t: number; acc: number };
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 export type Blast = { id: number; x: number; z: number; age: number; kind: 'fire' | 'slam' }; // slam = 전사 내려찍기가 떨어진 자리
@@ -104,6 +109,7 @@ export type World = {
   blasts: Blast[];
   zones: Zone[];
   combos: Combo[];
+  fires: Fire[];
   healing: { total: number; given: number; t: number } | null; // 마신 물약이 차는 중(합계·준 양·지난 시간)
   nextItem: number; // 아이템·화살 공용 id
   potions: number;
@@ -129,6 +135,9 @@ export type World = {
   rollCd: number; // 구르기 재사용까지(초)
   ranks: Record<SkillName, number>; // 스킬 단계 1~RANK_MAX
   points: number; // 남은 스킬 포인트(레벨업마다 1)
+  traits: Record<SkillName, number>; // 스킬마다 고른 특성(0 = 아직, 1·2). TRAIT.rank단계부터 고른다
+  spinT: number; // 회오리 남은 시간(초)
+  spinAcc: number; // 회오리 다음 타격까지 쌓인 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
 };
 
@@ -179,7 +188,17 @@ export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, �
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 
 export const RANK_MAX = 5;
-export const COMBO = { counter: 2, stunned: 1.5, age: 0.6 }; // 연계 배율(예고 중·기절 중인 적에게 스킬), 기록 유지 시간
+export const COMBO = { counter: 2, stunned: 1.5, back: 2, age: 0.6 }; // 연계 배율(예고 중·기절 중·도망치는 적에게 스킬), 기록 유지 시간
+// 특성: 고를 수 있는 단계, 바꾸는 값(금화)
+export const TRAIT = { rank: 3, respec: 100 };
+export const WHIRL = { time: 2, extra: 1, tick: 0.25, mult: 0.25 }; // 가르기 1 회오리: 시간, 5단계 추가 시간, 타격 간격, 타격당 배율(× 가르기 배율)
+export const BURST = { radius: 1.6, hp: 0.4 }; // 가르기 2 시체 폭발: 반경, 피해(시체 최대 체력 비율)
+export const SKEWER = { hold: 0.7, stun: 1.5, mult: 1 }; // 돌진 1 꼬치: 끌고 가는 거리(주인공 앞), 벽에 박힌 기절·추가 피해(× 돌진 배율)
+export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 돌진 2 불길: 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율
+export const PULL = { to: 1.1 }; // 함성 1 끌어당김: 주인공에게서 이 거리까지
+export const FEAR = { time: 4 }; // 함성 2 공포: 도망치는 시간
+export const BOUNCE = { count: 3, range: 5 }; // 도끼 1 튕김: 횟수(5단계는 두 배), 다음 적을 찾는 거리
+export const STUCK = { radius: 2, mult: 1.5, gap: 1 }; // 도끼 2 박힌 도끼: 뽑을 때 폭발 반경·배율(× 도끼 배율), 순간이동해 서는 거리
 export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준

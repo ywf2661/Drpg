@@ -2,8 +2,8 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints, wear } from './core';
-import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, shoot, shout, slam, summon, throwAxe, tickZones } from './abilities';
-import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, type Chest, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
+import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { armorScore, attackInterval, axeStat, bagBlocked, bagFits, bagSpot, cleaveStat, dashStat, discardFromBag, equipFromBag, gearDiff, gearSize, heroMax, isBetter, mastered, mod, moveInBag, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
@@ -36,7 +36,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, impacts: 0 };
+  return { grid, entities, rng: seed, stairs, toStairs: false, props, chests, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1 }, mods: { weapon: [], armor: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -51,10 +51,17 @@ export function step(w: World, cmds: Command[]): void {
   w.combos = w.combos.filter((c) => (c.age += DT) <= COMBO.age);
   regen(w, hero);
   for (const c of cmds) command(w, hero, c);
+  if (hero.state === 'dead') w.spinT = 0;
+  if (w.spinT > 0) spin(w, hero);
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
     if (e.stunT > 0) {
       e.stunT = Math.max(0, e.stunT - DT); // 기절: 생각도 행동도 하지 않는다
+      continue;
+    }
+    if (e.fearT > 0) {
+      e.fearT = Math.max(0, e.fearT - DT); // 공포: 도망만 친다
+      scare(w, e, hero);
       continue;
     }
     if (e !== hero) think(e, hero);
@@ -62,6 +69,7 @@ export function step(w: World, cmds: Command[]): void {
   }
   fly(w, hero);
   tickZones(w, hero);
+  if (w.fires.length) tickFires(w, hero);
   separate(w);
   reachChest(w, hero);
   pickup(w, hero);
@@ -123,6 +131,18 @@ function learn(w: World, s: SkillName) {
   w.points--;
 }
 
+// 특성 고르기: TRAIT.rank단계부터. 처음은 공짜, 바꿀 때는 금화 TRAIT.respec. 하던 회오리·박힌 도끼는 사라진다
+function pickTrait(w: World, s: SkillName, pick: number) {
+  if ((pick !== 1 && pick !== 2) || w.ranks[s] < TRAIT.rank || w.traits[s] === pick) return;
+  if (w.traits[s]) {
+    if (w.gold < TRAIT.respec) return;
+    w.gold -= TRAIT.respec;
+  }
+  w.traits[s] = pick;
+  if (s === 'cleave') w.spinT = 0;
+  if (s === 'throw') w.shots = w.shots.filter((x) => x.stuck === undefined);
+}
+
 // 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
 function drink(w: World, hero: Entity) {
   if (hero.state === 'dead' || w.potions <= 0 || hero.hp >= hero.maxHp || w.healing) return; // 차는 중에는 다시 못 마신다
@@ -142,6 +162,7 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
   if (c.type === 'learn') return learn(w, c.skill);
+  if (c.type === 'trait') return pickTrait(w, c.skill, c.pick);
   if (hero.state === 'dead' || hero.phase !== 'none') return; // 돌진·구르기 중에는 물약 말고는 무시
   if (c.type === 'roll') return rollStart(w, hero, c.x, c.z);
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
@@ -231,6 +252,7 @@ function act(w: World, e: Entity) {
   if (e.state === 'attack') return swing(w, e, t);
   if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {
+    if (canHit(w, e, t) && e === w.entities[0] && w.spinT > 0) return void (e.state = 'idle'); // 회오리 중에는 평타 대신 돈다
     if (canHit(w, e, t)) return startSwing(e, t);
     if ((e.repathT -= DT) <= 0) {
       e.repathT = REPATH;
