@@ -1,6 +1,7 @@
 // 진행 저장: 층에 들어갈 때의 상태(층·물약·장비·레벨). localStorage는 손상·조작될 수 있어 읽을 때 검증한다.
 import { FLOORS } from './sim/dungeon';
-import { AFFIXES, BAG_MAX, POTION, RANK_MAX, type Affix, type AffixKind, type BagItem, type Gear, type SkillName } from './sim/world';
+import { sellPrice } from './shop';
+import { AFFIXES, bagFits, bagSpot, POTION, RANK_MAX, type Affix, type AffixKind, type BagItem, type Gear, type SkillName } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = { weapon: Affix[]; armor: Affix[] };
@@ -27,17 +28,24 @@ function affixes(v: unknown, slot: 'weapon' | 'armor'): Affix[] | null {
   return out;
 }
 
-// 보관함: 칸 수, 부위, 단계, 옵션을 확인. 아니면 null
-function bagItems(v: unknown): BagItem[] | null {
-  if (!Array.isArray(v) || v.length > BAG_MAX) return null;
-  const out: BagItem[] = [];
+// 보관함: 부위, 단계, 옵션, 자리(격자 안·겹치지 않음)를 확인. 아니면 null.
+// 격자가 생기기 전 저장(자리 없음)은 빈 자리에 차례로 놓고, 안 들어가는 장비는 판 값(refund)으로 돌려준다
+function bagItems(v: unknown): { bag: BagItem[]; refund: number } | null {
+  if (!Array.isArray(v) || v.length > 100) return null;
+  const bag: BagItem[] = [];
+  let refund = 0;
   for (const it of v) {
     if (!it || (it.kind !== 'weapon' && it.kind !== 'armor') || !int(it.tier, 1, 4)) return null;
     const list = affixes(it.affixes, it.kind);
     if (!list) return null;
-    out.push({ kind: it.kind, tier: it.tier, affixes: list });
+    const g = { kind: it.kind as 'weapon' | 'armor', tier: it.tier as number, affixes: list };
+    const old = it.x === undefined && it.y === undefined;
+    const at = old ? bagSpot(bag, g) : bagFits(bag, g, it.x, it.y) ? [it.x as number, it.y as number] : null;
+    if (at) bag.push({ ...g, x: at[0], y: at[1] });
+    else if (old) refund += sellPrice(g);
+    else return null;
   }
-  return out;
+  return { bag, refund };
 }
 
 export function decodeSave(text: string | null): Run | null {
@@ -66,9 +74,9 @@ export function decodeSave(text: string | null): Run | null {
   const points = d.points ?? 0;
   if (!r || typeof r !== 'object' || !names.every((n) => int(r[n], 1, RANK_MAX)) || !int(points, 0, 1000)) return null;
   // 보관함(나중에 생긴 항목: 없으면 빈 칸·자동 장착)
-  const bag = bagItems(d.bag ?? []);
+  const bagged = bagItems(d.bag ?? []);
   const autoEquip = d.autoEquip ?? true;
-  if (!bag || typeof autoEquip !== 'boolean') return null;
+  if (!bagged || typeof autoEquip !== 'boolean') return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
@@ -78,12 +86,12 @@ export function decodeSave(text: string | null): Run | null {
     gear: { weapon: g.weapon as number, armor: g.armor as number },
     level: d.level as number,
     xp: d.xp as number,
-    gold: gold as number,
+    gold: (gold as number) + bagged.refund,
     cycle: cycle as number,
     mods: { weapon, armor },
     ranks: { cleave: r.cleave as number, dash: r.dash as number, shout: r.shout as number, throw: r.throw as number },
     points: points as number,
-    bag,
+    bag: bagged.bag,
     autoEquip,
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },
   };

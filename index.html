@@ -63,6 +63,19 @@
       .gear-row .slot { flex: none; }
       .gear-row small { display: block; color: #b8ab98; }
       .gear-row button, #bag form button { flex: none; padding: 6px 8px; font: inherit; font-size: 13px; color: #e8dcc8; background: #2a1414; border: 1px solid #5a3a30; cursor: pointer; }
+      #bag { --c: min(40px, (90vw - 46px) / 10); } /* 격자 한 칸 */
+      #bag-grid { display: grid; grid-template: repeat(4, var(--c)) / repeat(10, var(--c)); width: max-content; border: solid #3a3530; border-width: 0 1px 1px 0; background: linear-gradient(#3a3530 1px, transparent 1px) 0 0 / var(--c) var(--c), linear-gradient(90deg, #3a3530 1px, transparent 1px) 0 0 / var(--c) var(--c), #0c0a09; user-select: none; -webkit-user-select: none; }
+      .bag-item { position: relative; margin: 1px 0 0 1px; overflow: hidden; background: #1b2028; border: 1px solid #3a3530; cursor: grab; touch-action: none; }
+      .bag-item[data-q='1'] { border-color: #7d9bff; }
+      .bag-item[data-q='2'] { border-color: #f0c040; }
+      .bag-item.sel { background: #3a2c18; }
+      .bag-item.drag { z-index: 1; opacity: 0.8; cursor: grabbing; }
+      .bag-item i { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px; background-size: 320px 40px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; mix-blend-mode: screen; } /* 아이콘의 검은 바탕을 칸 색에 녹인다 */
+      #bag-shadow { background: #4c84; pointer-events: none; }
+      #bag-shadow.bad { background: #c334; }
+      #bag-sel { min-height: 62px; }
+      #bag-sel > small, #bag-note { display: block; padding: 6px 0; color: #b8ab98; }
+      #bag-note { color: #ff8a70; }
       #bag h4, #shop-sell h4 { margin: 12px 0 2px; color: #b8ab98; font-weight: normal; }
       #bag label { display: block; margin: 8px 0; font-size: 13px; }
       #bag-head { display: flex; align-items: center; gap: 6px; position: sticky; top: 0; z-index: 1; padding-bottom: 6px; background: inherit; } /* 스크롤해도 닫기 버튼이 보이게 */
@@ -109,7 +122,7 @@
       <div id="gold" title="금화">0</div>
       <div id="weapon" class="slot"></div>
       <div id="armor" class="slot"></div>
-      <button id="bag-btn" title="보관함 (I)">가방<span>0/8</span></button>
+      <button id="bag-btn" title="보관함 (I)">가방<span>0/40</span></button>
     </div>
     <div id="toast"></div>
     <div id="labels"></div>
@@ -145,7 +158,7 @@
         <tr><td>연계</td><td>붉게 예고 중인 적을 스킬로 치면 2배(받아치기), 기절한 적은 1.5배(약점), 돌진 베기가 맞으면 가르기가 바로 준비</td></tr>
         <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화, 보관함 장비 팔기</td></tr>
         <tr><td>장비</td><td>밟으면 보관함으로, 더 좋은 장비(▲ 표시)는 바로 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
-        <tr><td>보관함</td><td>I · 가방 버튼 · 장비 칸 — 8칸. 직접 장착·버리기, 자동 장착 끄기</td></tr>
+        <tr><td>보관함</td><td>I · 가방 버튼 · 장비 칸 — 10×4칸 격자, 장비마다 크기가 다름. 누르면 설명·장착·버리기, 끌어서 옮기기, 우클릭 장착. 자동 장착 끄기</td></tr>
         <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>
       </table>
       <form method="dialog"><button>시작</button></form>
@@ -162,8 +175,9 @@
       <h4>입은 장비</h4>
       <div id="bag-worn"></div>
       <h4>보관함</h4>
-      <div id="bag-items"></div>
-      <p id="bag-empty">비어 있습니다. 장비를 밟으면 여기로 들어옵니다.</p>
+      <div id="bag-grid"></div>
+      <div id="bag-sel"></div>
+      <small id="bag-note"></small>
     </dialog>
     <button id="credits-btn" onclick="document.getElementById('credits').showModal()">크레딧</button>
     <dialog id="credits">

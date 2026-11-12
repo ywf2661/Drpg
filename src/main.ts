@@ -10,7 +10,7 @@ import { camera, draw, initRender, renderer, setWorld } from './render/render';
 import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, floorPower, generateFloor, themeFor } from './sim/dungeon';
-import { createWorld, discardFromBag, DT, equipFromBag, outcome, setLevel, step, type BagItem, type Gear, type SkillName, type World } from './sim/world';
+import { createWorld, discardFromBag, DT, equipFromBag, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -117,7 +117,12 @@ function nextCycle() {
 function renderBag() {
   showBag(world, {
     equip: (i) => {
-      equipFromBag(world, i);
+      const ok = equipFromBag(world, i);
+      renderBag();
+      return ok;
+    },
+    move: (i, x, y) => {
+      moveInBag(world, i, x, y);
       renderBag();
     },
     discard: (i) => {

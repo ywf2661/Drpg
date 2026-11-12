@@ -154,7 +154,7 @@ test('함성과 도끼 던지기', () => {
 test('보관함에 장비가 들어오면 줍는 소리', () => {
   const w = createWorld(1, ['H..']);
   const prev = snapshot(w);
-  w.bag.push({ kind: 'weapon', tier: 1, affixes: [] });
+  w.bag.push({ kind: 'weapon', tier: 1, affixes: [], x: 0, y: 0 });
   expect(names(soundEvents(prev, w))).toEqual(['loot']);
 });
 

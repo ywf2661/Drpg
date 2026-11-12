@@ -1,5 +1,5 @@
 // 층 사이 상점: 물약 구매, 무기·갑옷 한 단계 강화. 상태를 바꾸지 않는 순수 함수.
-import { POTION, type BagItem, type Gear } from './sim/world';
+import { POTION, type BagItem, type Gear, type GearItem } from './sim/world';
 
 export type Wallet = { potions: number; gear: Gear; gold: number; bag: BagItem[] };
 export type ShopItem = 'potion' | 'weapon' | 'armor';
@@ -23,7 +23,7 @@ export function offers(c: Wallet): { item: ShopItem; price: number; ok: boolean 
 // 죽은 뒤 남는 금화: 절반(내림)
 export const deathGold = (gold: number) => Math.floor(gold / 2);
 
-export const sellPrice = (it: BagItem) => 10 * it.tier + 15 * it.affixes.length;
+export const sellPrice = (it: GearItem) => 10 * it.tier + 15 * it.affixes.length;
 
 // 판 뒤의 새 상태. 잘못된 칸이면 받은 그대로
 export function sell<T extends Wallet>(c: T, i: number): T {

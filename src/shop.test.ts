@@ -33,8 +33,8 @@ test('판매 가격: 10 × 단계 + 15 × 옵션 수', () => {
 });
 
 test('팔기: 그 칸을 빼고 금화를 더한다, 잘못된 칸이면 그대로(원본은 바꾸지 않음)', () => {
-  const a = { kind: 'weapon' as const, tier: 2, affixes: [] };
-  const b = { kind: 'armor' as const, tier: 1, affixes: [] };
+  const a = { kind: 'weapon' as const, tier: 2, affixes: [], x: 0, y: 0 };
+  const b = { kind: 'armor' as const, tier: 1, affixes: [], x: 1, y: 0 };
   const c = { ...base, gold: 10, bag: [a, b] };
   expect(sell(c, 0)).toEqual({ ...c, gold: 30, bag: [b] });
   expect(sell(c, 1)).toEqual({ ...c, gold: 20, bag: [a] });

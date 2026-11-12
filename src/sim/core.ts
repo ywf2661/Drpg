@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, BAG_MAX, ARMORS, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BAG, ARMORS, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -55,21 +55,21 @@ export function armorScore(tier: number, aff: Affix[]): number {
 }
 
 // 장비 점수 − 입은 장비의 점수(양수면 더 좋다)
-export function gearDiff(w: World, it: BagItem): number {
+export function gearDiff(w: World, it: GearItem): number {
   if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes) - weaponScore(w.gear.weapon, w.mods.weapon);
   return armorScore(it.tier, it.affixes) - armorScore(w.gear.armor, w.mods.armor);
 }
 
 // 장비가 지금 장착한 것보다 나은가
-export function isBetter(w: World, it: Item | BagItem): boolean {
+export function isBetter(w: World, it: Item | GearItem): boolean {
   if (it.kind !== 'weapon' && it.kind !== 'armor') return false;
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
 
 // 장비를 입고 벗은 장비를 돌려준다. '튼튼한'이 바뀌면 체력 비율을 유지한다(맞바꿈이 공짜라서 이득도 손해도 없게).
 // 반올림하지 않는다: 서로 다른 갑옷을 번갈아 입을 때 반올림이 쌓이면 체력이 오를 수 있다
-export function wear(w: World, it: BagItem): BagItem {
-  const old: BagItem = { kind: it.kind, tier: w.gear[it.kind], affixes: w.mods[it.kind] };
+export function wear(w: World, it: GearItem): GearItem {
+  const old: GearItem = { kind: it.kind, tier: w.gear[it.kind], affixes: w.mods[it.kind] };
   w.gear[it.kind] = it.tier;
   w.mods[it.kind] = it.affixes;
   const hero = w.entities[0];
@@ -81,18 +81,51 @@ export function wear(w: World, it: BagItem): BagItem {
 
 // 보관함 조작. 창이 열린 동안 sim이 멈추므로 명령 큐를 거치지 않고 바로 부른다(난수 없음).
 // ponytail: 멀티플레이를 넣을 때 명령으로 옮기고, 서버가 틱 사이에 처리하게 할 것
-export function equipFromBag(w: World, i: number) {
-  if (w.entities[0].state !== 'dead' && w.bag[i]) w.bag[i] = wear(w, w.bag[i]);
+// 벗은 장비는 크기가 다를 수 있다: 같은 자리 → 빈 자리 순으로 놓고, 둘 다 안 되면 입지 않는다(false)
+export function equipFromBag(w: World, i: number): boolean {
+  const it = w.bag[i];
+  if (w.entities[0].state === 'dead' || !it) return false;
+  const old: GearItem = { kind: it.kind, tier: w.gear[it.kind], affixes: w.mods[it.kind] };
+  const rest = w.bag.filter((_, k) => k !== i);
+  const at = bagFits(rest, old, it.x, it.y) ? [it.x, it.y] : bagSpot(rest, old);
+  if (!at) return false;
+  wear(w, it);
+  w.bag[i] = { ...old, x: at[0], y: at[1] };
+  return true;
+}
+
+// 그 칸으로 옮긴다(격자 밖·겹침이면 그대로). 층 입구 기록과 객체를 나눠 쓰므로 새 객체로 바꾼다
+export function moveInBag(w: World, i: number, x: number, y: number) {
+  const it = w.bag[i];
+  if (w.entities[0].state !== 'dead' && it && bagFits(w.bag, it, x, y, i)) w.bag[i] = { ...it, x, y };
+}
+
+export const gearSize = (it: Pick<GearItem, 'kind' | 'tier'>) => GEAR_SIZE[it.kind][it.tier - 1];
+
+// (x, y)에 놓을 수 있는가: 격자 안이고 다른 장비(skip번 제외)와 겹치지 않는다
+export function bagFits(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>, x: number, y: number, skip = -1): boolean {
+  const [w, h] = gearSize(it);
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x + w > BAG.w || y + h > BAG.h) return false;
+  return bag.every((o, k) => {
+    const [ow, oh] = gearSize(o);
+    return k === skip || x >= o.x + ow || o.x >= x + w || y >= o.y + oh || o.y >= y + h;
+  });
+}
+
+// 놓을 수 있는 첫 자리(왼쪽 열부터 위에서 아래로). 없으면 null
+export function bagSpot(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>): [number, number] | null {
+  for (let x = 0; x < BAG.w; x++) for (let y = 0; y < BAG.h; y++) if (bagFits(bag, it, x, y)) return [x, y];
+  return null;
 }
 
 export function discardFromBag(w: World, i: number) {
   if (w.entities[0].state !== 'dead' && w.bag[i]) w.bag.splice(i, 1);
 }
 
-// 보관함이 가득 차서 발밑 장비를 못 줍는 중인가
+// 보관함에 자리가 없어 발밑 장비를 못 줍는 중인가
 export function bagBlocked(w: World): boolean {
   const hero = w.entities[0];
-  return w.bag.length >= BAG_MAX && w.items.some((it) => (it.kind === 'weapon' || it.kind === 'armor') && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup);
+  return w.items.some((it) => (it.kind === 'weapon' || it.kind === 'armor') && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
 }
 
 // 장비 아이템 굴림: 등급(옵션 0·1·2개) → 부위에 맞는 서로 다른 옵션, 값은 범위 안 균등

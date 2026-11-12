@@ -126,7 +126,7 @@ test('점수가 더 높은 장비만 밟으면 장착(옵션 포함), 옵션도 
   expect(w.mods.weapon).toEqual([{ kind: 'dmg', value: 30 }]);
   expect(w.items).toEqual([]);
   expect(w.bag).toEqual([
-    { kind: 'weapon', tier: 3, affixes: [] }, // 못한 것은 보관함으로
-    { kind: 'weapon', tier: 2, affixes: [{ kind: 'dmg', value: 30 }] }, // 벗은 것도
+    { kind: 'weapon', tier: 3, affixes: [], x: 0, y: 0 }, // 못한 것은 보관함으로
+    { kind: 'weapon', tier: 2, affixes: [{ kind: 'dmg', value: 30 }], x: 1, y: 0 }, // 벗은 것도
   ]);
 });

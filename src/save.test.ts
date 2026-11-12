@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [] }, ranks: { cleave: 3, dash: 1, shout: 2, throw: 5 }, points: 1, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }] }, { kind: 'weapon' as const, tier: 4, affixes: [] }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 } };
+const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [] }, ranks: { cleave: 3, dash: 1, shout: 2, throw: 5 }, points: 1, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 } };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -35,7 +35,12 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(bad({ ranks: { cleave: 1 } })).toBeNull();
   expect(bad({ points: -1 })).toBeNull();
   expect(bad({ bag: 'x' })).toBeNull();
-  expect(bad({ bag: Array(9).fill({ kind: 'weapon', tier: 1, affixes: [] }) })).toBeNull(); // 칸 수 초과
+  const at = (x: unknown, y: unknown) => ({ kind: 'weapon', tier: 4, affixes: [], x, y }); // 2×3
+  expect(bad({ bag: [at(0, 0), at(1, 1)] })).toBeNull(); // 겹침
+  expect(bad({ bag: [at(9, 0)] })).toBeNull(); // 격자 밖
+  expect(bad({ bag: [at(0, 2)] })).toBeNull();
+  expect(bad({ bag: [at(0, '0')] })).toBeNull();
+  expect(bad({ bag: [at(0, undefined)] })).toBeNull(); // 자리가 반만 있음
   expect(bad({ bag: [null] })).toBeNull();
   expect(bad({ bag: [{ kind: 'potion', tier: 1, affixes: [] }] })).toBeNull();
   expect(bad({ bag: [{ kind: 'weapon', tier: 5, affixes: [] }] })).toBeNull();
@@ -43,6 +48,13 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(bad({ bag: [{ kind: 'weapon', tier: 1, affixes: [{ kind: 'life', value: 20 }] }] })).toBeNull(); // 부위가 다른 옵션
   expect(bad({ bag: [{ kind: 'weapon', tier: 1, affixes: [{ kind: 'dmg', value: 999 }] }] })).toBeNull();
   expect(bad({ autoEquip: 'yes' })).toBeNull();
+});
+
+test('격자가 생기기 전 저장: 보관함을 빈 자리에 차례로 놓고, 안 들어가는 장비는 판 값의 금화로', () => {
+  const plate = { kind: 'armor', tier: 4, affixes: [] }; // 2×3: 5벌까지 들어간다. 판 값 40
+  const r = decodeSave(JSON.stringify({ v: 1, ...run, bag: Array(8).fill(plate) }))!;
+  expect(r.bag).toEqual([0, 2, 4, 6, 8].map((x) => ({ ...plate, x, y: 0 })));
+  expect(r.gold).toBe(run.gold + 3 * 40);
 });
 
 test('기록(stats)이 없는 이전 저장은 0으로 채운다, 이상한 기록은 무시', () => {

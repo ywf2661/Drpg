@@ -1,12 +1,12 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { attackInterval, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints, wear } from './core';
+import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, mod, rand, rollGear, walk, waypoints, wear } from './core';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, shoot, shout, slam, summon, throwAxe, tickZones } from './abilities';
-import { AGGRO, BAG_MAX, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, type Chest, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, type Chest, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
-export { armorScore, attackInterval, axeStat, bagBlocked, cleaveStat, dashStat, discardFromBag, equipFromBag, gearDiff, heroMax, isBetter, mastered, mod, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { armorScore, attackInterval, axeStat, bagBlocked, bagFits, bagSpot, cleaveStat, dashStat, discardFromBag, equipFromBag, gearDiff, gearSize, heroMax, isBetter, mastered, mod, moveInBag, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', K: 'king', M: 'boss' };
@@ -88,8 +88,8 @@ function regen(w: World, hero: Entity) {
   }
 }
 
-// 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가, 장비는 보관함이 찰 때까지 줍는다.
-// 자동 장착이면 더 좋은 장비는 바로 입는다. 벗은 장비는 보관함으로, 가득 찼으면 발밑에(사라지는 장비는 없다)
+// 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가, 장비는 보관함 격자에 자리가 있으면 줍는다.
+// 자동 장착이면 더 좋은 장비는 바로 입는다. 벗은 장비는 보관함으로, 자리가 없으면 발밑에(사라지는 장비는 없다)
 function pickup(w: World, hero: Entity) {
   if (hero.state === 'dead') return;
   const fallen: Item[] = [];
@@ -105,14 +105,12 @@ function pickup(w: World, hero: Entity) {
       return false;
     }
     const gear = { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] };
-    if (w.autoEquip && isBetter(w, gear)) {
-      const old = wear(w, gear);
-      if (w.bag.length < BAG_MAX) w.bag.push(old);
-      else fallen.push({ id: w.nextItem++, x: hero.x, z: hero.z, ...old });
-      return false;
-    }
-    if (w.bag.length >= BAG_MAX) return true;
-    w.bag.push(gear);
+    const better = w.autoEquip && isBetter(w, gear);
+    const got = better ? wear(w, gear) : gear; // 보관함에 넣을 것(자동 장착이면 벗은 장비)
+    const at = bagSpot(w.bag, got);
+    if (at) w.bag.push({ ...got, x: at[0], y: at[1] });
+    else if (better) fallen.push({ id: w.nextItem++, x: hero.x, z: hero.z, ...got });
+    else return true;
     return false;
   });
   w.items.push(...fallen);
