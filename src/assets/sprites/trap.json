@@ -1,0 +1,21 @@
+{
+  "cell": [
+    43,
+    27
+  ],
+  "anchor": [
+    21,
+    16
+  ],
+  "ppm": 30,
+  "cols": 4,
+  "rows": 1,
+  "anims": {
+    "trap": {
+      "row": 0,
+      "frames": 4,
+      "ms": 400,
+      "loop": "play_once"
+    }
+  }
+}

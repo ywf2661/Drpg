@@ -26,12 +26,12 @@ const ELITE_SIZE = 1.25;
 const KING_TINT = new THREE.Color(0.95, 0.6, 1.35);
 const KING_SIZE = 1.5;
 
-// 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
-// URL만 알고, 그림은 장착할 때 불러온다. 레이어 → 단계를 정하는 장비 부위(lower = 다리·손). 마법사는 방패(off)가 없다
-const HERO_URLS = import.meta.glob(['../assets/sprites/hero_*_*.png', '../assets/sprites/wizard_*_*.png'], { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+// 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…, 궁수 ranger_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
+// URL만 알고, 그림은 장착할 때 불러온다. 레이어 → 단계를 정하는 장비 부위(lower = 다리·손). 마법사·궁수는 방패(off)가 없다
+const HERO_URLS = import.meta.glob(['../assets/sprites/hero_*_*.png', '../assets/sprites/wizard_*_*.png', '../assets/sprites/ranger_*_*.png'], { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 export const HERO_LAYERS: Record<string, Slot> = { main: 'weapon', head: 'helm', feet: 'boots', lower: 'armor', chest: 'armor', off: 'armor' };
 export const HERO_ORDER: string[][] = heroOrder; // FLARE 방향 번호 → 레이어 순서
-const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard', ranger: 'hero' };
+const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard', ranger: 'ranger' };
 export const layerUrl = (layer: string, g: Gear, cls: HeroClass = 'knight'): string | undefined => HERO_URLS[`../assets/sprites/${PREFIX[cls]}_${layer}_${g[HERO_LAYERS[layer]]}.png`];
 const layerImages = new Map<string, Promise<HTMLImageElement>>();
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {

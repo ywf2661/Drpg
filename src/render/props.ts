@@ -24,6 +24,10 @@ import gateInfo from '../assets/sprites/gate.json';
 import gateUrl from '../assets/sprites/gate.png';
 import flameInfo from '../assets/sprites/flame.json';
 import flameUrl from '../assets/sprites/flame.png';
+import trapInfo from '../assets/sprites/trap.json';
+import trapUrl from '../assets/sprites/trap.png';
+import stuckInfo from '../assets/sprites/stuck.json';
+import stuckUrl from '../assets/sprites/stuck.png';
 import { walkable } from '../sim/path';
 import { resetWard, syncWard, updateWard, wardFx } from './ward';
 import { cardGeometry, dirIndex, frameAt, loadSheet, type Clip, type SheetInfo } from './sprites';
@@ -42,8 +46,8 @@ const lootClip = (it: Item, cls: HeroClass) =>
     : it.kind === 'potion'
     ? 'potion'
     : it.kind === 'weapon'
-      ? (cls === 'wizard' ? ['wand', 'rod', 'staff', 'greatstaff'] : ['dagger', 'shortsword', 'longsword', 'greatsword'])[it.tier - 1]
-      : cls === 'wizard' ? 'clothes' : ['clothes', 'leather_armor', 'steel_armor', 'steel_armor'][it.tier - 1]; // 갑옷·투구·신발(마법사 로브는 모두 천)
+      ? (cls === 'wizard' ? ['wand', 'rod', 'staff', 'greatstaff'] : cls === 'ranger' ? ['slingshot', 'shortbow', 'longbow', 'greatbow'] : ['dagger', 'shortsword', 'longsword', 'greatsword'])[it.tier - 1]
+      : cls === 'wizard' ? 'clothes' : (cls === 'ranger' ? ['clothes', 'leather_armor', 'leather_armor', 'steel_armor'] : ['clothes', 'leather_armor', 'steel_armor', 'steel_armor'])[it.tier - 1]; // 갑옷·투구·신발(마법사 로브는 모두 천)
 const LOOT_MIN_LIGHT = 0.6; // 바닥 물약은 어둠 속에서도 보이게
 const STAIRS_AT: [number, number] = [-1.5, -1.5]; // 계단 칸 → 4×4칸 계단 그림의 위 꼭짓점(맵 최소 x·z 모서리)
 const VARIANTS: Record<Prop['kind'], string[]> = {
@@ -64,6 +68,9 @@ const axeFx: Sheet = { info: axeInfo as SheetInfo, url: axeUrl };
 const quakeFx: Sheet = { info: quakeInfo as SheetInfo, url: quakeUrl };
 const gateFx: Sheet = { info: gateInfo as SheetInfo, url: gateUrl };
 const flameFx: Sheet = { info: flameInfo as SheetInfo, url: flameUrl };
+const trapFx: Sheet = { info: trapInfo as SheetInfo, url: trapUrl };
+const stuckFx: Sheet = { info: stuckInfo as SheetInfo, url: stuckUrl };
+const RAIN_ARROWS = 7; // 화살비 한 번에 꽂히는 화살 수(그림)
 const wiz = { ember: fx('ember'), thunder: fx('thunder'), spark: fx('spark'), ice: fx('ice'), frost: fx('frost'), blink: fx('blink'), heal: fx('heal') };
 const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
 const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
@@ -73,6 +80,7 @@ const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
 let chestCards: { card: Card; name: string }[] = []; // 상자 판자(world.chests 순서)와 닫힌 그림 이름
 const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
+const trapCards = new Map<number, Card>(); // 놓인 덫 id → 판자(벌린 그림으로 멈춰 있다)
 let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
 let cleavesSeen = 0;
 let shoutsSeen = 0;
@@ -318,7 +326,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, ...Object.values(wiz)]) {
+  for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -421,9 +429,28 @@ export function syncEffects(world: World) {
       rumble(0.1);
       continue;
     }
+    if (b.kind === 'rain') {
+      // 화살비: 반경 안 여기저기에 화살이 꽂혀 잠시 남는다
+      for (let k = 0; k < RAIN_ARROWS; k++) {
+        const a = k * 2.39996 + b.id, r = (b.r ?? 1.5) * 0.9 * Math.sqrt((k + 0.5) / RAIN_ARROWS);
+        const c = card(stuckFx, 'stuck', b.x + Math.sin(a) * r, b.z + Math.cos(a) * r, false);
+        Object.assign(c, { t: 0, dir: (b.id + k) % 8 });
+        effects.push(c);
+        cards.push(c);
+        group.add(c.mesh);
+      }
+      rumble(0.08);
+      continue;
+    }
     if (b.kind === 'thunder') flash(b.x, b.z, b.r ? b.r * 1.1 : 1.1); // 낙뢰는 맞는 범위만큼, 천둥의 잇따른 벼락은 작게
     const flat = b.kind === 'slam';
-    const c = flat ? card(quakeFx, 'quake', b.x, b.z, true) : b.kind === 'fire' || b.kind === 'nova' ? card(blastFx, 'blast', b.x, b.z, false) : card(wiz[b.kind as 'thunder' | 'spark' | 'ice' | 'blink' | 'heal'], b.kind, b.x, b.z, false);
+    const c = flat
+      ? card(quakeFx, 'quake', b.x, b.z, true)
+      : b.kind === 'fire' || b.kind === 'nova'
+        ? card(blastFx, 'blast', b.x, b.z, false)
+        : b.kind === 'trap'
+          ? card(trapFx, 'trap', b.x, b.z, false) // 덫이 닫힌다
+          : card(wiz[b.kind as 'thunder' | 'spark' | 'ice' | 'blink' | 'heal'], b.kind, b.x, b.z, false);
     Object.assign(c, { t: 0, glow: 1 });
     if (b.kind === 'thunder') c.mesh.scale.setScalar(1.5); // 벼락 줄기를 굵고 길게
     if (b.kind === 'slam' || b.kind === 'thunder') rumble(b.kind === 'slam' ? 0.2 : 0.12);
@@ -432,6 +459,7 @@ export function syncEffects(world: World) {
     cards.push(c);
     group.add(c.mesh);
   }
+  syncTraps(world);
   syncWard(world); // 마나 방패(ward.ts)
   effects = effects.filter((c) => {
     if (c.t * 1000 < c.clip.ms) return true;
@@ -440,6 +468,27 @@ export function syncEffects(world: World) {
     cards.splice(cards.indexOf(c), 1);
     return false;
   });
+}
+
+// 놓인 덫: 벌린 그림(첫 프레임)으로 세워 두고, 밟혀 사라지면 치운다(닫히는 모습은 'trap' 폭발 기록으로)
+function syncTraps(world: World) {
+  const live = new Set(world.traps.map((t) => t.id));
+  for (const [id, c] of trapCards) {
+    if (live.has(id)) continue;
+    c.mesh.removeFromParent();
+    free(c);
+    trapCards.delete(id);
+    cards.splice(cards.indexOf(c), 1);
+  }
+  for (const t of world.traps) {
+    if (trapCards.has(t.id)) continue;
+    const c = card(trapFx, 'trap', t.x, t.z, false);
+    c.clip = { ...c.clip, ms: 1e9 }; // 첫 프레임에서 멈춘다
+    c.t = 0;
+    trapCards.set(t.id, c);
+    cards.push(c);
+    group.add(c.mesh);
+  }
 }
 
 // 날아가는 화살 판자를 world.shots에 맞춘다(위치는 매 프레임)
@@ -465,6 +514,7 @@ export function syncShots(world: World) {
       group.add(c.mesh);
     }
     c.mesh.position.set(s.x, 0, s.z);
+    c.mesh.visible = !s.wait; // 뒤따르는 화살(관통 사격 5단계)은 날기 전까지 숨긴다
   }
 }
 
@@ -515,6 +565,7 @@ export function buildProps(world: World): THREE.Group {
   });
   cards.push(...chestCards.map((c) => c.card));
   gateCards.clear();
+  trapCards.clear();
   flames.clear();
   for (const g of world.gates) if (!g.open) gateCards.set(g.id, card(gateFx, `gate_${g.axis}`, g.x + 0.5, g.z + 0.5, false));
   cards.push(...gateCards.values());

@@ -9,7 +9,7 @@
   ],
   "ppm": 30,
   "cols": 6,
-  "rows": 15,
+  "rows": 19,
   "anims": {
     "potion": {
       "row": 0,
@@ -97,6 +97,30 @@
     },
     "greatstaff": {
       "row": 14,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "slingshot": {
+      "row": 15,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "shortbow": {
+      "row": 16,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "longbow": {
+      "row": 17,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    },
+    "greatbow": {
+      "row": 18,
       "frames": 6,
       "ms": 600,
       "loop": "play_once"

@@ -1,0 +1,21 @@
+{
+  "cell": [
+    38,
+    41
+  ],
+  "anchor": [
+    19,
+    41
+  ],
+  "ppm": 30,
+  "cols": 1,
+  "rows": 8,
+  "anims": {
+    "stuck": {
+      "row": 0,
+      "frames": 1,
+      "ms": 3000,
+      "loop": "play_once"
+    }
+  }
+}

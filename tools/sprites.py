@@ -59,13 +59,23 @@ WIZARD_LAYERS = {
     'lower': [['cloth_pants', 'cloth_gloves'], ['mage_skirt', 'mage_sleeves'], ['mage_skirt_alt1', 'mage_sleeves_alt1'], ['mage_skirt_alt2', 'mage_sleeves_alt2']],
     'chest': [['cloth_shirt'], ['mage_vest'], ['mage_vest_alt1'], ['mage_vest_alt2']],
 }
-CLASS_SHEETS = {'hero': (HERO_LAYERS, ANIMS), 'wizard': (WIZARD_LAYERS, {**ANIMS, 'attack': 'cast'})}  # 마법사의 공격 = 시전(4프레임·400ms로 베기와 같아 hero.json을 함께 쓴다)
-PORTRAIT_GEAR = {'hero': 2, 'wizard': 2}  # 시작 화면 초상의 장비 단계(시작 장비)
+# 궁수: ranger_<레이어>_<단계>.png(방패 없음). 단계 1 = 천옷, 2 = 가죽, 3 = 가죽+사슬 다리, 4 = 사슬
+RANGER_LAYERS = {
+    'main': [['slingshot'], ['shortbow'], ['longbow'], ['greatbow']],
+    'head': [['head_short'], ['mage_hood'], ['leather_hood'], ['chain_coif']],
+    'feet': [['cloth_sandals'], ['leather_boots'], ['leather_boots'], ['chain_boots']],
+    'lower': [['cloth_pants', 'cloth_gloves'], ['leather_pants', 'leather_gloves'], ['chain_greaves', 'leather_gloves'], ['chain_greaves', 'chain_gloves']],
+    'chest': [['cloth_shirt'], ['leather_chest'], ['leather_chest'], ['chain_cuirass']],
+}
+# 마법사의 공격 = 시전, 궁수 = 활쏘기(둘 다 4프레임·400ms로 베기와 같아 hero.json을 함께 쓴다)
+CLASS_SHEETS = {'hero': (HERO_LAYERS, ANIMS), 'wizard': (WIZARD_LAYERS, {**ANIMS, 'attack': 'cast'}), 'ranger': (RANGER_LAYERS, {**ANIMS, 'attack': 'shoot'})}
+PORTRAIT_GEAR = {'hero': 2, 'wizard': 2, 'ranger': 2}  # 시작 화면 초상의 장비 단계(시작 장비)
 LOWER_SLOTS = ['legs', 'hands']
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor',
               'coins5': 'coins5', 'coins25': 'coins25', 'coins100': 'coins100',
-              'wand': 'wand', 'rod': 'rod', 'staff': 'staff', 'greatstaff': 'greatstaff'}  # 동작 이름 → loot 애니메이션
+              'wand': 'wand', 'rod': 'rod', 'staff': 'staff', 'greatstaff': 'greatstaff',
+              'slingshot': 'slingshot', 'shortbow': 'shortbow', 'longbow': 'longbow', 'greatbow': 'greatbow'}  # 동작 이름 → loot 애니메이션
 SOUNDS = ROOT / 'src' / 'assets' / 'sounds'
 MUSIC = ROOT / 'src' / 'assets' / 'music'
 MUSIC_FILES = ['dungeon_theme', 'boss_theme']  # music/ 아래
@@ -76,6 +86,8 @@ SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161, 136, 144, 152, 160, 132, 148, 156, 164]  # 무기 4, 갑옷 4, 투구 4, 신발 4(단계 순)
 WIZARD_GEAR_ICONS = [104, 105, 106, 107, 129, 137, 185, 193, -136, 136, 184, 192, 132, 140, 188, 196]  # 마법사. 음수 = 그 아이콘을 회색으로(천 머리띠)
 WIZARD_SKILL_ICONS = [34, 24, 7, 4, 19]  # 화염구·서리 고리·낙뢰·마나 방패·순간이동
+RANGER_GEAR_ICONS = [112, 113, 114, 115, 129, 137, 145, 153, -136, 136, 144, 152, 132, 140, 176, 156]  # 궁수(새총·활 3, 천·가죽 조끼·가죽·사슬, 두건 4, 신발 4)
+RANGER_SKILL_ICONS = [41, 38, 8, 16, 9]  # 관통 사격·덫·화살비·집중·구르기
 SKILL_ICON = 22  # 가르기(Cleave)
 DASH_ICON = 9  # 돌진 베기(달리는 사람)
 SHOUT_ICON, THROW_ICON = 10, 33  # 전투의 함성(파동), 도끼 던지기
@@ -217,7 +229,7 @@ def pack(name, frames, meta, scale, dirs, bbox=None, json_name=None):
 
 def hero():
     layers = {(cls, slot, t + 1): hero_layer(names) for cls, (table, _) in CLASS_SHEETS.items() for slot, tiers in table.items() for t, names in enumerate(tiers)}
-    # 공통 칸: 두 직업 모든 레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)
+    # 공통 칸: 모든 직업 모든 레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)
     x0 = y0 = 10**9
     x1 = y1 = -10**9
     for (cls, _, _), srcs in layers.items():
@@ -427,6 +439,8 @@ def loot():
 
     strip_of(WIZARD_GEAR_ICONS, 'wizard_gear_icons.png')
     strip_of(WIZARD_SKILL_ICONS, 'wizard_skill_icons.png')
+    strip_of(RANGER_GEAR_ICONS, 'ranger_gear_icons.png')
+    strip_of(RANGER_SKILL_ICONS, 'ranger_skill_icons.png')
 
 
 def credits():
@@ -472,6 +486,9 @@ if __name__ == '__main__':
     effect('frost', 'freeze', dirs=3, scale=0.4)  # 서리 고리 장판에서 솟는 얼음 결정(모양 3가지 = 줄 3개, 프레임 0 = 다 자란 결정 → 3 = 부서짐)
     effect('blink', 'sparkle', dirs=1, scale=0.28)  # 순간이동
     effect('heal', 'heal', dirs=1, scale=0.33)  # 치유
+    # 궁수
+    effect('trap', 'bear_trap', dirs=1, scale=0.35)  # 덫: 프레임 0 = 벌린 덫(놓인 동안), 0→3 = 닫힘
+    effect('stuck', 'arrow_stuck')  # 화살비: 땅에 꽂힌 화살(8방향, 3초)
     hero()
     tiles()
     gate()

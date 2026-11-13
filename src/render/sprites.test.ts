@@ -84,6 +84,12 @@ test('주인공 레이어: 장비 조합마다 모든 레이어 그림이 있고
   for (const order of HERO_ORDER) expect([...order].sort()).toEqual(Object.keys(HERO_LAYERS).sort());
 });
 
+test('궁수 레이어: 활과 궁수 옷 그림을 쓰고, 방패는 없다', () => {
+  const g = (t: number) => ({ weapon: t, armor: t, helm: t, boots: t });
+  for (let t = 1; t <= 4; t++) for (const l of ['main', 'head', 'feet', 'lower', 'chest']) expect(layerUrl(l, g(t), 'ranger'), `${l} ${t}`).toContain(`ranger_${l}_${t}`);
+  expect(layerUrl('off', g(2), 'ranger')).toBeUndefined();
+});
+
 test('스킬 시전: 시전 시간 동안 공격(시전) 동작 프레임이 차례로 나오고, 끝나면 서 있기', () => {
   const w = createWorld(1, ['H..']);
   const e = w.entities[0];

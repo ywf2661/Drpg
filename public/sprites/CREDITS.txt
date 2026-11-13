@@ -48,12 +48,14 @@ Files used:
   mods/fantasycore/images/powers/lightning.png
   mods/fantasycore/animations/powers/freeze.txt
   mods/fantasycore/images/powers/freeze.png
-  mods/fantasycore/animations/powers/shield.txt
-  mods/fantasycore/images/powers/shield.png
   mods/fantasycore/animations/powers/sparkle.txt
   mods/fantasycore/images/powers/sparkle.png
   mods/fantasycore/animations/powers/heal.txt
   mods/fantasycore/images/powers/heal.png
+  mods/fantasycore/animations/powers/bear_trap.txt
+  mods/fantasycore/images/powers/bear_trap.png
+  mods/fantasycore/animations/powers/arrow_stuck.txt
+  mods/fantasycore/images/powers/arrow_stuck.png
   mods/fantasycore/animations/avatar/male/dagger.txt
   mods/fantasycore/images/avatar/male/dagger.png
   mods/fantasycore/animations/avatar/male/shortsword.txt
@@ -148,6 +150,14 @@ Files used:
   mods/fantasycore/images/avatar/male/mage_vest_alt1.png
   mods/fantasycore/animations/avatar/male/mage_vest_alt2.txt
   mods/fantasycore/images/avatar/male/mage_vest_alt2.png
+  mods/fantasycore/animations/avatar/male/slingshot.txt
+  mods/fantasycore/images/avatar/male/slingshot.png
+  mods/fantasycore/animations/avatar/male/shortbow.txt
+  mods/fantasycore/images/avatar/male/shortbow.png
+  mods/fantasycore/animations/avatar/male/longbow.txt
+  mods/fantasycore/images/avatar/male/longbow.png
+  mods/fantasycore/animations/avatar/male/greatbow.txt
+  mods/fantasycore/images/avatar/male/greatbow.png
   mods/fantasycore/images/tilesets/tileset_dungeon.png
   mods/fantasycore/tilesetdefs/tileset_dungeon.txt
   mods/fantasycore/images/tilesets/tileset_cave.png
@@ -182,6 +192,14 @@ Files used:
   mods/fantasycore/images/loot/staff.png
   mods/fantasycore/animations/loot/greatstaff.txt
   mods/fantasycore/images/loot/greatstaff.png
+  mods/fantasycore/animations/loot/slingshot.txt
+  mods/fantasycore/images/loot/slingshot.png
+  mods/fantasycore/animations/loot/shortbow.txt
+  mods/fantasycore/images/loot/shortbow.png
+  mods/fantasycore/animations/loot/longbow.txt
+  mods/fantasycore/images/loot/longbow.png
+  mods/fantasycore/animations/loot/greatbow.txt
+  mods/fantasycore/images/loot/greatbow.png
   mods/fantasycore/images/icons/icons.png
   mods/fantasycore/soundfx/wood_open.ogg
   mods/fantasycore/soundfx/level_up.ogg

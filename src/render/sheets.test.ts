@@ -73,8 +73,8 @@ test('주인공 시트: 레이어 6종 × 4단계가 모두 있다(칸 정보는
   expect(files.sort()).toEqual(want.sort());
 });
 
-test('loot 시트: 물약과 장비(기사·마법사) 바닥 그림', () => {
-  expect(Object.keys(loot.anims)).toEqual(['potion', 'dagger', 'shortsword', 'longsword', 'greatsword', 'clothes', 'leather_armor', 'steel_armor', 'coins5', 'coins25', 'coins100', 'wand', 'rod', 'staff', 'greatstaff']); // 마지막 넷은 마법사 지팡이
+test('loot 시트: 물약과 장비(기사·마법사·궁수) 바닥 그림', () => {
+  expect(Object.keys(loot.anims)).toEqual(['potion', 'dagger', 'shortsword', 'longsword', 'greatsword', 'clothes', 'leather_armor', 'steel_armor', 'coins5', 'coins25', 'coins100', 'wand', 'rod', 'staff', 'greatstaff', 'slingshot', 'shortbow', 'longbow', 'greatbow']); // 마법사 지팡이 넷, 궁수 활 넷
 });
 
 test('사망 동작은 모두 1회 재생(마지막 프레임 = 시체)', () => {
