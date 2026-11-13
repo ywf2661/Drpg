@@ -85,7 +85,7 @@ export function decodeSave(text: string | null): Run | null {
   if (!bagged || typeof autoEquip !== 'boolean') return null;
   // 직업(나중에 생긴 항목: 없으면 기사)
   const cls = d.cls ?? 'knight';
-  if (cls !== 'knight' && cls !== 'wizard') return null;
+  if (cls !== 'knight' && cls !== 'wizard' && cls !== 'ranger') return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;

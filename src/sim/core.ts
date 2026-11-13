@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -198,7 +198,8 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'dodge', age: 0 }); // 구르는 중: 무적
     return 0;
   }
-  let dmg = raw;
+  // 궁수의 명사수: 멀리 있는 적에게 더 아프게
+  let dmg = from?.kind === 'hero' && t.kind !== 'hero' && w.cls === 'ranger' && dist(from, t) > RANGER.far ? Math.round(raw * RANGER.farMult) : raw;
   // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패가 먼저 흡수(반사 특성이면 근접 공격자에게 일부 되돌림)
   if (t.kind === 'hero') {
     dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST.armor : shoutStat(w).reduce) : 1)));
@@ -269,7 +270,7 @@ export const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // 사거리(궁수 ARCHER.range, 마법사 MAGE.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
 export function canHit(w: World, a: Entity, b: Entity) {
-  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : a.kind === 'hero' && w.cls === 'wizard' ? WIZ.range : RANGE;
+  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : a.kind === 'hero' && w.cls === 'wizard' ? WIZ.range : a.kind === 'hero' && w.cls === 'ranger' ? RANGER.range : RANGE;
   return dist(a, b) <= reach && clearLine(w, a, b);
 }
 

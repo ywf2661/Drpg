@@ -87,3 +87,7 @@ test('플레이 시간 표시', () => {
   expect(formatTime(65.9)).toBe('1:05');
   expect(formatTime(3725)).toBe('1:02:05');
 });
+
+test('궁수 저장도 직업을 그대로 되읽는다', () => {
+  expect(decodeSave(encodeSave({ ...run, cls: 'ranger' }))?.cls).toBe('ranger');
+});

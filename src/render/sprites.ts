@@ -31,7 +31,7 @@ const KING_SIZE = 1.5;
 const HERO_URLS = import.meta.glob(['../assets/sprites/hero_*_*.png', '../assets/sprites/wizard_*_*.png'], { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 export const HERO_LAYERS: Record<string, Slot> = { main: 'weapon', head: 'helm', feet: 'boots', lower: 'armor', chest: 'armor', off: 'armor' };
 export const HERO_ORDER: string[][] = heroOrder; // FLARE 방향 번호 → 레이어 순서
-const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard' };
+const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard', ranger: 'hero' };
 export const layerUrl = (layer: string, g: Gear, cls: HeroClass = 'knight'): string | undefined => HERO_URLS[`../assets/sprites/${PREFIX[cls]}_${layer}_${g[HERO_LAYERS[layer]]}.png`];
 const layerImages = new Map<string, Promise<HTMLImageElement>>();
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {

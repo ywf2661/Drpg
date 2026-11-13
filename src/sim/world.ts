@@ -2,6 +2,7 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, rand, randSlot, rollGear, walk, waypoints, wear, worn } from './core';
+import { shaft } from './ranger';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
@@ -309,6 +310,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
   if (e.skill && hitNow) cleave(w, e);
   else if (t && hitNow && canHit(w, e, t)) {
     if (e.kind === 'hero' && w.cls === 'wizard') bolt(w, e, t);
+    else if (e.kind === 'hero' && w.cls === 'ranger') shaft(w, e, t);
     else if (e.kind === 'archer') shoot(w, e, t, 'arrow');
     else if (e.kind === 'mage') shoot(w, e, t, 'fire');
     else damage(w, e, t);

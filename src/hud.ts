@@ -48,7 +48,7 @@ const throwBtn = $('#throw');
 const gearSlots: Record<Slot, HTMLElement> = { weapon: $('#weapon'), armor: $('#armor'), helm: $('#helm'), boots: $('#boots') };
 const SLOT_NAME: Record<Slot, string> = { weapon: '무기', armor: '갑옷', helm: '투구', boots: '신발' };
 let cls: HeroClass = 'knight'; // 지금 판의 직업(장비 이름·아이콘·스킬 설명). 층이 바뀔 때·상점을 열 때 맞춘다
-const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons };
+const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons, ranger: gearIcons };
 const nameOf = (kind: Slot, tier: number, affixes: Affix[]) => gearName(kind, tier, affixes, cls);
 const toast = $('#toast');
 const soundBtn = $('#sound-btn');
@@ -109,7 +109,7 @@ export function initHud(h: Handlers) {
   music.addEventListener('input', () => h.sound({ music: +music.value / 100 }));
   mute.addEventListener('change', () => h.sound({ muted: mute.checked }));
   continueBtn.addEventListener('click', h.resume);
-  const portraits: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait };
+  const portraits: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait, ranger: knightPortrait };
   for (const card of title.querySelectorAll<HTMLElement>('.class-card')) {
     const c = card.dataset.cls as HeroClass;
     card.querySelector('img')!.src = portraits[c];
@@ -212,8 +212,8 @@ const WIZARD_TRAITS: Record<SkillName, [string, string][]> = {
     ['반사', '방패가 막은 피해의 50%를 공격한 적에게 되돌린다'],
   ],
 };
-const SKILL_TEXTS: Record<HeroClass, SkillText> = { knight: KNIGHT_SKILLS, wizard: WIZARD_SKILLS };
-const TRAIT_TEXTS: Record<HeroClass, Record<SkillName, [string, string][]>> = { knight: KNIGHT_TRAITS, wizard: WIZARD_TRAITS };
+const SKILL_TEXTS: Record<HeroClass, SkillText> = { knight: KNIGHT_SKILLS, wizard: WIZARD_SKILLS, ranger: KNIGHT_SKILLS };
+const TRAIT_TEXTS: Record<HeroClass, Record<SkillName, [string, string][]>> = { knight: KNIGHT_TRAITS, wizard: WIZARD_TRAITS, ranger: KNIGHT_TRAITS };
 // 재사용 대기(초): 스킬 4칸 + 구르기·순간이동
 const cooldowns = (w: World): Record<SkillName | 'roll', number> =>
   w.cls === 'wizard'

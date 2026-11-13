@@ -1,7 +1,7 @@
 // 마법사 스킬: 마력탄(평타), 화염구(Q), 서리 고리(W), 낙뢰(E), 마나 방패(R), 순간이동(스페이스).
 // 스킬 칸·명령·재사용 필드(skillCd·dashCd·shoutCd·throwCd·rollCd)·단계·특성은 기사와 같은 것을 쓴다(rules의 HeroClass 설명)
 import { walkable } from './path';
-import { BLINK, BOLT, DT, FIREBALL, FROST, KNOCK, ROLL, TRAIL, WARD, WIZ, type Entity, type Shot, type SkillName, type World } from './rules';
+import { BLINK, BOLT, DT, FIREBALL, FROST, KNOCK, ROLL, TRAIL, WARD, WIZ, type Blast, type Entity, type Shot, type SkillName, type World } from './rules';
 import { clearLine, dist, heroMax, hurt, knock, mastered, roll, skillHit } from './core';
 
 // 스킬 단계별 수치(1단계 = 기본값). 특성·5단계가 바꾸는 수치도 여기서
@@ -25,17 +25,17 @@ export function boltStat(w: World) {
 }
 export const wardStat = (w: World) => ({ cd: WARD.cd - extra(w, 'throw'), absorb: WARD.absorb + 0.05 * extra(w, 'throw') });
 
-const foes = (w: World, hero: Entity) => w.entities.filter((e) => e !== hero && e.state !== 'dead');
-const nearest = (w: World, hero: Entity, r: number) =>
+export const foes = (w: World, hero: Entity) => w.entities.filter((e) => e !== hero && e.state !== 'dead');
+export const nearest = (w: World, hero: Entity, r: number) =>
   foes(w, hero)
     .filter((e) => dist(e, hero) <= r)
     .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
-const blast = (w: World, kind: 'fire' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova', x: number, z: number, r?: number) => w.blasts.push({ id: w.nextItem++, x, z, r, age: 0, kind });
+export const blast = (w: World, kind: Blast['kind'], x: number, z: number, r?: number) => w.blasts.push({ id: w.nextItem++, x, z, r, age: 0, kind });
 // 스킬에 맞은 적: 하던 휘두르기·이동·예고를 끊고 t초 기절(얼음·벼락)
-const stun = (e: Entity, t: number) => e.state !== 'dead' && Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none', stunT: Math.max(e.stunT, t) });
+export const stun = (e: Entity, t: number) => e.state !== 'dead' && Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none', stunT: Math.max(e.stunT, t) });
 
 // 조준 방향(단위 벡터): 조준점 → 가까운 적(range 안) → 바라보는 방향
-function aimDir(w: World, hero: Entity, range: number, x?: number, z?: number): [number, number] {
+export function aimDir(w: World, hero: Entity, range: number, x?: number, z?: number): [number, number] {
   const near = nearest(w, hero, range);
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + Math.sin(hero.facing), hero.z + Math.cos(hero.facing)];
   const d = Math.hypot(tx - hero.x, tz - hero.z);

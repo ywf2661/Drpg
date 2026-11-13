@@ -3,8 +3,9 @@ import type { Cell, Grid } from './path';
 
 export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'king' | 'boss';
 // 주인공 직업. 스킬 4칸(SkillName)과 명령(skill·dash·shout·throw·roll)은 같고, 직업마다 하는 일이 다르다:
-// 기사 = 가르기·돌진 베기·전투의 함성·도끼 던지기·구르기, 마법사 = 화염구·서리 고리·낙뢰·마나 방패·순간이동
-export type HeroClass = 'knight' | 'wizard';
+// 기사 = 가르기·돌진 베기·전투의 함성·도끼 던지기·구르기, 마법사 = 화염구·서리 고리·낙뢰·마나 방패·순간이동,
+// 궁수 = 관통 사격·덫·화살비·집중·구르기
+export type HeroClass = 'knight' | 'wizard' | 'ranger';
 
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 
@@ -87,7 +88,7 @@ export type Chest = { id: number; x: number; z: number; open: boolean };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
 // 주인공 것(몬스터만 맞음): axe = 도끼, bolt = 마법사 마력탄(평타), fireball = 마법사 화염구
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball'; hit?: number[]; bounce?: number; stuck?: number }; // bounce: 남은 튕김, stuck: 박힌 적 id(그 적을 따라다닌다)
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; stuck?: number; wait?: number }; // bounce: 남은 튕김, stuck: 박힌 적 id(그 적을 따라다닌다), wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
 export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge'; age: number }; // back = 공포로 도망치는 적
@@ -318,6 +319,26 @@ export const CLASSES: Record<HeroClass, ClassDef> = {
     helms: named(HELMS, ['천 머리띠', '견습 두건', '마도 두건', '대마법사 두건']),
     boots: named(BOOTS, ['샌들', '견습 장화', '마도 장화', '대마법사 장화']),
   },
+  // 궁수: 체력·방어가 기사와 마법사 사이, 가장 멀리서 쏜다(RANGER.range). 범위가 없어 활 초당 데미지는 검과 비슷하다
+  ranger: {
+    name: '궁수',
+    hp: 85,
+    perLevel: 8,
+    weapons: [
+      { name: '새총', dmg: [4, 7], interval: 0.65 },
+      { name: '단궁', dmg: [6, 10], interval: 0.75 },
+      { name: '장궁', dmg: [8, 13], interval: 0.85 },
+      { name: '대궁', dmg: [11, 18], interval: 1.05 },
+    ],
+    armors: [
+      { name: '천옷', reduce: 0 },
+      { name: '가죽 갑옷', reduce: 0.07 },
+      { name: '사냥꾼 갑옷', reduce: 0.14 },
+      { name: '순찰자 사슬 갑옷', reduce: 0.22 },
+    ],
+    helms: named(HELMS, ['천 두건', '사냥꾼 두건', '가죽 두건', '사슬 두건']),
+    boots: named(BOOTS, ['샌들', '가죽 장화', '사냥꾼 장화', '사슬 장화']),
+  },
 };
 // 부위별 단계 표(이름·수치)
 export const gearTable = (cls: HeroClass): Record<Slot, { name: string }[]> => ({ weapon: CLASSES[cls].weapons, armor: CLASSES[cls].armors, helm: CLASSES[cls].helms, boots: CLASSES[cls].boots });
@@ -334,6 +355,9 @@ export const BOLT = { cd: 6, range: 8, radius: 1.4, mult: 1.6, stun: 0.6, chain:
 export const WARD = { cd: 15, time: 6, absorb: 0.2, heal: 0.25, reflect: 0.5, nova: 2.5, novaMult: 1.2 };
 // 순간이동(스페이스): 재사용, 거리, 무적 시간(초)
 export const BLINK = { cd: 3, dist: 5, guard: 0.25 };
+
+// 궁수. 화살(평타): 사거리, 속도, 비행 거리, 맞는 반경. 명사수: far m 넘게 떨어진 적에게 주는 피해 ×farMult
+export const RANGER = { range: 7.5, speed: 14, flight: 9, hit: 0.4, far: 5, farMult: 1.25 };
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)
