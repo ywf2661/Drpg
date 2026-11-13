@@ -40,17 +40,32 @@ KINDS = {  # 몬스터: 레이어 1장
 }
 KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전
 KIND_SCALE = {'boss': 0.28}  # 0.32면 시트 세로가 4560px(> 4096)
-# 주인공 = 무기 × 갑옷 세트 16조합. 모든 조합이 같은 칸 크기·기준점이라 hero.json 하나를 공유한다
-HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']
-HERO_ARMORS = {
-    'cloth': {'head': 'head_short', 'chest': 'cloth_shirt', 'hands': 'cloth_gloves', 'legs': 'cloth_pants', 'feet': 'cloth_sandals', 'off': 'buckler'},
-    'leather': {'head': 'leather_hood', 'chest': 'leather_chest', 'hands': 'leather_gloves', 'legs': 'leather_pants', 'feet': 'leather_boots', 'off': 'iron_buckler'},
-    'chain': {'head': 'chain_coif', 'chest': 'chain_cuirass', 'hands': 'chain_gloves', 'legs': 'chain_greaves', 'feet': 'chain_boots', 'off': 'kite_shield'},
-    'plate': {'head': 'plate_helm', 'chest': 'plate_cuirass', 'hands': 'plate_gauntlets', 'legs': 'plate_greaves', 'feet': 'plate_boots', 'off': 'shield'},
+# 주인공 = 부위별 레이어 시트(hero_<레이어>_<단계>.png). 게임이 장비에 맞춰 방향마다 LAYER_ORDER대로 겹친다.
+# 모든 레이어가 같은 칸 크기·기준점이라 hero.json 하나를 공유한다. 단계 1~4 순
+# 레이어 → FLARE 원본들. lower = 다리+손(모든 방향에서 그리는 순서가 붙어 있어 한 장으로)
+HERO_LAYERS = {
+    'main': [['dagger'], ['shortsword'], ['longsword'], ['greatsword']],  # 무기
+    'head': [['mage_hood'], ['leather_hood'], ['chain_coif'], ['plate_helm']],  # 투구(천 세트엔 투구가 없어 마법사 두건)
+    'feet': [['cloth_sandals'], ['leather_boots'], ['chain_boots'], ['plate_boots']],  # 신발
+    'lower': [['cloth_pants', 'cloth_gloves'], ['leather_pants', 'leather_gloves'], ['chain_greaves', 'chain_gloves'], ['plate_greaves', 'plate_gauntlets']],  # 갑옷
+    'chest': [['cloth_shirt'], ['leather_chest'], ['chain_cuirass'], ['plate_cuirass']],  # 갑옷
+    'off': [['buckler'], ['iron_buckler'], ['kite_shield'], ['shield']],  # 갑옷(방패)
 }
+# 마법사: wizard_<레이어>_<단계>.png(방패 없음). 단계 1 = 천옷, 2~4 = 로브 갈색·남색·진홍
+WIZARD_LAYERS = {
+    'main': [['wand'], ['rod'], ['staff'], ['greatstaff']],
+    'head': [['head_short'], ['mage_hood'], ['mage_hood_alt1'], ['mage_hood_alt2']],
+    'feet': [['cloth_sandals'], ['mage_boots'], ['mage_boots_alt1'], ['mage_boots_alt2']],
+    'lower': [['cloth_pants', 'cloth_gloves'], ['mage_skirt', 'mage_sleeves'], ['mage_skirt_alt1', 'mage_sleeves_alt1'], ['mage_skirt_alt2', 'mage_sleeves_alt2']],
+    'chest': [['cloth_shirt'], ['mage_vest'], ['mage_vest_alt1'], ['mage_vest_alt2']],
+}
+CLASS_SHEETS = {'hero': (HERO_LAYERS, ANIMS), 'wizard': (WIZARD_LAYERS, {**ANIMS, 'attack': 'cast'})}  # 마법사의 공격 = 시전(4프레임·400ms로 베기와 같아 hero.json을 함께 쓴다)
+PORTRAIT_GEAR = {'hero': 2, 'wizard': 2}  # 시작 화면 초상의 장비 단계(시작 장비)
+LOWER_SLOTS = ['legs', 'hands']
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor',
-              'coins5': 'coins5', 'coins25': 'coins25', 'coins100': 'coins100'}  # 동작 이름 → loot 애니메이션
+              'coins5': 'coins5', 'coins25': 'coins25', 'coins100': 'coins100',
+              'wand': 'wand', 'rod': 'rod', 'staff': 'staff', 'greatstaff': 'greatstaff'}  # 동작 이름 → loot 애니메이션
 SOUNDS = ROOT / 'src' / 'assets' / 'sounds'
 MUSIC = ROOT / 'src' / 'assets' / 'music'
 MUSIC_FILES = ['dungeon_theme', 'boss_theme']  # music/ 아래
@@ -58,7 +73,9 @@ SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee
                'enemies/skeleton_phys', 'enemies/skeleton_hit', 'enemies/skeleton_die',
                'enemies/minotaur_phys', 'enemies/minotaur_hit', 'enemies/minotaur_die',
                'inventory/inventory_potion', 'inventory/inventory_coins', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot', 'powers/fireball', 'powers/burn', 'powers/teleport', 'powers/warcry']  # soundfx/ 아래
-GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161]  # 단검·숏소드·롱소드·그레이트소드, 천옷·가죽·사슬·판금
+GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161, 136, 144, 152, 160, 132, 148, 156, 164]  # 무기 4, 갑옷 4, 투구 4, 신발 4(단계 순)
+WIZARD_GEAR_ICONS = [104, 105, 106, 107, 129, 137, 185, 193, -136, 136, 184, 192, 132, 140, 188, 196]  # 마법사. 음수 = 그 아이콘을 회색으로(천 머리띠)
+WIZARD_SKILL_ICONS = [34, 24, 7, 4, 19]  # 화염구·서리 고리·낙뢰·마나 방패·순간이동
 SKILL_ICON = 22  # 가르기(Cleave)
 DASH_ICON = 9  # 돌진 베기(달리는 사람)
 SHOUT_ICON, THROW_ICON = 10, 33  # 전투의 함성(파동), 도끼 던지기
@@ -140,14 +157,16 @@ def sheet(name):
     return Sheet(name)
 
 
-def hero_layers(weapon, armor):
-    return {slot: f'avatar/male/{n}' for slot, n in {**HERO_ARMORS[armor], 'main': weapon}.items()}
+def hero_layer(names):
+    """레이어 하나의 FLARE 슬롯 → 원본: 한 장이면 body, 다리+손이면 legs·hands(방향별 순서대로 겹친다)"""
+    slots = ['body'] if len(names) == 1 else LOWER_SLOTS
+    return {slot: f'avatar/male/{n}' for slot, n in zip(slots, names)}
 
 
 def frames_of(layers, anims=ANIMS):
     """layers: {슬롯: 원본 이름}. 반환 {(동작, 방향, 프레임): (잘라낸 이미지, 캔버스 안 좌상단)}, {동작: (프레임 수, ms, loop)}"""
     sheets = {slot: sheet(name) for slot, name in layers.items()}
-    meta_src = sheets.get('chest') or sheets['body']
+    meta_src = next(iter(sheets.values()))
     frames, meta = {}, {}
     for anim, src in anims.items():
         a = meta_src.anims[src]
@@ -155,7 +174,7 @@ def frames_of(layers, anims=ANIMS):
         # 사망은 마지막 프레임(누운 시체)에 멈춘다. 미노타우르스 정의는 back_forth라 시체가 다시 일어선다
         meta[anim] = (n, int(a['duration'].removesuffix('ms')), 'play_once' if anim == 'die' else a.get('type', 'play_once'))
         for d, dname in enumerate(DIRS):
-            order = ['body'] if 'body' in layers else LAYER_ORDER[dname].split()
+            order = ['body'] if 'body' in layers else [s for s in LAYER_ORDER[dname].split() if s in layers]
             for i in range(n):
                 c = Image.new('RGBA', (CANVAS, CANVAS))
                 for slot in order:
@@ -197,18 +216,34 @@ def pack(name, frames, meta, scale, dirs, bbox=None, json_name=None):
 
 
 def hero():
-    combos = [(w, a) for w in HERO_WEAPONS for a in HERO_ARMORS]
-    # 공통 칸: 모든 조합·레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)
+    layers = {(cls, slot, t + 1): hero_layer(names) for cls, (table, _) in CLASS_SHEETS.items() for slot, tiers in table.items() for t, names in enumerate(tiers)}
+    # 공통 칸: 두 직업 모든 레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)
     x0 = y0 = 10**9
     x1 = y1 = -10**9
-    for w, a in combos:
-        for name in hero_layers(w, a).values():
-            for src in ANIMS.values():
+    for (cls, _, _), srcs in layers.items():
+        for name in srcs.values():
+            for src in CLASS_SHEETS[cls][1].values():
                 for _, _, rw, rh, ox, oy in sheet(name).anims[src]['rects'].values():
                     x0, y0 = min(x0, FOOT[0] - ox), min(y0, FOOT[1] - oy)
                     x1, y1 = max(x1, FOOT[0] - ox + rw), max(y1, FOOT[1] - oy + rh)
-    for w, a in combos:
-        pack(f'hero_{w}_{a}', *frames_of(hero_layers(w, a)), SCALE, 8, bbox=(x0, y0, x1, y1), json_name='hero')
+    for (cls, slot, t), srcs in layers.items():
+        pack(f'{cls}_{slot}_{t}', *frames_of(srcs, CLASS_SHEETS[cls][1]), SCALE, 8, bbox=(x0, y0, x1, y1), json_name='hero')
+    # 시작 화면 초상: 정면(S)으로 선 시작 장비 모습, 2배
+    for cls, (table, _) in CLASS_SHEETS.items():
+        c = Image.new('RGBA', (CANVAS, CANVAS))
+        t = PORTRAIT_GEAR[cls]
+        srcs = {}
+        for slot, tiers in table.items():
+            for k, name in enumerate(tiers[t - 1]):
+                srcs[LOWER_SLOTS[k] if len(tiers[t - 1]) > 1 else slot] = f'avatar/male/{name}'
+        for slot in LAYER_ORDER['S'].split():
+            if slot in srcs:
+                sheet(srcs[slot]).draw(c, 'stance', 0, DIRS.index('S'))
+        im = c.crop(c.getbbox())
+        im.resize((round(im.width * SCALE * 2), round(im.height * SCALE * 2)), Image.LANCZOS).save(SHEETS / f'portrait_{cls}.png', optimize=True)
+    # 방향별 레이어 순서(게임이 겹칠 때 쓴다). legs·hands는 lower 한 장
+    order = {d: [s for s in o.replace('legs hands', 'lower').split()] for d, o in LAYER_ORDER.items()}
+    (SHEETS / 'hero_layers.json').write_text(json.dumps([order[d] for d in DIRS]) + '\n', encoding='utf-8')
 
 
 class Tileset:
@@ -331,7 +366,7 @@ def flame():
     pack('flame', frames, {'flame': (len(ims), ms, 'looped')}, FLAME_SCALE, 1)
 
 
-def effect(name, src, dirs=8, scale=SCALE):
+def effect(name, src, dirs=8, scale=SCALE, ms=None):
     # FLARE 기술 효과('power' 동작, 8방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
     # — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
     sh = sheet(f'powers/{src}')
@@ -348,7 +383,7 @@ def effect(name, src, dirs=8, scale=SCALE):
     y1 = max(max(o[1] + im.height for im, o in frames.values()), FOOT[1] + 1)
     loop = 'looped' if a.get('type') == 'looped' else 'play_once'
     clip = 'fly' if name == 'arrow' else name
-    pack(name, frames, {clip: (n, int(a['duration'].removesuffix('ms')), loop)}, scale, dirs, bbox=(x0, y0, x1, y1))
+    pack(name, frames, {clip: (n, ms or int(a['duration'].removesuffix('ms')), loop)}, scale, dirs, bbox=(x0, y0, x1, y1))
 
 
 def loot():
@@ -381,6 +416,18 @@ def loot():
         strip.paste(icon(i), (64 * k, 0))
     strip.save(SHEETS / 'gear_icons.png', optimize=True)
 
+    def strip_of(ids, name):
+        out = Image.new('RGBA', (64 * len(ids), 64))
+        for k, i in enumerate(ids):
+            im = icon(abs(i))
+            if i < 0:
+                im = Image.merge('RGBA', (*ImageEnhance.Color(im.convert('RGB')).enhance(0).split(), im.getchannel('A')))
+            out.paste(im, (64 * k, 0))
+        out.save(SHEETS / name, optimize=True)
+
+    strip_of(WIZARD_GEAR_ICONS, 'wizard_gear_icons.png')
+    strip_of(WIZARD_SKILL_ICONS, 'wizard_skill_icons.png')
+
 
 def credits():
     files = '\n'.join(f'  {f}' for f in FETCHED)
@@ -392,7 +439,7 @@ Character sprites, dungeon tiles, item images, mouse cursors, sound effects and 
 Source: https://github.com/flareteam/flare-game (commit {COMMIT})
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
-Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by {SCALE},
+Modifications: selected frames, equipment layers (weapon, armor, helm, boots; legs and hands merged) scaled by {SCALE},
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
 Sound effects and music: copied unchanged (Ogg Vorbis).
@@ -417,6 +464,14 @@ if __name__ == '__main__':
     effect('blast', 'blast', dirs=1, scale=BLAST_SCALE)  # 폭발: 6프레임, 방향 무관
     effect('axe', 'throw_axe')  # 도끼: 8방향 8프레임 회전
     effect('quake', 'quake', dirs=1, scale=QUAKE_SCALE)  # 함성: 땅 울림
+    # 마법사
+    effect('ember', 'ember', scale=0.9)  # 마력탄: 작은 불씨(8방향)
+    effect('thunder', 'thunderstrike', dirs=1, scale=0.17, ms=500)  # 낙뢰: 높이 약 3.8m. 원본(200ms)은 너무 짧아 늘린다
+    effect('spark', 'lightning', dirs=1, scale=0.35, ms=450)  # 연쇄 번개가 튄 적
+    effect('ice', 'freeze', dirs=1, scale=0.4)  # 얼어붙은 적: 얼음 결정
+    effect('frost', 'freeze', dirs=3, scale=0.4)  # 서리 고리 장판에서 솟는 얼음 결정(모양 3가지 = 줄 3개, 프레임 0 = 다 자란 결정 → 3 = 부서짐)
+    effect('blink', 'sparkle', dirs=1, scale=0.28)  # 순간이동
+    effect('heal', 'heal', dirs=1, scale=0.33)  # 치유
     hero()
     tiles()
     gate()

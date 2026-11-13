@@ -4,7 +4,7 @@ Character sprites, dungeon tiles, item images, mouse cursors, sound effects and 
 Source: https://github.com/flareteam/flare-game (commit af6eee6d339ac98011864bfe89da837fe7769c28)
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
-Modifications: selected frames, composited equipment layers (16 weapon x armor sets), scaled by 0.32,
+Modifications: selected frames, equipment layers (weapon, armor, helm, boots; legs and hands merged) scaled by 0.32,
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by 0.221.
 Sound effects and music: copied unchanged (Ogg Vorbis).
@@ -40,62 +40,114 @@ Files used:
   mods/fantasycore/images/powers/throw_axe.png
   mods/fantasycore/animations/powers/quake.txt
   mods/fantasycore/images/powers/quake.png
-  mods/fantasycore/animations/avatar/male/head_short.txt
-  mods/fantasycore/images/avatar/male/head_short.png
-  mods/fantasycore/animations/avatar/male/cloth_shirt.txt
-  mods/fantasycore/images/avatar/male/cloth_shirt.png
-  mods/fantasycore/animations/avatar/male/cloth_gloves.txt
-  mods/fantasycore/images/avatar/male/cloth_gloves.png
-  mods/fantasycore/animations/avatar/male/cloth_pants.txt
-  mods/fantasycore/images/avatar/male/cloth_pants.png
-  mods/fantasycore/animations/avatar/male/cloth_sandals.txt
-  mods/fantasycore/images/avatar/male/cloth_sandals.png
-  mods/fantasycore/animations/avatar/male/buckler.txt
-  mods/fantasycore/images/avatar/male/buckler.png
+  mods/fantasycore/animations/powers/ember.txt
+  mods/fantasycore/images/powers/ember.png
+  mods/fantasycore/animations/powers/thunderstrike.txt
+  mods/fantasycore/images/powers/thunderstrike.png
+  mods/fantasycore/animations/powers/lightning.txt
+  mods/fantasycore/images/powers/lightning.png
+  mods/fantasycore/animations/powers/freeze.txt
+  mods/fantasycore/images/powers/freeze.png
+  mods/fantasycore/animations/powers/shield.txt
+  mods/fantasycore/images/powers/shield.png
+  mods/fantasycore/animations/powers/sparkle.txt
+  mods/fantasycore/images/powers/sparkle.png
+  mods/fantasycore/animations/powers/heal.txt
+  mods/fantasycore/images/powers/heal.png
   mods/fantasycore/animations/avatar/male/dagger.txt
   mods/fantasycore/images/avatar/male/dagger.png
-  mods/fantasycore/animations/avatar/male/leather_hood.txt
-  mods/fantasycore/images/avatar/male/leather_hood.png
-  mods/fantasycore/animations/avatar/male/leather_chest.txt
-  mods/fantasycore/images/avatar/male/leather_chest.png
-  mods/fantasycore/animations/avatar/male/leather_gloves.txt
-  mods/fantasycore/images/avatar/male/leather_gloves.png
-  mods/fantasycore/animations/avatar/male/leather_pants.txt
-  mods/fantasycore/images/avatar/male/leather_pants.png
-  mods/fantasycore/animations/avatar/male/leather_boots.txt
-  mods/fantasycore/images/avatar/male/leather_boots.png
-  mods/fantasycore/animations/avatar/male/iron_buckler.txt
-  mods/fantasycore/images/avatar/male/iron_buckler.png
-  mods/fantasycore/animations/avatar/male/chain_coif.txt
-  mods/fantasycore/images/avatar/male/chain_coif.png
-  mods/fantasycore/animations/avatar/male/chain_cuirass.txt
-  mods/fantasycore/images/avatar/male/chain_cuirass.png
-  mods/fantasycore/animations/avatar/male/chain_gloves.txt
-  mods/fantasycore/images/avatar/male/chain_gloves.png
-  mods/fantasycore/animations/avatar/male/chain_greaves.txt
-  mods/fantasycore/images/avatar/male/chain_greaves.png
-  mods/fantasycore/animations/avatar/male/chain_boots.txt
-  mods/fantasycore/images/avatar/male/chain_boots.png
-  mods/fantasycore/animations/avatar/male/kite_shield.txt
-  mods/fantasycore/images/avatar/male/kite_shield.png
-  mods/fantasycore/animations/avatar/male/plate_helm.txt
-  mods/fantasycore/images/avatar/male/plate_helm.png
-  mods/fantasycore/animations/avatar/male/plate_cuirass.txt
-  mods/fantasycore/images/avatar/male/plate_cuirass.png
-  mods/fantasycore/animations/avatar/male/plate_gauntlets.txt
-  mods/fantasycore/images/avatar/male/plate_gauntlets.png
-  mods/fantasycore/animations/avatar/male/plate_greaves.txt
-  mods/fantasycore/images/avatar/male/plate_greaves.png
-  mods/fantasycore/animations/avatar/male/plate_boots.txt
-  mods/fantasycore/images/avatar/male/plate_boots.png
-  mods/fantasycore/animations/avatar/male/shield.txt
-  mods/fantasycore/images/avatar/male/shield.png
   mods/fantasycore/animations/avatar/male/shortsword.txt
   mods/fantasycore/images/avatar/male/shortsword.png
   mods/fantasycore/animations/avatar/male/longsword.txt
   mods/fantasycore/images/avatar/male/longsword.png
   mods/fantasycore/animations/avatar/male/greatsword.txt
   mods/fantasycore/images/avatar/male/greatsword.png
+  mods/fantasycore/animations/avatar/male/mage_hood.txt
+  mods/fantasycore/images/avatar/male/mage_hood.png
+  mods/fantasycore/animations/avatar/male/leather_hood.txt
+  mods/fantasycore/images/avatar/male/leather_hood.png
+  mods/fantasycore/animations/avatar/male/chain_coif.txt
+  mods/fantasycore/images/avatar/male/chain_coif.png
+  mods/fantasycore/animations/avatar/male/plate_helm.txt
+  mods/fantasycore/images/avatar/male/plate_helm.png
+  mods/fantasycore/animations/avatar/male/cloth_sandals.txt
+  mods/fantasycore/images/avatar/male/cloth_sandals.png
+  mods/fantasycore/animations/avatar/male/leather_boots.txt
+  mods/fantasycore/images/avatar/male/leather_boots.png
+  mods/fantasycore/animations/avatar/male/chain_boots.txt
+  mods/fantasycore/images/avatar/male/chain_boots.png
+  mods/fantasycore/animations/avatar/male/plate_boots.txt
+  mods/fantasycore/images/avatar/male/plate_boots.png
+  mods/fantasycore/animations/avatar/male/cloth_pants.txt
+  mods/fantasycore/images/avatar/male/cloth_pants.png
+  mods/fantasycore/animations/avatar/male/cloth_gloves.txt
+  mods/fantasycore/images/avatar/male/cloth_gloves.png
+  mods/fantasycore/animations/avatar/male/leather_pants.txt
+  mods/fantasycore/images/avatar/male/leather_pants.png
+  mods/fantasycore/animations/avatar/male/leather_gloves.txt
+  mods/fantasycore/images/avatar/male/leather_gloves.png
+  mods/fantasycore/animations/avatar/male/chain_greaves.txt
+  mods/fantasycore/images/avatar/male/chain_greaves.png
+  mods/fantasycore/animations/avatar/male/chain_gloves.txt
+  mods/fantasycore/images/avatar/male/chain_gloves.png
+  mods/fantasycore/animations/avatar/male/plate_greaves.txt
+  mods/fantasycore/images/avatar/male/plate_greaves.png
+  mods/fantasycore/animations/avatar/male/plate_gauntlets.txt
+  mods/fantasycore/images/avatar/male/plate_gauntlets.png
+  mods/fantasycore/animations/avatar/male/cloth_shirt.txt
+  mods/fantasycore/images/avatar/male/cloth_shirt.png
+  mods/fantasycore/animations/avatar/male/leather_chest.txt
+  mods/fantasycore/images/avatar/male/leather_chest.png
+  mods/fantasycore/animations/avatar/male/chain_cuirass.txt
+  mods/fantasycore/images/avatar/male/chain_cuirass.png
+  mods/fantasycore/animations/avatar/male/plate_cuirass.txt
+  mods/fantasycore/images/avatar/male/plate_cuirass.png
+  mods/fantasycore/animations/avatar/male/buckler.txt
+  mods/fantasycore/images/avatar/male/buckler.png
+  mods/fantasycore/animations/avatar/male/iron_buckler.txt
+  mods/fantasycore/images/avatar/male/iron_buckler.png
+  mods/fantasycore/animations/avatar/male/kite_shield.txt
+  mods/fantasycore/images/avatar/male/kite_shield.png
+  mods/fantasycore/animations/avatar/male/shield.txt
+  mods/fantasycore/images/avatar/male/shield.png
+  mods/fantasycore/animations/avatar/male/wand.txt
+  mods/fantasycore/images/avatar/male/wand.png
+  mods/fantasycore/animations/avatar/male/rod.txt
+  mods/fantasycore/images/avatar/male/rod.png
+  mods/fantasycore/animations/avatar/male/staff.txt
+  mods/fantasycore/images/avatar/male/staff.png
+  mods/fantasycore/animations/avatar/male/greatstaff.txt
+  mods/fantasycore/images/avatar/male/greatstaff.png
+  mods/fantasycore/animations/avatar/male/head_short.txt
+  mods/fantasycore/images/avatar/male/head_short.png
+  mods/fantasycore/animations/avatar/male/mage_hood_alt1.txt
+  mods/fantasycore/images/avatar/male/mage_hood_alt1.png
+  mods/fantasycore/animations/avatar/male/mage_hood_alt2.txt
+  mods/fantasycore/images/avatar/male/mage_hood_alt2.png
+  mods/fantasycore/animations/avatar/male/mage_boots.txt
+  mods/fantasycore/images/avatar/male/mage_boots.png
+  mods/fantasycore/animations/avatar/male/mage_boots_alt1.txt
+  mods/fantasycore/images/avatar/male/mage_boots_alt1.png
+  mods/fantasycore/animations/avatar/male/mage_boots_alt2.txt
+  mods/fantasycore/images/avatar/male/mage_boots_alt2.png
+  mods/fantasycore/animations/avatar/male/mage_skirt.txt
+  mods/fantasycore/images/avatar/male/mage_skirt.png
+  mods/fantasycore/animations/avatar/male/mage_sleeves.txt
+  mods/fantasycore/images/avatar/male/mage_sleeves.png
+  mods/fantasycore/animations/avatar/male/mage_skirt_alt1.txt
+  mods/fantasycore/images/avatar/male/mage_skirt_alt1.png
+  mods/fantasycore/animations/avatar/male/mage_sleeves_alt1.txt
+  mods/fantasycore/images/avatar/male/mage_sleeves_alt1.png
+  mods/fantasycore/animations/avatar/male/mage_skirt_alt2.txt
+  mods/fantasycore/images/avatar/male/mage_skirt_alt2.png
+  mods/fantasycore/animations/avatar/male/mage_sleeves_alt2.txt
+  mods/fantasycore/images/avatar/male/mage_sleeves_alt2.png
+  mods/fantasycore/animations/avatar/male/mage_vest.txt
+  mods/fantasycore/images/avatar/male/mage_vest.png
+  mods/fantasycore/animations/avatar/male/mage_vest_alt1.txt
+  mods/fantasycore/images/avatar/male/mage_vest_alt1.png
+  mods/fantasycore/animations/avatar/male/mage_vest_alt2.txt
+  mods/fantasycore/images/avatar/male/mage_vest_alt2.png
   mods/fantasycore/images/tilesets/tileset_dungeon.png
   mods/fantasycore/tilesetdefs/tileset_dungeon.txt
   mods/fantasycore/images/tilesets/tileset_cave.png
@@ -122,6 +174,14 @@ Files used:
   mods/fantasycore/images/loot/coins25.png
   mods/fantasycore/animations/loot/coins100.txt
   mods/fantasycore/images/loot/coins100.png
+  mods/fantasycore/animations/loot/wand.txt
+  mods/fantasycore/images/loot/wand.png
+  mods/fantasycore/animations/loot/rod.txt
+  mods/fantasycore/images/loot/rod.png
+  mods/fantasycore/animations/loot/staff.txt
+  mods/fantasycore/images/loot/staff.png
+  mods/fantasycore/animations/loot/greatstaff.txt
+  mods/fantasycore/images/loot/greatstaff.png
   mods/fantasycore/images/icons/icons.png
   mods/fantasycore/soundfx/wood_open.ogg
   mods/fantasycore/soundfx/level_up.ogg

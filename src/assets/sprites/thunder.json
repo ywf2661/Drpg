@@ -1,0 +1,21 @@
+{
+  "cell": [
+    39,
+    113
+  ],
+  "anchor": [
+    20,
+    97
+  ],
+  "ppm": 30,
+  "cols": 6,
+  "rows": 1,
+  "anims": {
+    "thunder": {
+      "row": 0,
+      "frames": 6,
+      "ms": 500,
+      "loop": "play_once"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { AFFIXES, armorScore, createWorld, DT, isBetter, rollGear, setLevel, step, weaponScore, type Affix, type World } from './world';
+import { AFFIXES, createWorld, defenseScore, DT, isBetter, rollGear, setLevel, step, weaponScore, SLOTS, type Affix, type World } from './world';
 
 const run = (w: World, ticks: number) => {
   for (let i = 0; i < ticks; i++) step(w, []);
@@ -10,10 +10,10 @@ test('장비 굴림: 일반 60%·마법 32%·희귀 8%, 정예급은 마법 70%�
   const count = (boosted: boolean) => {
     const n = [0, 0, 0];
     for (let i = 0; i < 3000; i++) {
-      const it = rollGear(w, 0, 0, i % 2 ? 'weapon' : 'armor', 2, boosted);
+      const it = rollGear(w, 0, 0, SLOTS[i % 4], 2, boosted);
       n[it.affixes!.length]++;
       for (const a of it.affixes!) {
-        expect(AFFIXES[a.kind].slot).toBe(it.kind);
+        expect(AFFIXES[a.kind].slots).toContain(it.kind);
         expect(a.value).toBeGreaterThanOrEqual(AFFIXES[a.kind].lo);
         expect(a.value).toBeLessThanOrEqual(AFFIXES[a.kind].hi);
       }
@@ -113,13 +113,13 @@ test('갑옷 옵션: 최대 체력, 피해 감소, 재생, 가시', () => {
 test('점수가 더 높은 장비만 밟으면 장착(옵션 포함), 옵션도 함께 바뀐다', () => {
   // 지금: 숏소드 +30%(8 × 1.3 ÷ 0.7 = 14.9). 옵션 없는 롱소드(10 ÷ 0.8 = 12.5)는 못하고, 롱소드 +30%(16.3)는 낫다
   const w = createWorld(1, ['H....']);
-  w.gear = { weapon: 2, armor: 2 };
+  w.gear = { ...w.gear, weapon: 2, armor: 2 };
   w.mods.weapon = [{ kind: 'dmg', value: 30 }];
   const plain3 = { id: 1, x: 1.5, z: 0.5, kind: 'weapon' as const, tier: 3, affixes: [] };
   const sharp3 = { id: 2, x: 2.5, z: 0.5, kind: 'weapon' as const, tier: 3, affixes: [{ kind: 'dmg' as const, value: 30 }] };
   expect(isBetter(w, plain3)).toBe(false);
   expect(isBetter(w, sharp3)).toBe(true);
-  expect(armorScore(2, [{ kind: 'life', value: 30 }])).toBeGreaterThan(armorScore(2, []));
+  expect(defenseScore(w.gear, { ...w.mods, helm: [{ kind: 'life', value: 30 }] })).toBeGreaterThan(defenseScore(w.gear, w.mods));
   w.items.push(plain3, sharp3);
   for (let i = 0; i < 90; i++) step(w, i ? [] : [{ type: 'move', x: 4.5, z: 0.5 }]);
   expect(w.gear.weapon).toBe(3);

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { floor: 3, potions: 4, gear: { weapon: 3, armor: 2 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [] }, ranks: { cleave: 3, dash: 1, shout: 2, throw: 5 }, points: 1, traits: { cleave: 2, dash: 0, shout: 0, throw: 1 }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 } };
+const run = { cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { cleave: 3, dash: 1, shout: 2, throw: 5 }, points: 1, traits: { cleave: 2, dash: 0, shout: 0, throw: 1 }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 } };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -21,7 +21,11 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(bad({ potions: -1 })).toBeNull();
   expect(bad({ potions: 9 })).toBeNull();
   expect(bad({ gear: { weapon: 5, armor: 1 } })).toBeNull();
+  expect(bad({ gear: { ...run.gear, helm: 5 } })).toBeNull();
+  expect(bad({ mods: { ...run.mods, helm: [{ kind: 'dmg', value: 20 }] } })).toBeNull(); // 투구에 붙지 않는 옵션
+  expect(bad({ mods: { ...run.mods, boots: [{ kind: 'move', value: 99 }] } })).toBeNull();
   expect(bad({ gear: null })).toBeNull();
+  expect(bad({ cls: 'thief' })).toBeNull();
   expect(bad({ level: 0 })).toBeNull();
   expect(bad({ xp: -3 })).toBeNull();
   expect(bad({ level: '7' })).toBeNull();
@@ -64,9 +68,11 @@ test('격자가 생기기 전 저장: 보관함을 빈 자리에 차례로 놓�
 test('기록(stats)이 없는 이전 저장은 0으로 채운다, 이상한 기록은 무시', () => {
   const old = JSON.stringify({ v: 1, floor: 2, potions: 1, gear: { weapon: 2, armor: 2 }, level: 3, xp: 5 });
   expect(decodeSave(old)?.stats).toEqual({ time: 0, kills: 0, deaths: 0 });
+  expect(decodeSave(old)?.cls).toBe('knight'); // 직업이 생기기 전 저장
   expect(decodeSave(old)?.gold).toBe(0); // 금화가 생기기 전 저장
   expect(decodeSave(old)?.cycle).toBe(0); // 회차가 생기기 전 저장
-  expect(decodeSave(old)?.mods).toEqual({ weapon: [], armor: [] }); // 마법 옵션이 생기기 전 저장
+  expect(decodeSave(old)?.mods).toEqual({ weapon: [], armor: [], helm: [], boots: [] }); // 마법 옵션이 생기기 전 저장
+  expect(decodeSave(old)?.gear).toEqual({ weapon: 2, armor: 2, helm: 1, boots: 1 }); // 투구·신발이 생기기 전 저장
   expect(decodeSave(old)?.ranks).toEqual({ cleave: 1, dash: 1, shout: 1, throw: 1 }); // 스킬 성장이 생기기 전 저장
   expect(decodeSave(old)?.points).toBe(0);
   expect(decodeSave(old)?.traits).toEqual({ cleave: 0, dash: 0, shout: 0, throw: 0 }); // 특성이 생기기 전 저장

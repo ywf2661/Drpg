@@ -1,6 +1,6 @@
 // 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급(일반·마법·희귀), 지금보다 좋으면 ▲.
 import * as THREE from 'three';
-import { AFFIXES, ARMORS, isBetter, WEAPONS, type Affix, type Item, type World } from '../sim/world';
+import { AFFIXES, gearTable, isBetter, type Affix, type HeroClass, type Item, type Slot, type World } from '../sim/world';
 
 const SHOW = 9; // 주인공에서 이 거리(m) 안의 장비만
 const LIFT = 0.6; // 이름표 높이(m)
@@ -9,8 +9,8 @@ const v = new THREE.Vector3();
 let layer: HTMLElement;
 
 // 장비 이름: 옵션 접두어들 + 기본 이름(예: '날카로운 신속한 롱소드')
-export function gearName(kind: 'weapon' | 'armor', tier: number, affixes: Affix[]): string {
-  const base = (kind === 'weapon' ? WEAPONS : ARMORS)[tier - 1].name;
+export function gearName(kind: Slot, tier: number, affixes: Affix[], cls: HeroClass = 'knight'): string {
+  const base = gearTable(cls)[kind][tier - 1].name;
   return [...affixes.map((a) => AFFIXES[a.kind].name), base].join(' ');
 }
 
@@ -19,7 +19,7 @@ export function itemLabel(it: Item, w: World): { text: string; better: boolean; 
   if (it.kind === 'potion') return null;
   if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false, quality: 0 };
   const affixes = it.affixes ?? [];
-  return { text: gearName(it.kind, it.tier, affixes), better: isBetter(w, it), quality: affixes.length };
+  return { text: gearName(it.kind, it.tier, affixes, w.cls), better: isBetter(w, it), quality: affixes.length };
 }
 
 export function initLabels(el: HTMLElement) {

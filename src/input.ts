@@ -24,6 +24,17 @@ let pickRadius = PICK_RADIUS; // 마지막 입력이 터치면 PICK_TOUCH
 
 export const commands: Command[] = [];
 export let hovered: number | null = null;
+// 조준 중인 스킬(롤의 일반 시전): 궤적을 보여 주다가 좌클릭에 발사, 우클릭·Esc에 취소
+export type AimCmd = 'skill' | 'dash' | 'shout' | 'throw'; // 조준할 수 있는 스킬 명령(Q W E R)
+export let aiming: AimCmd | null = null;
+let fire = false; // 조준 중 좌클릭: 다음 pollInput에서 발사
+export const startAim = (s: AimCmd) => (aiming = s);
+export const cancelAim = () => (aiming = null);
+// 조준한 스킬을 커서 쪽으로 쓴다(마우스가 없으면 sim의 자동 조준)
+export function fireAim() {
+  if (aiming) commands.push({ type: aiming, ...(aim() ?? {}) });
+  aiming = null;
+}
 let hoveredAt: { x: number; z: number } | null = null; // 커서가 가리키는 몬스터(조준은 그 몬스터로)
 
 export function initInput() {
@@ -34,6 +45,12 @@ export function initInput() {
   });
   el.addEventListener('contextmenu', (e) => e.preventDefault()); // 우클릭 = 가르기
   el.addEventListener('pointerdown', (e) => {
+    if (aiming) {
+      setPointer(e);
+      if (e.button === 0) fire = true;
+      else if (e.button === 2) aiming = null; // 취소(가르기는 나가지 않는다)
+      return;
+    }
     if (e.button === 2) {
       setPointer(e);
       ray.setFromCamera(pointer, camera);
@@ -59,8 +76,17 @@ function setPointer(e: PointerEvent) {
 // paused: 창을 보는 동안은 명령을 쌓지 않고 누름도 푼다(닫은 뒤 옛 지점으로 걸어가지 않게)
 export function pollInput(world: World, dt: number, paused: boolean) {
   if (paused) {
-    held = clicked = false;
+    held = clicked = fire = false;
+    aiming = null;
     hovered = hoveredAt = null;
+    return;
+  }
+  ray.setFromCamera(pointer, camera);
+  hovered = pick(world);
+  hoveredAt = hovered === null ? null : world.entities[hovered];
+  if (fire) {
+    fire = false;
+    fireAim();
     return;
   }
   if (clicked) {
@@ -79,9 +105,6 @@ export function pollInput(world: World, dt: number, paused: boolean) {
     ray.setFromCamera(pointer, camera);
     moveToRay();
   }
-  ray.setFromCamera(pointer, camera);
-  hovered = pick(world);
-  hoveredAt = hovered === null ? null : world.entities[hovered];
 }
 
 // 커서가 가리키는 곳(스킬·구르기 조준): 몬스터 위면 그 몬스터, 아니면 가슴 높이 지점. 마우스가 없으면(모바일) null

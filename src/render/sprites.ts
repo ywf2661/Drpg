@@ -1,7 +1,8 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
 import * as THREE from 'three';
-import { STATS, type Entity, type Gear, type Kind } from '../sim/world';
+import { STATS, type Entity, type Gear, type HeroClass, type Kind, type Slot } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
+import heroOrder from '../assets/sprites/hero_layers.json';
 import minionInfo from '../assets/sprites/minion.json';
 import minionUrl from '../assets/sprites/minion.png';
 import warriorInfo from '../assets/sprites/warrior.json';
@@ -17,18 +18,22 @@ export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 // tint: 불빛에 곱하는 고유 색(정예는 금빛)
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; tint: THREE.Color };
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color };
+export const CAST_SHOW = 0.35; // 스킬 시전 동작(공격 그림 = 마법사는 cast)을 보여 주는 시간(초)
 const ELITE_TINT = new THREE.Color(1.35, 1.05, 0.45);
 const WHITE = new THREE.Color(1, 1, 1);
 const ELITE_SIZE = 1.25;
 const KING_TINT = new THREE.Color(0.95, 0.6, 1.35);
 const KING_SIZE = 1.5;
 
-// 주인공 시트 16장(무기 × 갑옷). URL만 알고, 그림은 장착할 때 불러온다
-const HERO_URLS = import.meta.glob('../assets/sprites/hero_*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-const HERO_WEAPONS = ['dagger', 'shortsword', 'longsword', 'greatsword']; // 단계 1~4
-const HERO_ARMORS = ['cloth', 'leather', 'chain', 'plate'];
-const heroUrl = (g: Gear) => HERO_URLS[`../assets/sprites/hero_${HERO_WEAPONS[g.weapon - 1]}_${HERO_ARMORS[g.armor - 1]}.png`];
+// 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
+// URL만 알고, 그림은 장착할 때 불러온다. 레이어 → 단계를 정하는 장비 부위(lower = 다리·손). 마법사는 방패(off)가 없다
+const HERO_URLS = import.meta.glob(['../assets/sprites/hero_*_*.png', '../assets/sprites/wizard_*_*.png'], { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+export const HERO_LAYERS: Record<string, Slot> = { main: 'weapon', head: 'helm', feet: 'boots', lower: 'armor', chest: 'armor', off: 'armor' };
+export const HERO_ORDER: string[][] = heroOrder; // FLARE 방향 번호 → 레이어 순서
+const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard' };
+export const layerUrl = (layer: string, g: Gear, cls: HeroClass = 'knight'): string | undefined => HERO_URLS[`../assets/sprites/${PREFIX[cls]}_${layer}_${g[HERO_LAYERS[layer]]}.png`];
+const layerImages = new Map<string, Promise<HTMLImageElement>>();
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
   hero: { info: heroInfo as SheetInfo, url: '' }, // 그림은 setHeroGear가 고른다
   minion: { info: minionInfo as SheetInfo, url: minionUrl },
@@ -38,8 +43,8 @@ const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
   king: { info: warriorInfo as SheetInfo, url: warriorUrl }, // 해골 왕 = 전사 그림을 크게·보라색으로
   boss: { info: bossInfo as SheetInfo, url: bossUrl },
 };
-const heroSheets = new Map<string, Promise<THREE.Texture>>(); // 불러온(불러오는 중인) 장비 조합
 let heroWanted = '';
+let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
 let heroSprite: Sprite | null = null;
 const ELEV = THREE.MathUtils.degToRad(30); // 카메라가 내려다보는 각도 = FLARE가 그린 각도
 const HIT_SHOW = 0.3; // 피격 동작을 보여줄 시간(초)
@@ -95,7 +100,10 @@ export function cardGeometry(info: SheetInfo): THREE.BufferGeometry {
 
 // 도트 그림용 질감: 가까운 텍셀 그대로, 밉맵 없음
 export async function loadSheet(url: string): Promise<THREE.Texture> {
-  const tex = await new THREE.TextureLoader().loadAsync(url);
+  return pixelated(await new THREE.TextureLoader().loadAsync(url));
+}
+
+function pixelated<T extends THREE.Texture>(tex: T): T {
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
@@ -103,17 +111,44 @@ export async function loadSheet(url: string): Promise<THREE.Texture> {
   return tex;
 }
 
+// 장비 조합의 주인공 시트: 레이어 그림을 행(동작 × 방향)마다 그 방향의 순서로 겹친다.
+// ponytail: 조합은 캐시하지 않는다(256가지 × 15MB). 갈아입을 때마다 수 ms 다시 그린다
+async function heroSheet(g: Gear, cls: HeroClass): Promise<THREE.Texture> {
+  const info = SHEETS.hero.info;
+  const imgs: Record<string, HTMLImageElement> = {};
+  await Promise.all(
+    Object.keys(HERO_LAYERS).map(async (l) => {
+      const url = layerUrl(l, g, cls);
+      if (!url) return; // 그 직업에 없는 레이어
+      if (!layerImages.has(url)) layerImages.set(url, new THREE.ImageLoader().loadAsync(url));
+      imgs[l] = await layerImages.get(url)!;
+    }),
+  );
+  const [w, ch] = [info.cols * info.cell[0], info.cell[1]];
+  const canvas = Object.assign(document.createElement('canvas'), { width: w, height: info.rows * ch });
+  const ctx = canvas.getContext('2d')!;
+  for (let r = 0; r < info.rows; r++) for (const l of HERO_ORDER[r % 8]) if (imgs[l]) ctx.drawImage(imgs[l], 0, r * ch, w, ch, 0, r * ch, w, ch);
+  return pixelated(new THREE.CanvasTexture(canvas));
+}
+
 export async function loadSprites() {
   await Promise.all((['minion', 'warrior', 'archer', 'mage', 'king', 'boss'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
 }
 
 // 장비 조합의 주인공 시트로 바꾼다. 불러오는 동안은 이전 외형, 여러 번 바뀌면 마지막 요청만 적용
-export async function setHeroGear(g: Gear) {
-  const url = heroUrl(g);
-  heroWanted = url;
-  if (!heroSheets.has(url)) heroSheets.set(url, loadSheet(url));
-  const tex = await heroSheets.get(url)!;
-  if (heroWanted !== url) return;
+export function setHeroGear(g: Gear, cls: HeroClass = 'knight'): Promise<void> {
+  const key = JSON.stringify([g, cls]);
+  if (key !== heroWanted) {
+    heroWanted = key;
+    heroReady = applyHeroGear({ ...g }, cls, key);
+  }
+  return heroReady;
+}
+
+async function applyHeroGear(g: Gear, cls: HeroClass, key: string) {
+  const tex = await heroSheet(g, cls);
+  if (heroWanted !== key) return tex.dispose();
+  textures.get('hero')?.dispose();
   textures.set('hero', tex);
   if (!heroSprite) return;
   const old = heroSprite.mat.map!;
@@ -122,6 +157,19 @@ export async function setHeroGear(g: Gear) {
   map.offset.copy(old.offset);
   heroSprite.mat.map = map;
   old.dispose();
+}
+
+// 보관함 인형: 정면을 보고 선 주인공(지금 장비)을 PORTRAIT 영역만 scale배로. 칸 위치는 이 영역 기준(hud)
+export const PORTRAIT = { dir: 6, x: 22, y: 24, w: 56, h: 60 }; // 칸 안 픽셀(머리 ≈ y 28–43, 발 ≈ 81)
+export function drawHeroPortrait(c: HTMLCanvasElement, scale: number) {
+  const src = textures.get('hero')?.image as HTMLCanvasElement | undefined;
+  if (!src) return;
+  const { cell, anims } = SHEETS.hero.info;
+  const { dir, x, y, w, h } = PORTRAIT;
+  Object.assign(c, { width: w * scale, height: h * scale });
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(src, x, (anims.stance.row + dir) * cell[1] + y, w, h, 0, 0, w * scale, h * scale);
 }
 
 export function makeSprite(e: Entity): Sprite {
@@ -134,7 +182,7 @@ export function makeSprite(e: Entity): Sprite {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
   if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
-  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, tint: e.kind === 'king' ? KING_TINT : e.elite ? ELITE_TINT : WHITE };
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : e.elite ? ELITE_TINT : WHITE };
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }
@@ -145,15 +193,17 @@ export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number)
   s.hp = e.hp;
   s.maxHp = e.maxHp;
   s.hitT -= dt;
-  const anim = animFor(e, s.hitT);
+  s.castT -= dt;
+  const casting = s.castT > 0 && e.state !== 'dead';
+  const anim = casting ? 'attack' : animFor(e, s.hitT);
   if (anim !== s.anim) {
     s.anim = anim;
     s.t = 0;
   }
   s.t += anim === 'move' ? (dt * STATS[e.kind].speed) / STATS.hero.speed : dt; // 느린 몬스터는 걸음도 느리게
   const c = s.info.anims[anim];
-  // 공격 프레임은 sim의 휘두르기 진행도에 맞춘다
-  const f = anim === 'attack' ? Math.min(c.frames - 1, Math.floor((e.attackT / interval) * c.frames)) : frameAt(c, s.t);
+  // 공격 프레임은 sim의 휘두르기 진행도에 맞춘다(스킬 시전은 시전 시간에 맞춘다)
+  const f = casting ? Math.min(c.frames - 1, Math.floor((1 - s.castT / CAST_SHOW) * c.frames)) : anim === 'attack' ? Math.min(c.frames - 1, Math.floor((e.attackT / interval) * c.frames)) : frameAt(c, s.t);
   const row = c.row + dirIndex(e.facing);
   s.mat.map!.offset.set(f / s.info.cols, 1 - (row + 1) / s.info.rows);
   s.mesh.position.set(e.x, 0, e.z);

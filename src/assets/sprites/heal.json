@@ -1,0 +1,21 @@
+{
+  "cell": [
+    61,
+    64
+  ],
+  "anchor": [
+    29,
+    63
+  ],
+  "ppm": 30,
+  "cols": 6,
+  "rows": 1,
+  "anims": {
+    "heal": {
+      "row": 0,
+      "frames": 6,
+      "ms": 600,
+      "loop": "play_once"
+    }
+  }
+}

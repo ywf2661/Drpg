@@ -10,7 +10,7 @@ import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
-import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { CAST_SHOW, loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -39,6 +39,43 @@ export function markMove(x: number, z: number) {
   marker.position.set(x, 0.04, z);
   markT = MARK;
 }
+// 스킬 조준 궤적(롤의 일반 시전): 발밑에서 뻗는 반투명 띠 + 끝의 화살촉. 길이·폭은 setAim이 정한다(+z 방향 기준 단위 도형)
+const AIM_HEAD = 0.6; // 화살촉 길이(m)
+const aimMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.3, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide }); // 벽에 가려지지 않게 맨 위에
+const aimHeadMat = aimMat.clone();
+aimHeadMat.opacity = 0.6; // 끝(떨어지는 방향)은 더 밝게
+const aimBody = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5), aimMat);
+const aimHead = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.5, 0), new THREE.Vector2(0.5, 0), new THREE.Vector2(0, 1)])).rotateX(Math.PI / 2), aimHeadMat);
+const aimLine = new THREE.Group().add(aimBody, aimHead);
+const aimDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), aimMat); // 떨어질 자리(반경 1 → scale)
+const aimEdge = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), aimHeadMat);
+const rangeMat = aimMat.clone();
+rangeMat.opacity = 0.18;
+const aimRange = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96).rotateX(-Math.PI / 2), rangeMat); // 주인공 둘레의 사거리
+const aimCircle = new THREE.Group().add(aimDisc, aimEdge);
+for (const m of [aimLine, aimBody, aimHead, aimDisc, aimEdge, aimRange]) m.renderOrder = 5;
+aimLine.visible = aimCircle.visible = aimRange.visible = false;
+export type AimGuide =
+  | { kind: 'line'; x: number; z: number; dx: number; dz: number; len: number; width: number } // (x, z)에서 단위 방향 (dx, dz)로 len m, 폭 width m
+  | { kind: 'circle'; x: number; z: number; r: number; cx: number; cz: number; range: number }; // (x, z) 반경 r, 주인공 (cx, cz) 둘레 사거리 range
+// 조준 궤적(직선 또는 원). null이면 숨긴다
+export function setAim(a: AimGuide | null) {
+  aimLine.visible = a?.kind === 'line';
+  aimCircle.visible = aimRange.visible = a?.kind === 'circle';
+  if (a?.kind === 'circle') {
+    aimCircle.position.set(a.x, 0.05, a.z);
+    aimCircle.scale.set(a.r, 1, a.r);
+    aimRange.position.set(a.cx, 0.04, a.cz);
+    aimRange.scale.set(a.range, 1, a.range);
+  }
+  if (a?.kind !== 'line') return;
+  const body = Math.max(0.01, a.len - AIM_HEAD);
+  aimLine.position.set(a.x, 0.05, a.z);
+  aimLine.rotation.y = Math.atan2(a.dx, a.dz);
+  aimBody.scale.set(a.width, 1, body);
+  aimHead.scale.set(a.width * 1.8, 1, AIM_HEAD);
+  aimHead.position.z = body;
+}
 let sprites: Sprite[] = [];
 let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
@@ -47,6 +84,7 @@ let time = 0;
 let fx: { flashT: number; kx: number; kz: number; lx: number; lz: number }[] = [];
 let impactsSeen = 0;
 let shoutsSeen = 0;
+let castsSeen = 0;
 let comboSeen = -1; // 글자를 띄운 마지막 연계 기록 id(id는 늘 커진다)
 const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', back: '등 뒤!', reset: '가르기 준비!', dodge: '회피!' };
 const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸은 것이 아니라 밀려난 것(가장 빠른 걸음도 0.15m)
@@ -67,10 +105,10 @@ export async function initRender(world: World, theme: Theme) {
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.002;
   scene.add(torch);
-  scene.add(zoneGroup, marker);
+  scene.add(zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
-  const [f, w, cf, cw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear)]);
+  const [f, w, cf, cw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls)]);
   tex.dungeon = { floor: f, wall: w };
   tex.cave = { floor: cf, wall: cw };
   setWorld(world, theme);
@@ -85,6 +123,7 @@ export function setWorld(world: World, theme: Theme) {
   fx = [];
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
+  castsSeen = world.casts;
   comboSeen = -1;
   focus.set(world.entities[0].x, 0, world.entities[0].z);
 }
@@ -107,6 +146,8 @@ export function draw(world: World, dt: number) {
   impactsSeen = world.impacts;
   if (world.shouts > shoutsSeen) rumble(0.3);
   shoutsSeen = world.shouts;
+  if (world.casts > castsSeen) sprites[0].castT = CAST_SHOW; // 마법사가 스킬을 썼다: 시전 동작
+  castsSeen = world.casts;
   for (const c of world.combos) if (c.id > comboSeen) popNumber(camera, renderer.domElement, c.x, c.z, COMBO_TEXT[c.kind], 'combo');
   comboSeen = Math.max(comboSeen, ...world.combos.map((c) => c.id));
   const frozen = hitstop > 0; // 멈춤 동안은 번쩍임·미끄러짐도 멈춘다 → 풀리면서 날아간다

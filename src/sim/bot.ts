@@ -1,17 +1,18 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower, generateFloor } from './dungeon';
 import { buy, deathGold, sell } from '../shop';
-import { createWorld, DT, isBetter, outcome, RANGE, setLevel, step, TELL, winding, type Affix, type BagItem, type Command, type Gear, type SkillName, type World } from './world';
+import { copyMods, createWorld, DT, isBetter, outcome, RANGE, setLevel, step, TELL, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillName, type World } from './world';
 
-type Carry = { potions: number; gear: Gear; mods: { weapon: Affix[]; armor: Affix[] }; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number; bag: BagItem[] };
-const START: Carry = { potions: 2, gear: { weapon: 2, armor: 2 }, mods: { weapon: [], armor: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, bag: [] };
+type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number; bag: BagItem[] };
+const START = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, bag: [] });
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry): World {
   const w = createWorld(seed, generateFloor(seed, n), floorPower(n));
+  w.cls = c.cls;
   w.potions = c.potions;
   w.gear = { ...c.gear };
-  w.mods = { weapon: [...c.mods.weapon], armor: [...c.mods.armor] };
+  w.mods = copyMods(c.mods);
   w.gold = c.gold;
   w.ranks = { ...c.ranks };
   w.points = c.points;
@@ -34,9 +35,10 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
   const ok = (x: number, z: number) => !seen || seen[Math.floor(z) * w.grid.w + Math.floor(x)] === 1;
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead' && ok(e.x, e.z)).sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
+  const wiz = w.cls === 'wizard';
   if (skills && w.points > 0) {
-    // 포인트는 가장 낮은 단계부터(같으면 가르기 → 도끼 → 함성 → 돌진)
-    const order: SkillName[] = ['cleave', 'throw', 'shout', 'dash'];
+    // 포인트는 가장 낮은 단계부터(같으면 기사: 가르기 → 도끼 → 함성 → 돌진, 마법사: 화염구 → 낙뢰 → 서리 → 방패)
+    const order: SkillName[] = wiz ? ['cleave', 'shout', 'dash', 'throw'] : ['cleave', 'throw', 'shout', 'dash'];
     cmds.push({ type: 'learn', skill: order.reduce((a, b) => (w.ranks[b] < w.ranks[a] ? b : a)) });
   }
   // 예고된 위험 구역 안이면 다른 일은 접고 바깥으로 걸어 나간다
@@ -48,13 +50,22 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
   // 평타를 준비 중인 적이 닿을 거리거나 화살·화염구가 코앞이면 구른다(적 반대쪽, 구르는 동안 무적)
   const swings = foes.filter((e) => e.state === 'attack' && winding(e) && d(e.x, e.z) < RANGE + 0.3);
   if (dodge && swings.length && hero.phase === 'none') {
-    // 받아치기가 되면 가르기로 끊고(밀려나며 준비가 끊긴다), 아니면 맞기 직전에 구른다
-    if (skills && w.skillCd <= 0) return [...cmds, { type: 'skill', x: swings[0].x, z: swings[0].z }];
+    // 받아치기가 되면 가르기(마법사는 서리 고리)로 끊고, 아니면 맞기 직전에 구른다(순간이동)
+    if (skills && !wiz && w.skillCd <= 0) return [...cmds, { type: 'skill', x: swings[0].x, z: swings[0].z }];
+    if (skills && wiz && w.dashCd <= 0) return [...cmds, { type: 'dash' }];
     if (w.rollCd <= 0 && swings.some((e) => e.attackT >= TELL[e.kind]! - 0.3)) return [...cmds, { type: 'roll' }];
   }
-  if (dodge && w.rollCd <= 0 && hero.phase === 'none' && w.shots.some((s) => s.kind !== 'axe' && d(s.x, s.z) < 2.5)) return [...cmds, { type: 'roll' }];
-  if (near(2) >= 2) cmds.push({ type: 'skill' });
-  if (skills) {
+  if (dodge && w.rollCd <= 0 && hero.phase === 'none' && w.shots.some((s) => (s.kind === 'arrow' || s.kind === 'fire') && d(s.x, s.z) < 2.5)) return [...cmds, { type: 'roll' }];
+  if (wiz) {
+    // 마법사: 화염구는 가까운 적에게, 낙뢰는 보스·해골 왕 또는 가까운 적에게, 붙으면 서리 고리, 맞고 있으면 방패
+    const t = foes.find((e) => d(e.x, e.z) < 8);
+    const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 8);
+    if (skills && t && w.skillCd <= 0) cmds.push({ type: 'skill', x: t.x, z: t.z });
+    if (skills && (big ?? t) && w.shoutCd <= 0) cmds.push({ type: 'shout', x: (big ?? t)!.x, z: (big ?? t)!.z });
+    if (skills && w.dashCd <= 0 && (near(2.5) >= 2 || (big?.phase === 'windup' && d(big.x, big.z) < 3))) cmds.push({ type: 'dash' });
+    if (skills && w.throwCd <= 0 && (hero.hp < hero.maxHp * 0.7 || near(2) >= 2)) cmds.push({ type: 'throw' });
+  } else if (near(2) >= 2) cmds.push({ type: 'skill' });
+  if (skills && !wiz) {
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
     if (w.shoutCd <= 0 && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
     const shooter = foes.find((e) => (e.kind === 'archer' || e.kind === 'mage') && d(e.x, e.z) > 2.5 && d(e.x, e.z) < 8);
@@ -72,7 +83,8 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
       .filter((o) => o.side)
       .sort((a, b) => d(a.g.x + 0.5, a.g.z + 0.5) - d(b.g.x + 0.5, b.g.z + 0.5));
     const door = doors[0];
-    if (door && d(door.g.x + 0.5, door.g.z + 0.5) < 2 && w.throwCd <= 0) cmds.push({ type: 'throw', x: door.g.x + 0.5, z: door.g.z + 0.5 });
+    const opener = wiz ? 'skill' : 'throw'; // 마법사는 화염구로 연다
+    if (door && d(door.g.x + 0.5, door.g.z + 0.5) < 2 && w[wiz ? 'skillCd' : 'throwCd'] <= 0) cmds.push({ type: opener, x: door.g.x + 0.5, z: door.g.z + 0.5 });
     else if (door) cmds.push({ type: 'move', x: door.side![0] + 0.5, z: door.side![1] + 0.5 });
   } else if (w.stairs) cmds.push({ type: 'move', x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5 });
   return cmds;
@@ -96,17 +108,17 @@ function reachable(w: World, x: number, z: number): Uint8Array {
   return seen;
 }
 
-// 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 5개까지 채우고, 남으면 무기·갑옷 강화, 그래도 남으면 물약
+// 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 5개까지 채우고, 남으면 무기·갑옷·투구·신발 강화, 그래도 남으면 물약
 function shopping(c: Carry): Carry {
   while (c.bag.length) c = sell(c, 0);
   while (c.potions < 5 && buy(c, 'potion') !== c) c = buy(c, 'potion');
-  for (const item of ['weapon', 'armor', 'potion', 'potion', 'potion'] as const) c = buy(c, item);
+  for (const item of ['weapon', 'armor', 'helm', 'boots', 'potion', 'potion', 'potion'] as const) c = buy(c, item);
   return c;
 }
 
 // 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨
-export function playthrough(seed: number, skills = true, dodge = true) {
-  let carry = START;
+export function playthrough(seed: number, skills = true, dodge = true, cls: HeroClass = 'knight') {
+  let carry = START(cls);
   let deaths = 0;
   for (let n = 1; n <= FLOORS; n++) {
     let done = false;
@@ -117,7 +129,7 @@ export function playthrough(seed: number, skills = true, dodge = true) {
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = shopping({ potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, points: w.points, bag: w.bag });
+          carry = shopping({ cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, points: w.points, bag: w.bag });
           done = true;
           break;
         }

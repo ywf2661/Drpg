@@ -1,6 +1,7 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, KING, KNOCK, MAGE, METEOR, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, FIREBALL, KING, KNOCK, MAGE, METEOR, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { fireBurst, magicHit } from './wizard';
 import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, roll, shoutStat, skillHit, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
@@ -347,7 +348,8 @@ export function openGate(w: World, x: number, z: number) {
   }
 }
 
-// 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발.
+// 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구(몬스터)는 그 모든 경우에 그 자리에서 폭발.
+// 마법사의 마력탄·화염구는 wizard.ts(화염구는 벽·비행 끝에서도 폭발).
 // 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해(5단계는 관통)
 export function fly(w: World, hero: Entity) {
   const added: Shot[] = [];
@@ -359,15 +361,18 @@ export function fly(w: World, hero: Entity) {
       return t.state !== 'dead';
     }
     const fire = s.kind === 'fire';
-    const step = (fire ? MAGE.speed : s.kind === 'axe' ? AXE.speed : ARCHER.speed) * DT;
+    const speed = { fire: MAGE.speed, axe: AXE.speed, arrow: ARCHER.speed, bolt: WIZ.speed, fireball: FIREBALL.speed }[s.kind];
+    const step = speed * DT;
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;
     if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
       if (fire) explode(w, hero, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
-      if (s.kind === 'axe') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼가 사슬 문에 맞으면 열린다
+      if (s.kind === 'axe' || s.kind === 'fireball' || s.kind === 'bolt') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼·마법이 사슬 문에 맞으면 열린다
+      if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg);
       return false;
     }
     [s.x, s.z] = [nx, nz];
+    if (s.kind === 'bolt' || s.kind === 'fireball') return magicHit(w, hero, s); // 마법사
     if (s.kind === 'axe') {
       const hit = (s.hit ??= []);
       const t = w.entities.find((e) => e !== hero && e.state !== 'dead' && !hit.includes(e.id) && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);

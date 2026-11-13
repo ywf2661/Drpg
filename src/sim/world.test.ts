@@ -498,7 +498,7 @@ test('갑옷은 받는 피해를 줄이되 최소 1', () => {
   expect(w.entities[0].hp).toBeLessThan(100);
 });
 
-test('장비 드롭: 확률, 종류 반반, 단계는 1..maxTier', () => {
+test('장비 드롭: 확률, 네 부위 고르게, 단계는 1..maxTier', () => {
   let drops = 0;
   const tiers = new Set<number>();
   const kinds = new Set<string>();
@@ -507,7 +507,7 @@ test('장비 드롭: 확률, 종류 반반, 단계는 1..maxTier', () => {
     w.maxTier = 3;
     w.entities[1].hp = 1;
     run(w, 60, [{ type: 'attack', targetId: 1 }]);
-    for (const it of w.items.filter((i) => i.kind === 'weapon' || i.kind === 'armor')) {
+    for (const it of w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion')) {
       drops++;
       tiers.add(it.tier);
       kinds.add(it.kind);
@@ -516,18 +516,18 @@ test('장비 드롭: 확률, 종류 반반, 단계는 1..maxTier', () => {
   expect(drops / 600).toBeGreaterThan(0.07);
   expect(drops / 600).toBeLessThan(0.18);
   expect([...tiers].sort()).toEqual([1, 2, 3]);
-  expect([...kinds].sort()).toEqual(['armor', 'weapon']);
+  expect([...kinds].sort()).toEqual(['armor', 'boots', 'helm', 'weapon']);
 });
 
 test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 보관함으로', () => {
   const w = createWorld(1, ['H.....']);
-  w.gear = { weapon: 2, armor: 2 };
+  w.gear = { ...w.gear, weapon: 2, armor: 2 };
   w.items.push({ id: w.nextItem++, x: 1.5, z: 0.5, kind: 'weapon', tier: 2 });
   w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'weapon', tier: 4 });
   w.items.push({ id: w.nextItem++, x: 3.5, z: 0.5, kind: 'armor', tier: 1 });
   w.items.push({ id: w.nextItem++, x: 4.5, z: 0.5, kind: 'armor', tier: 3 });
   run(w, 90, [{ type: 'move', x: 5.5, z: 0.5 }]);
-  expect(w.gear).toEqual({ weapon: 4, armor: 3 });
+  expect(w.gear).toMatchObject({ weapon: 4, armor: 3 });
   expect(w.items).toEqual([]);
   expect(w.bag.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['weapon', 2], ['armor', 1], ['armor', 2]]);
 });
@@ -542,7 +542,7 @@ test('M은 보스: 5층 기준 수치라 층 배율을 쓰지 않는다', () => 
 // 주인공이 보스만 공격하고 체력이 40 미만이면 물약을 마신다. dodge면 평타가 맞기 직전·돌진이 닿기 직전에 구른다. 이기면 true
 function bossFight(seed: number, gear: { weapon: number; armor: number }, potions: number, level = 1, dodge = false) {
   const w = createWorld(seed, ['H.M']);
-  w.gear = gear;
+  w.gear = { ...w.gear, ...gear };
   w.potions = potions;
   setLevel(w, level, 0);
   for (let t = 0; t < 120 / DT && !outcome(w); t++) {
@@ -720,7 +720,7 @@ test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 �
   w.maxTier = 3;
   slay(w);
   expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
-  expect(w.items.filter((i) => i.kind === 'weapon' || i.kind === 'armor').map((i) => i.tier)).toEqual([3]);
+  expect(w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion').map((i) => i.tier)).toEqual([3]);
   // 데미지: 전사 6–9 × 층 배율(데미지 몫) × 정예 배율 (천옷 감소 0)
   const s = (1 + 0.3 * DMG_SCALE) * MONSTER_DMG * ELITE.dmg;
   const hitter = createWorld(2, ['HW'], 1.3);
@@ -757,8 +757,9 @@ test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () =
   for (let seed = 1; seed <= 300; seed++) {
     const w = createWorld(seed, ['Hc']);
     w.maxTier = 2;
-    w.gear = { weapon: 4, armor: 4 }; // 장비는 입지 않게(물약은 허리띠로, 장비는 바닥이나 보관함으로) — 옵션까지 강하게
-    w.mods = { weapon: [{ kind: 'dmg', value: 500 }], armor: [{ kind: 'life', value: 500 }] };
+    w.autoEquip = false;
+    w.gear = { weapon: 4, armor: 4, helm: 4, boots: 4 }; // 장비는 입지 않게(물약은 허리띠로, 장비는 바닥이나 보관함으로) — 옵션까지 강하게
+    w.mods = { weapon: [{ kind: 'dmg', value: 500 }], armor: [{ kind: 'life', value: 500 }], helm: [], boots: [] };
     run(w, 30, [{ type: 'open', chestId: 0 }]);
     if (w.potions === 1) potions++;
     else expect([...w.items.filter((i) => i.kind !== 'gold'), ...w.bag][0].tier).toBeLessThanOrEqual(2);
@@ -984,10 +985,11 @@ test('해골 왕(K): 체력 260 × 배율, 8초마다 0.8초 시전 후 졸개 2
 test('해골 왕을 잡으면 최고 단계 장비·금화·물약을 반드시 떨어뜨린다', () => {
   const w = createWorld(1, ['HK']);
   w.maxTier = 3;
-  w.gear = { weapon: 4, armor: 4 };
+  w.gear = { weapon: 4, armor: 4, helm: 4, boots: 4 };
   w.potions = 8;
   slay(w);
   const kinds = w.items.map((i) => i.kind).sort();
-  expect(kinds).toEqual(['gold', 'potion', w.items.find((i) => i.kind === 'weapon') ? 'weapon' : 'armor'].sort());
-  expect(w.items.find((i) => i.kind === 'weapon' || i.kind === 'armor')!.tier).toBe(3);
+  const gear = w.items.find((i) => i.kind !== 'gold' && i.kind !== 'potion')!;
+  expect(kinds).toEqual(['gold', 'potion', gear.kind].sort());
+  expect(gear.tier).toBe(3);
 });

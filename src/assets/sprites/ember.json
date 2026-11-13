@@ -1,0 +1,21 @@
+{
+  "cell": [
+    22,
+    93
+  ],
+  "anchor": [
+    11,
+    92
+  ],
+  "ppm": 30,
+  "cols": 1,
+  "rows": 8,
+  "anims": {
+    "ember": {
+      "row": 0,
+      "frames": 1,
+      "ms": 33,
+      "loop": "looped"
+    }
+  }
+}

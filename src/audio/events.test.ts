@@ -51,8 +51,11 @@ test('물약·아이템·장비', () => {
   w.items.push({ id: 7, x: 1, z: 0.5, kind: 'weapon', tier: 3 });
   expect(names(soundEvents(prev, w))).toEqual(['potion', 'loot']);
   prev = snapshot(w);
-  w.gear = { weapon: w.gear.weapon + 1, armor: w.gear.armor + 1 };
+  w.gear = { ...w.gear, weapon: w.gear.weapon + 1, armor: w.gear.armor + 1 };
   expect(names(soundEvents(prev, w))).toEqual(['equip_weapon', 'equip_armor']);
+  prev = snapshot(w);
+  w.gear = { ...w.gear, helm: 2, boots: 2 }; // 방어구 소리는 한 번만
+  expect(names(soundEvents(prev, w))).toEqual(['equip_armor']);
 });
 
 test('층이 바뀌면(다른 world) 소리 없이 넘어간다', () => {

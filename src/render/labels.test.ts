@@ -10,7 +10,7 @@ test('장비 이름: 옵션 접두어 + 기본 이름', () => {
 
 test('바닥 이름표: 이름, 등급(옵션 수), 지금보다 좋은지(물약은 이름표 없음)', () => {
   const w = createWorld(1, ['H']);
-  w.gear = { weapon: 2, armor: 3 };
+  w.gear = { ...w.gear, weapon: 2, armor: 3 };
   expect(itemLabel({ id: 1, x: 0, z: 0, kind: 'weapon', tier: 4, affixes: [] }, w)).toEqual({ text: '그레이트소드', better: true, quality: 0 });
   expect(itemLabel({ id: 2, x: 0, z: 0, kind: 'weapon', tier: 2, affixes: [] }, w)).toEqual({ text: '숏소드', better: false, quality: 0 });
   expect(itemLabel({ id: 3, x: 0, z: 0, kind: 'armor', tier: 3, affixes: [{ kind: 'life', value: 20 }] }, w)).toEqual({ text: '튼튼한 사슬 갑옷', better: true, quality: 1 });

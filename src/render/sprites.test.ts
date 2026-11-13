@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
 import { createWorld } from '../sim/world';
-import { cardGeometry, dirIndex, frameAt, updateSprite, viewHalf } from './sprites';
+import { CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf } from './sprites';
 
 // 카메라는 +x+z 쪽에서 -x-z를 내려다본다. facing = atan2(dx, dz)
 // FLARE 방향 번호(화면 기준): 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW
@@ -50,7 +50,7 @@ test('카드: 발 기준선 위는 서고, 아래(발끝·그림자·시체)는 
 test('시체는 아래 층(깊이 기록 없음)에, 산 캐릭터는 그 위에 그린다', () => {
   const w = createWorld(1, ['H.m']);
   const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
-  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, maxHp: 30, hitT: 0, tint: new THREE.Color(1, 1, 1) };
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 30, maxHp: 30, hitT: 0, castT: 0, tint: new THREE.Color(1, 1, 1) };
   const m = w.entities[1];
   updateSprite(s, m, 0.016, 1.2);
   expect([s.mesh.renderOrder, s.mat.depthWrite]).toEqual([2, true]);
@@ -68,7 +68,7 @@ test('맞으면 피격 동작, 갑옷을 바꿔 체력이 줄면 피격 동작 �
   const w = createWorld(1, ['H..']);
   const e = w.entities[0];
   const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
-  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 130, maxHp: 130, hitT: 0, tint: new THREE.Color(1, 1, 1) };
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: 130, maxHp: 130, hitT: 0, castT: 0, tint: new THREE.Color(1, 1, 1) };
   e.hp = 100;
   e.maxHp = 100;
   updateSprite(s, e, 0.016, 1);
@@ -76,4 +76,26 @@ test('맞으면 피격 동작, 갑옷을 바꿔 체력이 줄면 피격 동작 �
   e.hp = 90;
   updateSprite(s, e, 0.016, 1);
   expect(s.anim).toBe('hit');
+});
+
+test('주인공 레이어: 장비 조합마다 모든 레이어 그림이 있고, 8방향 모두 레이어를 한 번씩 겹친다', () => {
+  for (let t = 1; t <= 4; t++) for (const l of Object.keys(HERO_LAYERS)) expect(layerUrl(l, { weapon: t, armor: t, helm: t, boots: t }), `${l} ${t}`).toBeTruthy();
+  expect(HERO_ORDER).toHaveLength(8);
+  for (const order of HERO_ORDER) expect([...order].sort()).toEqual(Object.keys(HERO_LAYERS).sort());
+});
+
+test('스킬 시전: 시전 시간 동안 공격(시전) 동작 프레임이 차례로 나오고, 끝나면 서 있기', () => {
+  const w = createWorld(1, ['H..']);
+  const e = w.entities[0];
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: CAST_SHOW, tint: new THREE.Color(1, 1, 1) };
+  const frames: number[] = [];
+  for (let t = 0; t < CAST_SHOW; t += 0.05) {
+    updateSprite(s, e, 0.05, 1);
+    expect(s.anim).toBe('attack');
+    frames.push(mat.map!.offset.x);
+  }
+  expect(new Set(frames).size).toBeGreaterThan(2);
+  updateSprite(s, e, 0.05, 1);
+  expect(s.anim).toBe('stance');
 });

@@ -1,0 +1,21 @@
+{
+  "cell": [
+    47,
+    55
+  ],
+  "anchor": [
+    28,
+    41
+  ],
+  "ppm": 30,
+  "cols": 4,
+  "rows": 1,
+  "anims": {
+    "ice": {
+      "row": 0,
+      "frames": 4,
+      "ms": 400,
+      "loop": "play_once"
+    }
+  }
+}

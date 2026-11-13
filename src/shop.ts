@@ -1,12 +1,13 @@
-// 층 사이 상점: 물약 구매, 무기·갑옷 한 단계 강화. 상태를 바꾸지 않는 순수 함수.
-import { POTION, type BagItem, type Gear, type GearItem } from './sim/world';
+// 층 사이 상점: 물약 구매, 무기·갑옷·투구·신발 한 단계 강화. 상태를 바꾸지 않는 순수 함수.
+import { POTION, SLOTS, type BagItem, type Gear, type GearItem, type Slot } from './sim/world';
 
 export type Wallet = { potions: number; gear: Gear; gold: number; bag: BagItem[] };
-export type ShopItem = 'potion' | 'weapon' | 'armor';
+export type ShopItem = 'potion' | Slot;
+const UPGRADE: Record<Slot, number> = { weapon: 120, armor: 100, helm: 80, boots: 80 }; // 강화 값 = 이것 × 지금 단계
 const MAX_TIER = 4;
 
 function price(c: Wallet, item: ShopItem) {
-  return item === 'potion' ? 25 : item === 'weapon' ? 120 * c.gear.weapon : 100 * c.gear.armor;
+  return item === 'potion' ? 25 : UPGRADE[item] * c.gear[item];
 }
 
 function available(c: Wallet, item: ShopItem) {
@@ -14,7 +15,7 @@ function available(c: Wallet, item: ShopItem) {
 }
 
 export function offers(c: Wallet): { item: ShopItem; price: number; ok: boolean }[] {
-  return (['potion', 'weapon', 'armor'] as const).map((item) => {
+  return (['potion', ...SLOTS] as const).map((item) => {
     const p = price(c, item);
     return { item, price: p, ok: available(c, item) && c.gold >= p };
   });

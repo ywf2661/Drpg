@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell } from './path';
-import { AFFIXES, ARCHER, BAG, ARMORS, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, WEAPONS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -35,34 +35,45 @@ export function skillHit(w: World, e: Entity, raw: number) {
   hurt(w, e, kind ? Math.round(raw * COMBO[kind]) : raw, w.entities[0]);
 }
 
-// 주인공 최대 체력 = 레벨 + 갑옷의 '튼튼한' 옵션
-export const heroMax = (w: World) => heroMaxHp(w.level) + mod(w.mods.armor, 'life');
+// 주인공 최대 체력 = 직업·레벨 + 투구 + 모든 부위의 '튼튼한' 옵션
+export const heroMax = (w: World) => heroMaxHp(w.level, w.cls) + CLASSES[w.cls].helms[w.gear.helm - 1].hp + worn(w, 'life');
 
 // 옵션 목록에서 한 종류의 값 합
 export const mod = (list: Affix[], kind: AffixKind) => list.reduce((s, a) => s + (a.kind === kind ? a.value : 0), 0);
+// 부위별 옵션 목록 복사(층·상점으로 넘길 때)
+export const copyMods = (m: World['mods']): World['mods'] => ({ weapon: [...m.weapon], armor: [...m.armor], helm: [...m.helm], boots: [...m.boots] });
+// 장착한 모든 부위에서 한 종류의 값 합
+const total = (m: World['mods'], kind: AffixKind) => SLOTS.reduce((s, sl) => s + mod(m[sl], kind), 0);
+export const worn = (w: World, kind: AffixKind) => total(w.mods, kind);
 
-// 장비 점수(자동 장착 비교). 무기 = 옵션을 반영한 초당 데미지(흡혈은 가산), 갑옷 = 버티는 체력(재생·가시 가산)
-export function weaponScore(tier: number, aff: Affix[]): number {
-  const wpn = WEAPONS[tier - 1];
+// 이동 속도(m/s). 주인공은 신발 + '날랜' 옵션
+export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) : STATS[e.kind].speed);
+
+// 장비 점수(자동 장착 비교). 무기 = 옵션을 반영한 초당 데미지(흡혈은 가산), 방어구(갑옷·투구·신발) = 세 부위를 합쳐 버티는 체력(재생·가시·이동 속도 가산)
+export function weaponScore(tier: number, aff: Affix[], cls: HeroClass = 'knight'): number {
+  const wpn = CLASSES[cls].weapons[tier - 1];
   const avg = (wpn.dmg[0] + wpn.dmg[1]) / 2;
   const p = (k: AffixKind) => mod(aff, k) / 100;
   return ((avg * (1 + p('dmg')) * (1 + p('crit')) * (1 + p('speed'))) / wpn.interval) * (1 + 2 * p('leech'));
 }
 
-export function armorScore(tier: number, aff: Affix[]): number {
-  const reduce = Math.min(0.75, ARMORS[tier - 1].reduce + mod(aff, 'guard') / 100);
-  return ((100 + mod(aff, 'life')) / (1 - reduce)) * (1 + mod(aff, 'regen') / 100) * (1 + (0.3 * mod(aff, 'thorns')) / 100);
+export function defenseScore(g: Gear, m: World['mods'], cls: HeroClass = 'knight'): number {
+  const c = CLASSES[cls];
+  const p = (k: AffixKind) => total(m, k) / 100;
+  const reduce = Math.min(0.75, c.armors[g.armor - 1].reduce + p('guard'));
+  const move = c.boots[g.boots - 1].move + p('move');
+  return ((100 + c.helms[g.helm - 1].hp + total(m, 'life')) / (1 - reduce)) * (1 + p('regen')) * (1 + 0.3 * p('thorns')) * (1 + 0.5 * move);
 }
 
 // 장비 점수 − 입은 장비의 점수(양수면 더 좋다)
 export function gearDiff(w: World, it: GearItem): number {
-  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes) - weaponScore(w.gear.weapon, w.mods.weapon);
-  return armorScore(it.tier, it.affixes) - armorScore(w.gear.armor, w.mods.armor);
+  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes, w.cls) - weaponScore(w.gear.weapon, w.mods.weapon, w.cls);
+  return defenseScore({ ...w.gear, [it.kind]: it.tier }, { ...w.mods, [it.kind]: it.affixes }, w.cls) - defenseScore(w.gear, w.mods, w.cls);
 }
 
 // 장비가 지금 장착한 것보다 나은가
 export function isBetter(w: World, it: Item | GearItem): boolean {
-  if (it.kind !== 'weapon' && it.kind !== 'armor') return false;
+  if (it.kind === 'potion' || it.kind === 'gold') return false;
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
 
@@ -125,15 +136,15 @@ export function discardFromBag(w: World, i: number) {
 // 보관함에 자리가 없어 발밑 장비를 못 줍는 중인가
 export function bagBlocked(w: World): boolean {
   const hero = w.entities[0];
-  return w.items.some((it) => (it.kind === 'weapon' || it.kind === 'armor') && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
+  return w.items.some((it) => it.kind !== 'potion' && it.kind !== 'gold' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
 }
 
 // 장비 아이템 굴림: 등급(옵션 0·1·2개) → 부위에 맞는 서로 다른 옵션, 값은 범위 안 균등
-export function rollGear(w: World, x: number, z: number, kind: 'weapon' | 'armor', tier: number, boosted = false): Item {
+export function rollGear(w: World, x: number, z: number, kind: Slot, tier: number, boosted = false): Item {
   const odds = boosted ? QUALITY.boosted : QUALITY.normal;
   const r = rand(w);
   const n = r < odds[0] ? 0 : r < odds[0] + odds[1] ? 1 : 2;
-  const pool = (Object.keys(AFFIXES) as AffixKind[]).filter((k) => AFFIXES[k].slot === kind);
+  const pool = (Object.keys(AFFIXES) as AffixKind[]).filter((k) => AFFIXES[k].slots.includes(kind));
   const affixes: Affix[] = [];
   for (let i = 0; i < n; i++) {
     const k = pool.splice(Math.floor(rand(w) * pool.length), 1)[0];
@@ -142,6 +153,9 @@ export function rollGear(w: World, x: number, z: number, kind: 'weapon' | 'armor
   }
   return { id: w.nextItem++, x, z, kind, tier, affixes };
 }
+
+// 떨어뜨릴 장비 부위(고르게)
+export const randSlot = (w: World): Slot => SLOTS[Math.floor(rand(w) * SLOTS.length)];
 
 // 경험치를 얻고, 다음 레벨 몫을 넘을 때마다 레벨업(남는 양은 이월). 레벨업하면 체력 완전 회복
 export function gainXp(w: World, n: number) {
@@ -159,12 +173,12 @@ export function makeEntity(id: number, kind: Kind, x: number, z: number, power: 
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
-  return e.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) : STATS[e.kind].interval;
+  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) : STATS[e.kind].interval;
 }
 
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)
 export function roll(w: World, a: Entity) {
-  const [lo, hi] = a.kind === 'hero' ? WEAPONS[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
+  const [lo, hi] = a.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
   const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1);
@@ -185,14 +199,23 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     return 0;
   }
   let dmg = raw;
-  // 주인공: 갑옷(+단단한) 감소, 전투의 함성 중이면 추가 감소
-  if (t.kind === 'hero') dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, ARMORS[w.gear.armor - 1].reduce + mod(w.mods.armor, 'guard') / 100)) * (w.shoutT > 0 ? 1 - shoutStat(w).reduce : 1)));
+  // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패가 먼저 흡수(반사 특성이면 근접 공격자에게 일부 되돌림)
+  if (t.kind === 'hero') {
+    dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST.armor : shoutStat(w).reduce) : 1)));
+    const absorbed = Math.min(w.wardHp, dmg);
+    if (absorbed > 0) {
+      w.wardHp -= absorbed;
+      dmg -= absorbed;
+      if (w.traits.throw === 2 && from && from.state !== 'dead') hurt(w, from, Math.round(absorbed * WARD.reflect));
+      if (!w.wardHp) w.wardBroke = true; // 깨짐(5단계 폭발은 wizard.ts가 다음 틱에)
+    }
+  }
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
   const hero = w.entities[0];
   const leech = from?.kind === 'hero' ? Math.round((dealt * mod(w.mods.weapon, 'leech')) / 100) : 0;
   if (leech > 0 && hero.state !== 'dead') hero.hp = Math.min(hero.maxHp, hero.hp + leech);
-  const thorns = t.kind === 'hero' && from && from.state !== 'dead' ? Math.round((dealt * mod(w.mods.armor, 'thorns')) / 100) : 0;
+  const thorns = t.kind === 'hero' && from && from.state !== 'dead' ? Math.round((dealt * worn(w, 'thorns')) / 100) : 0;
   if (thorns > 0) hurt(w, from!, thorns);
   if (t.hp > 0) return dealt;
   t.state = 'dead';
@@ -202,7 +225,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
     gainXp(w, Math.round(XP.king * t.power));
-    w.items.push(rollGear(w, t.x, t.z, rand(w) < 0.5 ? 'weapon' : 'armor', w.maxTier, true));
+    w.items.push(rollGear(w, t.x, t.z, randSlot(w), w.maxTier, true));
     w.items.push({ id: w.nextItem++, x: t.x - 0.3, z: t.z, kind: 'potion', tier: 0 });
     dropGold(w, t.x + 0.3, t.z, KING.gold[0], KING.gold[1], t.power);
     return dealt;
@@ -212,8 +235,8 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
   const g = t.elite ? { chance: 1, ...GOLD_ELITE } : GOLD[t.kind];
   if (g.chance > 0 && rand(w) < g.chance) dropGold(w, t.x + 0.3, t.z, g.lo, g.hi, t.power);
-  if (t.elite) w.items.push(rollGear(w, t.x, t.z, rand(w) < 0.5 ? 'weapon' : 'armor', w.maxTier, true)); // 정예: 최고 단계·마법 이상 확정
-  else if (rand(w) < GEAR_DROP[t.kind]) w.items.push(rollGear(w, t.x, t.z, rand(w) < 0.5 ? 'weapon' : 'armor', 1 + Math.floor(rand(w) * w.maxTier)));
+  if (t.elite) w.items.push(rollGear(w, t.x, t.z, randSlot(w), w.maxTier, true)); // 정예: 최고 단계·마법 이상 확정
+  else if (rand(w) < GEAR_DROP[t.kind]) w.items.push(rollGear(w, t.x, t.z, randSlot(w), 1 + Math.floor(rand(w) * w.maxTier)));
   return dealt;
 }
 
@@ -246,7 +269,7 @@ export const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // 사거리(궁수 ARCHER.range, 마법사 MAGE.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
 export function canHit(w: World, a: Entity, b: Entity) {
-  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : RANGE;
+  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : a.kind === 'hero' && w.cls === 'wizard' ? WIZ.range : RANGE;
   return dist(a, b) <= reach && clearLine(w, a, b);
 }
 
@@ -273,7 +296,7 @@ export const waypoints = (cells: Cell[], x: number, z: number): Point[] => [
 
 export function walk(w: World, e: Entity) {
   e.state = 'move';
-  let budget = STATS[e.kind].speed * DT;
+  let budget = moveSpeed(w, e) * DT;
   while (budget > 0 && e.path.length) {
     const [px, pz] = e.path[0];
     const dx = px - e.x;
