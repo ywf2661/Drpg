@@ -38,7 +38,7 @@ export function syncZones(world: World) {
   }
 }
 
-// 돌진 '불길'이 남긴 불타는 길: 바닥에 눕힌 주황 띠(일렁이고, 꺼질 때 옅어진다)
+// 돌진 '불길'이 남긴 불타는 길의 바닥 불빛: 눕힌 주황 띠(일렁이고, 꺼질 때 옅어진다). 불꽃 그림은 props.ts
 const STRIP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const fires = new Map<number, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
 
@@ -55,7 +55,7 @@ export function syncFires(world: World, time: number) {
     m.position.set((f.x0 + f.x1) / 2, 0.035, (f.z0 + f.z1) / 2);
     m.rotation.y = Math.atan2(dx, dz);
     m.scale.set(2 * TRAIL.width, 1, Math.hypot(dx, dz) + 2 * TRAIL.width);
-    m.material.opacity = Math.min(1, f.t) * (0.4 + 0.15 * Math.sin(time * 18 + f.id));
+    m.material.opacity = Math.min(1, f.t) * (0.28 + 0.1 * Math.sin(time * 18 + f.id)); // 불꽃(props.ts) 아래에 깔리는 불빛
   }
   for (const [id, m] of fires) {
     if (world.fires.some((f) => f.id === id)) continue;

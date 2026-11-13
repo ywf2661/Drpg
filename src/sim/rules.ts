@@ -69,6 +69,10 @@ export const GEAR_SIZE: Record<GearItem['kind'], [number, number][]> = {
   armor: [[2, 2], [2, 2], [2, 3], [2, 3]],
 };
 
+// 사슬로 묶인 쇠창살 문(칸 좌표). 닫힌 동안 그 칸은 막혀 있고, 도끼가 맞으면 붙어 있는 문과 함께 열린다.
+// axis: 막고 있는 통로의 방향(렌더가 문 그림을 고른다)
+export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: boolean };
+
 // 보물 상자(칸 좌표). 한 번 열면 끝
 export type Chest = { id: number; x: number; z: number; open: boolean };
 
@@ -103,6 +107,7 @@ export type World = {
   toStairs: boolean;
   props: Prop[];
   chests: Chest[];
+  gates: Gate[];
   opening: number | null; // 주인공이 열러 가는 상자 id
   items: Item[];
   shots: Shot[];
@@ -201,7 +206,7 @@ export const BOUNCE = { count: 3, range: 5 }; // 도끼 1 튕김: 횟수(5단계
 export const STUCK = { radius: 2, mult: 1.5, gap: 1 }; // 도끼 2 박힌 도끼: 뽑을 때 폭발 반경·배율(× 도끼 배율), 순간이동해 서는 거리
 export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)
-export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준
+export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8, gate: 3 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준(적), 자동 조준(닫힌 문)
 export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베기: 재사용, 거리, 속도, 길 폭(반경), 자동 조준 거리
 
 // 구르기: 재사용, 거리, 속도(거리 ÷ 속도 = 무적 시간), 조준이 없을 때 피할 적을 찾는 거리

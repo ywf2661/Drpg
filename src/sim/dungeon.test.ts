@@ -96,11 +96,11 @@ test('생성한 맵을 createWorld가 읽고 배율을 적용한다', () => {
   for (const e of w.entities.slice(1)) expect(e.maxHp).toBe({ minion: 54, warrior: 108, archer: 46, mage: 40 }[e.kind as string]! * (e.elite ? 3 : 1));
 });
 
-test('상자: 층마다 몇 개(방의 약 35%), 막는 소품 규칙을 따른다', () => {
+test('상자: 층마다 몇 개(방의 약 35% + 보물 방의 둘), 막는 소품 규칙을 따른다', () => {
   let total = 0;
   for (let seed = 1; seed <= 50; seed++) total += count(generateFloor(seed, 2), 'c');
-  expect(total / 50).toBeGreaterThan(1.2);
-  expect(total / 50).toBeLessThan(3.5);
+  expect(total / 50).toBeGreaterThan(3);
+  expect(total / 50).toBeLessThan(5.5);
 });
 
 test('층 배율: 층마다 +15%, 회차마다 ×1.5씩 더해짐', () => {

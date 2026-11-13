@@ -28,7 +28,11 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
   const cmds: Command[] = [];
   if (hero.hp < hero.maxHp * 0.6 && w.potions > 0) cmds.push({ type: 'drink' }); // 서서히 차므로 미리 마신다
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
-  const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead').sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
+  // 닫힌 사슬 문이 있으면 걸어서 갈 수 있는 곳만 상대한다(문 뒤의 적·아이템은 문을 연 뒤에)
+  const closed = w.gates.filter((g) => !g.open);
+  const seen = closed.length ? reachable(w, hero.x, hero.z) : null;
+  const ok = (x: number, z: number) => !seen || seen[Math.floor(z) * w.grid.w + Math.floor(x)] === 1;
+  const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead' && ok(e.x, e.z)).sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
   if (skills && w.points > 0) {
     // 포인트는 가장 낮은 단계부터(같으면 가르기 → 도끼 → 함성 → 돌진)
@@ -57,12 +61,39 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
     if (shooter && w.throwCd <= 0) cmds.push({ type: 'throw', x: shooter.x, z: shooter.z });
     else if (shooter && w.dashCd <= 0 && d(shooter.x, shooter.z) > 3.5) cmds.push({ type: 'dash', x: shooter.x, z: shooter.z });
   }
-  const wanted = w.items.find((i) => (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : isBetter(w, i)));
+  const wanted = w.items.find((i) => ok(i.x, i.z) && (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : isBetter(w, i)));
   if (foes.length && (d(foes[0].x, foes[0].z) < 9 || !wanted)) {
     if (hero.target !== foes[0].id) cmds.push({ type: 'attack', targetId: foes[0].id });
   } else if (wanted) cmds.push({ type: 'move', x: wanted.x, z: wanted.z });
-  else if (w.stairs) cmds.push({ type: 'move', x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5 });
+  else if (closed.length && !ok(w.stairs ? w.stairs[0] : -1, w.stairs ? w.stairs[1] : -1)) {
+    // 갈 곳이 문으로 막혔다(계단, 또는 문 뒤의 보스·적): 닿을 수 있는 가장 가까운 문 앞으로 가서 도끼로 연다
+    const doors = closed
+      .map((g) => ({ g, side: ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).map(([dx, dz]) => [g.x + dx, g.z + dz] as const).find(([x, z]) => ok(x, z)) }))
+      .filter((o) => o.side)
+      .sort((a, b) => d(a.g.x + 0.5, a.g.z + 0.5) - d(b.g.x + 0.5, b.g.z + 0.5));
+    const door = doors[0];
+    if (door && d(door.g.x + 0.5, door.g.z + 0.5) < 2 && w.throwCd <= 0) cmds.push({ type: 'throw', x: door.g.x + 0.5, z: door.g.z + 0.5 });
+    else if (door) cmds.push({ type: 'move', x: door.side![0] + 0.5, z: door.side![1] + 0.5 });
+  } else if (w.stairs) cmds.push({ type: 'move', x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5 });
   return cmds;
+}
+
+// 주인공이 걸어서 갈 수 있는 칸(1). 길찾기는 벽 모서리를 대각선으로 못 지나므로 4방향으로 이어진 칸과 같다
+function reachable(w: World, x: number, z: number): Uint8Array {
+  const { w: gw, h, blocked } = w.grid;
+  const seen = new Uint8Array(gw * h);
+  const q = [Math.floor(z) * gw + Math.floor(x)];
+  seen[q[0]] = 1;
+  for (let i = 0; i < q.length; i++) {
+    const [cx, cz] = [q[i] % gw, Math.floor(q[i] / gw)];
+    for (const [nx, nz] of [[cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]]) {
+      const n = nz * gw + nx;
+      if (nx < 0 || nz < 0 || nx >= gw || nz >= h || blocked[n] || seen[n]) continue;
+      seen[n] = 1;
+      q.push(n);
+    }
+  }
+  return seen;
 }
 
 // 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 5개까지 채우고, 남으면 무기·갑옷 강화, 그래도 남으면 물약

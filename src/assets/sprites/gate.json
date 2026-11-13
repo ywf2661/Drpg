@@ -1,0 +1,27 @@
+{
+  "cell": [
+    42,
+    72
+  ],
+  "anchor": [
+    21,
+    63
+  ],
+  "ppm": 30,
+  "cols": 1,
+  "rows": 2,
+  "anims": {
+    "gate_x": {
+      "row": 0,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "gate_z": {
+      "row": 1,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    }
+  }
+}

@@ -20,6 +20,10 @@ import propsInfo from '../assets/sprites/props.json';
 import propsUrl from '../assets/sprites/props.png';
 import stairsInfo from '../assets/sprites/stairs.json';
 import stairsUrl from '../assets/sprites/stairs.png';
+import gateInfo from '../assets/sprites/gate.json';
+import gateUrl from '../assets/sprites/gate.png';
+import flameInfo from '../assets/sprites/flame.json';
+import flameUrl from '../assets/sprites/flame.png';
 import { cardGeometry, dirIndex, frameAt, loadSheet, type Clip, type SheetInfo } from './sprites';
 
 export const BRAZIER_RANGE = 4.5; // 화로 빛이 닿는 거리(m)
@@ -52,11 +56,16 @@ const fireballFx: Sheet = { info: fireballInfo as SheetInfo, url: fireballUrl };
 const blastFx: Sheet = { info: blastInfo as SheetInfo, url: blastUrl };
 const axeFx: Sheet = { info: axeInfo as SheetInfo, url: axeUrl };
 const quakeFx: Sheet = { info: quakeInfo as SheetInfo, url: quakeUrl };
+const gateFx: Sheet = { info: gateInfo as SheetInfo, url: gateUrl };
+const flameFx: Sheet = { info: flameInfo as SheetInfo, url: flameUrl };
+const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
+const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
 let cards: Card[] = [];
 let group = new THREE.Group();
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
 let chestCards: { card: Card; name: string }[] = []; // 상자 판자(world.chests 순서)와 닫힌 그림 이름
+const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
 let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
 let cleavesSeen = 0;
 let shoutsSeen = 0;
@@ -84,7 +93,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx]) {
+  for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -113,6 +122,48 @@ export function syncChests(world: World) {
     const c = chestCards[i];
     if (ch.open && c) c.card.clip = props.info.anims[`${c.name}_open`];
   });
+}
+
+// 돌진 '불길': 길이 늘어나는 만큼 불꽃을 줄지어 세우고(조금씩 어긋나게), 꺼지면 치운다
+export function syncFires(world: World) {
+  for (const f of world.fires) {
+    const list = flames.get(f.id) ?? [];
+    flames.set(f.id, list);
+    const len = Math.hypot(f.x1 - f.x0, f.z1 - f.z0);
+    for (let k = list.length; k * FLAME_GAP <= len; k++) {
+      const t = len > 1e-6 ? (k * FLAME_GAP) / len : 0;
+      const side = ((cellHash(f.id, k) % 100) / 100 - 0.5) * 0.5; // 길 옆으로 ±0.25m
+      const c = card(flameFx, 'flame', f.x0 + (f.x1 - f.x0) * t + side, f.z0 + (f.z1 - f.z0) * t - side, false);
+      Object.assign(c, { t: (cellHash(k, f.id) % 500) / 1000, glow: 1 });
+      c.mesh.renderOrder = 2;
+      list.push(c);
+      cards.push(c);
+      group.add(c.mesh);
+    }
+    const s = Math.min(1, f.t / 0.4); // 꺼질 때 줄어든다
+    for (const c of list) c.mesh.scale.setScalar(s);
+  }
+  for (const [id, list] of flames) {
+    if (world.fires.some((f) => f.id === id)) continue;
+    for (const c of list) {
+      c.mesh.removeFromParent();
+      free(c);
+      cards.splice(cards.indexOf(c), 1);
+    }
+    flames.delete(id);
+  }
+}
+
+// 열린 문의 판자는 치운다(먼지 효과는 폭발 기록으로 따로 뜬다)
+export function syncGates(world: World) {
+  for (const g of world.gates) {
+    const c = gateCards.get(g.id);
+    if (!g.open || !c) continue;
+    c.mesh.removeFromParent();
+    free(c);
+    gateCards.delete(g.id);
+    cards.splice(cards.indexOf(c), 1);
+  }
 }
 
 // 가르기가 새로 일어났으면 주인공 위치·방향에 효과를 한 번 재생
@@ -223,6 +274,10 @@ export function buildProps(world: World): THREE.Group {
     return { card: card(props, ch.open ? `${name}_open` : name, ch.x + 0.5, ch.z + 0.5, false), name };
   });
   cards.push(...chestCards.map((c) => c.card));
+  gateCards.clear();
+  flames.clear();
+  for (const g of world.gates) if (!g.open) gateCards.set(g.id, card(gateFx, `gate_${g.axis}`, g.x + 0.5, g.z + 0.5, false));
+  cards.push(...gateCards.values());
   if (world.stairs) cards.push(card(stairs, 'stairs', world.stairs[0] + STAIRS_AT[0], world.stairs[1] + STAIRS_AT[1], true));
   braziers = world.props.filter((p) => p.kind === 'brazier').map((p) => ({ x: p.x + 0.5, z: p.z + 0.5 }));
   // ponytail: 화로 빛은 그림자가 없어 벽 너머로 조금 샌다. 거슬리면 화로마다 castShadow(점광원 그림자는 6면 렌더)

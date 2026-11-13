@@ -8,7 +8,7 @@ import caveWallUrl from '../assets/tiles/wall_cave.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
-import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncItems, syncShots, updateProps } from './props';
+import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
@@ -145,7 +145,9 @@ export function draw(world: World, dt: number) {
   syncEffects(world);
   syncZones(world);
   syncFires(world, time);
+  syncFlames(world);
   syncChests(world);
+  syncGates(world);
   updateProps(dt, light);
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
   camera.position.copy(focus).add(CAM_OFFSET);
@@ -196,7 +198,7 @@ function buildMap(world: World) {
   const { w, h, blocked } = world.grid;
   // 바닥은 걸을 수 있는 칸과 소품 칸에, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
-  const prop = new Set(world.props.map((p) => p.z * w + p.x));
+  const prop = new Set([...world.props, ...world.gates].map((p) => p.z * w + p.x)); // 소품·문 칸: 벽 상자 대신 바닥을 깐다
   const floorCells: [number, number][][] = Array.from({ length: FLOOR_VARIANTS }, () => []);
   const wallCells: [number, number][] = [];
   for (let z = 0; z < h; z++) {

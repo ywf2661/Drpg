@@ -321,9 +321,10 @@ export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
   const stuck = w.shots.find((s) => s.stuck !== undefined);
   if (stuck) return recall(w, hero, stuck);
   if (w.throwCd > 0) return;
-  const near = w.entities
-    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= AXE.aim)
-    .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+  // 자동 조준: 가까운 적, 또는 바로 앞의 닫힌 문 중 더 가까운 쪽
+  const doors = w.gates.filter((g) => !g.open).map((g) => ({ x: g.x + 0.5, z: g.z + 0.5 }));
+  const near = [...w.entities.filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= AXE.aim), ...doors.filter((g) => Math.hypot(g.x - hero.x, g.z - hero.z) <= AXE.gate)]
+    .sort((a, b) => Math.hypot(a.x - hero.x, a.z - hero.z) - Math.hypot(b.x - hero.x, b.z - hero.z))[0];
   let [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + dx, hero.z + dz];
   const d = Math.hypot(tx - hero.x, tz - hero.z);
@@ -331,6 +332,19 @@ export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
   hero.facing = Math.atan2(dx, dz);
   w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg: Math.round(roll(w, hero) * axeStat(w).mult), left: AXE.flight, kind: 'axe' });
   w.throwCd = axeStat(w).cd;
+}
+
+// 그 칸의 닫힌 문과, 거기에 붙어 있는(4방향) 닫힌 문들을 연다: 칸이 뚫리고 먼지가 인다
+export function openGate(w: World, x: number, z: number) {
+  const first = w.gates.find((g) => !g.open && g.x === x && g.z === z);
+  const queue = first ? [first] : [];
+  for (const g of queue) {
+    if (g.open) continue;
+    g.open = true;
+    w.grid.blocked[g.z * w.grid.w + g.x] = 0;
+    w.blasts.push({ id: w.nextItem++, x: g.x + 0.5, z: g.z + 0.5, age: 0, kind: 'slam' });
+    queue.push(...w.gates.filter((o) => !o.open && Math.abs(o.x - g.x) + Math.abs(o.z - g.z) === 1));
+  }
 }
 
 // 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구는 그 모든 경우에 그 자리에서 폭발.
@@ -350,6 +364,7 @@ export function fly(w: World, hero: Entity) {
     s.left -= step;
     if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
       if (fire) explode(w, hero, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
+      if (s.kind === 'axe') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼가 사슬 문에 맞으면 열린다
       return false;
     }
     [s.x, s.z] = [nx, nz];

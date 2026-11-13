@@ -75,6 +75,10 @@ PROPS = {'brazier': 167, 'barrel': 146, 'barrel2': 162, 'crate': 147, 'crate2': 
          'chest_open': 160, 'chest2_open': 161,
          'statue': 128, 'statue2': 130, **{f'bones{k + 1}': 176 + k for k in range(8)}}
 STAIRS = 286  # 4×4칸 내려가는 계단
+# 사슬로 묶인 쇠창살 문: (문 타일, 사슬 타일, 사슬을 문 앞면으로 옮기는 px). gate_x = 법선 +x 면(x 방향 통로를 막는다), gate_z = +z 면
+GATES = {'gate_x': (114, 193, (14, 40)), 'gate_z': (115, 192, (-14, 40))}
+GATE_GAIN, CHAIN_GAIN = 1.5, 2.6  # 어두운 원본을 횃불 아래서 보이게
+FLAME_BOX, FLAME_SCALE = (48, 190, 144, 296), 0.36  # 화로 타일에서 불꽃만(그릇 위), 바닥 불길용 배율(높이 약 1m)
 CAVE_TILESET = 'tileset_cave'
 CAVE_FLOOR = [16, 17, 18, 19, 48, 49, 50, 51]  # 흙 4 + 잔해 4
 CAVE_WALLS = [72, 76]  # +x 면, +z 면으로 쓸 바위벽
@@ -286,6 +290,47 @@ def tiles():
     pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
 
 
+def gate():
+    # 문 타일의 검은 면(FLARE가 벽 윗부분을 가리는 용도)은 투명하게 → 창살 사이로 뒤가 보인다. 사슬은 문 그림 범위 안만 남긴다
+    ts = Tileset()
+    frames, meta = {}, {}
+    for name, (door, chain, (sx, sy)) in GATES.items():
+        (im,), (ox, oy), _ = ts.frames(door)
+        px = im.load()
+        for y in range(im.height):
+            for x in range(im.width):
+                r, g, b, a = px[x, y]
+                if a and max(r, g, b) < 10:
+                    px[x, y] = (0, 0, 0, 0)
+        bright = lambda img, k: Image.merge('RGBA', (*ImageEnhance.Brightness(img.convert('RGB')).enhance(k).split(), img.getchannel('A')))
+        c = Image.new('RGBA', (CANVAS, CANVAS))
+        c.alpha_composite(bright(im, GATE_GAIN), (FOOT[0] - ox, FOOT[1] - oy))
+        bb = c.getbbox()
+        (ch,), (cx, cy), _ = ts.frames(chain)
+        ch = bright(ch, CHAIN_GAIN)
+        c.alpha_composite(ch, (FOOT[0] - cx + sx, FOOT[1] - cy + sy))
+        frames[(name, 0, 0)] = (c.crop(bb), bb[:2])
+        meta[name] = (1, 1000, 'play_once')
+    pack('gate', frames, meta, TILE_SCALE, 1)
+
+
+def flame():
+    # 돌진 '불길'의 불꽃: 화로(8프레임)에서 그릇을 빼고 불꽃만. 기준점 = 불꽃 아래 가운데
+    ims, _, ms = Tileset().frames(PROPS['brazier'])
+    x0, y0, x1, y1 = FLAME_BOX
+    frames = {}
+    for k, f in enumerate(ims):
+        f = f.crop(FLAME_BOX)
+        px = f.load()
+        for y in range(f.height):
+            for x in range(f.width):
+                r, g, b, a = px[x, y]
+                if r < 120 or r - b < 40:  # 연기·그릇 가장자리(어둡거나 잿빛)는 버린다 — 크게 그리면 검은 덩어리로 보인다
+                    px[x, y] = (0, 0, 0, 0)
+        frames[('flame', 0, k)] = (f, (FOOT[0] - (x1 - x0) // 2, FOOT[1] - (y1 - y0)))
+    pack('flame', frames, {'flame': (len(ims), ms, 'looped')}, FLAME_SCALE, 1)
+
+
 def effect(name, src, dirs=8, scale=SCALE):
     # FLARE 기술 효과('power' 동작, 8방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
     # — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
@@ -374,6 +419,8 @@ if __name__ == '__main__':
     effect('quake', 'quake', dirs=1, scale=QUAKE_SCALE)  # 함성: 땅 울림
     hero()
     tiles()
+    gate()
+    flame()
     cave()
     loot()
     SOUNDS.mkdir(parents=True, exist_ok=True)

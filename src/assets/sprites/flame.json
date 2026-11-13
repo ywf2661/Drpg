@@ -1,0 +1,21 @@
+{
+  "cell": [
+    35,
+    38
+  ],
+  "anchor": [
+    17,
+    38
+  ],
+  "ppm": 30,
+  "cols": 8,
+  "rows": 1,
+  "anims": {
+    "flame": {
+      "row": 0,
+      "frames": 8,
+      "ms": 528,
+      "loop": "looped"
+    }
+  }
+}

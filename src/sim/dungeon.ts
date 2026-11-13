@@ -1,5 +1,6 @@
 // 무작위 던전 층: 방 + 2칸 폭 L자 복도. 결과는 createWorld가 읽는 글자 맵
-// (+ '>' 계단, 'M' 보스(마지막 층), 'K' 해골 왕(3층), 'B' 화로·'o' 큰 소품·'c' 상자(막음), ',' 잔해(지나감)).
+// (+ '>' 계단, 'M' 보스(마지막 층), 'K' 해골 왕(3층), 'B' 화로·'o' 큰 소품·'c' 상자(막음), ',' 잔해(지나감), 'D' 사슬 문(도끼로 연다)).
+// 문 뒤(보물 방, 2층부터는 계단 방)는 문을 열기 전에는 걸어서 갈 수 없다.
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
 
@@ -12,7 +13,8 @@ export type Theme = 'dungeon' | 'cave';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c'; // 지나갈 수 있는 글자
+const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c' && c !== 'D'; // 지나갈 수 있는 글자
+const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 
 export function generateFloor(seed: number, floor: number): string[] {
   let s = seed | 0;
@@ -138,6 +140,32 @@ export function generateFloor(seed: number, floor: number): string[] {
       }
     }
   }
+  // 사슬 문은 맨 끝에 놓는다(앞의 난수열을 바꾸지 않아 방·몬스터 배치가 문이 없던 때와 같다)
+  // 계단 방(2층~보스 전 층): 방을 둘러싼 한 겹에서 뚫린 칸(복도 입구)을 모두 문으로
+  const goalRoom = rooms.find((r) => inRoom(r, goal[0], goal[1]))!;
+  if (floor >= 2 && floor < FLOORS) {
+    const mouths: Cell[] = [];
+    for (let z = goalRoom.z - 1; z <= goalRoom.z + goalRoom.h; z++)
+      for (let x = goalRoom.x - 1; x <= goalRoom.x + goalRoom.w; x++) if (!inRoom(goalRoom, x, z) && cells[z][x] === '.') mouths.push([x, z]);
+    if (mouths.length <= GATE_MAX) for (const [x, z] of mouths) cells[z][x] = 'D';
+  }
+  // 보물 방: 방의 뒤쪽 벽(-x 또는 -z, 앞쪽 벽의 문은 벽에 가려진다) 너머 맨벽에 3×3칸을 파고 문 하나로 잇는다. 안에 상자 둘
+  const vault = (r: Room, alongX: boolean): boolean => {
+    const m = alongX ? r.z + (r.h >> 1) : r.x + (r.w >> 1); // 문이 놓이는 줄(방 벽의 가운데)
+    const at = (k: number, s: number): Cell => (alongX ? [r.x - k, m + s] : [m + s, r.z - k]); // 방에서 바깥으로 k칸, 옆으로 s칸
+    const [ix, iz] = at(0, 0);
+    if (cells[iz][ix] !== '.') return false; // 문 앞(방 안쪽)이 비어 있어야
+    for (let k = 1; k <= 5; k++)
+      for (let s = -2; s <= 2; s++) {
+        const [x, z] = at(k, s);
+        if (x < 1 || z < 1 || cells[z][x] !== '#') return false; // 벽 한 겹까지 맨벽이어야 다른 방·복도와 닿지 않는다
+      }
+    for (let k = 2; k <= 4; k++) for (let s = -1; s <= 1; s++) cells[at(k, s)[1]][at(k, s)[0]] = '.';
+    for (const s of [-1, 0]) cells[at(4, s)[1]][at(4, s)[0]] = 'c'; // 안쪽 벽에(앞쪽 벽에 붙이면 가려진다)
+    cells[at(1, 0)[1]][at(1, 0)[0]] = 'D';
+    return true;
+  };
+  for (const i of order) if (rooms[i] !== goalRoom && (vault(rooms[i], true) || vault(rooms[i], false))) break;
   return cells.map((row) => row.join(''));
 }
 
