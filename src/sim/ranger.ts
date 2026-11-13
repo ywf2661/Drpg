@@ -1,7 +1,7 @@
 // 궁수 스킬: 화살(평타), 관통 사격(Q), 덫(W), 화살비(E), 집중(R). 스페이스는 기사 구르기.
 // 스킬 칸·명령·재사용 필드·단계·특성은 기사·마법사와 같은 것을 쓴다(rules의 HeroClass 설명). 명사수는 core의 hurt
 import { walkable } from './path';
-import { KNOCK, PIERCE, RANGER, TRAP, type Entity, type Shot, type SkillName, type World } from './rules';
+import { DT, KNOCK, PIERCE, RAIN, RANGER, TRAIL, TRAP, type Entity, type Shot, type SkillName, type World } from './rules';
 import { dist, hurt, knock, mastered, roll, skillHit } from './core';
 import { aimDir, blast, foes, nearest, stun } from './wizard';
 
@@ -11,6 +11,11 @@ export const trapStat = (w: World) => {
   const big = w.traits.dash === 2; // 덫 3개: 더 많이, 더 오래
   return { cd: TRAP.cd - 0.5 * extra(w, 'dash'), hold: (TRAP.hold + 0.2 * extra(w, 'dash')) * (big ? TRAP.bigHold : 1), max: big ? TRAP.bigMax : TRAP.max };
 };
+export const rainStat = (w: World) => ({
+  cd: RAIN.cd - 0.5 * extra(w, 'shout'),
+  radius: (RAIN.radius + 0.15 * extra(w, 'shout')) * (mastered(w, 'shout') ? RAIN.big : 1),
+  mult: (RAIN.mult + 0.2 * extra(w, 'shout')) * (w.traits.shout === 2 ? RAIN.waveMult : 1), // 지속 화살비: 회당 약하게
+});
 export const pierceStat = (w: World) => ({ cd: PIERCE.cd - 0.3 * extra(w, 'cleave'), mult: PIERCE.mult + 0.25 * extra(w, 'cleave') });
 
 // 화살: 평타가 맞는 순간(swing) 대상 쪽으로 쏜다
@@ -81,4 +86,36 @@ export function tickTraps(w: World, hero: Entity) {
     }
     return false;
   });
+}
+
+// 화살비: 조준점(사거리로 당김), 없으면 가까운 적에게 RAIN.delay초 뒤 떨어진다. 조준점도 적도 없으면 쓰지 않는다
+export function rain(w: World, hero: Entity, x?: number, z?: number) {
+  if (w.shoutCd > 0) return;
+  let [tx, tz] = [x, z];
+  if (tx === undefined || tz === undefined) {
+    const t = nearest(w, hero, RAIN.range);
+    if (!t) return;
+    [tx, tz] = [t.x, t.z];
+  }
+  const d = Math.hypot(tx - hero.x, tz - hero.z);
+  if (d > RAIN.range) [tx, tz] = [hero.x + ((tx - hero.x) * RAIN.range) / d, hero.z + ((tz - hero.z) * RAIN.range) / d];
+  if (d > 1e-6) hero.facing = Math.atan2(tx - hero.x, tz - hero.z);
+  const st = rainStat(w);
+  w.volleys.push({ x: tx, z: tz, r: st.radius, t: RAIN.delay, left: w.traits.shout === 2 ? RAIN.waves : 1 });
+  w.casts++;
+  w.shoutCd = st.cd;
+}
+
+// 화살비 한 틱: 때가 되면 반경 안 적 모두 피해. 불화살(특성 1)은 그 자리에 불길, 지속(특성 2)은 RAIN.every초마다 다시
+export function tickRain(w: World, hero: Entity) {
+  for (const v of w.volleys) {
+    if ((v.t -= DT) > 0) continue;
+    blast(w, 'rain', v.x, v.z, v.r);
+    const dmg = Math.round(roll(w, hero) * rainStat(w).mult);
+    for (const e of foes(w, hero)) if (Math.hypot(e.x - v.x, e.z - v.z) <= v.r) skillHit(w, e, dmg);
+    if (w.traits.shout === 1) w.fires.push({ id: w.nextItem++, x0: v.x, z0: v.z, x1: v.x, z1: v.z, t: TRAIL.time, acc: 0 });
+    v.left--;
+    v.t = RAIN.every;
+  }
+  w.volleys = w.volleys.filter((v) => v.left > 0);
 }

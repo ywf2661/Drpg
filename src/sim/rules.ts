@@ -98,7 +98,7 @@ export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number;
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
-export type Blast = { id: number; x: number; z: number; r?: number; age: number; kind: 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' };
+export type Blast = { id: number; x: number; z: number; r?: number; age: number; kind: 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' };
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
@@ -152,6 +152,7 @@ export type World = {
   wardBroke: boolean; // 이번 틱에 방패가 깨졌다(5단계 폭발)
   storm: { x: number; z: number; t: number }[]; // 천둥: 뒤이어 떨어질 벼락(보이기만, t초 뒤)
   traps: { id: number; x: number; z: number }[]; // 궁수가 놓은 덫(오래된 것부터)
+  volleys: { x: number; z: number; r: number; t: number; left: number }[]; // 떨어질 화살비(t초 뒤, left번 남음)
   shouts: number; // 함성 횟수(렌더·소리용)
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
   throwCd: number; // 도끼 던지기 재사용까지(초)
@@ -363,6 +364,8 @@ export const RANGER = { range: 7.5, speed: 14, flight: 9, hit: 0.4, far: 5, farM
 export const PIERCE = { cd: 5, mult: 1.8, speed: 16, flight: 10, hit: 0.5, spread: 0.25, push: 1.2, wallStun: 1.5, wait: 0.15, aim: 9 };
 // 덫(W): 재사용, 놓는 사거리, 밟는 반경, 묶는 시간, 배율, 최대 개수, 폭발·5단계 범위, 덫 3개 특성(개수·묶는 시간 배수)
 export const TRAP = { cd: 6, range: 6, trigger: 0.6, hold: 1.5, mult: 1.2, max: 2, radius: 1.8, bigMax: 3, bigHold: 1.4 };
+// 화살비(E): 재사용, 사거리, 반경, 떨어지기까지(초), 배율, 지속 특성(횟수·간격·회당 배율 배수), 5단계 반경 배수
+export const RAIN = { cd: 8, range: 8, radius: 1.8, delay: 0.6, mult: 1.6, waves: 4, every: 0.75, waveMult: 0.5, big: 1.3 };
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)

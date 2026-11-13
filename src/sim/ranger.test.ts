@@ -1,7 +1,7 @@
 // 궁수: 화살(원거리 평타), 명사수, 관통 사격·덫·화살비·집중, 구르기
 import { expect, test } from 'vitest';
 import { gearName } from '../render/labels';
-import { createWorld, heroMax, RANGER, setLevel, step, type Command, type World } from './world';
+import { createWorld, DT, heroMax, RAIN, RANGER, setLevel, step, type Command, type World } from './world';
 import { hurt, makeEntity } from './core';
 
 function ranger(map: string[]): World {
@@ -134,4 +134,48 @@ test('덫은 주인공을 묶지 않는다, 새 층에는 덫이 없다', () => 
   expect(hero.stunT).toBe(0);
   expect(w.traps.length).toBe(1);
   expect(ranger(['H']).traps).toEqual([]);
+});
+
+test('화살비: 조준한 원 안의 적만, delay 뒤에 맞는다', () => {
+  const w = ranger(['H...m...m', '.........']);
+  const [, a, b] = w.entities;
+  a.stunT = b.stunT = 10;
+  step(w, [{ type: 'shout', x: a.x, z: a.z }]);
+  expect(w.shoutCd).toBeGreaterThan(0);
+  run(w, Math.floor(RAIN.delay / DT) - 2);
+  expect(a.hp).toBe(a.maxHp);
+  run(w, 4);
+  expect(a.hp).toBeLessThan(a.maxHp);
+  expect(b.hp).toBe(b.maxHp);
+});
+
+test('화살비 특성 2: 여러 번 내린다', () => {
+  const w = ranger(['H...m....', '.........']);
+  const a = w.entities[1];
+  a.stunT = 100;
+  a.hp = a.maxHp = 10000;
+  Object.assign(w, { ranks: { ...w.ranks, shout: 3 }, traits: { ...w.traits, shout: 2 } });
+  step(w, [{ type: 'shout', x: a.x, z: a.z }]);
+  let hits = 0;
+  for (let i = 0, hp = a.hp; i < 5 / DT; i++, hp = a.hp) {
+    step(w, []);
+    if (a.hp < hp) hits++;
+  }
+  expect(hits).toBe(RAIN.waves);
+});
+
+test('화살비 특성 1(불화살): 떨어진 자리에 불길이 남는다', () => {
+  const w = ranger(['H...m....', '.........']);
+  const a = w.entities[1];
+  a.stunT = 10;
+  Object.assign(w, { ranks: { ...w.ranks, shout: 3 }, traits: { ...w.traits, shout: 1 } });
+  run(w, Math.ceil(RAIN.delay / DT) + 2, [{ type: 'shout', x: a.x, z: a.z }]);
+  expect(w.fires.length).toBeGreaterThan(0);
+});
+
+test('화살비: 조준도 적도 없으면 쓰지 않는다', () => {
+  const w = ranger(['H.......']);
+  step(w, [{ type: 'shout' }]);
+  expect(w.shoutCd).toBe(0);
+  expect(w.volleys).toEqual([]);
 });
