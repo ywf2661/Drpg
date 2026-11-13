@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, FIREBALL, KING, KNOCK, MAGE, METEOR, RANGER, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, FIREBALL, KING, KNOCK, MAGE, METEOR, PIERCE, RANGER, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit } from './wizard';
 import { arrowHit } from './ranger';
 import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, roll, shoutStat, skillHit, walk, waypoints } from './core';
@@ -361,8 +361,14 @@ export function fly(w: World, hero: Entity) {
       [s.x, s.z] = [t.x, t.z];
       return t.state !== 'dead';
     }
+    if (s.wait) {
+      // 뒤따르는 화살(관통 사격 5단계): 기다리는 동안 주인공 자리에 있다
+      s.wait = Math.max(0, s.wait - DT);
+      [s.x, s.z] = [hero.x, hero.z];
+      return true;
+    }
     const fire = s.kind === 'fire';
-    const speed = { fire: MAGE.speed, axe: AXE.speed, arrow: ARCHER.speed, bolt: WIZ.speed, fireball: FIREBALL.speed, shaft: RANGER.speed, pierce: RANGER.speed }[s.kind];
+    const speed = { fire: MAGE.speed, axe: AXE.speed, arrow: ARCHER.speed, bolt: WIZ.speed, fireball: FIREBALL.speed, shaft: RANGER.speed, pierce: PIERCE.speed }[s.kind];
     const step = speed * DT;
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;

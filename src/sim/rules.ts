@@ -358,6 +358,8 @@ export const BLINK = { cd: 3, dist: 5, guard: 0.25 };
 
 // 궁수. 화살(평타): 사거리, 속도, 비행 거리, 맞는 반경. 명사수: far m 넘게 떨어진 적에게 주는 피해 ×farMult
 export const RANGER = { range: 7.5, speed: 14, flight: 9, hit: 0.4, far: 5, farMult: 1.25 };
+// 관통 사격(Q): 재사용, 배율, 속도, 비행 거리, 맞는 반경, 세 갈래 각도(라디안), 밀쳐내기 거리·벽 기절, 5단계 두 번째 화살 대기(초), 자동 조준 거리
+export const PIERCE = { cd: 5, mult: 1.8, speed: 16, flight: 10, hit: 0.5, spread: 0.25, push: 1.2, wallStun: 1.5, wait: 0.15, aim: 9 };
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)

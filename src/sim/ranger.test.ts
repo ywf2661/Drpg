@@ -42,3 +42,43 @@ test('명사수: 5m 넘게 떨어진 적에게는 1.25배', () => {
   expect(1000 - near.hp).toBe(40);
   expect(1000 - far.hp).toBe(50);
 });
+
+test('관통 사격: 일렬의 적 셋을 모두 맞히고 재사용 대기가 생긴다', () => {
+  const w = ranger(['H..mmm..', '........']);
+  const foes = w.entities.slice(1);
+  for (const m of foes) m.stunT = 10;
+  run(w, 50, [{ type: 'skill', x: 7.5, z: 0.5 }]);
+  for (const m of foes) expect(m.hp).toBeLessThan(m.maxHp);
+  expect(w.skillCd).toBeGreaterThan(0);
+});
+
+test('관통 사격 특성 1(밀쳐내기): 벽에 밀어붙인 적은 기절한다', () => {
+  const w = ranger(['H..m#', '.....']);
+  const m = w.entities[1];
+  Object.assign(w, { ranks: { ...w.ranks, cleave: 3 }, traits: { ...w.traits, cleave: 1 } });
+  m.hp = m.maxHp = 1000;
+  run(w, 20, [{ type: 'skill', x: 4.5, z: 0.5 }]);
+  expect(m.stunT).toBeGreaterThan(1);
+});
+
+test('관통 사격 특성 2: 세 갈래', () => {
+  const w = ranger(['H.......']);
+  Object.assign(w, { ranks: { ...w.ranks, cleave: 3 }, traits: { ...w.traits, cleave: 2 } });
+  step(w, [{ type: 'skill', x: 7.5, z: 0.5 }]);
+  expect(w.shots.filter((s) => s.kind === 'pierce').length).toBe(3);
+});
+
+test('관통 사격 5단계: 한 발이 더 뒤따른다', () => {
+  const w = ranger(['H.......']);
+  w.ranks.cleave = 5;
+  step(w, [{ type: 'skill', x: 7.5, z: 0.5 }]);
+  const shots = w.shots.filter((s) => s.kind === 'pierce');
+  expect(shots.length).toBe(2);
+  expect(shots.filter((s) => s.wait).length).toBe(1);
+});
+
+test('관통 사격이 사슬 문을 연다', () => {
+  const w = ranger(['H..D..', '######']);
+  run(w, 30, [{ type: 'skill', x: 5.5, z: 0.5 }]);
+  expect(w.gates[0].open).toBe(true);
+});

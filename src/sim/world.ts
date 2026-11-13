@@ -2,7 +2,7 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, rand, randSlot, rollGear, walk, waypoints, wear, worn } from './core';
-import { shaft } from './ranger';
+import { pierce, shaft } from './ranger';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
@@ -182,6 +182,7 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'shout') return wiz ? lightning(w, hero, c.x, c.z) : shout(w, hero);
   if (c.type === 'throw') return wiz ? ward(w, hero) : throwAxe(w, hero, c.x, c.z);
   if (c.type === 'skill' && wiz) return fireball(w, hero, c.x, c.z);
+  if (c.type === 'skill' && w.cls === 'ranger') return pierce(w, hero, c.x, c.z);
   w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
   if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
   if (c.type === 'open') return goToChest(w, hero, c.chestId);
