@@ -608,7 +608,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   // 닫힌 사슬 문에 처음 다가가면 여는 법을 알린다
   if (!shownGateHint && world.gates.some((g) => !g.open && Math.hypot(g.x + 0.5 - hero.x, g.z + 0.5 - hero.z) < 3.5)) {
     shownGateHint = true;
-    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 화살로 사슬을 끊으세요' }[world.cls]);
+    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 관통 사격(Q)으로 사슬을 끊으세요' }[world.cls]);
   }
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);

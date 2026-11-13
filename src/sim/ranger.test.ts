@@ -218,3 +218,14 @@ test('궁수의 스페이스는 구르기', () => {
   expect(w.entities[0].phase).toBe('roll');
   expect(w.rollCd).toBeGreaterThan(0);
 });
+
+test('보스·해골 왕은 덫에 묶이지 않고 피해만 입는다(5단계 주변 묶기도)', () => {
+  for (const map of [['H...M...', '........'], ['H...K...', '........']]) {
+    const w = ranger(map);
+    const big = w.entities[1];
+    w.ranks.dash = 5;
+    run(w, 2, [{ type: 'dash', x: big.x, z: big.z }]);
+    expect(big.hp).toBeLessThan(big.maxHp);
+    expect(big.stunT).toBe(0);
+  }
+});

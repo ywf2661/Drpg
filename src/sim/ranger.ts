@@ -78,7 +78,7 @@ export function trap(w: World, hero: Entity, x?: number, z?: number) {
   w.dashCd = trapStat(w).cd;
 }
 
-// 덫 한 틱: 적이 밟으면 피해 + 묶임. 폭발 덫(특성 1)은 주변 적도 피해, 5단계는 주변 적도 묶는다
+// 덫 한 틱: 적이 밟으면 피해 + 묶임(보스·해골 왕은 피해만). 폭발 덫(특성 1)은 주변 적도 피해, 5단계는 주변 적도 묶는다
 export function tickTraps(w: World, hero: Entity) {
   w.traps = w.traps.filter((t) => {
     const prey = foes(w, hero).find((e) => Math.hypot(e.x - t.x, e.z - t.z) <= TRAP.trigger);
@@ -89,7 +89,8 @@ export function tickTraps(w: World, hero: Entity) {
     for (const e of foes(w, hero)) {
       const around = e !== prey && Math.hypot(e.x - t.x, e.z - t.z) <= TRAP.radius;
       if (e === prey || (around && w.traits.dash === 1)) skillHit(w, e, dmg);
-      if (e === prey || (around && mastered(w, 'dash'))) stun(e, st.hold);
+      const big = e.kind === 'boss' || e.kind === 'king'; // 보스·해골 왕은 덫을 부수고 지나간다(묶이지 않는다)
+      if (!big && (e === prey || (around && mastered(w, 'dash')))) stun(e, st.hold);
     }
     return false;
   });
