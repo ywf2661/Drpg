@@ -82,3 +82,56 @@ test('관통 사격이 사슬 문을 연다', () => {
   run(w, 30, [{ type: 'skill', x: 5.5, z: 0.5 }]);
   expect(w.gates[0].open).toBe(true);
 });
+
+test('덫: 밟은 적이 피해를 입고 묶이고, 덫은 사라진다', () => {
+  const w = ranger(['H......m', '........']);
+  const m = w.entities[1];
+  run(w, 1, [{ type: 'dash', x: 3.5, z: 0.5 }]);
+  expect(w.traps.length).toBe(1);
+  expect(w.dashCd).toBeGreaterThan(0);
+  let caught = false;
+  for (let i = 0; i < 200 && !caught; i++) {
+    step(w, []);
+    caught = m.stunT > 0;
+  }
+  expect(caught).toBe(true);
+  expect(m.hp).toBeLessThan(m.maxHp);
+  expect(w.traps.length).toBe(0);
+});
+
+test('덫은 최대 2개, 넘으면 오래된 것부터 사라진다', () => {
+  const w = ranger(['H.......']);
+  for (const x of [2.5, 3.5, 4.5]) {
+    w.dashCd = 0;
+    step(w, [{ type: 'dash', x, z: 0.5 }]);
+  }
+  expect(w.traps.map((t) => t.x)).toEqual([3.5, 4.5]);
+});
+
+test('덫 5단계: 밟은 적 주변의 적도 묶인다(1단계는 밟은 적만)', () => {
+  for (const rank of [1, 5]) {
+    const w = ranger(['H...mm..', '........']);
+    const [, a, b] = w.entities;
+    w.ranks.dash = rank;
+    run(w, 2, [{ type: 'dash', x: a.x, z: a.z }]);
+    expect(a.stunT).toBeGreaterThan(0);
+    expect(b.stunT > 0).toBe(rank === 5);
+  }
+});
+
+test('덫 특성 1(폭발 덫): 주변 적도 피해를 입는다', () => {
+  const w = ranger(['H...mm..', '........']);
+  const [, a, b] = w.entities;
+  Object.assign(w, { ranks: { ...w.ranks, dash: 3 }, traits: { ...w.traits, dash: 1 } });
+  run(w, 2, [{ type: 'dash', x: a.x, z: a.z }]);
+  expect(b.hp).toBeLessThan(b.maxHp);
+});
+
+test('덫은 주인공을 묶지 않는다, 새 층에는 덫이 없다', () => {
+  const w = ranger(['H.......']);
+  const hero = w.entities[0];
+  run(w, 5, [{ type: 'dash', x: hero.x, z: hero.z }]);
+  expect(hero.stunT).toBe(0);
+  expect(w.traps.length).toBe(1);
+  expect(ranger(['H']).traps).toEqual([]);
+});

@@ -2,7 +2,7 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, rand, randSlot, rollGear, walk, waypoints, wear, worn } from './core';
-import { pierce, shaft } from './ranger';
+import { pierce, shaft, tickTraps, trap } from './ranger';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
@@ -44,7 +44,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false }));
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], grid, entities, rng: seed, stairs, toStairs: false, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], grid, entities, rng: seed, stairs, toStairs: false, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -62,6 +62,7 @@ export function step(w: World, cmds: Command[]): void {
     tickWard(w, hero);
     tickStorm(w);
   }
+  if (w.cls === 'ranger') tickTraps(w, hero);
   for (const c of cmds) command(w, hero, c);
   if (hero.state === 'dead') w.spinT = 0;
   if (w.spinT > 0) spin(w, hero);
@@ -176,13 +177,21 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'learn') return learn(w, c.skill);
   if (c.type === 'trait') return pickTrait(w, c.skill, c.pick);
   if (hero.state === 'dead' || hero.phase !== 'none') return; // 돌진·구르기 중에는 물약 말고는 무시
-  const wiz = w.cls === 'wizard'; // 같은 명령, 직업마다 다른 스킬
-  if (c.type === 'roll') return wiz ? blink(w, hero, c.x, c.z) : rollStart(w, hero, c.x, c.z);
-  if (c.type === 'dash') return wiz ? frost(w, hero) : dashStart(w, hero, c.x, c.z);
-  if (c.type === 'shout') return wiz ? lightning(w, hero, c.x, c.z) : shout(w, hero);
-  if (c.type === 'throw') return wiz ? ward(w, hero) : throwAxe(w, hero, c.x, c.z);
-  if (c.type === 'skill' && wiz) return fireball(w, hero, c.x, c.z);
-  if (c.type === 'skill' && w.cls === 'ranger') return pierce(w, hero, c.x, c.z);
+  // 같은 명령, 직업마다 다른 스킬. 기사의 가르기(skill)는 아래에서 상자·계단 의도를 취소한 뒤
+  if (w.cls === 'wizard') {
+    if (c.type === 'roll') return blink(w, hero, c.x, c.z);
+    if (c.type === 'dash') return frost(w, hero);
+    if (c.type === 'shout') return lightning(w, hero, c.x, c.z);
+    if (c.type === 'throw') return ward(w, hero);
+    if (c.type === 'skill') return fireball(w, hero, c.x, c.z);
+  } else if (w.cls === 'ranger') {
+    if (c.type === 'dash') return trap(w, hero, c.x, c.z);
+    if (c.type === 'skill') return pierce(w, hero, c.x, c.z);
+  }
+  if (c.type === 'roll') return rollStart(w, hero, c.x, c.z);
+  if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
+  if (c.type === 'shout') return shout(w, hero);
+  if (c.type === 'throw') return throwAxe(w, hero, c.x, c.z);
   w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
   if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
   if (c.type === 'open') return goToChest(w, hero, c.chestId);
