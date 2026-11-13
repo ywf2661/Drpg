@@ -9,6 +9,7 @@ import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK
 
 export * from './rules';
 export { boltStat, fireStat, frostStat, wardStat } from './wizard';
+export { focusStat, pierceStat, rainStat, trapStat } from './ranger';
 export { attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, bagBlocked, bagFits, bagSpot, cleaveStat, dashStat, discardFromBag, equipFromBag, gainXp, gearDiff, gearSize, heroMax, isBetter, mastered, mod, moveInBag, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
