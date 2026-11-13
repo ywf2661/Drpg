@@ -130,13 +130,13 @@
       .doll-slot:hover, .doll-slot.sel { border-color: var(--gold-hi); box-shadow: inset 0 0 6px #000, 0 0 8px var(--gold); }
       .doll-slot.drop { border-color: #7fd07f; box-shadow: inset 0 0 6px #000, 0 0 12px #7fd07f; }
       #bag-grid { display: grid; grid-template: repeat(4, var(--c)) / repeat(10, var(--c)); width: max-content; margin: 0 auto; border: solid #3a2a1a; border-width: 0 1px 1px 0; outline: 1px solid var(--gold-lo); outline-offset: 2px; background: linear-gradient(#3a2a1a 1px, transparent 1px) 0 0 / var(--c) var(--c), linear-gradient(90deg, #3a2a1a 1px, transparent 1px) 0 0 / var(--c) var(--c), radial-gradient(ellipse at center, #1a120c, #0a0706); user-select: none; -webkit-user-select: none; }
-      .bag-item { position: relative; margin: 1px 0 0 1px; overflow: hidden; background: linear-gradient(#24303c, #161c24); border: 1px solid #4a3a26; cursor: grab; touch-action: none; }
+      .bag-item { position: relative; margin: 1px 0 0 1px; overflow: hidden; background: linear-gradient(#33241a, #1a120c); border: 1px solid #4a3a26; cursor: grab; touch-action: none; }
       .bag-item[data-q='1'] { border-color: var(--magic); }
       .bag-item[data-q='2'] { border-color: var(--rare); }
       .bag-item.sel { background: linear-gradient(#4a3618, #2a1e0e); }
       .bag-item.drag { z-index: 3; opacity: 0.85; cursor: grabbing; }
       .bag-item i { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px; background-size: 640px 40px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; mix-blend-mode: screen; } /* 아이콘의 검은 바탕을 칸 색에 녹인다 */
-      #bag-shadow { background: #4c84; pointer-events: none; }
+      #bag-shadow { background: #c9a14a33; pointer-events: none; }
       #bag-shadow.bad { background: #c334; }
       #bag-sel { min-height: 62px; margin-top: 8px; }
       #bag-sel > small, #bag-note { display: block; padding: 6px 0; color: var(--ink-dim); }
@@ -175,10 +175,10 @@
       #labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
       .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
-      .pop { position: fixed; z-index: 2; pointer-events: none; font-weight: 900; font-size: 15px; font-family: system-ui, sans-serif; color: #fff; text-shadow: 0 2px 0 #000, 0 0 4px #000; } /* 떠오르는 데미지 숫자 */
-      .pop.skill { font-size: 30px; color: #ffd23c; }
-      .pop.hurt { color: #ff5a4a; }
-      .pop.combo { font-size: 17px; color: #8fe6ff; }
+      .pop { position: fixed; z-index: 2; pointer-events: none; font-weight: 800; font-size: 16px; font-family: var(--serif); color: #f4ead6; text-shadow: 0 2px 0 #000, 0 0 4px #000, 1px 0 0 #000, -1px 0 0 #000; } /* 떠오르는 데미지 숫자(명조, 검은 테로 읽히게) */
+      .pop.skill { font-size: 30px; color: var(--gold-hi); text-shadow: 0 2px 0 #000, 0 0 4px #000, 0 0 12px #c9a14a; }
+      .pop.hurt { color: var(--blood-hi); }
+      .pop.combo { font-size: 17px; letter-spacing: 1px; color: #fff3d0; text-shadow: 0 2px 0 #000, 0 0 8px var(--blood-hi); }
       #sound-panel { position: fixed; right: 12px; top: 40px; z-index: 3; padding: 10px 12px; font-size: 13px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold-lo); border-radius: 3px; box-shadow: var(--frame); display: grid; gap: 6px; }
       #sound-panel label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
       #sound-panel input { accent-color: var(--gold); }

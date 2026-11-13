@@ -40,14 +40,14 @@ const bubbleMat = new THREE.ShaderMaterial({
 const bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), bubbleMat);
 bubble.renderOrder = 3;
 
-// 발밑 룬 고리(한 번만 그린다): 바깥·안쪽 고리와 그 사이의 룬 획
-function runeTexture(): THREE.CanvasTexture {
+// 발밑 룬 고리(한 번만 그린다): 바깥·안쪽 고리와 그 사이의 룬 획. 조준 원(render.ts)도 흰 획으로 빌려 쓴다
+export function runeTexture(stroke = 'rgba(170,220,255,1)'): THREE.CanvasTexture {
   const S = 128;
   const h = S / 2;
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const g = c.getContext('2d')!;
-  g.strokeStyle = 'rgba(170,220,255,1)';
+  g.strokeStyle = stroke;
   g.lineWidth = 3;
   g.beginPath();
   g.arc(h, h, h - 4, 0, Math.PI * 2);

@@ -10,6 +10,7 @@ import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
+import { runeTexture } from './ward';
 import { CAST_SHOW, loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -39,21 +40,49 @@ export function markMove(x: number, z: number) {
   marker.position.set(x, 0.04, z);
   markT = MARK;
 }
-// 스킬 조준 궤적(롤의 일반 시전): 발밑에서 뻗는 반투명 띠 + 끝의 화살촉. 길이·폭은 setAim이 정한다(+z 방향 기준 단위 도형)
+// 스킬 조준 궤적(중세풍): 직선은 발밑에서 뻗는 금빛 띠 위로 쉐브론(»)이 끝 쪽으로 흐르고 끝에 미늘 화살촉,
+// 원은 천천히 도는 금빛 룬 마법진, 사거리는 점선 고리. 횃불빛처럼 더해 그린다(+z 방향 기준 단위 도형, 크기는 setAim)
 const AIM_HEAD = 0.6; // 화살촉 길이(m)
-const aimMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.3, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide }); // 벽에 가려지지 않게 맨 위에
-const aimHeadMat = aimMat.clone();
-aimHeadMat.opacity = 0.6; // 끝(떨어지는 방향)은 더 밝게
-const aimBody = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5), aimMat);
-const aimHead = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.5, 0), new THREE.Vector2(0.5, 0), new THREE.Vector2(0, 1)])).rotateX(Math.PI / 2), aimHeadMat);
+const AIM_SEG = 0.5; // 쉐브론 한 칸의 길이(m)
+const AIM_GOLD = 0xf2c060;
+const aimGlow = (opacity: number, map?: THREE.Texture) =>
+  new THREE.MeshBasicMaterial({ color: AIM_GOLD, map, transparent: true, opacity, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }); // 벽에 가려지지 않게 맨 위에
+// 띠 한 칸(16×16 도트): 양쪽 가장자리 금줄 + 옅은 바탕 + 끝 쪽(캔버스 아래)을 가리키는 V
+function chevronTexture() {
+  const c = Object.assign(document.createElement('canvas'), { width: 16, height: 16 });
+  const g = c.getContext('2d')!;
+  g.fillStyle = 'rgba(255,255,255,0.12)';
+  g.fillRect(0, 0, 16, 16);
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.fillRect(0, 0, 1, 16);
+  g.fillRect(15, 0, 1, 16);
+  g.fillStyle = '#fff';
+  for (let i = 0; i < 6; i++) {
+    g.fillRect(2 + i, 3 + i, 2, 2);
+    g.fillRect(12 - i, 3 + i, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter; // 도트 그대로
+  t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+const chevrons = chevronTexture();
+// 띠의 v: 주인공 쪽 1 → 끝 0. offset을 늘리면 무늬가 끝 쪽으로 흐른다
+const aimBody = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5), aimGlow(0.55, chevrons));
+// 미늘 화살촉: 끝(0, 1), 양 미늘(±0.5, 0), 가운데 홈(0, 0.3)
+const aimHead = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.5, 0), new THREE.Vector2(0, 0.3), new THREE.Vector2(0.5, 0), new THREE.Vector2(0, 1)])).rotateX(Math.PI / 2), aimGlow(0.8));
 const aimLine = new THREE.Group().add(aimBody, aimHead);
-const aimDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), aimMat); // 떨어질 자리(반경 1 → scale)
-const aimEdge = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), aimHeadMat);
-const rangeMat = aimMat.clone();
-rangeMat.opacity = 0.18;
-const aimRange = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96).rotateX(-Math.PI / 2), rangeMat); // 주인공 둘레의 사거리
-const aimCircle = new THREE.Group().add(aimDisc, aimEdge);
-for (const m of [aimLine, aimBody, aimHead, aimDisc, aimEdge, aimRange]) m.renderOrder = 5;
+const aimDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), aimGlow(0.1)); // 떨어질 자리(반경 1 → scale)
+const aimRune = new THREE.Mesh(new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2), aimGlow(0.85, runeTexture('#fff')));
+// 사거리: 점선 고리(72칸 중 짝수 칸만 그은 1px 선)
+const dashes: number[] = [];
+for (let i = 0; i < 72; i += 2) for (const k of [i, i + 1]) dashes.push(Math.cos((k / 72) * Math.PI * 2), 0, Math.sin((k / 72) * Math.PI * 2));
+const aimRange = new THREE.LineSegments(
+  new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(dashes, 3)),
+  new THREE.LineBasicMaterial({ color: AIM_GOLD, transparent: true, opacity: 0.45, depthWrite: false, depthTest: false, toneMapped: false, blending: THREE.AdditiveBlending }),
+);
+const aimCircle = new THREE.Group().add(aimDisc, aimRune);
+for (const m of [aimLine, aimBody, aimHead, aimDisc, aimRune, aimRange]) m.renderOrder = 5;
 aimLine.visible = aimCircle.visible = aimRange.visible = false;
 export type AimGuide =
   | { kind: 'line'; x: number; z: number; dx: number; dz: number; len: number; width: number } // (x, z)에서 단위 방향 (dx, dz)로 len m, 폭 width m
@@ -62,19 +91,24 @@ export type AimGuide =
 export function setAim(a: AimGuide | null) {
   aimLine.visible = a?.kind === 'line';
   aimCircle.visible = aimRange.visible = a?.kind === 'circle';
+  const t = performance.now() / 1000;
   if (a?.kind === 'circle') {
     aimCircle.position.set(a.x, 0.05, a.z);
     aimCircle.scale.set(a.r, 1, a.r);
+    aimRune.rotation.y = t * 0.7;
     aimRange.position.set(a.cx, 0.04, a.cz);
     aimRange.scale.set(a.range, 1, a.range);
+    aimRange.rotation.y = -t * 0.15; // 점선이 천천히 돈다
   }
   if (a?.kind !== 'line') return;
-  const body = Math.max(0.01, a.len - AIM_HEAD);
+  const body = Math.max(0.01, a.len - AIM_HEAD * 0.7); // 화살촉 홈까지 띠가 들어간다
   aimLine.position.set(a.x, 0.05, a.z);
   aimLine.rotation.y = Math.atan2(a.dx, a.dz);
   aimBody.scale.set(a.width, 1, body);
+  chevrons.repeat.set(1, body / AIM_SEG);
+  chevrons.offset.y = (t * 1.6) % 1;
   aimHead.scale.set(a.width * 1.8, 1, AIM_HEAD);
-  aimHead.position.z = body;
+  aimHead.position.z = a.len - AIM_HEAD;
 }
 let sprites: Sprite[] = [];
 let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
