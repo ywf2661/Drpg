@@ -378,8 +378,8 @@ def flame():
     pack('flame', frames, {'flame': (len(ims), ms, 'looped')}, FLAME_SCALE, 1)
 
 
-def effect(name, src, dirs=8, scale=SCALE, ms=None):
-    # FLARE 기술 효과('power' 동작, 8방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
+def effect(name, src, dirs=8, scale=SCALE, ms=None, first=0):
+    # FLARE 기술 효과('power' 동작, 8방향. first = 쓸 첫 방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
     # — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
     sh = sheet(f'powers/{src}')
     a = sh.anims['power']
@@ -387,7 +387,7 @@ def effect(name, src, dirs=8, scale=SCALE, ms=None):
     frames = {}
     for d in range(dirs):
         for i in range(n):
-            x, y, w, h, ox, oy = a['rects'][(i, d)]
+            x, y, w, h, ox, oy = a['rects'][(i, d + first)]
             frames[('fly' if name == 'arrow' else name, d, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
     x0 = min(min(o[0] for _, o in frames.values()), FOOT[0])
     y0 = min(min(o[1] for _, o in frames.values()), FOOT[1])
@@ -487,7 +487,7 @@ if __name__ == '__main__':
     effect('blink', 'sparkle', dirs=1, scale=0.28)  # 순간이동
     effect('heal', 'heal', dirs=1, scale=0.33)  # 치유
     # 궁수
-    effect('trap', 'bear_trap', dirs=1, scale=0.35)  # 덫: 프레임 0 = 벌린 덫(놓인 동안), 0→3 = 닫힘
+    effect('trap', 'bear_trap', dirs=1, scale=0.35, first=2)  # 덫(정면 방향): 프레임 0 = 벌린 덫(놓인 동안), 0→3 = 닫힘
     effect('stuck', 'arrow_stuck')  # 화살비: 땅에 꽂힌 화살(8방향, 3초)
     hero()
     tiles()
