@@ -36,9 +36,10 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead' && ok(e.x, e.z)).sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
   const wiz = w.cls === 'wizard';
+  const rng = w.cls === 'ranger';
   if (skills && w.points > 0) {
-    // 포인트는 가장 낮은 단계부터(같으면 기사: 가르기 → 도끼 → 함성 → 돌진, 마법사: 화염구 → 낙뢰 → 서리 → 방패)
-    const order: SkillName[] = wiz ? ['cleave', 'shout', 'dash', 'throw'] : ['cleave', 'throw', 'shout', 'dash'];
+    // 포인트는 가장 낮은 단계부터(같으면 기사: 가르기 → 도끼 → 함성 → 돌진, 마법사: 화염구 → 낙뢰 → 서리 → 방패, 궁수: 관통 → 화살비 → 덫 → 집중)
+    const order: SkillName[] = wiz || rng ? ['cleave', 'shout', 'dash', 'throw'] : ['cleave', 'throw', 'shout', 'dash']; // 궁수: 관통 → 화살비 → 덫 → 집중
     cmds.push({ type: 'learn', skill: order.reduce((a, b) => (w.ranks[b] < w.ranks[a] ? b : a)) });
   }
   // 예고된 위험 구역 안이면 다른 일은 접고 바깥으로 걸어 나간다
@@ -50,7 +51,7 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
   // 평타를 준비 중인 적이 닿을 거리거나 화살·화염구가 코앞이면 구른다(적 반대쪽, 구르는 동안 무적)
   const swings = foes.filter((e) => e.state === 'attack' && winding(e) && d(e.x, e.z) < RANGE + 0.3);
   if (dodge && swings.length && hero.phase === 'none') {
-    // 받아치기가 되면 가르기(마법사는 서리 고리)로 끊고, 아니면 맞기 직전에 구른다(순간이동)
+    // 받아치기가 되면 가르기(마법사는 서리 고리, 궁수는 관통 사격)로 끊고, 아니면 맞기 직전에 구른다(순간이동)
     if (skills && !wiz && w.skillCd <= 0) return [...cmds, { type: 'skill', x: swings[0].x, z: swings[0].z }];
     if (skills && wiz && w.dashCd <= 0) return [...cmds, { type: 'dash' }];
     if (w.rollCd <= 0 && swings.some((e) => e.attackT >= TELL[e.kind]! - 0.3)) return [...cmds, { type: 'roll' }];
@@ -64,8 +65,19 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
     if (skills && (big ?? t) && w.shoutCd <= 0) cmds.push({ type: 'shout', x: (big ?? t)!.x, z: (big ?? t)!.z });
     if (skills && w.dashCd <= 0 && (near(2.5) >= 2 || (big?.phase === 'windup' && d(big.x, big.z) < 3))) cmds.push({ type: 'dash' });
     if (skills && w.throwCd <= 0 && (hero.hp < hero.maxHp * 0.7 || near(2) >= 2)) cmds.push({ type: 'throw' });
+  } else if (rng) {
+    // 궁수: 관통 사격은 가까운 적에게, 다가오는 적 앞에 덫, 화살비는 보스·해골 왕 또는 가까운 적에게, 적이 보이면 집중.
+    // 붙으면 굴러서 거리를 벌린다(조준 없는 구르기 = 가까운 적의 반대쪽)
+    const t = foes.find((e) => d(e.x, e.z) < 8);
+    const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 8);
+    const close = foes.find((e) => d(e.x, e.z) < 4);
+    if (skills && t && w.skillCd <= 0) cmds.push({ type: 'skill', x: t.x, z: t.z });
+    if (skills && close && w.dashCd <= 0) cmds.push({ type: 'dash', x: close.x, z: close.z });
+    if (skills && (big ?? t) && w.shoutCd <= 0) cmds.push({ type: 'shout', x: (big ?? t)!.x, z: (big ?? t)!.z });
+    if (skills && t && w.throwCd <= 0) cmds.push({ type: 'throw' });
+    if (dodge && w.rollCd <= 0 && hero.phase === 'none' && near(2) >= 1) return [...cmds, { type: 'roll' }];
   } else if (near(2) >= 2) cmds.push({ type: 'skill' });
-  if (skills && !wiz) {
+  if (skills && w.cls === 'knight') {
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
     if (w.shoutCd <= 0 && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
     const shooter = foes.find((e) => (e.kind === 'archer' || e.kind === 'mage') && d(e.x, e.z) > 2.5 && d(e.x, e.z) < 8);
@@ -83,8 +95,8 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
       .filter((o) => o.side)
       .sort((a, b) => d(a.g.x + 0.5, a.g.z + 0.5) - d(b.g.x + 0.5, b.g.z + 0.5));
     const door = doors[0];
-    const opener = wiz ? 'skill' : 'throw'; // 마법사는 화염구로 연다
-    if (door && d(door.g.x + 0.5, door.g.z + 0.5) < 2 && w[wiz ? 'skillCd' : 'throwCd'] <= 0) cmds.push({ type: opener, x: door.g.x + 0.5, z: door.g.z + 0.5 });
+    const opener = wiz || rng ? 'skill' : 'throw'; // 마법사는 화염구, 궁수는 관통 사격으로 연다
+    if (door && d(door.g.x + 0.5, door.g.z + 0.5) < 2 && w[opener === 'skill' ? 'skillCd' : 'throwCd'] <= 0) cmds.push({ type: opener, x: door.g.x + 0.5, z: door.g.z + 0.5 });
     else if (door) cmds.push({ type: 'move', x: door.side![0] + 0.5, z: door.side![1] + 0.5 });
   } else if (w.stairs) cmds.push({ type: 'move', x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5 });
   return cmds;

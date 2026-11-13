@@ -27,3 +27,16 @@ test('마법사 봇도 5층까지 깨지만 여러 번 죽고, 스킬 없이는 
   expect(deaths(standing)).toBeGreaterThan(deaths(withSkills) + 30); // 지금 111
   expect(play(false).filter((r) => r.cleared).length).toBeLessThanOrEqual(3); // 마력탄만으로는 못 깬다. 지금 0
 });
+
+test('궁수 봇도 5층까지 깨지만 여러 번 죽고, 스킬 없이는 못 깨며, 피하지 않으면 훨씬 어렵다', { timeout: 300_000 }, () => {
+  const play = (skills: boolean, dodge = true) => Array.from({ length: 30 }, (_, i) => playthrough(i + 1, skills, dodge, 'ranger'));
+  const deaths = (rs: ReturnType<typeof play>) => rs.reduce((a, r) => a + r.deaths, 0);
+  const withSkills = play(true);
+  const standing = play(true, false);
+  const bare = play(false);
+  expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(25); // 지금 26
+  expect(deaths(withSkills)).toBeGreaterThanOrEqual(30); // 지금 45(기사 42, 마법사 47)
+  expect(deaths(withSkills)).toBeLessThanOrEqual(75);
+  expect(deaths(standing)).toBeGreaterThan(deaths(withSkills) + 30); // 붙어도 구르지 않으면 훨씬 어렵다. 지금 79
+  expect(bare.filter((r) => r.cleared).length).toBeLessThanOrEqual(3); // 화살만으로는 못 깬다. 지금 0
+});
