@@ -52,11 +52,14 @@ const shopItems = $('#shop-items');
 const shopSell = $('#shop-sell');
 const bagBtn = $('#bag-btn');
 const bagDlg = document.querySelector<HTMLDialogElement>('#bag')!;
+const DANGER = 0.35; // 체력이 이 비율 아래면 화면 가장자리가 붉어진다(낮을수록 짙게)
+const danger = $('#danger');
 const BOSS_BAR_RANGE = 12; // 보스와 이만큼 가까우면 상단 체력바(m)
 let shownGear = '';
 let shownBag = 0; // 층이 바뀌거나 보관함이 늘었는지 비교
 let shownBlocked = false; // '가득 찼습니다'는 밟은 순간 한 번만
 let shownLevel = 0;
+let shownGateHint = false; // 사슬 문 안내는 층마다 한 번
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
 type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; traits(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; newGame(): void };
@@ -358,8 +361,8 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
   auto.onchange = () => h.auto(auto.checked);
 }
 
-// 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, 닫으면(버튼·Esc) onLeave. 사고판 뒤에는 다시 불러 갱신한다
-export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void) {
+// 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, '다음 층으로'는 onLeave, '이 층에 남기'·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다
+export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void) {
   const next = (t: number) => (t < 4 ? `(${t + 1}단계)` : '(최고 단계)');
   const label: Record<ShopItem, string> = {
     potion: `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`,
@@ -389,8 +392,13 @@ export function showShop(c: Wallet, onBuy: (item: ShopItem) => void, onSell: (i:
       return b;
     }),
   );
-  $('#shop-leave').onclick = () => shop.close();
-  shop.onclose = onLeave;
+  let stay = true; // Esc는 되돌릴 수 있는 쪽(남기)으로
+  $('#shop-leave').onclick = () => {
+    stay = false;
+    shop.close();
+  };
+  $('#shop-stay').onclick = () => shop.close();
+  shop.onclose = () => (stay ? onStay() : onLeave());
   if (!shop.open) shop.showModal();
 }
 
@@ -405,8 +413,10 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownBag = world.bag.length;
     shownBlocked = false;
     shownTraitHint.clear();
+    shownGateHint = false;
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
+  danger.style.opacity = String(hero.state === 'dead' ? 0 : Math.min(1, Math.max(0, 1 - hero.hp / hero.maxHp / DANGER) * 1.5)); // 약 12% 아래에서 가장 짙다
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
   levelLabel.textContent = `Lv ${world.level}` + (world.points ? ` · 스킬 +${world.points}` : '');
   if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}`);
@@ -453,6 +463,11 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   const blocked = bagBlocked(world);
   if (blocked && !shownBlocked && !worn) say('보관함에 자리가 없습니다');
   shownBlocked = blocked;
+  // 닫힌 사슬 문에 처음 다가가면 여는 법을 알린다
+  if (!shownGateHint && world.gates.some((g) => !g.open && Math.hypot(g.x + 0.5 - hero.x, g.z + 0.5 - hero.z) < 3.5)) {
+    shownGateHint = true;
+    say('사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요');
+  }
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
   bossBar.hidden = !boss;

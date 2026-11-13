@@ -30,6 +30,8 @@ let entry: Carry = START; // 이 층에 들어올 때의 물약·장비·레벨(
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(다음 층으로 가져갈 상태)
+let stayed = false; // 상점에서 '이 층에 남기'를 골랐다: 계단에서 벗어났다가 다시 와야 상점이 열린다
+const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그림(3×3칸)의 바깥
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
 function makeFloor(n: number, carry: Carry): World {
@@ -52,6 +54,7 @@ function makeFloor(n: number, carry: Carry): World {
 function enterFloor(n: number, carry: Carry) {
   floor = n;
   lostGold = null;
+  stayed = false;
   entry = carryOf(carry);
   saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
@@ -85,6 +88,13 @@ function openShop() {
         const c = shopping!;
         shopping = null;
         enterFloor(floor + 1, c);
+      },
+      () => {
+        // 남기: 사고판 것은 그대로 가지고 이 층에서 계속한다
+        const c = shopping!;
+        shopping = null;
+        stayed = true;
+        Object.assign(world, { potions: c.potions, gear: { ...c.gear }, gold: c.gold, bag: [...c.bag], toStairs: false });
       },
     );
   render();
@@ -245,7 +255,12 @@ requestAnimationFrame(function frame(now) {
     saveRun({ floor, ...entry, cycle, stats });
   }
   if (o === 'clear') clearRun(); // 다 깼으면 이어할 것이 없다
-  if (o === 'descend' && !shopping) openShop();
+  const [hero, st] = [world.entities[0], world.stairs];
+  if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY)) stayed = false;
+  if (o === 'descend' && !shopping) {
+    if (stayed) world.toStairs = false; // 계단 위에서 다시 눌러도 열리지 않는다
+    else openShop();
+  }
   heard = snapshot(world);
   draw(world, dt);
   drawAutomap(world);
