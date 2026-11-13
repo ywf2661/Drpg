@@ -1,7 +1,7 @@
 // 궁수: 화살(원거리 평타), 명사수, 관통 사격·덫·화살비·집중, 구르기
 import { expect, test } from 'vitest';
 import { gearName } from '../render/labels';
-import { createWorld, DT, heroMax, RAIN, RANGER, setLevel, step, type Command, type World } from './world';
+import { attackInterval, createWorld, DT, FOCUS, heroMax, RAIN, RANGER, setLevel, step, type Command, type World } from './world';
 import { hurt, makeEntity } from './core';
 
 function ranger(map: string[]): World {
@@ -178,4 +178,43 @@ test('화살비: 조준도 적도 없으면 쓰지 않는다', () => {
   step(w, [{ type: 'shout' }]);
   expect(w.shoutCd).toBe(0);
   expect(w.volleys).toEqual([]);
+});
+
+test('집중: 공격 간격이 1.4배 빨라지고, 끝나면 돌아온다', () => {
+  const w = ranger(['H.......']);
+  const hero = w.entities[0];
+  const base = attackInterval(w, hero);
+  step(w, [{ type: 'throw' }]);
+  expect(w.throwCd).toBeGreaterThan(0);
+  expect(attackInterval(w, hero)).toBeCloseTo(base / (1 + FOCUS.speed));
+  run(w, Math.ceil(FOCUS.time / DT) + 2);
+  expect(attackInterval(w, hero)).toBeCloseTo(base);
+});
+
+test('집중 특성 1(멀티샷): 집중 중 평타가 두 발', () => {
+  const w = ranger(['H....m..', '........']);
+  const m = w.entities[1];
+  m.stunT = 100;
+  Object.assign(w, { ranks: { ...w.ranks, throw: 3 }, traits: { ...w.traits, throw: 1 } });
+  step(w, [{ type: 'throw' }, { type: 'attack', targetId: 1 }]);
+  for (let i = 0; i < 120 && !w.shots.length; i++) step(w, []);
+  expect(w.shots.filter((s) => s.kind === 'shaft').length).toBe(2);
+});
+
+test('집중 5단계: 집중 중 처치하면 재사용 대기가 준다', () => {
+  const w = ranger(['H....m..', '........']);
+  const [hero, m] = w.entities;
+  w.ranks.throw = 5;
+  step(w, [{ type: 'throw' }]);
+  const cd = w.throwCd;
+  m.hp = 1;
+  hurt(w, m, 5, hero);
+  expect(w.throwCd).toBeCloseTo(cd - FOCUS.kill);
+});
+
+test('궁수의 스페이스는 구르기', () => {
+  const w = ranger(['H.......']);
+  step(w, [{ type: 'roll', x: 5, z: 0.5 }]);
+  expect(w.entities[0].phase).toBe('roll');
+  expect(w.rollCd).toBeGreaterThan(0);
 });

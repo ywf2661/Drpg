@@ -2,7 +2,7 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, rand, randSlot, rollGear, walk, waypoints, wear, worn } from './core';
-import { pierce, rain, shaft, tickRain, tickTraps, trap } from './ranger';
+import { focus, pierce, rain, shaft, tickRain, tickTraps, trap } from './ranger';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
@@ -44,7 +44,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false }));
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], grid, entities, rng: seed, stairs, toStairs: false, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, grid, entities, rng: seed, stairs, toStairs: false, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -53,6 +53,7 @@ export function step(w: World, cmds: Command[]): void {
   w.dashCd = Math.max(0, w.dashCd - DT);
   w.shoutCd = Math.max(0, w.shoutCd - DT);
   w.shoutT = Math.max(0, w.shoutT - DT);
+  w.focusT = Math.max(0, w.focusT - DT);
   w.throwCd = Math.max(0, w.throwCd - DT);
   w.rollCd = Math.max(0, w.rollCd - DT);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
@@ -191,6 +192,7 @@ function command(w: World, hero: Entity, c: Command) {
     if (c.type === 'dash') return trap(w, hero, c.x, c.z);
     if (c.type === 'skill') return pierce(w, hero, c.x, c.z);
     if (c.type === 'shout') return rain(w, hero, c.x, c.z);
+    if (c.type === 'throw') return focus(w, hero);
   }
   if (c.type === 'roll') return rollStart(w, hero, c.x, c.z);
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);

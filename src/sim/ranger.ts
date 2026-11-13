@@ -1,8 +1,8 @@
 // 궁수 스킬: 화살(평타), 관통 사격(Q), 덫(W), 화살비(E), 집중(R). 스페이스는 기사 구르기.
 // 스킬 칸·명령·재사용 필드·단계·특성은 기사·마법사와 같은 것을 쓴다(rules의 HeroClass 설명). 명사수는 core의 hurt
 import { walkable } from './path';
-import { DT, KNOCK, PIERCE, RAIN, RANGER, TRAIL, TRAP, type Entity, type Shot, type SkillName, type World } from './rules';
-import { dist, hurt, knock, mastered, roll, skillHit } from './core';
+import { DT, FOCUS, KNOCK, PIERCE, RAIN, RANGER, TRAIL, TRAP, type Entity, type Shot, type SkillName, type World } from './rules';
+import { dist, hurt, knock, mastered, rand, roll, skillHit } from './core';
 import { aimDir, blast, foes, nearest, stun } from './wizard';
 
 // 스킬 단계별 수치(1단계 = 기본값)
@@ -16,12 +16,19 @@ export const rainStat = (w: World) => ({
   radius: (RAIN.radius + 0.15 * extra(w, 'shout')) * (mastered(w, 'shout') ? RAIN.big : 1),
   mult: (RAIN.mult + 0.2 * extra(w, 'shout')) * (w.traits.shout === 2 ? RAIN.waveMult : 1), // 지속 화살비: 회당 약하게
 });
+export const focusStat = (w: World) => ({ cd: FOCUS.cd - extra(w, 'throw'), time: FOCUS.time + 0.5 * extra(w, 'throw') });
 export const pierceStat = (w: World) => ({ cd: PIERCE.cd - 0.3 * extra(w, 'cleave'), mult: PIERCE.mult + 0.25 * extra(w, 'cleave') });
 
-// 화살: 평타가 맞는 순간(swing) 대상 쪽으로 쏜다
+// 화살: 평타가 맞는 순간(swing) 대상 쪽으로 쏜다. 집중 중: 멀티샷(특성 1)은 조금 벌어진 두 발, 치명(특성 2)은 확률로 2배
 export function shaft(w: World, hero: Entity, t: Entity) {
   const d = dist(hero, t) || 1;
-  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: (t.x - hero.x) / d, dz: (t.z - hero.z) / d, dmg: roll(w, hero), left: RANGER.flight, kind: 'shaft' });
+  const [dx, dz] = [(t.x - hero.x) / d, (t.z - hero.z) / d];
+  const on = w.focusT > 0;
+  for (const a of on && w.traits.throw === 1 ? [-FOCUS.spread / 2, FOCUS.spread / 2] : [0]) {
+    const [c, sn] = [Math.cos(a), Math.sin(a)];
+    const crit = on && w.traits.throw === 2 && rand(w) < FOCUS.crit ? 2 : 1;
+    w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: dx * c + dz * sn, dz: dz * c - dx * sn, dmg: roll(w, hero) * crit, left: RANGER.flight, kind: 'shaft' });
+  }
 }
 
 // 비행 중인 화살(fly가 부른다): 처음 닿는 몬스터에게 피해. 계속 날아가면 true
@@ -118,4 +125,14 @@ export function tickRain(w: World, hero: Entity) {
     v.t = RAIN.every;
   }
   w.volleys = w.volleys.filter((v) => v.left > 0);
+}
+
+// 집중: 잠시 공격 속도가 빨라진다(core의 attackInterval). 멀티샷·치명은 shaft, 5단계는 core의 hurt
+export function focus(w: World, hero: Entity) {
+  if (w.throwCd > 0) return;
+  const st = focusStat(w);
+  w.focusT = st.time;
+  blast(w, 'heal', hero.x, hero.z);
+  w.casts++;
+  w.throwCd = st.cd;
 }
