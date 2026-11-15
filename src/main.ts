@@ -2,7 +2,7 @@
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
 import { $, initHud, showBag, showTitle, showTraits, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
-import { aim, aiming, cancelAim, commands, fireAim, hovered, initInput, pollInput, startAim, type AimCmd } from './input';
+import { aim, aiming, amoving, cancelAim, commands, fireAim, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels } from './render/labels';
@@ -297,6 +297,7 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyE') skillKey('shout');
   else if (e.code === 'KeyR') (ended() ? restart() : skillKey('throw'));
   else if (e.code === 'Escape') cancelAim();
+  else if (e.code === 'KeyA' && !e.ctrlKey && !e.metaKey && world.entities[0].state !== 'dead') startAmove(); // 공격 이동: 다음 좌클릭 지점으로
   else if (e.code === 'Space') (e.preventDefault(), roll(true));
   else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
@@ -322,7 +323,7 @@ requestAnimationFrame(function frame(now) {
   pollInput(world, dt, paused);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : null);
-  renderer.domElement.classList.toggle('aiming', !!aiming);
+  renderer.domElement.classList.toggle('aiming', !!aiming || amoving);
   if (paused || hitstop > 0) acc = 0; // 타격 멈춤 동안은 sim이 서 있다(명령은 큐에 남는다)
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
   const events = soundEvents(heard, world);

@@ -88,16 +88,17 @@ test('벽을 돌아서 이동하고 한 번도 벽 칸에 들어가지 않는다
   expect([hero.x, hero.z]).toEqual([4.5, 1.5]);
 });
 
-test('잘못된 move 명령은 무시한다 (벽, 맵 밖, NaN)', () => {
+test('잘못된 move 명령(NaN)은 무시하고, 벽·맵 밖은 그쪽으로 갈 수 있는 데까지 간다', () => {
   const w = createWorld(1, ['.#..', '.H..', '....']);
   const hero = w.entities[0];
-  run(w, 10, [
-    { type: 'move', x: 1.5, z: 0.5 },
-    { type: 'move', x: -3, z: 1.5 },
-    { type: 'move', x: 99, z: 99 },
-    { type: 'move', x: Number.NaN, z: 1.5 },
-  ]);
+  run(w, 10, [{ type: 'move', x: Number.NaN, z: 1.5 }]);
   expect(hero).toMatchObject({ x: 1.5, z: 1.5, state: 'idle', path: [] });
+  run(w, 120, [{ type: 'move', x: 99, z: 99 }]);
+  expect(hero.x).toBeGreaterThan(2.5);
+  expect(hero.z).toBeGreaterThan(2);
+  run(w, 120, [{ type: 'move', x: -3, z: 2.5 }]);
+  expect(hero.x).toBeLessThan(1);
+  expect(w.grid.blocked[Math.floor(hero.z) * w.grid.w + Math.floor(hero.x)]).toBe(0);
 });
 
 test('겹친 엔티티는 서로 밀어낸다', () => {

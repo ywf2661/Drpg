@@ -205,7 +205,7 @@ export function blink(w: World, hero: Entity, x?: number, z?: number) {
   let k = 0;
   while (k + 0.1 <= max && walkable(w.grid, Math.floor(hero.x + dx * (k + 0.1)), Math.floor(hero.z + dz * (k + 0.1)))) k += 0.1;
   blast(w, 'blink', hero.x, hero.z);
-  Object.assign(hero, { x: hero.x + dx * k, z: hero.z + dz * k, phase: 'roll', phaseT: BLINK.guard * ROLL.speed, dx: 0, dz: 0, state: 'idle', path: [], attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
+  Object.assign(hero, { x: hero.x + dx * k, z: hero.z + dz * k, phase: 'roll', phaseT: BLINK.guard * ROLL.speed, dx: 0, dz: 0, state: 'idle', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   blast(w, 'blink', hero.x, hero.z);
-  Object.assign(w, { rollCd: BLINK.cd, opening: null, toStairs: false });
+  w.rollCd = BLINK.cd;
 }

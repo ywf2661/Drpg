@@ -28,8 +28,11 @@ export let hovered: number | null = null;
 export type AimCmd = 'skill' | 'dash' | 'shout' | 'throw'; // 조준할 수 있는 스킬 명령(Q W E R)
 export let aiming: AimCmd | null = null;
 let fire = false; // 조준 중 좌클릭: 다음 pollInput에서 발사
-export const startAim = (s: AimCmd) => (aiming = s);
-export const cancelAim = () => (aiming = null);
+// 공격 이동(스타크래프트의 A): A를 누른 뒤 좌클릭한 곳으로 가면서 가까운 적을 공격. 우클릭·Esc에 취소
+export let amoving = false;
+export const startAim = (s: AimCmd) => ((amoving = false), (aiming = s));
+export const startAmove = () => ((aiming = null), (amoving = true));
+export const cancelAim = () => ((aiming = null), (amoving = false));
 // 조준한 스킬을 커서 쪽으로 쓴다(마우스가 없으면 sim의 자동 조준)
 export function fireAim() {
   if (aiming) commands.push({ type: aiming, ...(aim() ?? {}) });
@@ -51,6 +54,7 @@ export function initInput() {
       else if (e.button === 2) aiming = null; // 취소(가르기는 나가지 않는다)
       return;
     }
+    if (amoving && e.button !== 0) return void (amoving = false);
     if (e.button === 2) {
       setPointer(e);
       ray.setFromCamera(pointer, camera);
@@ -76,7 +80,7 @@ function setPointer(e: PointerEvent) {
 // paused: 창을 보는 동안은 명령을 쌓지 않고 누름도 푼다(닫은 뒤 옛 지점으로 걸어가지 않게)
 export function pollInput(world: World, dt: number, paused: boolean) {
   if (paused) {
-    held = clicked = fire = false;
+    held = clicked = fire = amoving = false;
     aiming = null;
     hovered = hoveredAt = null;
     return;
@@ -98,8 +102,9 @@ export function pollInput(world: World, dt: number, paused: boolean) {
     const chest = id === null ? pickChest(world) : null;
     if (id !== null) commands.push({ type: 'attack', targetId: id });
     else if (chest !== null) commands.push({ type: 'open', chestId: chest });
-    else if (moveToRay() && walkable(world.grid, Math.floor(hit.x), Math.floor(hit.z))) markMove(hit.x, hit.z); // 누른 순간 그 자리에 표시(끌고 있는 동안은 다시 띄우지 않는다)
-    if (id !== null || chest !== null) held = false; // 몬스터·상자 클릭은 이동 반복을 시작하지 않는다
+    else if (moveToRay(amoving ? 'amove' : 'move') && walkable(world.grid, Math.floor(hit.x), Math.floor(hit.z))) markMove(hit.x, hit.z); // 누른 순간 그 자리에 표시(끌고 있는 동안은 다시 띄우지 않는다)
+    if (id !== null || chest !== null || amoving) held = false; // 몬스터·상자 클릭·공격 이동은 이동 반복을 시작하지 않는다
+    amoving = false;
   } else if (held && (repeatT -= dt) <= 0) {
     repeatT = REPEAT;
     ray.setFromCamera(pointer, camera);
@@ -115,9 +120,9 @@ export function aim(): { x: number; z: number } | null {
   return ray.ray.intersectPlane(chest, hit) ? { x: hit.x, z: hit.z } : null;
 }
 
-function moveToRay(): boolean {
+function moveToRay(type: 'move' | 'amove' = 'move'): boolean {
   if (!ray.ray.intersectPlane(ground, hit)) return false;
-  commands.push({ type: 'move', x: hit.x, z: hit.z });
+  commands.push({ type, x: hit.x, z: hit.z });
   return true;
 }
 

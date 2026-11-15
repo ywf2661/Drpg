@@ -1,5 +1,5 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
-import { findPath, walkable, type Cell } from './path';
+import { findPath, walkable, type Cell, type Grid } from './path';
 import { AFFIXES, ARCHER, FOCUS, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -296,6 +296,37 @@ export const waypoints = (cells: Cell[], x: number, z: number): Point[] => [
   [x, z],
 ];
 
+// 두 점 사이를 몸 폭(양옆 margin)으로 지나갈 수 있는가(0.1m 간격 샘플)
+function openLine(g: Grid, ax: number, az: number, bx: number, bz: number, margin = 0.3) {
+  const d = Math.hypot(bx - ax, bz - az);
+  const n = Math.max(1, Math.ceil(d / 0.1));
+  const [sx, sz] = d > 1e-6 ? [(-(bz - az) / d) * margin, ((bx - ax) / d) * margin] : [0, 0];
+  for (let i = 0; i <= n; i++) {
+    const [x, z] = [ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n];
+    if (!walkable(g, Math.floor(x), Math.floor(z)) || !walkable(g, Math.floor(x + sx), Math.floor(z + sz)) || !walkable(g, Math.floor(x - sx), Math.floor(z - sz))) return false;
+  }
+  return true;
+}
+
+// e가 (x, z)로 가는 웨이포인트(길이 없으면 null). 주인공은 곧장 갈 수 있는 가장 먼 점으로 건너뛰어 직선으로 걷는다
+// ponytail: 주인공만 편다(경로 길이² × 직선 검사). 몬스터도 펴려면 검사 횟수를 줄일 것
+export function pathTo(w: World, e: Entity, x: number, z: number): Point[] | null {
+  const p = findPath(w.grid, cellOf(e), [Math.floor(x), Math.floor(z)]);
+  if (!p) return null;
+  const pts = waypoints(p, x, z);
+  if (e.kind !== 'hero') return pts;
+  const out: Point[] = [];
+  let [cx, cz] = [e.x, e.z];
+  for (let i = 0; i < pts.length; ) {
+    let j = pts.length - 1;
+    while (j > i && !openLine(w.grid, cx, cz, pts[j][0], pts[j][1])) j--;
+    out.push(pts[j]);
+    [cx, cz] = pts[j];
+    i = j + 1;
+  }
+  return out;
+}
+
 export function walk(w: World, e: Entity) {
   e.state = 'move';
   let budget = moveSpeed(w, e) * DT;
@@ -317,8 +348,7 @@ export function walk(w: World, e: Entity) {
     // 충돌로 밀려난 뒤 직선 이동이 벽을 가로지르면 현재 칸에서 목적지까지 경로를 다시 계산한다
     if (!walkable(w.grid, Math.floor(nx), Math.floor(nz))) {
       const [fx, fz] = e.path[e.path.length - 1];
-      const p = findPath(w.grid, cellOf(e), [Math.floor(fx), Math.floor(fz)]);
-      e.path = p ? waypoints(p, fx, fz) : [];
+      e.path = pathTo(w, e, fx, fz) ?? [];
       return;
     }
     e.x = nx;

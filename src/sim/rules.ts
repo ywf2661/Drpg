@@ -11,6 +11,7 @@ export type State = 'idle' | 'move' | 'attack' | 'dead';
 
 export type Command =
   | { type: 'move'; x: number; z: number }
+  | { type: 'amove'; x: number; z: number } // 공격 이동: 가면서 가까운 적을 공격하고, 다 잡으면 다시 간다
   | { type: 'attack'; targetId: number }
   | { type: 'drink' }
   | { type: 'skill'; x?: number; z?: number } // 가르기. (x, z)가 있으면 그쪽으로
@@ -117,6 +118,9 @@ export type World = {
   rng: number;
   stairs: Cell | null;
   toStairs: boolean;
+  amove: Point | null; // 공격 이동의 목적지(null = 아님)
+  queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
+  castT: number; // 스킬 시전으로 발이 묶인 남은 시간(초)
   props: Prop[];
   chests: Chest[];
   gates: Gate[];
@@ -249,6 +253,10 @@ export const METEOR = { cd: 7, first: 3, delay: 1.2, mult: 1.5 };
 export const RADIUS = 0.4;
 
 export const AGGRO = 8;
+
+// 공격 이동 중 적을 알아채는 거리(m). 벽 너머는 보지 못한다
+export const AMOVE = 7;
+export const CAST = 0.3; // 바로 나가는 스킬(던지기·함성·마법 등)을 쓰면 이만큼(초) 서서 시전한다. 가르기는 휘두르는 동안, 구르기는 시전을 끊는다
 
 export const HIT_AT = 0.4;
 

@@ -1,11 +1,11 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
-import { findPath, walkable, type Cell, type Grid } from './path';
-import { attackInterval, bagSpot, canHit, cellOf, damage, dist, dropGold, face, isBetter, makeEntity, rand, randSlot, rollGear, walk, waypoints, wear, worn } from './core';
+import { walkable, type Cell, type Grid } from './path';
+import { attackInterval, bagSpot, canHit, clearLine, damage, dist, dropGold, face, isBetter, makeEntity, pathTo, rand, randSlot, rollGear, walk, wear, worn } from './core';
 import { focus, pierce, rain, shaft, tickRain, tickTraps, trap } from './ranger';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
-import { AGGRO, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { boltStat, fireStat, frostStat, wardStat } from './wizard';
@@ -45,7 +45,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false }));
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, grid, entities, rng: seed, stairs, toStairs: false, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, grid, entities, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -57,6 +57,7 @@ export function step(w: World, cmds: Command[]): void {
   w.focusT = Math.max(0, w.focusT - DT);
   w.throwCd = Math.max(0, w.throwCd - DT);
   w.rollCd = Math.max(0, w.rollCd - DT);
+  w.castT = Math.max(0, w.castT - DT);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
   w.combos = w.combos.filter((c) => (c.age += DT) <= COMBO.age);
   regen(w, hero);
@@ -68,7 +69,12 @@ export function step(w: World, cmds: Command[]): void {
     tickTraps(w, hero);
     tickRain(w, hero);
   }
+  if (w.queued && hero.phase === 'none') {
+    cmds = [w.queued, ...cmds]; // 구르기·돌진 중에 누른 이동·공격을 이제 따른다
+    w.queued = null;
+  }
   for (const c of cmds) command(w, hero, c);
+  advance(w, hero);
   if (hero.state === 'dead') w.spinT = 0;
   if (w.spinT > 0) spin(w, hero);
   for (const e of w.entities) {
@@ -181,8 +187,40 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
   if (c.type === 'learn') return learn(w, c.skill);
   if (c.type === 'trait') return pickTrait(w, c.skill, c.pick);
-  if (hero.state === 'dead' || hero.phase !== 'none') return; // 돌진·구르기 중에는 물약 말고는 무시
-  // 같은 명령, 직업마다 다른 스킬. 기사의 가르기(skill)는 아래에서 상자·계단 의도를 취소한 뒤
+  if (hero.state === 'dead') return;
+  const going = c.type === 'move' || c.type === 'amove' || c.type === 'attack' || c.type === 'open';
+  if (hero.phase !== 'none' || (going && (w.castT > 0 || (hero.state === 'attack' && hero.skill)))) {
+    // 돌진·구르기 중에는 물약 말고는 못 하고, 스킬 시전 중에는 못 움직인다. 이동·공격은 마지막 것을 기억했다가 끝나면 따른다
+    if (going) w.queued = c;
+    return;
+  }
+  if (!going) {
+    const cd = w.skillCd + w.dashCd + w.shoutCd + w.throwCd;
+    cast(w, hero, c);
+    if (hero.phase !== 'none') w.castT = 0; // 구르기·돌진은 시전을 끊는다
+    else if (w.skillCd + w.dashCd + w.shoutCd + w.throwCd > cd && !hero.skill && w.spinT <= 0) w.castT = CAST; // 스킬이 나갔다(재사용 대기가 돌기 시작): 서서 시전. 회오리는 돌면서 걷는다
+    return;
+  }
+  w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
+  w.amove = null; // 공격 이동도
+  if (c.type === 'open') return goToChest(w, hero, c.chestId);
+  w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
+  if (c.type === 'attack') {
+    const t = w.entities[c.targetId];
+    if (!t || t === hero || t.state === 'dead') return;
+    if (hero.state === 'attack' && hero.target !== t.id) {
+      hero.state = 'idle'; // 다른 대상으로 바꾸면 휘두르기 취소, 같은 대상 재클릭은 유지
+      hero.attackT = 0;
+    }
+    hero.target = t.id;
+    hero.repathT = 0; // 다음 act에서 즉시 경로 계산
+    return;
+  }
+  moveTo(w, hero, c);
+}
+
+// 같은 명령, 직업마다 다른 스킬. 가던 길·상자·계단은 쓴 뒤에 이어 간다
+function cast(w: World, hero: Entity, c: Command) {
   if (w.cls === 'wizard') {
     if (c.type === 'roll') return blink(w, hero, c.x, c.z);
     if (c.type === 'dash') return frost(w, hero);
@@ -199,35 +237,47 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
   if (c.type === 'shout') return shout(w, hero);
   if (c.type === 'throw') return throwAxe(w, hero, c.x, c.z);
-  w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
   if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
-  if (c.type === 'open') return goToChest(w, hero, c.chestId);
-  w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
-  if (c.type === 'attack') {
-    const t = w.entities[c.targetId];
-    if (!t || t === hero || t.state === 'dead') return;
-    if (hero.state === 'attack' && hero.target !== t.id) {
-      hero.state = 'idle'; // 다른 대상으로 바꾸면 휘두르기(가르기 포함) 취소, 같은 대상 재클릭은 유지
-      hero.attackT = 0;
-      hero.skill = false;
-    }
-    hero.target = t.id;
-    hero.repathT = 0; // 다음 act에서 즉시 경로 계산
-    return;
-  }
+}
+
+function moveTo(w: World, hero: Entity, c: Extract<Command, { type: 'move' | 'amove' }>) {
   let [x, z] = [c.x, c.z];
   const s = w.stairs;
   if (s && Math.abs(Math.floor(x) - s[0]) <= 1 && Math.abs(Math.floor(z) - s[1]) <= 1) {
     [x, z] = [s[0] + 0.5, s[1] + 0.5]; // 계단 그림의 구멍(계단 칸 주변 3×3) 어디를 눌러도 중심으로
     w.toStairs = true;
   }
-  const p = findPath(w.grid, cellOf(hero), [Math.floor(x), Math.floor(z)]);
+  // 벽·소품을 눌렀으면 주인공 쪽으로 당겨, 처음 나오는 걸을 수 있는 곳으로 간다
+  const d = Math.hypot(hero.x - x, hero.z - z);
+  for (let k = 0.25; k < d && !walkable(w.grid, Math.floor(x), Math.floor(z)); k += 0.25) [x, z] = [c.x + ((hero.x - c.x) * k) / d, c.z + ((hero.z - c.z) * k) / d];
+  const p = pathTo(w, hero, x, z);
   if (!p) return;
-  hero.path = waypoints(p, x, z);
+  hero.path = p;
   hero.target = null;
   hero.state = 'move'; // 휘두르는 중이었다면 취소
   hero.attackT = 0;
   hero.skill = false;
+  if (c.type === 'amove') w.amove = [x, z];
+}
+
+// 공격 이동: 대상이 없으면 가까운 적(AMOVE 안, 벽에 가리지 않은)을 대상으로 삼고, 적이 없으면 목적지로 다시 걷는다. 닿으면 끝
+function advance(w: World, hero: Entity) {
+  if (!w.amove || hero.state === 'dead' || hero.phase !== 'none') return;
+  const t = hero.target === null ? null : w.entities[hero.target];
+  if (t && t.state !== 'dead') return;
+  const near = w.entities
+    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= AMOVE && clearLine(w, hero, e))
+    .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+  if (near) {
+    hero.target = near.id;
+    hero.repathT = 0;
+    return;
+  }
+  if (hero.state === 'attack' || hero.path.length) return; // 마지막 휘두르기가 끝나고, 쫓던 길이 지워진 뒤에
+  const [x, z] = w.amove;
+  const p = Math.hypot(x - hero.x, z - hero.z) > 0.3 ? pathTo(w, hero, x, z) : null;
+  if (p) hero.path = p;
+  else w.amove = null;
 }
 
 // 상자 옆 걸을 수 있는 칸 중 가장 가까운 곳으로 간다
@@ -239,9 +289,9 @@ function goToChest(w: World, hero: Entity, id: number) {
     .filter(([x, z]) => walkable(w.grid, x, z))
     .sort((a, b) => Math.hypot(a[0] + 0.5 - hero.x, a[1] + 0.5 - hero.z) - Math.hypot(b[0] + 0.5 - hero.x, b[1] + 0.5 - hero.z));
   for (const cell of near) {
-    const p = findPath(w.grid, cellOf(hero), cell);
+    const p = pathTo(w, hero, cell[0] + 0.5, cell[1] + 0.5);
     if (!p) continue;
-    Object.assign(hero, { path: waypoints(p, cell[0] + 0.5, cell[1] + 0.5), target: null, state: 'move', attackT: 0, skill: false });
+    Object.assign(hero, { path: p, target: null, state: 'move', attackT: 0, skill: false });
     w.opening = id;
     return;
   }
@@ -281,14 +331,14 @@ function act(w: World, e: Entity) {
   if (e.kind === 'warrior' && slam(w, e, t)) return;
   if (e.kind === 'mage' && t) meteor(w, e, t);
   if (e.state === 'attack') return swing(w, e, t);
+  if (e.kind === 'hero' && w.castT > 0) return void (e.state = 'idle'); // 스킬 시전 중에는 서 있는다(가던 길은 그대로)
   if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {
     if (canHit(w, e, t) && e === w.entities[0] && w.spinT > 0) return void (e.state = 'idle'); // 회오리 중에는 평타 대신 돈다
     if (canHit(w, e, t)) return startSwing(e, t);
     if ((e.repathT -= DT) <= 0) {
       e.repathT = REPATH;
-      const p = findPath(w.grid, cellOf(e), cellOf(t));
-      e.path = p ? waypoints(p, t.x, t.z) : [];
+      e.path = pathTo(w, e, t.x, t.z) ?? [];
     }
   }
   if (e.path.length) walk(w, e);

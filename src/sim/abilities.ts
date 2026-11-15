@@ -3,9 +3,9 @@ import { findPath, walkable, type Cell } from './path';
 import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, FIREBALL, KING, KNOCK, MAGE, METEOR, PIERCE, RANGER, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit } from './wizard';
 import { arrowHit } from './ranger';
-import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, roll, shoutStat, skillHit, walk, waypoints } from './core';
+import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, pathTo, roll, shoutStat, skillHit, walk, waypoints } from './core';
 
-// 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 이동·계단 의도는 멈춘다
+// 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 가던 길은 휘두른 뒤에 이어 간다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
   if (w.skillCd > 0) return;
   if (w.traits.cleave === 1) {
@@ -14,7 +14,6 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
     if (hero.state === 'attack') Object.assign(hero, { state: 'idle', attackT: 0, skill: false });
     return;
   }
-  w.toStairs = false;
   if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
   else {
     const near = w.entities
@@ -22,7 +21,7 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
       .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
     if (near) face(hero, near);
   }
-  Object.assign(hero, { state: 'attack', attackT: 0, path: [], repathT: 0, skill: true }); // 공격 대상은 유지: 끝나면 이어서 친다
+  Object.assign(hero, { state: 'attack', attackT: 0, repathT: 0, skill: true }); // 공격 대상은 유지: 끝나면 이어서 친다
   w.skillCd = cleaveStat(w).cd;
 }
 
@@ -155,7 +154,7 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number) {
   w.dashes++;
 }
 
-// 구르기 시작: 조준점(없으면 가까운 적의 반대쪽, 적도 없으면 바라보는 쪽)으로. 휘두르기는 끊기고 공격 대상은 유지한다
+// 구르기 시작: 조준점(없으면 가까운 적의 반대쪽, 적도 없으면 바라보는 쪽)으로. 휘두르기는 끊기고 공격 대상·가던 목적지는 유지한다
 export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
   if (w.rollCd > 0) return;
   let [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
@@ -165,8 +164,8 @@ export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [2 * hero.x - near.x, 2 * hero.z - near.z] : [hero.x + dx, hero.z + dz];
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
-  Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: [], attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
-  Object.assign(w, { rollCd: ROLL.cd, opening: null, toStairs: false });
+  Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
+  w.rollCd = ROLL.cd;
 }
 
 // 구르기 한 틱: 벽에 막히면 제자리에서 구른다(무적 시간은 같다)
@@ -174,7 +173,9 @@ export function rollStep(w: World, hero: Entity) {
   const step = ROLL.speed * DT;
   const [nx, nz] = [hero.x + hero.dx * step, hero.z + hero.dz * step];
   if (walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];
-  if ((hero.phaseT -= step) <= 0) Object.assign(hero, { phase: 'none', state: 'idle' });
+  if ((hero.phaseT -= step) > 0) return;
+  const to = hero.path[0]; // 가던 목적지: 구른 자리에서 길을 다시 잡는다
+  Object.assign(hero, { phase: 'none', state: 'idle', path: (to && pathTo(w, hero, to[0], to[1])) ?? [] });
 }
 
 // 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해
