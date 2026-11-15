@@ -78,6 +78,12 @@
       #target { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
       #target span, #boss span { display: block; margin-bottom: 4px; letter-spacing: 1px; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
       #target.below { top: 62px; }
+      /* 정예: 특성 색 이름(◆ 장식)·테두리 빛·특성 설명 */
+      #target { --elite: var(--gold-hi); }
+      #target small { display: block; margin-top: 4px; font-size: 12px; color: var(--elite); text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+      #target.elite span { color: var(--elite); font-size: 16px; font-weight: bold; }
+      #target.elite span::before, #target.elite span::after { content: ' ◆ '; }
+      #target.elite .bar { outline-color: var(--elite); box-shadow: inset 0 2px 4px #000, 0 0 8px var(--elite); }
       #boss { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; color: var(--gold-hi); font-size: 16px; }
       #boss span::before, #boss span::after { content: ' ◆ '; color: var(--gold-lo); }
       #boss .bar { width: min(360px, 70vw); height: 12px; outline-color: var(--gold); }
@@ -195,7 +201,7 @@
   </head>
   <body>
     <div id="boss" hidden><span>미노타우르스</span><div class="bar"><i></i></div></div>
-    <div id="target" hidden><span></span><div class="bar"><i></i></div></div>
+    <div id="target" hidden><span></span><div class="bar"><i></i></div><small></small></div>
     <div id="hud">
       <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
       <button id="skill" title="가르기 (Q / 우클릭): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
@@ -237,6 +243,7 @@
         <button class="class-card" data-cls="knight"><img alt="" /><b>기사</b><small>검과 방패로 앞에서 싸운다. 적의 공격을 받아치고, 돌진하고, 도끼를 던진다. 튼튼하다.</small></button>
         <button class="class-card" data-cls="wizard"><img alt="" /><b>마법사</b><small>멀리서 화염구와 낙뢰를 떨군다. 얼려서 묶고, 마나 방패와 순간이동으로 버틴다. 몸이 약하다.</small></button>
         <button class="class-card" data-cls="ranger"><img alt="" /><b>궁수</b><small>멀리서 활로 하나씩 꿰뚫는다. 덫으로 길목을 막고 화살비를 내린다. 멀수록 아프다.</small></button>
+        <button class="class-card" data-cls="necromancer"><img alt="" /><b>강령술사</b><small>해골 병사를 일으켜 대신 싸우게 한다. 저주로 약하게 만들고, 생명을 빨아들이며 뼈 갑옷으로 버틴다.</small></button>
       </div>
     </div>
     <button id="help-btn" title="조작법">?</button>
@@ -252,6 +259,7 @@
         <tr><td>도끼 던지기</td><td>R로 조준(바닥에 궤적) → 좌클릭 또는 R로 던지기, 우클릭·Esc 취소 · 도끼 버튼(자동 조준) — 처음 닿는 적에게 120%, 2.5초</td></tr>
         <tr><td>조준</td><td>날아가는 스킬은 직선, 지점에 떨어지는 스킬은 원으로 미리 보인다. 설정의 '스마트 키'를 켜면 조준 없이 바로 커서 쪽으로</td></tr>
         <tr><td>마법사</td><td>클릭 = 마력탄(원거리). Q 화염구(직선 조준·우클릭은 바로), W 서리 고리(주변에 얼음 장판), E 낙뢰(원 조준), R 마나 방패, 스페이스 순간이동</td></tr>
+        <tr><td>강령술사</td><td>클릭 = 뼈 화살(원거리). Q 해골 병사(주변에 소환, 가까운 적을 친다), W 생명 흡수(주변 피해 + 회복), E 저주(원 조준, 받는 피해 증가·사슬 문을 녹임), R 뼈 갑옷, 스페이스 구르기</td></tr>
         <tr><td>구르기</td><td>스페이스(커서 방향) · 구르기 버튼(적 반대쪽) — 3m 구르는 동안 무적, 1초</td></tr>
         <tr><td>붉은 적</td><td>적이 붉게 달아오르면 곧 공격 — 구르거나 물러나서 피하고, 빗나간 뒤의 빈틈에 때리기. 스킬로 치면 끊기고 2배</td></tr>
         <tr><td>물약</td><td>1 · 물약 버튼 — 4초에 걸쳐 최대 체력 50% 회복(차는 동안은 다시 못 마심)</td></tr>
@@ -266,6 +274,7 @@
         <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화, 보관함 장비 팔기</td></tr>
         <tr><td>장비</td><td>밟으면 보관함으로, 더 좋은 장비(▲ 표시)는 바로 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
         <tr><td>보관함</td><td>I · 가방 버튼 · 장비 칸 — 10×4칸 격자, 장비마다 크기가 다름. 누르면 설명·장착·버리기, 끌어서 옮기기, 우클릭 장착. 자동 장착 끄기</td></tr>
+        <tr><td>정예</td><td>빛나는 고리를 두른 색다른 몬스터 — 훨씬 튼튼하고 특성이 하나(신속·흡혈·폭발·통솔·분열). 잡으면 좋은 장비 확정</td></tr>
         <tr><td>보스</td><td>붉게 달아오르면 돌진 — 옆으로 피하세요</td></tr>
       </table>
       <form method="dialog"><button>시작</button></form>

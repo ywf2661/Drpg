@@ -4,8 +4,8 @@ import type { Cell, Grid } from './path';
 export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'king' | 'boss';
 // 주인공 직업. 스킬 4칸(SkillName)과 명령(skill·dash·shout·throw·roll)은 같고, 직업마다 하는 일이 다르다:
 // 기사 = 가르기·돌진 베기·전투의 함성·도끼 던지기·구르기, 마법사 = 화염구·서리 고리·낙뢰·마나 방패·순간이동,
-// 궁수 = 관통 사격·덫·화살비·집중·구르기
-export type HeroClass = 'knight' | 'wizard' | 'ranger';
+// 궁수 = 관통 사격·덫·화살비·집중·구르기, 강령술사 = 해골 병사·생명 흡수·저주·뼈 갑옷·구르기
+export type HeroClass = 'knight' | 'wizard' | 'ranger' | 'necromancer';
 
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 
@@ -41,7 +41,8 @@ export type Entity = {
   attackT: number; // 현재 휘두르기 경과 시간(초)
   repathT: number; // 다음 경로 재계산까지 남은 시간(초)
   skill: boolean; // 지금 휘두르는 것이 가르기인가
-  elite: boolean; // 정예: 체력 ×3, 데미지 ×1.15, 경험치 ×4, 최고 단계 장비 확정
+  elite: boolean; // 정예: 체력 ×3, 데미지 ×1.3, 경험치 ×4, 최고 단계 장비 확정
+  eliteKind?: EliteKind; // 정예의 특성(createWorld가 정한다)
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
   phase: 'none' | 'windup' | 'charge' | 'roll'; // roll = 주인공 구르기(phaseT 남은 거리)
   phaseT: number;
@@ -52,6 +53,9 @@ export type Entity = {
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
   fearT: number; // 공포 남은 시간(초). 주인공 반대쪽으로 도망친다
 };
+
+// 강령술사의 해골 병사: life초 뒤 사라진다
+export type Ally = Entity & { life: number };
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
@@ -99,7 +103,7 @@ export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number;
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
-export type Blast = { id: number; x: number; z: number; r?: number; age: number; kind: 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' };
+export type Blast = { id: number; x: number; z: number; r?: number; age: number; kind: 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' };
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
@@ -157,6 +161,9 @@ export type World = {
   storm: { x: number; z: number; t: number }[]; // 천둥: 뒤이어 떨어질 벼락(보이기만, t초 뒤)
   traps: { id: number; x: number; z: number }[]; // 궁수가 놓은 덫(오래된 것부터)
   focusT: number; // 궁수 집중 남은 시간(초)
+  allies: Ally[]; // 강령술사의 해골 병사(entities 밖, id는 음수. 몬스터가 노리고 때린다)
+  curses: { id: number; x: number; z: number; r: number; t: number; acc: number; amp: number }[]; // 저주 구역(t초 남음, acc = 역병 틱 누적, amp = 받는 피해 증가)
+  raised: number[]; // 저주(5단계)로 이미 일으킨 시체 id
   volleys: { x: number; z: number; r: number; t: number; left: number }[]; // 떨어질 화살비(t초 뒤, left번 남음)
   shouts: number; // 함성 횟수(렌더·소리용)
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
@@ -178,7 +185,20 @@ export const RANGE = 1.5;
 // (마법 옵션·스킬 도입 후 봇 테스트로 정함: 5층 ×2.2. 스킬을 쓰면 확실히 덜 죽게)
 export const DMG_SCALE = 2;
 export const MONSTER_DMG = 2.5; // 공통 배율(밸런스 손잡이). 투구·신발이 생기면서 2 → 2.5(봇 사망 수를 그 전과 맞춤)
-export const ELITE = { hp: 3, dmg: 1.15, xp: 4 };
+export const ELITE = { hp: 3, dmg: 1.3, xp: 4, chance: 0.1 }; // chance: 몬스터 하나가 정예로 나올 확률
+// 정예 특성: 이름(접두어)·설명·색(스프라이트·발밑 고리·대상 이름).
+// 신속 = 이동·공격 속도 배수, 흡혈 = 주인공에게 준 피해의 배수만큼 회복, 폭발 = 죽은 자리에 예고 후 폭발(굴림 × mult),
+// 통솔 = 반경 안의 다른 몬스터 데미지 배수, 분열 = 죽으면 졸개 count마리
+export type EliteKind = 'swift' | 'vampiric' | 'volatile' | 'warlord' | 'splitting';
+export const ELITE_KINDS: Record<EliteKind, { name: string; desc: string; color: string }> = {
+  swift: { name: '신속한', desc: '빠르게 움직이고 빠르게 친다', color: '#5fd0ff' },
+  vampiric: { name: '흡혈의', desc: '때릴 때마다 체력을 회복한다', color: '#ff4d6a' },
+  volatile: { name: '폭발하는', desc: '죽은 자리가 잠시 뒤 폭발한다', color: '#ff9a2e' },
+  warlord: { name: '통솔하는', desc: '주변 몬스터의 공격이 강해진다', color: '#ffd84a' },
+  splitting: { name: '분열하는', desc: '죽으면 졸개 둘로 갈라진다', color: '#8de05a' },
+};
+export const ELITE_KIND_LIST = Object.keys(ELITE_KINDS) as EliteKind[];
+export const ELITE_FX = { swiftMove: 1.35, swiftAttack: 1.25, leech: 2, blastDelay: 1.2, blastMult: 1.5, auraRange: 5, auraDmg: 1.3, split: 2 };
 // 마법 옵션: 붙는 부위들, 이름(접두어), 값 범위. dmg·speed·leech·crit·guard·thorns·move는 %, life는 체력, regen은 초당 1/10.
 // 여러 부위에 붙은 같은 옵션은 더한다
 export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: number; hi: number }> = {
@@ -350,6 +370,16 @@ export const CLASSES: Record<HeroClass, ClassDef> = {
     helms: named(HELMS, ['천 두건', '사냥꾼 두건', '가죽 두건', '사슬 두건']),
     boots: named(BOOTS, ['샌들', '가죽 장화', '사냥꾼 장화', '사슬 장화']),
   },
+  // 강령술사: 마법사와 같은 지팡이·로브 수치(해골이 따로 친다), 체력은 조금 더
+  necromancer: {
+    name: '강령술사',
+    hp: 75,
+    perLevel: 7,
+    weapons: named([{ dmg: [4, 7], interval: 0.7 }, { dmg: [5, 9], interval: 0.8 }, { dmg: [7, 11], interval: 0.9 }, { dmg: [9, 14], interval: 1.0 }] as typeof WEAPONS, ['뼈 완드', '해골 막대', '강령 지팡이', '죽음의 대지팡이']),
+    armors: named([{ reduce: 0 }, { reduce: 0.05 }, { reduce: 0.12 }, { reduce: 0.2 }] as typeof ARMORS, ['수의', '강령 로브', '묘지기 로브', '죽음의 로브']),
+    helms: named(HELMS, ['천 머리띠', '강령 두건', '묘지기 두건', '죽음의 두건']),
+    boots: named(BOOTS, ['샌들', '강령 장화', '묘지기 장화', '죽음의 장화']),
+  },
 };
 // 부위별 단계 표(이름·수치)
 export const gearTable = (cls: HeroClass): Record<Slot, { name: string }[]> => ({ weapon: CLASSES[cls].weapons, armor: CLASSES[cls].armors, helm: CLASSES[cls].helms, boots: CLASSES[cls].boots });
@@ -377,6 +407,16 @@ export const TRAP = { cd: 6, range: 6, trigger: 0.6, hold: 1.5, mult: 1.2, max: 
 export const RAIN = { cd: 8, range: 8, radius: 1.8, delay: 0.6, mult: 1.6, waves: 4, every: 0.75, waveMult: 0.5, big: 1.3 };
 // 집중(R): 재사용, 시간, 공격 속도 증가, 치명 확률, 멀티샷 각도(라디안), 5단계 처치당 재사용 감소(초)
 export const FOCUS = { cd: 14, time: 6, speed: 0.4, crit: 0.25, spread: 0.15, kill: 1 };
+
+// 강령술사. 평타(뼈 화살)는 마법사 마력탄(WIZ)과 같다.
+// 해골 병사(Q): 재사용, 소환 수, 최대 수, 유지(초), 배율(× 강령술사 굴림), 공격 간격, 닿는 거리, 속도, 적을 찾는 거리, 군단(+수·배율 배수), 정예(배율·유지 배수)
+export const BONES = { cd: 6, count: 2, max: 4, life: 14, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, horde: 2, hordeMult: 0.7, strong: 1.6, strongLife: 1.5 };
+// 생명 흡수(W): 재사용, 반경, 배율, 회복(준 피해 비율), 넓은 흡수 반경 배수
+export const DRAIN = { cd: 8, radius: 3, mult: 1, heal: 0.4, wide: 1.5 };
+// 저주(E): 재사용, 사거리, 반경, 시간, 받는 피해 증가, 넓은 저주 반경 배수, 역병(간격·배율)
+export const CURSE = { cd: 9, range: 8, radius: 2.2, time: 6, amp: 0.35, wide: 1.6, tick: 0.5, plague: 0.3 };
+// 뼈 갑옷(R): 재사용, 시간, 흡수(최대 체력 비율), 시체 일으키기 수. 반사·5단계 폭발은 마나 방패(WARD)와 같다
+export const BONE_ARMOR = { cd: 14, time: 6, absorb: 0.25, raise: 2 };
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)

@@ -10,7 +10,7 @@ import shutil
 import urllib.request
 from pathlib import Path
 
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps
 
 COMMIT = 'af6eee6d339ac98011864bfe89da837fe7769c28'
 BASE = f'https://raw.githubusercontent.com/flareteam/flare-game/{COMMIT}/'
@@ -67,9 +67,21 @@ RANGER_LAYERS = {
     'lower': [['cloth_pants', 'cloth_gloves'], ['leather_pants', 'leather_gloves'], ['chain_greaves', 'leather_gloves'], ['chain_greaves', 'chain_gloves']],
     'chest': [['cloth_shirt'], ['leather_chest'], ['leather_chest'], ['chain_cuirass']],
 }
+# 강령술사: necromancer_<레이어>_<단계>.png(방패 없음). 긴 치마 위에 단계 1 = 창백한 맨몸, 2 = 검은 가죽, 3 = 사슬, 4 = 판금.
+# 이름 끝의 @necro = NECRO_TINTS로 다시 칠한 그림(Sheet가 처리). 지팡이는 원본 그대로
+NECRO_LAYERS = {
+    'main': [['wand'], ['rod'], ['staff'], ['greatstaff']],
+    'head': [['head_bald@necro'], ['leather_hood@necro'], ['mage_hood@necro'], ['plate_helm@necro']],
+    'feet': [['cloth_sandals@necro'], ['leather_boots@necro'], ['chain_boots@necro'], ['plate_boots@necro']],
+    'lower': [['mage_skirt@necro', 'cloth_gloves@necro'], ['mage_skirt@necro', 'leather_gloves@necro'], ['mage_skirt@necro', 'chain_gloves@necro'], ['mage_skirt@necro', 'plate_gauntlets@necro']],
+    'chest': [['default_chest@necro'], ['leather_chest@necro'], ['chain_cuirass@necro'], ['plate_cuirass@necro']],
+}
+# (이름 앞머리들, 회색으로 섞는 정도, RGB 배율): 살갗은 창백하게, 천은 짙은 보라, 가죽은 검게, 쇠는 차갑게
+NECRO_TINTS = [(('head_bald', 'default_'), 0.8, (1.15, 1.25, 1.2)), (('mage_', 'cloth_'), 0.85, (0.5, 0.38, 0.68)), (('leather_',), 0.8, (0.72, 0.64, 0.95)), (('chain_', 'plate_'), 0.4, (0.6, 0.66, 0.78))]
 # 마법사의 공격 = 시전, 궁수 = 활쏘기(둘 다 4프레임·400ms로 베기와 같아 hero.json을 함께 쓴다)
-CLASS_SHEETS = {'hero': (HERO_LAYERS, ANIMS), 'wizard': (WIZARD_LAYERS, {**ANIMS, 'attack': 'cast'}), 'ranger': (RANGER_LAYERS, {**ANIMS, 'attack': 'shoot'})}
-PORTRAIT_GEAR = {'hero': 2, 'wizard': 2, 'ranger': 2}  # 시작 화면 초상의 장비 단계(시작 장비)
+CLASS_SHEETS = {'hero': (HERO_LAYERS, ANIMS), 'wizard': (WIZARD_LAYERS, {**ANIMS, 'attack': 'cast'}), 'ranger': (RANGER_LAYERS, {**ANIMS, 'attack': 'shoot'}),
+                'necromancer': (NECRO_LAYERS, {**ANIMS, 'attack': 'cast'})}
+PORTRAIT_GEAR = {'hero': 2, 'wizard': 2, 'ranger': 2, 'necromancer': 2}  # 시작 화면 초상의 장비 단계(시작 장비)
 LOWER_SLOTS = ['legs', 'hands']
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor',
@@ -88,6 +100,7 @@ WIZARD_GEAR_ICONS = [104, 105, 106, 107, 129, 137, 185, 193, -136, 136, 184, 192
 WIZARD_SKILL_ICONS = [34, 24, 7, 4, 19]  # 화염구·서리 고리·낙뢰·마나 방패·순간이동
 RANGER_GEAR_ICONS = [112, 113, 114, 115, 129, 137, 145, 153, -136, 136, 144, 152, 132, 140, 176, 156]  # 궁수(새총·활 3, 천·가죽 조끼·가죽·사슬, 두건 4, 신발 4)
 RANGER_SKILL_ICONS = [41, 38, 8, 16, 9]  # 관통 사격·덫·화살비·집중·구르기
+NECRO_SKILL_ICONS = [12, 25, 27, 4, 9]  # 해골 병사·생명 흡수·저주·뼈 갑옷·구르기(장비 아이콘은 마법사 것)
 SKILL_ICON = 22  # 가르기(Cleave)
 DASH_ICON = 9  # 돌진 베기(달리는 사람)
 SHOUT_ICON, THROW_ICON = 10, 33  # 전투의 함성(파동), 도끼 던지기
@@ -129,12 +142,21 @@ def fetch(rel):
     return path
 
 
+def necro_tint(im, name):
+    gray, mult = next((g, m) for pre, g, m in NECRO_TINTS if name.startswith(pre))
+    rgb = Image.blend(im.convert('RGB'), ImageOps.grayscale(im).convert('RGB'), gray)
+    rgb = Image.merge('RGB', [ch.point(lambda v, m=m: min(255, round(v * m))) for ch, m in zip(rgb.split(), mult)])
+    rgb.putalpha(im.getchannel('A'))
+    return rgb
+
+
 class Sheet:
     """FLARE 이미지 + 정의 파일(frame=번호,방향,x,y,w,h,기준x,기준y[,이미지 이름]).
     정의에 image=경로,이름 줄이 있으면 동작마다 다른 이미지(미노타우르스), 없으면 images/<name>.png 한 장."""
 
     def __init__(self, name):
         self.anims, self.images, self.src = {}, {}, {}  # src: (동작, 프레임, 방향) → 이미지 이름
+        name, _, tint = name.partition('@')
         cur = None
         for line in fetch(f'mods/fantasycore/animations/{name}.txt').read_text(encoding='utf-8').splitlines():
             line = line.strip()
@@ -154,6 +176,8 @@ class Sheet:
                 cur[k] = v
         if not self.images:
             self.images[None] = Image.open(fetch(f'mods/fantasycore/images/{name}.png')).convert('RGBA')
+        if tint:
+            self.images = {k: necro_tint(im, name.rsplit('/', 1)[-1]) for k, im in self.images.items()}
         self.img = next(iter(self.images.values()))
 
     def draw(self, canvas, anim, i, d):
@@ -446,6 +470,7 @@ def loot():
     strip_of(WIZARD_SKILL_ICONS, 'wizard_skill_icons.png')
     strip_of(RANGER_GEAR_ICONS, 'ranger_gear_icons.png')
     strip_of(RANGER_SKILL_ICONS, 'ranger_skill_icons.png')
+    strip_of(NECRO_SKILL_ICONS, 'necro_skill_icons.png')
 
 
 def credits():
@@ -459,6 +484,7 @@ Source: https://github.com/flareteam/flare-game (commit {COMMIT})
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, equipment layers (weapon, armor, helm, boots; legs and hands merged) scaled by {SCALE},
+necromancer layers recolored,
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
 Sound effects and music: copied unchanged (Ogg Vorbis).

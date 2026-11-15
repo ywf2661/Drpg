@@ -1,20 +1,22 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
-import { attackInterval, bagSpot, canHit, clearLine, damage, dist, dropGold, face, isBetter, makeEntity, pathTo, rand, randSlot, rollGear, walk, wear, worn } from './core';
+import { attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rollGear, walk, wear, worn } from './core';
 import { focus, pierce, rain, shaft, tickRain, tickTraps, trap } from './ranger';
+import { boneArmor, bones, curse, drain, tickAllies, tickCurses } from './necro';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
-import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { boltStat, fireStat, frostStat, wardStat } from './wizard';
 export { focusStat, pierceStat, rainStat, trapStat } from './ranger';
+export { armorStat, bonesStat, curseStat, drainStat } from './necro';
 export { attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, bagBlocked, bagFits, bagSpot, cleaveStat, dashStat, discardFromBag, equipFromBag, gainXp, gearDiff, gearSize, heroMax, isBetter, mastered, mod, moveInBag, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
-// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'W' 정예 전사, 'a' 궁수, 'g' 마법사, 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
+// 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 // 'D' 사슬 문(닫힌 동안 막음)
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', K: 'king', M: 'boss' };
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss' };
 
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
@@ -36,7 +38,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
       if (c === 'D') gateCells.push([x, z]);
       if (c === '#' || c === 'B' || c === 'o' || c === 'c' || c === 'D') grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
-      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: c === 'W' });
+      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c) });
     }),
   );
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
@@ -44,8 +46,10 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   // 문이 막는 통로의 방향: 양옆(x±1)이 뚫려 있으면 x 방향 통로
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false }));
   const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
+  // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
+  for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, grid, entities, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -69,6 +73,10 @@ export function step(w: World, cmds: Command[]): void {
     tickTraps(w, hero);
     tickRain(w, hero);
   }
+  if (w.cls === 'necromancer') {
+    tickWard(w, hero); // 뼈 갑옷 = 마나 방패 장치
+    tickCurses(w, hero);
+  }
   if (w.queued && hero.phase === 'none') {
     cmds = [w.queued, ...cmds]; // 구르기·돌진 중에 누른 이동·공격을 이제 따른다
     w.queued = null;
@@ -88,11 +96,12 @@ export function step(w: World, cmds: Command[]): void {
       scare(w, e, hero);
       continue;
     }
-    if (e !== hero) think(e, hero);
+    if (e !== hero) think(w, e, hero);
     act(w, e);
   }
+  if (w.allies.length) tickAllies(w, hero);
   fly(w, hero);
-  tickZones(w, hero);
+  tickZones(w);
   if (w.fires.length) tickFires(w, hero);
   separate(w);
   reachChest(w, hero);
@@ -232,6 +241,11 @@ function cast(w: World, hero: Entity, c: Command) {
     if (c.type === 'skill') return pierce(w, hero, c.x, c.z);
     if (c.type === 'shout') return rain(w, hero, c.x, c.z);
     if (c.type === 'throw') return focus(w, hero);
+  } else if (w.cls === 'necromancer') {
+    if (c.type === 'skill') return bones(w, hero);
+    if (c.type === 'dash') return drain(w, hero);
+    if (c.type === 'shout') return curse(w, hero, c.x, c.z);
+    if (c.type === 'throw') return boneArmor(w, hero);
   }
   if (c.type === 'roll') return rollStart(w, hero, c.x, c.z);
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
@@ -318,8 +332,8 @@ function reachChest(w: World, hero: Entity) {
 }
 
 function act(w: World, e: Entity) {
-  let t = e.target === null ? null : w.entities[e.target];
-  if (t && t.state === 'dead') {
+  let t = byId(w, e.target);
+  if (e.target !== null && (!t || t.state === 'dead')) {
     e.target = null;
     e.path = [];
     t = null;
@@ -345,17 +359,20 @@ function act(w: World, e: Entity) {
   else e.state = 'idle';
 }
 
-// 몬스터 AI: 주인공이 AGGRO 안에 들어오면 대상으로 삼는다. 주인공이 죽으면 대상을 버린다.
-function think(e: Entity, hero: Entity) {
+// 몬스터 AI: 주인공·해골 병사 중 AGGRO 안의 가장 가까운 쪽을 대상으로 삼는다. 주인공이 죽으면 대상을 버린다.
+function think(w: World, e: Entity, hero: Entity) {
   if (hero.state === 'dead') {
     e.target = null;
     e.path = [];
     return;
   }
-  if (e.target === null && dist(e, hero) <= AGGRO) {
-    e.target = hero.id;
-    e.repathT = 0;
-  }
+  if (e.target !== null) return;
+  const t = friends(w)
+    .filter((f) => dist(e, f) <= AGGRO)
+    .sort((a, b) => dist(e, a) - dist(e, b))[0];
+  if (!t) return;
+  e.target = t.id;
+  e.repathT = 0;
 }
 
 function startSwing(e: Entity, t: Entity) {
@@ -376,7 +393,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
   const hitNow = before < hitAt && e.attackT >= hitAt;
   if (e.skill && hitNow) cleave(w, e);
   else if (t && hitNow && canHit(w, e, t)) {
-    if (e.kind === 'hero' && w.cls === 'wizard') bolt(w, e, t);
+    if (e.kind === 'hero' && (w.cls === 'wizard' || w.cls === 'necromancer')) bolt(w, e, t); // 강령술사의 뼈 화살도 마력탄
     else if (e.kind === 'hero' && w.cls === 'ranger') shaft(w, e, t);
     else if (e.kind === 'archer') shoot(w, e, t, 'arrow');
     else if (e.kind === 'mage') shoot(w, e, t, 'fire');

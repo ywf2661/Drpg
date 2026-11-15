@@ -39,11 +39,11 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
       expect(count(map, 'H')).toBe(1);
       expect(count(map, '>')).toBe(floor < FLOORS ? 1 : 0);
       const monsters = 8 + 3 * (floor - 1);
-      expect(count(map, 'm') + count(map, 'w') + count(map, 'W') + count(map, 'a') + count(map, 'g')).toBe(monsters);
-      expect(count(map, 'g')).toBe(floor < 3 || floor === FLOORS ? 0 : Math.round(monsters * 0.1)); // 마법사는 3~4층
-      expect(count(map, 'a')).toBe(floor === 1 ? 0 : Math.round(monsters * 0.15)); // 궁수는 2층부터
-      const elites = floor >= 2 && floor < FLOORS ? 1 : 0; // 정예 전사는 2~4층에 하나
-      expect(count(map, 'W')).toBe(elites);
+      expect(count(map, 'm') + count(map, 'N') + count(map, 'w') + count(map, 'W') + count(map, 'a') + count(map, 'A') + count(map, 'g') + count(map, 'G')).toBe(monsters);
+      expect(count(map, 'g') + count(map, 'G')).toBe(floor < 3 || floor === FLOORS ? 0 : Math.round(monsters * 0.1)); // 마법사는 3~4층
+      expect(count(map, 'a') + count(map, 'A')).toBe(floor === 1 ? 0 : Math.round(monsters * 0.15)); // 궁수는 2층부터
+      const elites = floor >= 2 && floor < FLOORS ? 1 : 0; // 정예 전사는 2~4층에 적어도 하나(그 밖의 정예는 ELITE.chance)
+      expect(count(map, 'W')).toBeGreaterThanOrEqual(elites);
       expect(count(map, 'w') + count(map, 'W')).toBe(Math.round(monsters * (0.2 + 0.075 * (floor - 1))));
       const d = distances(map, find(map, 'H'));
       expect(d.size).toBe(48 * 48 - count(map, '#') - count(map, 'B') - count(map, 'o') - count(map, 'c'));

@@ -3,7 +3,7 @@ import { findPath, walkable, type Cell } from './path';
 import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, FIREBALL, KING, KNOCK, MAGE, METEOR, PIERCE, RANGER, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit } from './wizard';
 import { arrowHit } from './ranger';
-import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, heroMax, hurt, knock, makeEntity, mastered, pathTo, roll, shoutStat, skillHit, walk, waypoints } from './core';
+import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, friends, heroMax, hurt, knock, makeEntity, mastered, pathTo, roll, shoutStat, skillHit, walk, waypoints } from './core';
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 가던 길은 휘두른 뒤에 이어 간다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
@@ -90,10 +90,10 @@ export function charge(w: World, e: Entity, t: Entity | null): boolean {
     Object.assign(e, { phase: 'charge', phaseT: CHARGE.dist, dx: (t.x - e.x) / d, dz: (t.z - e.z) / d, state: 'move' });
     return true;
   }
-  const hero = w.entities[0];
   if (!rush(w, e, CHARGE.speed)) return true;
-  if (hero.state !== 'dead' && dist(e, hero) <= CHARGE.hit) {
-    hurt(w, hero, Math.round(roll(w, e) * CHARGE.mult), e);
+  const hit = friends(w).find((f) => dist(e, f) <= CHARGE.hit);
+  if (hit) {
+    hurt(w, hit, Math.round(roll(w, e) * CHARGE.mult), e);
     Object.assign(e, { phase: 'none', state: 'idle' });
   }
   return true;
@@ -374,7 +374,7 @@ export function fly(w: World, hero: Entity) {
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;
     if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
-      if (fire) explode(w, hero, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
+      if (fire) explode(w, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
       if (s.kind === 'axe' || s.kind === 'fireball' || s.kind === 'bolt' || s.kind === 'shaft' || s.kind === 'pierce') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼·마법이 사슬 문에 맞으면 열린다
       if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg);
       return false;
@@ -405,18 +405,19 @@ export function fly(w: World, hero: Entity) {
       }
       return !t || mastered(w, 'throw'); // 5단계: 관통(맞힌 적은 다시 안 맞는다)
     }
-    if (hero.state === 'dead' || Math.hypot(s.x - hero.x, s.z - hero.z) > (fire ? MAGE.hitRadius : ARCHER.hitRadius)) return true;
-    if (fire) explode(w, hero, s.x, s.z, s.dmg);
-    else hurt(w, hero, s.dmg);
+    const v = friends(w).find((e) => Math.hypot(s.x - e.x, s.z - e.z) <= (fire ? MAGE.hitRadius : ARCHER.hitRadius)); // 해골 병사도 맞는다
+    if (!v) return true;
+    if (fire) explode(w, s.x, s.z, s.dmg);
+    else hurt(w, v, s.dmg);
     return false;
   });
   w.shots.push(...added);
 }
 
-// 화염구 폭발: 반경 안의 살아 있는 주인공에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다
-export function explode(w: World, hero: Entity, x: number, z: number, dmg: number) {
+// 화염구 폭발: 반경 안의 살아 있는 주인공·해골 병사에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다
+export function explode(w: World, x: number, z: number, dmg: number) {
   w.blasts.push({ id: w.nextItem++, x, z, age: 0, kind: 'fire' });
-  if (hero.state !== 'dead' && Math.hypot(hero.x - x, hero.z - z) <= MAGE.blast) hurt(w, hero, dmg);
+  for (const e of friends(w)) if (Math.hypot(e.x - x, e.z - z) <= MAGE.blast) hurt(w, e, dmg);
 }
 
 // 전사 내려찍기: 대상이 사거리 안이고 대기가 끝났으면 제자리 예고 + 앞쪽 바닥에 위험 구역. 피해·종료는 tickZones가.
@@ -442,16 +443,16 @@ export function meteor(w: World, e: Entity, t: Entity) {
 }
 
 // 위험 구역 한 틱: 주인이 죽었거나 예고가 끊겼으면 사라지고, 시간이 다 되면 반경 안의 주인공에게 피해
-export function tickZones(w: World, hero: Entity) {
+export function tickZones(w: World) {
   w.zones = w.zones.filter((z) => {
     const owner = z.owner < 0 ? null : w.entities[z.owner];
     if (owner && (owner.state === 'dead' || owner.phase !== 'windup')) return false;
     if ((z.t -= DT) > 0) return true;
-    if (!owner) explode(w, hero, z.x, z.z, z.dmg);
+    if (!owner) explode(w, z.x, z.z, z.dmg);
     else {
       owner.phase = 'none';
       w.blasts.push({ id: w.nextItem++, x: z.x, z: z.z, age: 0, kind: 'slam' });
-      if (hero.state !== 'dead' && Math.hypot(hero.x - z.x, hero.z - z.z) <= z.r) hurt(w, hero, z.dmg, owner);
+      for (const e of friends(w)) if (Math.hypot(e.x - z.x, e.z - z.z) <= z.r) hurt(w, e, z.dmg, owner);
     }
     return false;
   });

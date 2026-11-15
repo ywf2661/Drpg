@@ -1,6 +1,6 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, winding, type World } from '../sim/world';
+import { attackInterval, BONES, winding, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
 import caveFloorUrl from '../assets/tiles/floor_cave.png';
@@ -11,7 +11,7 @@ import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
-import { CAST_SHOW, loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -111,6 +111,7 @@ export function setAim(a: AimGuide | null) {
   aimHead.position.z = a.len - AIM_HEAD;
 }
 let sprites: Sprite[] = [];
+const allySprites = new Map<number, Sprite>(); // 강령술사의 해골 병사(ally id → 판자)
 let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
@@ -152,6 +153,7 @@ export function setWorld(world: World, theme: Theme) {
   ({ floor: floorTex, wall: wallTex } = tex[theme]);
   buildMap(world);
   for (const s of sprites) s.mesh.removeFromParent();
+  dropAllies(new Set());
   sprites = world.entities.map(makeSprite);
   for (const s of sprites) scene.add(s.mesh);
   fx = [];
@@ -209,6 +211,19 @@ export function draw(world: World, dt: number) {
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0) s.mat.color.lerp(STUNNED, 0.5);
     if (e.fearT > 0) s.mat.color.lerp(SCARED, 0.5);
+  }
+  // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
+  dropAllies(new Set(world.allies.map((a) => a.id)));
+  for (const a of world.allies) {
+    let s = allySprites.get(a.id);
+    if (!s) {
+      s = makeSprite(a);
+      s.tint = ALLY_TINT;
+      allySprites.set(a.id, s);
+      scene.add(s.mesh);
+    }
+    updateSprite(s, a, dt, BONES.interval);
+    s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(light(a.x, a.z) * (0.45 + (0.55 * a.hp) / a.maxHp)); // 맞을수록 어두워진다
   }
   markT -= dt;
   marker.visible = markT > 0;
@@ -317,4 +332,14 @@ function stone(tex: THREE.Texture, i: number, n: number) {
   map.repeat.set(1 / n, 1);
   map.offset.set(i / n, 0);
   return new THREE.MeshStandardMaterial({ map, roughness: 1 });
+}
+
+function dropAllies(live: Set<number>) {
+  for (const [id, s] of allySprites) {
+    if (live.has(id)) continue;
+    s.mesh.removeFromParent();
+    s.mat.map?.dispose();
+    s.mat.dispose();
+    allySprites.delete(id);
+  }
 }

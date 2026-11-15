@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { AFFIXES, ARCHER, FOCUS, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BONES, FOCUS, type Ally, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -47,7 +47,7 @@ const total = (m: World['mods'], kind: AffixKind) => SLOTS.reduce((s, sl) => s +
 export const worn = (w: World, kind: AffixKind) => total(w.mods, kind);
 
 // 이동 속도(m/s). 주인공은 신발 + '날랜' 옵션
-export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) : STATS[e.kind].speed);
+export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1));
 
 // 장비 점수(자동 장착 비교). 무기 = 옵션을 반영한 초당 데미지(흡혈은 가산), 방어구(갑옷·투구·신발) = 세 부위를 합쳐 버티는 체력(재생·가시·이동 속도 가산)
 export function weaponScore(tier: number, aff: Affix[], cls: HeroClass = 'knight'): number {
@@ -173,7 +173,7 @@ export function makeEntity(id: number, kind: Kind, x: number, z: number, power: 
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
-  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) : STATS[e.kind].interval; // 궁수 집중 중엔 빠르게
+  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : 1); // 궁수 집중 중엔 빠르게
 }
 
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)
@@ -181,11 +181,19 @@ export function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1);
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
   const crit = a.kind === 'hero' ? mod(w.mods.weapon, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale) * twice;
 }
+
+// 통솔하는 정예가 가까이 있는 (다른) 몬스터인가
+const led = (w: World, a: Entity) => w.entities.some((e) => e.eliteKind === 'warlord' && e !== a && e.state !== 'dead' && dist(e, a) <= ELITE_FX.auraRange);
+
+// 몬스터가 칠 수 있는 편: 살아 있는 주인공과 해골 병사
+export const friends = (w: World): Entity[] => [w.entities[0], ...w.allies].filter((e) => e.state !== 'dead');
+// 대상 id → 엔티티. 해골 병사는 entities 밖이라 id가 음수다. 사라졌으면 null
+export const byId = (w: World, id: number | null): Entity | null => (id === null ? null : (id < 0 ? w.allies.find((a) => a.id === id) : w.entities[id]) ?? null);
 
 export function damage(w: World, a: Entity, t: Entity) {
   hurt(w, t, roll(w, a), a);
@@ -200,6 +208,9 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   }
   // 궁수의 명사수: 멀리 있는 적에게 더 아프게
   let dmg = from?.kind === 'hero' && t.kind !== 'hero' && w.cls === 'ranger' && dist(from, t) > RANGER.far ? Math.round(raw * RANGER.farMult) : raw;
+  // 강령술사의 저주: 구역 안의 적은 모든 피해를 더 받는다
+  const curse = t.kind !== 'hero' && t.id >= 0 && w.curses.find((c) => Math.hypot(t.x - c.x, t.z - c.z) <= c.r);
+  if (curse) dmg = Math.round(dmg * (1 + curse.amp));
   // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패가 먼저 흡수(반사 특성이면 근접 공격자에게 일부 되돌림)
   if (t.kind === 'hero') {
     dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST.armor : shoutStat(w).reduce) : 1)));
@@ -218,11 +229,12 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (leech > 0 && hero.state !== 'dead') hero.hp = Math.min(hero.maxHp, hero.hp + leech);
   const thorns = t.kind === 'hero' && from && from.state !== 'dead' ? Math.round((dealt * worn(w, 'thorns')) / 100) : 0;
   if (thorns > 0) hurt(w, from!, thorns);
+  if (t.kind === 'hero' && from?.eliteKind === 'vampiric' && from.state !== 'dead') from.hp = Math.min(from.maxHp, from.hp + dealt * ELITE_FX.leech); // 흡혈의 정예
   if (t.hp > 0) return dealt;
   t.state = 'dead';
   t.path = [];
   t.target = null;
-  if (t.kind === 'hero') return dealt;
+  if (t.kind === 'hero' || t.id < 0) return dealt; // 해골 병사는 경험치도 드롭도 없다(tickAllies가 치운다)
   if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'throw')) w.throwCd = Math.max(0, w.throwCd - FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
@@ -233,6 +245,10 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     return dealt;
   }
   gainXp(w, Math.round(XP[t.kind] * t.power * (t.elite ? ELITE.xp : 1)));
+  // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)
+  if (t.eliteKind === 'volatile') w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: ELITE_FX.blastDelay, total: ELITE_FX.blastDelay, dmg: Math.round(roll(w, t) * ELITE_FX.blastMult), owner: -1 });
+  if (t.eliteKind === 'splitting')
+    for (let i = 0; i < ELITE_FX.split; i++) w.entities.push(Object.assign(makeEntity(w.entities.length, 'minion', t.x + (i ? 0.1 : -0.1), t.z, t.power), { target: 0 }));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
   const g = t.elite ? { chance: 1, ...GOLD_ELITE } : GOLD[t.kind];
@@ -271,7 +287,7 @@ export const dist = (a: Entity, b: Entity) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // 사거리(궁수 ARCHER.range, 마법사 MAGE.range) 안이고, 둘 사이 직선이 벽 칸을 지나지 않아야(0.1m 간격 샘플) 칠 수 있다
 export function canHit(w: World, a: Entity, b: Entity) {
-  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : a.kind === 'hero' && w.cls === 'wizard' ? WIZ.range : a.kind === 'hero' && w.cls === 'ranger' ? RANGER.range : RANGE;
+  const reach = a.kind === 'archer' ? ARCHER.range : a.kind === 'mage' ? MAGE.range : a.kind === 'hero' && (w.cls === 'wizard' || w.cls === 'necromancer') ? WIZ.range : a.kind === 'hero' && w.cls === 'ranger' ? RANGER.range : RANGE;
   return dist(a, b) <= reach && clearLine(w, a, b);
 }
 

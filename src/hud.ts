@@ -4,6 +4,7 @@ import wizardGearIcons from './assets/sprites/wizard_gear_icons.png';
 import wizardSkillIcons from './assets/sprites/wizard_skill_icons.png';
 import rangerGearIcons from './assets/sprites/ranger_gear_icons.png';
 import rangerSkillIcons from './assets/sprites/ranger_skill_icons.png';
+import necroSkillIcons from './assets/sprites/necro_skill_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
@@ -12,6 +13,7 @@ import throwIcon from './assets/sprites/throw_icon.png';
 import knightPortrait from './assets/sprites/portrait_hero.png';
 import wizardPortrait from './assets/sprites/portrait_wizard.png';
 import rangerPortrait from './assets/sprites/portrait_ranger.png';
+import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
 import { drawHeroPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
@@ -19,7 +21,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { axeStat, BAG, focusStat, FOCUS, pierceStat, rainStat, RAIN, RANGER, trapStat, TRAP, bagBlocked, bagFits, BLINK, BOLT, boltStat, CLASSES, cleaveStat, dashStat, fireStat, frostStat, gearDiff, gearSize, gearTable, mastered, outcome, POTION, RANK_MAX, ROLL, SLOTS, TRAIT, shoutStat, STATS, WARD, wardStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type SkillName, type Slot, type World } from './sim/world';
+import { armorStat, BONE_ARMOR, bonesStat, curseStat, CURSE, drainStat, axeStat, BAG, focusStat, FOCUS, pierceStat, rainStat, RAIN, RANGER, trapStat, TRAP, bagBlocked, bagFits, BLINK, BOLT, boltStat, CLASSES, cleaveStat, ELITE_KINDS, dashStat, fireStat, frostStat, gearDiff, gearSize, gearTable, mastered, outcome, POTION, RANK_MAX, ROLL, SLOTS, TRAIT, shoutStat, STATS, WARD, wardStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -28,6 +30,7 @@ const levelLabel = $('#level');
 const target = $('#target');
 const targetName = $('#target span');
 const targetFill = $('#target i');
+const targetNote = $('#target small');
 const bossBar = $('#boss');
 const bossFill = $('#boss i');
 const bossName = $('#boss span');
@@ -51,7 +54,7 @@ const throwBtn = $('#throw');
 const gearSlots: Record<Slot, HTMLElement> = { weapon: $('#weapon'), armor: $('#armor'), helm: $('#helm'), boots: $('#boots') };
 const SLOT_NAME: Record<Slot, string> = { weapon: '무기', armor: '갑옷', helm: '투구', boots: '신발' };
 let cls: HeroClass = 'knight'; // 지금 판의 직업(장비 이름·아이콘·스킬 설명). 층이 바뀔 때·상점을 열 때 맞춘다
-const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons, ranger: rangerGearIcons };
+const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons, ranger: rangerGearIcons, necromancer: wizardGearIcons };
 const nameOf = (kind: Slot, tier: number, affixes: Affix[]) => gearName(kind, tier, affixes, cls);
 const toast = $('#toast');
 const soundBtn = $('#sound-btn');
@@ -112,7 +115,7 @@ export function initHud(h: Handlers) {
   music.addEventListener('input', () => h.sound({ music: +music.value / 100 }));
   mute.addEventListener('change', () => h.sound({ muted: mute.checked }));
   continueBtn.addEventListener('click', h.resume);
-  const portraits: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait, ranger: rangerPortrait };
+  const portraits: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait, ranger: rangerPortrait, necromancer: necroPortrait };
   for (const card of title.querySelectorAll<HTMLElement>('.class-card')) {
     const c = card.dataset.cls as HeroClass;
     card.querySelector('img')!.src = portraits[c];
@@ -239,19 +242,45 @@ const RANGER_TRAITS: Record<SkillName, [string, string][]> = {
     ['치명', `집중 중 화살이 ${pct(FOCUS.crit)} 확률로 2배 피해`],
   ],
 };
-const SKILL_TEXTS: Record<HeroClass, SkillText> = { knight: KNIGHT_SKILLS, wizard: WIZARD_SKILLS, ranger: RANGER_SKILLS };
-const TRAIT_TEXTS: Record<HeroClass, Record<SkillName, [string, string][]>> = { knight: KNIGHT_TRAITS, wizard: WIZARD_TRAITS, ranger: RANGER_TRAITS };
+const NECRO_SKILLS: SkillText = {
+  cleave: { name: '해골 병사', key: 'Q', cap: '한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `해골 ${s.count}기(최대 ${s.max}) ${sec(s.life)} 동안, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  dash: { name: '생명 흡수', key: 'W', cap: '적을 맞히면 해골 한 기를 일으킨다', stat: (w) => { const s = drainStat(w); return `${s.radius.toFixed(1)}m 안 적 모두 ${pct(s.mult)}, 준 피해의 ${pct(s.heal)} 회복, ${sec(s.cd)}`; } },
+  shout: { name: '저주', key: 'E 조준', cap: '저주 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `${CURSE.range}m 안 지점 ${s.radius.toFixed(1)}m, ${sec(s.time)} 동안 받는 피해 +${pct(s.amp)}, 사슬 문을 녹인다, ${sec(s.cd)}`; } },
+  throw: { name: '뼈 갑옷', key: 'R', cap: '갑옷이 깨지면 주변 폭발', stat: (w) => { const s = armorStat(w); return `${BONE_ARMOR.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${sec(s.cd)}`; } },
+};
+const NECRO_TRAITS: Record<SkillName, [string, string][]> = {
+  cleave: [
+    ['군단', '두 기 더 일으킨다(최대 수도 +2), 한 대 피해 70%'],
+    ['정예 해골', '해골 피해 60% 증가, 50% 더 오래 남는다'],
+  ],
+  dash: [
+    ['넓은 흡수', '범위 50% 증가'],
+    ['갈증', '회복량 2배'],
+  ],
+  shout: [
+    ['넓은 저주', '범위 60% 증가'],
+    ['역병', '저주 안의 적이 0.5초마다 피해를 입는다'],
+  ],
+  throw: [
+    ['시체 일으키기', '쓰면 해골 두 기도 일으킨다'],
+    ['가시 뼈', '갑옷이 막은 피해의 50%를 공격한 적에게 되돌린다'],
+  ],
+};
+const SKILL_TEXTS: Record<HeroClass, SkillText> = { knight: KNIGHT_SKILLS, wizard: WIZARD_SKILLS, ranger: RANGER_SKILLS, necromancer: NECRO_SKILLS };
+const TRAIT_TEXTS: Record<HeroClass, Record<SkillName, [string, string][]>> = { knight: KNIGHT_TRAITS, wizard: WIZARD_TRAITS, ranger: RANGER_TRAITS, necromancer: NECRO_TRAITS };
 // 재사용 대기(초): 스킬 4칸 + 구르기·순간이동
 const cooldowns = (w: World): Record<SkillName | 'roll', number> =>
   w.cls === 'wizard'
     ? { cleave: fireStat(w).cd, dash: frostStat(w).cd, shout: boltStat(w).cd, throw: wardStat(w).cd, roll: BLINK.cd }
     : w.cls === 'ranger'
       ? { cleave: pierceStat(w).cd, dash: trapStat(w).cd, shout: rainStat(w).cd, throw: focusStat(w).cd, roll: ROLL.cd }
+      : w.cls === 'necromancer'
+        ? { cleave: bonesStat(w).cd, dash: drainStat(w).cd, shout: curseStat(w).cd, throw: armorStat(w).cd, roll: ROLL.cd }
       : { cleave: cleaveStat(w).cd, dash: dashStat(w).cd, shout: shoutStat(w).cd, throw: axeStat(w).cd, roll: ROLL.cd };
 const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
 
 // 직업에 맞게 스킬 버튼 그림·구르기 글자·장비 칸 아이콘을 바꾼다(마법사·궁수 스킬 아이콘은 띠 한 장: 스킬 4칸 + 스페이스)
-const SKILL_STRIPS: Partial<Record<HeroClass, string>> = { wizard: wizardSkillIcons, ranger: rangerSkillIcons };
+const SKILL_STRIPS: Partial<Record<HeroClass, string>> = { wizard: wizardSkillIcons, ranger: rangerSkillIcons, necromancer: necroSkillIcons };
 function showClass(c: HeroClass) {
   cls = c;
   const strip = SKILL_STRIPS[c];
@@ -326,7 +355,7 @@ function gearLines(it: GearItem): string[] {
   const c = CLASSES[cls];
   const wpn = c.weapons[t];
   const base = {
-    weapon: `${{ knight: '공격', wizard: '마력탄', ranger: '화살' }[cls]} ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초${cls === 'ranger' ? ` (${RANGER.far}m 밖 +${Math.round((RANGER.farMult - 1) * 100)}%)` : ''}`,
+    weapon: `${{ knight: '공격', wizard: '마력탄', ranger: '화살', necromancer: '뼈 화살' }[cls]} ${wpn.dmg[0]}–${wpn.dmg[1]}, ${wpn.interval}초${cls === 'ranger' ? ` (${RANGER.far}m 밖 +${Math.round((RANGER.farMult - 1) * 100)}%)` : ''}`,
     armor: `받는 피해 −${Math.round(c.armors[t].reduce * 100)}%`,
     helm: `최대 체력 +${c.helms[t].hp}`,
     boots: `이동 속도 +${Math.round(c.boots[t].move * 100)}%`,
@@ -608,7 +637,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   // 닫힌 사슬 문에 처음 다가가면 여는 법을 알린다
   if (!shownGateHint && world.gates.some((g) => !g.open && Math.hypot(g.x + 0.5 - hero.x, g.z + 0.5 - hero.z) < 3.5)) {
     shownGateHint = true;
-    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 관통 사격(Q)으로 사슬을 끊으세요' }[world.cls]);
+    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 관통 사격(Q)으로 사슬을 끊으세요', necromancer: '사슬로 묶인 문 — 저주(E)로 사슬을 녹이세요' }[world.cls]);
   }
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
@@ -622,7 +651,11 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   const m = id === null ? null : world.entities[id];
   target.hidden = !m;
   if (m) {
-    targetName.textContent = (m.elite ? '정예 ' : '') + STATS[m.kind].name;
+    const k = m.eliteKind && ELITE_KINDS[m.eliteKind];
+    targetName.textContent = (k ? `${k.name} ` : m.elite ? '정예 ' : '') + STATS[m.kind].name;
+    targetNote.textContent = k ? `정예 · ${k.desc}` : '';
+    target.classList.toggle('elite', m.elite);
+    target.style.setProperty('--elite', k ? k.color : '');
     targetFill.style.width = `${(m.hp / m.maxHp) * 100}%`;
   }
   renderer.domElement.classList.toggle('attack', hovered !== null); // 몬스터 위에서는 공격 커서

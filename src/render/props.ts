@@ -46,8 +46,8 @@ const lootClip = (it: Item, cls: HeroClass) =>
     : it.kind === 'potion'
     ? 'potion'
     : it.kind === 'weapon'
-      ? (cls === 'wizard' ? ['wand', 'rod', 'staff', 'greatstaff'] : cls === 'ranger' ? ['slingshot', 'shortbow', 'longbow', 'greatbow'] : ['dagger', 'shortsword', 'longsword', 'greatsword'])[it.tier - 1]
-      : cls === 'wizard' ? 'clothes' : (cls === 'ranger' ? ['clothes', 'leather_armor', 'leather_armor', 'steel_armor'] : ['clothes', 'leather_armor', 'steel_armor', 'steel_armor'])[it.tier - 1]; // 갑옷·투구·신발(마법사 로브는 모두 천)
+      ? (cls === 'wizard' || cls === 'necromancer' ? ['wand', 'rod', 'staff', 'greatstaff'] : cls === 'ranger' ? ['slingshot', 'shortbow', 'longbow', 'greatbow'] : ['dagger', 'shortsword', 'longsword', 'greatsword'])[it.tier - 1]
+      : cls === 'wizard' || cls === 'necromancer' ? 'clothes' : (cls === 'ranger' ? ['clothes', 'leather_armor', 'leather_armor', 'steel_armor'] : ['clothes', 'leather_armor', 'steel_armor', 'steel_armor'])[it.tier - 1]; // 갑옷·투구·신발(마법사 로브는 모두 천)
 const LOOT_MIN_LIGHT = 0.6; // 바닥 물약은 어둠 속에서도 보이게
 const STAIRS_AT: [number, number] = [-1.5, -1.5]; // 계단 칸 → 4×4칸 계단 그림의 위 꼭짓점(맵 최소 x·z 모서리)
 const VARIANTS: Record<Prop['kind'], string[]> = {
@@ -165,15 +165,19 @@ function mistTexture(): THREE.CanvasTexture {
 }
 const discGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
 const ICE_TINT = new THREE.Color(0.85, 0.95, 1);
-function iceField(x: number, z: number, r: number) {
+const CURSE_TINT = new THREE.Color(0.75, 0.45, 1.1);
+// cursed: 강령술사의 저주(같은 장판을 보랏빛으로). ponytail: 장판은 서리 고리 시간만큼 보이고 저주 시간과 맞추지 않는다
+function iceField(x: number, z: number, r: number, cursed = false) {
   const seed = Math.round(x * 13 + z * 7 + time * 100);
   const frostMat = new THREE.MeshLambertMaterial({ map: frostTexture(), transparent: true, depthWrite: false, emissive: 0x4a6a90, emissiveMap: frostTexture() });
   const frost = new THREE.Mesh(discGeo, frostMat);
   frost.position.set(x, 0.02, z);
+  if (cursed) frostMat.emissive.set(0x4a1a6a);
   frost.rotation.y = hash01(seed) * Math.PI * 2;
   const mistMat = new THREE.MeshBasicMaterial({ map: mistTexture(), transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
   const mist = new THREE.Mesh(discGeo, mistMat);
   mist.position.set(x, 0.06, z);
+  if (cursed) mistMat.color.set(0x9050d0);
   frost.renderOrder = mist.renderOrder = 1;
   // 얼음 결정: 고리마다 둘레 2.2m에 하나꼴, 각도·거리를 조금 흩뜨린다. 냉기가 닿는 순간 솟는다
   const crystals: Crystal[] = [];
@@ -187,7 +191,7 @@ function iceField(x: number, z: number, r: number) {
       const cz = z + Math.sin(ang) * d;
       if (!floorAt(cx, cz)) continue;
       const c = card(wiz.frost, 'frost', cx, cz, false);
-      c.mat.color.copy(ICE_TINT);
+      c.mat.color.copy(cursed ? CURSE_TINT : ICE_TINT);
       const row = Math.floor(hash01(seed + k * 7) * 3); // 결정 모양 3가지
       c.mat.map!.offset.set(0, 1 - (row + 1) / wiz.frost.info.rows);
       c.mesh.scale.set(0, 0, 0);
@@ -206,7 +210,7 @@ function iceField(x: number, z: number, r: number) {
     vel.set([Math.cos(ang) * sp, 1.5 + hash01(seed + i * 29) * 3.5, Math.sin(ang) * sp], i * 3);
   }
   const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const shardMat = new THREE.PointsMaterial({ color: 0xe6f6ff, size: 3, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false });
+  const shardMat = new THREE.PointsMaterial({ color: cursed ? 0xb080ff : 0xe6f6ff, size: 3, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false });
   const shards = new THREE.Points(geo, shardMat);
   shards.renderOrder = 3;
   group.add(frost, mist, shards);
@@ -424,8 +428,8 @@ export function syncEffects(world: World) {
     if (blastsSeen.has(b.id)) continue;
     blastsSeen.add(b.id);
     // 내려찍기 = 땅 울림(눕힌 그림), 서리 고리 = 얼음 장판, 불꽃·방패 폭발 = 폭발, 나머지는 마법사 효과(그림 이름 = 종류)
-    if (b.kind === 'frost') {
-      iceField(b.x, b.z, b.r ?? 3);
+    if (b.kind === 'frost' || b.kind === 'curse') {
+      iceField(b.x, b.z, b.r ?? 3, b.kind === 'curse');
       rumble(0.1);
       continue;
     }

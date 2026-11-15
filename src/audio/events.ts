@@ -24,6 +24,7 @@ export type Snapshot = {
   dashes: number;
   shouts: number;
   opened: number; // 열린 상자 수
+  allies: number; // 강령술사의 해골 수
 };
 
 export function snapshot(w: World): Snapshot {
@@ -44,6 +45,7 @@ export function snapshot(w: World): Snapshot {
     dashes: w.dashes,
     shouts: w.shouts,
     opened: w.chests.filter((c) => c.open).length,
+    allies: w.allies.length,
   };
 }
 
@@ -68,9 +70,10 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   });
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' || s.kind === 'fireball' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
   // 내려찍기가 떨어짐 / 서리 고리 / 폭발·벼락 / 덫이 닫힘 / 화살비. 얼음·번개 튐·순간이동(구르기 소리)·치유는 따로 소리가 없다
-  const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'shout', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', rain: 'shoot' };
+  const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'shout', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', rain: 'shoot', curse: 'shout' };
   for (const b of w.blasts) if (!prev.blasts.has(b.id) && BLAST_SOUND[b.kind]) at(BLAST_SOUND[b.kind]!, b.x, b.z);
   for (const z of w.zones) if (z.owner < 0 && !prev.zones.has(z.id)) at('fireball', z.x, z.z); // 불기둥 예고
+  if (w.allies.length > prev.allies) at('summon'); // 해골 병사
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
   if (w.potions !== prev.potions) at('potion');
   if (w.gold > prev.gold) at('gold');

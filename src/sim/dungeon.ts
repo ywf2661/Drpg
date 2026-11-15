@@ -3,6 +3,7 @@
 // 문 뒤(보물 방, 2층부터는 계단 방)는 문을 열기 전에는 걸어서 갈 수 없다.
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
+import { ELITE } from './rules';
 
 export const FLOORS = 5;
 // 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 50%씩 더 강하다
@@ -166,6 +167,9 @@ export function generateFloor(seed: number, floor: number): string[] {
     return true;
   };
   for (const i of order) if (rooms[i] !== goalRoom && (vault(rooms[i], true) || vault(rooms[i], false))) break;
+  // 정예: 몬스터마다 ELITE.chance로. 사슬 문처럼 맨 끝에 굴려 앞의 난수열(방·몬스터 배치)을 바꾸지 않는다
+  const ELITE_OF: Record<string, string> = { m: 'N', w: 'W', a: 'A', g: 'G' };
+  for (const row of cells) row.forEach((c, x) => ELITE_OF[c] && rand() < ELITE.chance && (row[x] = ELITE_OF[c]));
   return cells.map((row) => row.join(''));
 }
 

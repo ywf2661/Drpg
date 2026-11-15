@@ -1,6 +1,6 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
 import * as THREE from 'three';
-import { STATS, type Entity, type Gear, type HeroClass, type Kind, type Slot } from '../sim/world';
+import { ELITE_KINDS, STATS, type Entity, type Gear, type HeroClass, type Kind, type Slot } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
 import heroOrder from '../assets/sprites/hero_layers.json';
 import minionInfo from '../assets/sprites/minion.json';
@@ -17,21 +17,22 @@ import bossUrl from '../assets/sprites/boss.png';
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
-// tint: 불빛에 곱하는 고유 색(정예는 금빛)
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color };
+// tint: 불빛에 곱하는 고유 색(정예는 특성 색). ring: 정예의 발밑 고리
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh };
 export const CAST_SHOW = 0.35; // 스킬 시전 동작(공격 그림 = 마법사는 cast)을 보여 주는 시간(초)
-const ELITE_TINT = new THREE.Color(1.35, 1.05, 0.45);
+const RING = new THREE.RingGeometry(0.4, 0.52, 28).rotateX(-Math.PI / 2);
 const WHITE = new THREE.Color(1, 1, 1);
 const ELITE_SIZE = 1.25;
 const KING_TINT = new THREE.Color(0.95, 0.6, 1.35);
 const KING_SIZE = 1.5;
+export const ALLY_TINT = new THREE.Color(0.6, 1.3, 0.75); // 강령술사의 해골 병사: 초록빛
 
-// 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…, 궁수 ranger_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
+// 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…, 궁수 ranger_…, 강령술사 necromancer_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
 // URL만 알고, 그림은 장착할 때 불러온다. 레이어 → 단계를 정하는 장비 부위(lower = 다리·손). 마법사·궁수는 방패(off)가 없다
-const HERO_URLS = import.meta.glob(['../assets/sprites/hero_*_*.png', '../assets/sprites/wizard_*_*.png', '../assets/sprites/ranger_*_*.png'], { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const HERO_URLS = import.meta.glob(['../assets/sprites/hero_*_*.png', '../assets/sprites/wizard_*_*.png', '../assets/sprites/ranger_*_*.png', '../assets/sprites/necromancer_*_*.png'], { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 export const HERO_LAYERS: Record<string, Slot> = { main: 'weapon', head: 'helm', feet: 'boots', lower: 'armor', chest: 'armor', off: 'armor' };
 export const HERO_ORDER: string[][] = heroOrder; // FLARE 방향 번호 → 레이어 순서
-const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard', ranger: 'ranger' };
+const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard', ranger: 'ranger', necromancer: 'necromancer' };
 export const layerUrl = (layer: string, g: Gear, cls: HeroClass = 'knight'): string | undefined => HERO_URLS[`../assets/sprites/${PREFIX[cls]}_${layer}_${g[HERO_LAYERS[layer]]}.png`];
 const layerImages = new Map<string, Promise<HTMLImageElement>>();
 const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
@@ -182,7 +183,16 @@ export function makeSprite(e: Entity): Sprite {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
   if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
-  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : e.elite ? ELITE_TINT : WHITE };
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : WHITE };
+  if (e.eliteKind) {
+    // 정예: 특성 색으로 물들이고, 어두운 곳에서도 보이게 발밑에 빛나는 고리(불빛을 받지 않는다)
+    const c = new THREE.Color(ELITE_KINDS[e.eliteKind].color);
+    s.tint = new THREE.Color(1, 1, 1).lerp(c, 0.65).multiplyScalar(1.5);
+    s.ring = new THREE.Mesh(RING, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+    s.ring.position.y = 0.03;
+    s.ring.renderOrder = 1; // 바닥 다음, 캐릭터 전에
+    mesh.add(s.ring);
+  }
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }
@@ -211,6 +221,7 @@ export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number)
   const dead = e.state === 'dead';
   s.mesh.renderOrder = dead ? 1 : 2;
   s.mat.depthWrite = !dead;
+  if (s.ring) s.ring.visible = !dead;
 }
 
 function animFor(e: Entity, hitT: number): Anim {

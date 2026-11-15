@@ -11,7 +11,7 @@ import { walkable } from './sim/path';
 import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats, type Traits } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower, generateFloor, themeFor } from './sim/dungeon';
-import { AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, copyMods, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, FIREBALL, gainXp, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillName, type World } from './sim/world';
+import { CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, copyMods, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, FIREBALL, gainXp, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -176,6 +176,7 @@ function aimShape(cmd: AimCmd): AimShape | null {
     if (cmd === 'shout') return { kind: 'circle', range: BOLT.range, r: boltStat(world).radius }; // 낙뢰
     return null;
   }
+  if (world.cls === 'necromancer') return cmd === 'shout' ? { kind: 'circle', range: CURSE.range, r: curseStat(world).radius } : null; // 저주
   if (world.cls === 'ranger') {
     if (cmd === 'skill') return { kind: 'line', len: PIERCE.flight, width: PIERCE.hit * 2 }; // 관통 사격
     if (cmd === 'dash') return { kind: 'circle', range: TRAP.range, r: TRAP.trigger }; // 덫
