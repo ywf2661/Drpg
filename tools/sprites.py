@@ -378,9 +378,10 @@ def flame():
     pack('flame', frames, {'flame': (len(ims), ms, 'looped')}, FLAME_SCALE, 1)
 
 
-def effect(name, src, dirs=8, scale=SCALE, ms=None, first=0):
+def effect(name, src, dirs=8, scale=SCALE, ms=None, first=0, grow=1):
     # FLARE 기술 효과('power' 동작, 8방향. first = 쓸 첫 방향). 기준점(바닥)이 칸 안에 들어오도록 경계 상자에 FOOT 포함
     # — 판자의 바닥선이 칸 밖이면 지오메트리가 뒤집힌다
+    # grow: 그림만 제자리(중심)에서 키운다. scale은 바닥에서의 높이까지 키우므로 날아가는 것은 grow로 키운다
     sh = sheet(f'powers/{src}')
     a = sh.anims['power']
     n = int(a['frames'])
@@ -388,7 +389,11 @@ def effect(name, src, dirs=8, scale=SCALE, ms=None, first=0):
     for d in range(dirs):
         for i in range(n):
             x, y, w, h, ox, oy = a['rects'][(i, d + first)]
-            frames[('fly' if name == 'arrow' else name, d, i)] = (sh.img.crop((x, y, x + w, y + h)), (FOOT[0] - ox, FOOT[1] - oy))
+            im = sh.img.crop((x, y, x + w, y + h))
+            if grow != 1:
+                im = im.resize((round(w * grow), round(h * grow)), Image.LANCZOS)
+                ox, oy = ox + (im.width - w) // 2, oy + (im.height - h) // 2
+            frames[('fly' if name == 'arrow' else name, d, i)] = (im, (FOOT[0] - ox, FOOT[1] - oy))
     x0 = min(min(o[0] for _, o in frames.values()), FOOT[0])
     y0 = min(min(o[1] for _, o in frames.values()), FOOT[1])
     x1 = max(max(o[0] + im.width for im, o in frames.values()), FOOT[0] + 1)
@@ -479,7 +484,7 @@ if __name__ == '__main__':
     effect('axe', 'throw_axe')  # 도끼: 8방향 8프레임 회전
     effect('quake', 'quake', dirs=1, scale=QUAKE_SCALE)  # 함성: 땅 울림
     # 마법사
-    effect('ember', 'ember', scale=0.9)  # 마력탄: 작은 불씨(8방향)
+    effect('ember', 'ember', grow=0.9 / SCALE)  # 마력탄: 작은 불씨(8방향). 크기는 키우되 화살처럼 가슴 높이(약 1m)로 난다
     effect('thunder', 'thunderstrike', dirs=1, scale=0.17, ms=500)  # 낙뢰: 높이 약 3.8m. 원본(200ms)은 너무 짧아 늘린다
     effect('spark', 'lightning', dirs=1, scale=0.35, ms=450)  # 연쇄 번개가 튄 적
     effect('ice', 'freeze', dirs=1, scale=0.4)  # 얼어붙은 적: 얼음 결정

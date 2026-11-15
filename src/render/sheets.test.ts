@@ -14,6 +14,7 @@ import quake from '../assets/sprites/quake.json';
 import props from '../assets/sprites/props.json';
 import stairs from '../assets/sprites/stairs.json';
 import loot from '../assets/sprites/loot.json';
+import ember from '../assets/sprites/ember.json';
 
 const ANIMS = ['stance', 'move', 'attack', 'hit', 'die'] as const;
 
@@ -103,6 +104,10 @@ test('도끼 8방향 8프레임 회전, 함성 울림 1방향 1회', () => {
 test('화살 시트: 8방향 × 3프레임 반복', () => {
   expect(arrow.rows).toBe(8);
   expect(arrow.anims.fly).toMatchObject({ row: 0, frames: 3, loop: 'looped' });
+});
+
+test('마력탄은 화살처럼 가슴 높이로 난다(칸 꼭대기 = 그림의 가장 높은 곳, 머리 위로 뜨지 않는다)', () => {
+  expect(ember.anchor[1] / ember.ppm).toBeLessThan(1.5);
 });
 
 test('모든 시트의 기준점(발)은 칸 안에 있다(판자 바닥선)', () => {
