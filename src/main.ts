@@ -1,7 +1,7 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, showBag, showTitle, showTraits, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
+import { $, initHud, sayLocked, showBag, showTitle, showTraits, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
 import { aim, aiming, amoving, cancelAim, commands, fireAim, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
@@ -10,15 +10,16 @@ import { camera, draw, initRender, renderer, setAim, setWorld } from './render/r
 import { walkable } from './sim/path';
 import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats, type Traits } from './save';
 import { buy, deathGold, sell } from './shop';
-import { cyclePower, FLOORS, floorPower, generateFloor, themeFor } from './sim/dungeon';
-import { CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, copyMods, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, FIREBALL, gainXp, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillName, type World } from './sim/world';
+import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
+import { makeMap, themeOf } from './sim/wilds';
+import { LANDS, LAND_LIST, type Land, ROLL, START_RANKS, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, copyMods, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, FIREBALL, gainXp, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
 const bag = document.querySelector<HTMLDialogElement>('#bag')!;
 const traits = document.querySelector<HTMLDialogElement>('#traits')!;
 // 새 판의 시작 상태: 2단계 장비(기사 = 숏소드 + 가죽 갑옷·두건·장화, 마법사 = 마법 막대 + 견습 로브·두건·장화)
-const startOf = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, bag: [], autoEquip: true });
+const startOf = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ranks: { ...START_RANKS }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, bag: [], autoEquip: true });
 type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; traits: Traits; bag: BagItem[]; autoEquip: boolean };
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
 const carryOf = (c: Carry): Carry => ({ cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, traits: { ...c.traits }, bag: [...c.bag], autoEquip: c.autoEquip });
@@ -27,6 +28,7 @@ const saved = loadRun(); // 지난번 진행(있으면 시작 화면에 이어�
 let choosing = true; // 시작 화면(이어하기·직업 선택)을 보는 중. 뒤에는 기사 1층이 미리 그려져 있다
 let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터)
 let floor = 1;
+let land: Land = 'dungeon'; // 지역(미궁·초원·설원). ponytail: 지금은 테스터 모드에서만 바꾸고 저장하지 않는다 — 맵 이동을 넣을 때 저장에 포함
 let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 1씩
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
@@ -38,7 +40,7 @@ const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그�
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
-  const w = createWorld(seed, generateFloor(seed, n), floorPower(n, cycle), cyclePower(cycle));
+  const w = createWorld(seed, makeMap(seed, n, land), floorPower(n, cycle), cyclePower(cycle), LANDS[land].skins);
   w.cls = carry.cls;
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
@@ -61,10 +63,10 @@ function enterFloor(n: number, carry: Carry) {
   entry = carryOf(carry);
   saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
-  setWorld(world, themeFor(n));
+  setWorld(world, themeOf(n, land));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
-  showFloor(n, cycle);
+  showFloor(n, cycle, land);
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -166,8 +168,16 @@ const skill = () => commands.push({ type: 'skill' }); // 버튼: 자동 조준
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
 const shout = () => commands.push({ type: 'shout' });
 const throwAxe = (aimed: boolean) => commands.push({ type: 'throw', ...((aimed && aim()) || {}) });
-const roll = (aimed: boolean) => commands.push({ type: 'roll', ...((aimed && aim()) || {}) }); // 버튼은 가까운 적의 반대쪽
+const roll = (aimed: boolean) => ROLL.on && commands.push({ type: 'roll', ...((aimed && aim()) || {}) }); // 버튼은 가까운 적의 반대쪽
 const learn = (skill: SkillName) => commands.push({ type: 'learn', skill });
+const CMD_SKILL: Record<AimCmd, SkillName> = { skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' };
+// 스킬 버튼: 배운 스킬은 쓰고, 안 배운 스킬은 포인트가 있으면 배우고 없으면 알린다
+const tap = (cmd: AimCmd, use: () => void) => () => {
+  const s = CMD_SKILL[cmd];
+  if (world.ranks[s]) use();
+  else if (world.points) learn(s);
+  else sayLocked(world, s);
+};
 // 스킬 조준(롤의 일반 시전): 날아가는 스킬은 직선, 지점에 떨어지는 스킬은 원. 표에 없는 스킬은 누르면 바로 쓴다
 type AimShape = { kind: 'line'; len: number; width: number } | { kind: 'circle'; range: number; r: number };
 function aimShape(cmd: AimCmd): AimShape | null {
@@ -200,6 +210,7 @@ let smartKey = (() => {
 // 스킬 키(Q W E R): 조준할 스킬이면 조준 시작 → 좌클릭(또는 같은 키 한 번 더)에 쓴다. 재사용 대기 중이면 조준하지 않는다.
 // 기사 Q·E, 마법사 W·R은 바로 쓴다(Q는 가까운 적 쪽 — 커서 쪽은 우클릭). 박힌 도끼가 있으면 R은 바로 순간이동
 function skillKey(cmd: AimCmd) {
+  if (!world.ranks[CMD_SKILL[cmd]]) return sayLocked(world, CMD_SKILL[cmd]);
   const shape = aimShape(cmd);
   const stuck = cmd === 'throw' && world.cls === 'knight' && world.shots.some((s) => s.stuck !== undefined);
   if (!shape || stuck) return commands.push({ type: cmd });
@@ -225,7 +236,7 @@ function aimGuide() {
 }
 
 try {
-  await initRender(world, themeFor(floor));
+  await initRender(world, themeOf(floor, land));
 } catch (err) {
   showLoadError(err);
   throw err;
@@ -241,10 +252,10 @@ showTitle(true, saved);
 $('#help-btn').addEventListener('click', () => help.showModal());
 initHud({
   drink,
-  skill,
-  dash: () => dash(false),
-  shout,
-  throwAxe: () => throwAxe(false),
+  skill: tap('skill', skill),
+  dash: tap('dash', () => dash(false)),
+  shout: tap('shout', shout),
+  throwAxe: tap('throw', () => throwAxe(false)),
   roll: () => roll(false),
   learn,
   bag: openBag,
@@ -310,9 +321,14 @@ if (new URLSearchParams(location.search).has('test')) {
   const playing = () => !choosing && !shopping && !outcome(world);
   $('#test-level').addEventListener('click', () => playing() && gainXp(world, xpToNext(world.level) - world.xp));
   $('#test-floor').addEventListener('click', () => playing() && floor < FLOORS && enterFloor(floor + 1, carryOf(world)));
+  $('#test-land').addEventListener('click', () => {
+    if (!playing()) return;
+    land = LAND_LIST[(LAND_LIST.indexOf(land) + 1) % LAND_LIST.length];
+    enterFloor(floor, carryOf(world));
+  });
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number) => enterFloor(n, world), get played() { return sound.played; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; } } });
 
 let heard = snapshot(world); // 직전 프레임 상태(효과음 비교용)
 let acc = 0;

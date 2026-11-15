@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { AFFIXES, ARCHER, BONES, FOCUS, type Ally, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { AFFIXES, ARCHER, BONES, FOCUS, type Ally, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -47,7 +47,7 @@ const total = (m: World['mods'], kind: AffixKind) => SLOTS.reduce((s, sl) => s +
 export const worn = (w: World, kind: AffixKind) => total(w.mods, kind);
 
 // 이동 속도(m/s). 주인공은 신발 + '날랜' 옵션
-export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1));
+export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1) * (e.skin ? SKINS[e.skin].speed : 1));
 
 // 장비 점수(자동 장착 비교). 무기 = 옵션을 반영한 초당 데미지(흡혈은 가산), 방어구(갑옷·투구·신발) = 세 부위를 합쳐 버티는 체력(재생·가시·이동 속도 가산)
 export function weaponScore(tier: number, aff: Affix[], cls: HeroClass = 'knight'): number {
@@ -171,6 +171,13 @@ export function makeEntity(id: number, kind: Kind, x: number, z: number, power: 
   return { id, kind, x, z, elite, summoner, stunT: 0, fearT: 0, facing: 0, hp, maxHp: hp, power, state: 'idle', path: [], target: null, attackT: 0, repathT: 0, skill: false, phase: 'none', phaseT: 0, cd: kind === 'warrior' ? SLAM.first + (id % 3) : kind === 'mage' ? METEOR.first + (id % 3) : 0, dx: 0, dz: 0 };
 }
 
+// 맵의 스킨을 입힌다(그림·이름은 skin을 보고, 체력은 여기서 곱한다)
+export function dress(e: Entity, skins: World['skins']): Entity {
+  const s = skins?.[e.kind];
+  if (s) Object.assign(e, { skin: s, hp: Math.round(e.hp * SKINS[s].hp), maxHp: Math.round(e.maxHp * SKINS[s].hp) });
+  return e;
+}
+
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
   return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : 1); // 궁수 집중 중엔 빠르게
@@ -248,7 +255,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)
   if (t.eliteKind === 'volatile') w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: ELITE_FX.blastDelay, total: ELITE_FX.blastDelay, dmg: Math.round(roll(w, t) * ELITE_FX.blastMult), owner: -1 });
   if (t.eliteKind === 'splitting')
-    for (let i = 0; i < ELITE_FX.split; i++) w.entities.push(Object.assign(makeEntity(w.entities.length, 'minion', t.x + (i ? 0.1 : -0.1), t.z, t.power), { target: 0 }));
+    for (let i = 0; i < ELITE_FX.split; i++) w.entities.push(Object.assign(dress(makeEntity(w.entities.length, 'minion', t.x + (i ? 0.1 : -0.1), t.z, t.power), w.skins), { target: 0 }));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
   const g = t.elite ? { chance: 1, ...GOLD_ELITE } : GOLD[t.kind];

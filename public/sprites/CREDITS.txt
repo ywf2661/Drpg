@@ -5,6 +5,7 @@ Source: https://github.com/flareteam/flare-game (commit af6eee6d339ac98011864bfe
 License: CC-BY-SA 3.0 - https://creativecommons.org/licenses/by-sa/3.0/
 The derived sprite sheets are also licensed under CC-BY-SA 3.0.
 Modifications: selected frames, equipment layers (weapon, armor, helm, boots; legs and hands merged) scaled by 0.32,
+necromancer layers recolored,
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by 0.221.
 Sound effects and music: copied unchanged (Ogg Vorbis).
@@ -28,6 +29,26 @@ Files used:
   mods/fantasycore/images/enemies/minotaur/minotaur_cast_alt.png
   mods/fantasycore/images/enemies/minotaur/minotaur_shoot.png
   mods/fantasycore/images/enemies/minotaur/minotaur_die.png
+  mods/fantasycore/animations/enemies/goblin.txt
+  mods/fantasycore/images/enemies/goblin.png
+  mods/fantasycore/animations/enemies/goblin_elite.txt
+  mods/fantasycore/images/enemies/goblin_elite.png
+  mods/fantasycore/animations/enemies/fire_ant.txt
+  mods/fantasycore/images/enemies/fire_ant.png
+  mods/fantasycore/animations/enemies/ice_ant.txt
+  mods/fantasycore/images/enemies/ice_ant.png
+  mods/fantasycore/animations/enemies/zombie.txt
+  mods/fantasycore/images/enemies/zombie.png
+  mods/fantasycore/animations/enemies/antlion.txt
+  mods/fantasycore/images/enemies/antlion.png
+  mods/fantasycore/animations/enemies/wyvern_water.txt
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_stance.png
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_run.png
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_swing.png
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_cast.png
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_dash_attack.png
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_hit.png
+  mods/fantasycore/images/enemies/wyvern_water/wyvern_water_die.png
   mods/fantasycore/animations/powers/arrows.txt
   mods/fantasycore/images/powers/arrows.png
   mods/fantasycore/animations/powers/cleave.txt
@@ -158,10 +179,18 @@ Files used:
   mods/fantasycore/images/avatar/male/longbow.png
   mods/fantasycore/animations/avatar/male/greatbow.txt
   mods/fantasycore/images/avatar/male/greatbow.png
+  mods/fantasycore/animations/avatar/male/head_bald.txt
+  mods/fantasycore/images/avatar/male/head_bald.png
+  mods/fantasycore/animations/avatar/male/default_chest.txt
+  mods/fantasycore/images/avatar/male/default_chest.png
   mods/fantasycore/images/tilesets/tileset_dungeon.png
   mods/fantasycore/tilesetdefs/tileset_dungeon.txt
   mods/fantasycore/images/tilesets/tileset_cave.png
   mods/fantasycore/tilesetdefs/tileset_cave.txt
+  mods/fantasycore/images/tilesets/tileset_grassland.png
+  mods/fantasycore/tilesetdefs/tileset_grassland.txt
+  mods/fantasycore/images/tilesets/tileset_snowplains.png
+  mods/fantasycore/tilesetdefs/tileset_snowplains.txt
   mods/fantasycore/animations/loot/hp_potion.txt
   mods/fantasycore/images/loot/hp_potion.png
   mods/fantasycore/animations/loot/dagger.txt

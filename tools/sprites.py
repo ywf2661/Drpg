@@ -37,9 +37,14 @@ KINDS = {  # 몬스터: 레이어 1장
     'archer': {'body': 'enemies/skeleton_archer'},
     'mage': {'body': 'enemies/skeleton_mage'},
     'boss': {'body': 'enemies/minotaur'},
+    # 초원·설원의 몬스터(같은 전투 원형에 그림·이름·수치만 다르다): 졸개·전사·마법사 / 졸개·전사
+    'goblin': {'body': 'enemies/goblin'}, 'goblin_elite': {'body': 'enemies/goblin_elite'}, 'fire_ant': {'body': 'enemies/fire_ant'},
+    'ice_ant': {'body': 'enemies/ice_ant'}, 'zombie': {'body': 'enemies/zombie'},
+    # 지역의 보스(미노타우르스와 같은 전투 원형): 초원 개미귀신, 설원 서리 와이번
+    'antlion': {'body': 'enemies/antlion'}, 'wyvern': {'body': 'enemies/wyvern_water'},
 }
-KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전
-KIND_SCALE = {'boss': 0.28}  # 0.32면 시트 세로가 4560px(> 4096)
+KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}, 'fire_ant': {**ANIMS, 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전
+KIND_SCALE = {'boss': 0.28, 'wyvern': 0.28, 'antlion': 0.36}  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 부위별 레이어 시트(hero_<레이어>_<단계>.png). 게임이 장비에 맞춰 방향마다 LAYER_ORDER대로 겹친다.
 # 모든 레이어가 같은 칸 크기·기준점이라 hero.json 하나를 공유한다. 단계 1~4 순
 # 레이어 → FLARE 원본들. lower = 다리+손(모든 방향에서 그리는 순서가 붙어 있어 한 장으로)
@@ -100,7 +105,7 @@ WIZARD_GEAR_ICONS = [104, 105, 106, 107, 129, 137, 185, 193, -136, 136, 184, 192
 WIZARD_SKILL_ICONS = [34, 24, 7, 4, 19]  # 화염구·서리 고리·낙뢰·마나 방패·순간이동
 RANGER_GEAR_ICONS = [112, 113, 114, 115, 129, 137, 145, 153, -136, 136, 144, 152, 132, 140, 176, 156]  # 궁수(새총·활 3, 천·가죽 조끼·가죽·사슬, 두건 4, 신발 4)
 RANGER_SKILL_ICONS = [41, 38, 8, 16, 9]  # 관통 사격·덫·화살비·집중·구르기
-NECRO_SKILL_ICONS = [12, 25, 27, 4, 9]  # 해골 병사·생명 흡수·저주·뼈 갑옷·구르기(장비 아이콘은 마법사 것)
+NECRO_SKILL_ICONS = [12, 25, 27, 4, 9]  # 해골 소환·시체 거인·죽음의 표식·해골 왕 강림·구르기(장비 아이콘은 마법사 것). ponytail: W·R 그림은 옛 스킬(생명 흡수·뼈 갑옷)의 것 그대로
 SKILL_ICON = 22  # 가르기(Cleave)
 DASH_ICON = 9  # 돌진 베기(달리는 사람)
 SHOUT_ICON, THROW_ICON = 10, 33  # 전투의 함성(파동), 도끼 던지기
@@ -125,6 +130,9 @@ CAVE_TILESET = 'tileset_cave'
 CAVE_FLOOR = [16, 17, 18, 19, 48, 49, 50, 51]  # 흙 4 + 잔해 4
 CAVE_WALLS = [72, 76]  # +x 면, +z 면으로 쓸 바위벽
 CAVE_WALL_BOXES, CAVE_WALL_GAIN = [(40, 60, 150, 230), (30, 120, 140, 290), (50, 40, 160, 210), (35, 90, 145, 260)], 1.6  # 바위 면에서 자를 곳 4가지(무늬 반복 줄이기), 밝기
+# 초원·설원: 동굴과 같은 방식(풀/눈 4 + 돌 섞인 바닥 4, 바위 기둥 면). (타일셋, 바닥, 벽 타일, 자를 곳, 밝기)
+WILDS = {'field': ('tileset_grassland', [16, 17, 18, 19, 32, 33, 34, 35], [132, 134], [(50, 50, 115, 170), (50, 110, 115, 240), (55, 30, 120, 150), (50, 80, 115, 210)], 1.5),
+         'snow': ('tileset_snowplains', [16, 17, 18, 19, 32, 33, 34, 35], [133, 134], [(15, 40, 100, 150), (10, 100, 95, 220), (20, 25, 105, 135), (15, 70, 100, 190)], 1.1)}
 LOOT_POTION = 0.5 / SCALE  # 바닥 아이템은 캐릭터 배율(0.32), 물약만 0.5배(작아서 안 보인다)
 POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
@@ -322,18 +330,18 @@ def floor_strip(ts, ids, out):
     floor.save(TILES / out, optimize=True)
 
 
-def cave():
-    # 4~5층 동굴: 흙바닥 4 + 잔해 바닥 4, 벽은 울퉁불퉁한 바위라 정밀하게 펴지 않고 가운데를 잘라 쓴다
-    ts = Tileset(CAVE_TILESET)
-    floor_strip(ts, CAVE_FLOOR, 'floor_cave.png')
+def cave(name='cave', tileset=CAVE_TILESET, floor=CAVE_FLOOR, walls=CAVE_WALLS, boxes=CAVE_WALL_BOXES, gain=CAVE_WALL_GAIN):
+    # 4~5층 동굴(과 초원·설원): 흙바닥 4 + 잔해 바닥 4, 벽은 울퉁불퉁한 바위라 정밀하게 펴지 않고 가운데를 잘라 쓴다
+    ts = Tileset(tileset)
+    floor_strip(ts, floor, f'floor_{name}.png')
     # 변형 v마다 [+x 면, +z 면] 두 칸 → 가로 64 × 변형 수
-    wall = Image.new('RGB', (64 * len(CAVE_WALL_BOXES), 38))
-    for v, box in enumerate(CAVE_WALL_BOXES):
-        for k, i in enumerate(CAVE_WALLS):
+    wall = Image.new('RGB', (64 * len(boxes), 38))
+    for v, box in enumerate(boxes):
+        for k, i in enumerate(walls):
             (im,), _, _ = ts.frames(i)
-            face = ImageEnhance.Brightness(im.crop(box).convert('RGB')).enhance(CAVE_WALL_GAIN)
+            face = ImageEnhance.Brightness(im.crop(box).convert('RGB')).enhance(gain)
             wall.paste(face.resize((32, 38), Image.LANCZOS), (64 * v + 32 * k, 0))
-    wall.save(TILES / 'wall_cave.png', optimize=True)
+    wall.save(TILES / f'wall_{name}.png', optimize=True)
 
 
 def tiles():
@@ -525,6 +533,8 @@ if __name__ == '__main__':
     gate()
     flame()
     cave()
+    for name, args in WILDS.items():
+        cave(name, *args)
     loot()
     SOUNDS.mkdir(parents=True, exist_ok=True)
     for f in SOUND_FILES:

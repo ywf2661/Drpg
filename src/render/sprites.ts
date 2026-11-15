@@ -1,6 +1,6 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
 import * as THREE from 'three';
-import { ELITE_KINDS, STATS, type Entity, type Gear, type HeroClass, type Kind, type Slot } from '../sim/world';
+import { ELITE_KINDS, STATS, type Entity, type Gear, type HeroClass, type Kind, type Skin, type Slot } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
 import heroOrder from '../assets/sprites/hero_layers.json';
 import minionInfo from '../assets/sprites/minion.json';
@@ -13,6 +13,20 @@ import mageInfo from '../assets/sprites/mage.json';
 import mageUrl from '../assets/sprites/mage.png';
 import bossInfo from '../assets/sprites/boss.json';
 import bossUrl from '../assets/sprites/boss.png';
+import goblinInfo from '../assets/sprites/goblin.json';
+import goblinUrl from '../assets/sprites/goblin.png';
+import goblinEliteInfo from '../assets/sprites/goblin_elite.json';
+import goblinEliteUrl from '../assets/sprites/goblin_elite.png';
+import fireAntInfo from '../assets/sprites/fire_ant.json';
+import fireAntUrl from '../assets/sprites/fire_ant.png';
+import iceAntInfo from '../assets/sprites/ice_ant.json';
+import iceAntUrl from '../assets/sprites/ice_ant.png';
+import zombieInfo from '../assets/sprites/zombie.json';
+import zombieUrl from '../assets/sprites/zombie.png';
+import antlionInfo from '../assets/sprites/antlion.json';
+import antlionUrl from '../assets/sprites/antlion.png';
+import wyvernInfo from '../assets/sprites/wyvern.json';
+import wyvernUrl from '../assets/sprites/wyvern.png';
 
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
@@ -35,7 +49,7 @@ export const HERO_ORDER: string[][] = heroOrder; // FLARE 방향 번호 → 레�
 const PREFIX: Record<HeroClass, string> = { knight: 'hero', wizard: 'wizard', ranger: 'ranger', necromancer: 'necromancer' };
 export const layerUrl = (layer: string, g: Gear, cls: HeroClass = 'knight'): string | undefined => HERO_URLS[`../assets/sprites/${PREFIX[cls]}_${layer}_${g[HERO_LAYERS[layer]]}.png`];
 const layerImages = new Map<string, Promise<HTMLImageElement>>();
-const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
+const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   hero: { info: heroInfo as SheetInfo, url: '' }, // 그림은 setHeroGear가 고른다
   minion: { info: minionInfo as SheetInfo, url: minionUrl },
   warrior: { info: warriorInfo as SheetInfo, url: warriorUrl },
@@ -43,6 +57,14 @@ const SHEETS: Record<Kind, { info: SheetInfo; url: string }> = {
   mage: { info: mageInfo as SheetInfo, url: mageUrl },
   king: { info: warriorInfo as SheetInfo, url: warriorUrl }, // 해골 왕 = 전사 그림을 크게·보라색으로
   boss: { info: bossInfo as SheetInfo, url: bossUrl },
+  // 초원·설원의 스킨
+  goblin: { info: goblinInfo as SheetInfo, url: goblinUrl },
+  goblin_elite: { info: goblinEliteInfo as SheetInfo, url: goblinEliteUrl },
+  fire_ant: { info: fireAntInfo as SheetInfo, url: fireAntUrl },
+  ice_ant: { info: iceAntInfo as SheetInfo, url: iceAntUrl },
+  zombie: { info: zombieInfo as SheetInfo, url: zombieUrl },
+  antlion: { info: antlionInfo as SheetInfo, url: antlionUrl },
+  wyvern: { info: wyvernInfo as SheetInfo, url: wyvernUrl },
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
@@ -53,8 +75,8 @@ const LIFT = 0.01; // 바닥과 같은 높이에서 깜빡이지 않게 살짝 �
 // 화면 각도 구간(E부터 45°씩 반시계: E NE N NW W SW S SE) → FLARE 방향 번호.
 // FLARE 번호는 맵 기준 나침반이라 화면 기준으로는 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW
 const BY_SECTOR = [4, 3, 2, 1, 0, 7, 6, 5];
-const textures = new Map<Kind, THREE.Texture>();
-const geometries = new Map<Kind, THREE.BufferGeometry>();
+const textures = new Map<Kind | Skin, THREE.Texture>();
+const geometries = new Map<Kind | Skin, THREE.BufferGeometry>();
 const PPM = SHEETS.hero.info.ppm; // 모든 시트 공통 30px/m
 
 // 월드에서 바라보는 방향(atan2(dx, dz))을 FLARE 방향 번호로. 카메라는 +x+z 쪽에서 -x-z를 내려다본다.
@@ -133,7 +155,7 @@ async function heroSheet(g: Gear, cls: HeroClass): Promise<THREE.Texture> {
 }
 
 export async function loadSprites() {
-  await Promise.all((['minion', 'warrior', 'archer', 'mage', 'king', 'boss'] as const).map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
+  await Promise.all((Object.keys(SHEETS) as (Kind | Skin)[]).filter((k) => k !== 'hero').map(async (k) => textures.set(k, await loadSheet(SHEETS[k].url))));
 }
 
 // 장비 조합의 주인공 시트로 바꾼다. 불러오는 동안은 이전 외형, 여러 번 바뀌면 마지막 요청만 적용
@@ -174,15 +196,17 @@ export function drawHeroPortrait(c: HTMLCanvasElement, scale: number) {
 }
 
 export function makeSprite(e: Entity): Sprite {
-  const info = SHEETS[e.kind].info;
-  if (!geometries.has(e.kind)) geometries.set(e.kind, cardGeometry(info));
-  const geo = geometries.get(e.kind)!;
-  const map = textures.get(e.kind)!.clone(); // 이미지는 공유, 프레임 위치(offset)만 캐릭터별
+  const key = e.skin ?? e.kind;
+  const info = SHEETS[key].info;
+  if (!geometries.has(key)) geometries.set(key, cardGeometry(info));
+  const geo = geometries.get(key)!;
+  const map = textures.get(key)!.clone(); // 이미지는 공유, 프레임 위치(offset)만 캐릭터별
   map.repeat.set(1 / info.cols, 1 / info.rows);
   const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
   if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
+  if (e.skin === 'wyvern') mesh.scale.setScalar(KING_SIZE); // 원본 그림이 작다 — 보스답게
   const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : WHITE };
   if (e.eliteKind) {
     // 정예: 특성 색으로 물들이고, 어두운 곳에서도 보이게 발밑에 빛나는 고리(불빛을 받지 않는다)

@@ -75,7 +75,7 @@ export function decodeSave(text: string | null): Run | null {
   const r = (d.ranks ?? { cleave: 1, dash: 1, shout: 1, throw: 1 }) as Record<string, unknown>;
   const names: SkillName[] = ['cleave', 'dash', 'shout', 'throw'];
   const points = d.points ?? 0;
-  if (!r || typeof r !== 'object' || !names.every((n) => int(r[n], 1, RANK_MAX)) || !int(points, 0, 1000)) return null;
+  if (!r || typeof r !== 'object' || !names.every((n) => int(r[n], n === 'cleave' ? 1 : 0, RANK_MAX)) || !int(points, 0, 1000)) return null;
   // 특성(나중에 생긴 항목: 없으면 안 고름). 0~2, 고른 것은 그 스킬이 TRAIT.rank단계 이상이어야
   const tr = (d.traits ?? { cleave: 0, dash: 0, shout: 0, throw: 0 }) as Record<string, unknown>;
   if (!tr || typeof tr !== 'object' || !names.every((n) => int(tr[n], 0, 2) && (!tr[n] || (r[n] as number) >= TRAIT.rank))) return null;

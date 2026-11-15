@@ -21,19 +21,20 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { armorStat, BONE_ARMOR, bonesStat, curseStat, CURSE, drainStat, axeStat, BAG, focusStat, FOCUS, pierceStat, rainStat, RAIN, RANGER, trapStat, TRAP, bagBlocked, bagFits, BLINK, BOLT, boltStat, CLASSES, cleaveStat, ELITE_KINDS, dashStat, fireStat, frostStat, gearDiff, gearSize, gearTable, mastered, outcome, POTION, RANK_MAX, ROLL, SLOTS, TRAIT, shoutStat, STATS, WARD, wardStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type SkillName, type Slot, type World } from './sim/world';
+import { bonesStat, curseStat, CURSE, giantStat, GIANT, lordStat, LORD, axeStat, BAG, focusStat, FOCUS, pierceStat, rainStat, RAIN, RANGER, trapStat, TRAP, bagBlocked, bagFits, BLINK, BOLT, boltStat, CLASSES, cleaveStat, ELITE_KINDS, bossName, LANDS, monsterName, dashStat, fireStat, frostStat, gearDiff, gearSize, gearTable, mastered, outcome, POTION, RANK_MAX, ROLL, SLOTS, TRAIT, shoutStat, WARD, wardStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
 const xpFill = $('#xp i');
 const levelLabel = $('#level');
+const pointsHint = $('#points');
 const target = $('#target');
 const targetName = $('#target span');
 const targetFill = $('#target i');
 const targetNote = $('#target small');
 const bossBar = $('#boss');
 const bossFill = $('#boss i');
-const bossName = $('#boss span');
+const bossLabel = $('#boss span');
 const banner = $('#banner');
 const bannerText = $('#banner p');
 const summary = $('#summary');
@@ -133,9 +134,10 @@ function replay(el: HTMLElement) {
   el.classList.add('show');
 }
 
-export function showFloor(n: number, cycle: number) {
-  floorLabel.textContent = `지하 ${n}층` + (cycle ? ` · ${cycle + 1}회차` : '');
-  floorTitle.textContent = n === FLOORS ? `지하 ${n}층 — ${STATS.boss.name}` : floorLabel.textContent;
+export function showFloor(n: number, cycle: number, land: Land = 'dungeon') {
+  const place = `${LANDS[land].name} ${n}${LANDS[land].unit}`;
+  floorLabel.textContent = place + (cycle ? ` · ${cycle + 1}회차` : '');
+  floorTitle.textContent = n === FLOORS ? `${place} — ${bossName(LANDS[land].skins)}` : floorLabel.textContent;
   replay(floorTitle);
 }
 
@@ -243,10 +245,10 @@ const RANGER_TRAITS: Record<SkillName, [string, string][]> = {
   ],
 };
 const NECRO_SKILLS: SkillText = {
-  cleave: { name: '해골 병사', key: 'Q', cap: '한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `해골 ${s.count}기(최대 ${s.max}) ${sec(s.life)} 동안, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  dash: { name: '생명 흡수', key: 'W', cap: '적을 맞히면 해골 한 기를 일으킨다', stat: (w) => { const s = drainStat(w); return `${s.radius.toFixed(1)}m 안 적 모두 ${pct(s.mult)}, 준 피해의 ${pct(s.heal)} 회복, ${sec(s.cd)}`; } },
-  shout: { name: '저주', key: 'E 조준', cap: '저주 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `${CURSE.range}m 안 지점 ${s.radius.toFixed(1)}m, ${sec(s.time)} 동안 받는 피해 +${pct(s.amp)}, 사슬 문을 녹인다, ${sec(s.cd)}`; } },
-  throw: { name: '뼈 갑옷', key: 'R', cap: '갑옷이 깨지면 주변 폭발', stat: (w) => { const s = armorStat(w); return `${BONE_ARMOR.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${sec(s.cd)}`; } },
+  cleave: { name: '해골 소환', key: 'Q', cap: '한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); const n = (k: string) => s.kinds.filter((x) => x === k).length; return `검사 ${n('minion')}${n('archer') ? `·궁수 ${n('archer')}` : ''}${n('mage') ? `·법사 ${n('mage')}` : ''}(최대 ${s.max}) ${sec(s.life)} 동안, 검사 한 대에 ${pct(s.mult)}, ${sec(s.cd)} — 2단계 궁수, 3단계 한 기 더, 4단계 법사`; } },
+  dash: { name: '시체 거인', key: 'W', cap: '쓰러지면 터져 주변 적에게 피해', stat: (w) => { const s = giantStat(w); return `체력 ${s.hp}의 거인 하나 ${sec(s.life)} 동안, 나타나며 ${GIANT.taunt}m 안 적의 눈길을 끈다, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  shout: { name: '죽음의 표식', key: 'E 조준', cap: '표식 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `${CURSE.range}m 안 지점 ${s.radius.toFixed(1)}m, ${sec(s.time)} 동안 소환수가 안의 적부터 노리고 받는 피해 +${pct(s.amp)}, 사슬 문을 녹인다, ${sec(s.cd)}`; } },
+  throw: { name: '해골 왕 강림', key: 'R', cap: '해골 둘이 함께 온다', stat: (w) => { const s = lordStat(w); return `체력 ${s.hp}의 해골 왕 ${sec(s.life)} 동안, 휘두르면 둘레 ${LORD.splash}m 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
 };
 const NECRO_TRAITS: Record<SkillName, [string, string][]> = {
   cleave: [
@@ -254,16 +256,16 @@ const NECRO_TRAITS: Record<SkillName, [string, string][]> = {
     ['정예 해골', '해골 피해 60% 증가, 50% 더 오래 남는다'],
   ],
   dash: [
-    ['넓은 흡수', '범위 50% 증가'],
-    ['갈증', '회복량 2배'],
+    ['두꺼운 살', '거인 체력 50% 증가'],
+    ['강타', `때릴 때 둘레 ${GIANT.smash}m의 적도 함께 맞는다`],
   ],
   shout: [
-    ['넓은 저주', '범위 60% 증가'],
-    ['역병', '저주 안의 적이 0.5초마다 피해를 입는다'],
+    ['넓은 표식', '범위 60% 증가'],
+    ['역병', '표식 안의 적이 0.5초마다 피해를 입는다'],
   ],
   throw: [
-    ['시체 일으키기', '쓰면 해골 두 기도 일으킨다'],
-    ['가시 뼈', '갑옷이 막은 피해의 50%를 공격한 적에게 되돌린다'],
+    ['군주', '왕이 있는 동안 다른 소환수 피해 30% 증가'],
+    ['긴 강림', '50% 더 오래 머문다'],
   ],
 };
 const SKILL_TEXTS: Record<HeroClass, SkillText> = { knight: KNIGHT_SKILLS, wizard: WIZARD_SKILLS, ranger: RANGER_SKILLS, necromancer: NECRO_SKILLS };
@@ -275,7 +277,7 @@ const cooldowns = (w: World): Record<SkillName | 'roll', number> =>
     : w.cls === 'ranger'
       ? { cleave: pierceStat(w).cd, dash: trapStat(w).cd, shout: rainStat(w).cd, throw: focusStat(w).cd, roll: ROLL.cd }
       : w.cls === 'necromancer'
-        ? { cleave: bonesStat(w).cd, dash: drainStat(w).cd, shout: curseStat(w).cd, throw: armorStat(w).cd, roll: ROLL.cd }
+        ? { cleave: bonesStat(w).cd, dash: giantStat(w).cd, shout: curseStat(w).cd, throw: lordStat(w).cd, roll: ROLL.cd }
       : { cleave: cleaveStat(w).cd, dash: dashStat(w).cd, shout: shoutStat(w).cd, throw: axeStat(w).cd, roll: ROLL.cd };
 const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
 
@@ -290,6 +292,7 @@ function showClass(c: HeroClass) {
     btn.style.backgroundPosition = strip ? `${-k * 40}px 0` : '';
   });
   const roll = $('#roll');
+  roll.hidden = !ROLL.on;
   roll.firstChild!.textContent = c === 'wizard' ? '이동' : '구르기';
   roll.title = c === 'wizard' ? `순간이동 (스페이스): 커서 쪽으로 ${BLINK.dist}m, 잠깐 무적, ${BLINK.cd}초` : '구르기 (스페이스): 3m 구르는 동안 무적, 1초';
   for (const slot of Object.values(gearSlots)) slot.style.backgroundImage = `url(${GEAR_ICONS[c]})`;
@@ -324,7 +327,9 @@ function showRanks(w: World) {
   for (const [btn, s] of SKILL_BUTTONS()) {
     const r = w.ranks[s];
     const t = SKILL_TEXTS[cls][s];
-    btn.querySelector('.rank')!.textContent = String(r);
+    btn.querySelector('.rank')!.textContent = r ? String(r) : '';
+    btn.classList.toggle('locked', !r);
+    btn.classList.toggle('can', !!w.points && r < RANK_MAX);
     (btn.querySelector('.up') as HTMLElement).hidden = !w.points || r >= RANK_MAX;
     const star = btn.querySelector('.trait') as HTMLElement;
     star.hidden = r < TRAIT.rank;
@@ -332,7 +337,7 @@ function showRanks(w: World) {
     const picked = TRAIT_TEXTS[cls][s][w.traits[s] - 1];
     const trait = picked ? `\n특성 ★ ${picked[0]}: ${picked[1]}` : r >= TRAIT.rank ? '\n★를 눌러 특성 고르기' : `\n${TRAIT.rank}단계: 특성 둘 중 하나`;
     const next = r < RANK_MAX ? `\n다음 단계: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: r + 1 } })}` : '\n(최고 단계)';
-    btn.title = `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}\n5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}${trait}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
+    btn.title = !r ? `${t.name} (${t.key}) · 아직 안 배움\n배우면: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: 1 } })}` + (w.points ? '\n[+] 또는 Shift+키: 배우기' : '\n레벨이 오르면 스킬 포인트로 배운다') : `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}\n5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}${trait}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
   }
 }
 
@@ -380,6 +385,11 @@ function showGear(w: World) {
 function say(text: string) {
   toast.textContent = text;
   replay(toast);
+}
+
+// 안 배운 스킬을 쓰려 할 때
+export function sayLocked(w: World, s: SkillName) {
+  say(`${SKILL_TEXTS[cls][s].name}: 아직 배우지 않았습니다 — ` + (w.points ? '[+] 또는 Shift+스킬 키로 배우기' : '레벨이 오르면 스킬 포인트로 배웁니다'));
 }
 
 // 팔기·버리기는 목록이 바로 올라오므로, 더블클릭의 두 번째가 아래 장비까지 없애지 않게 무시한다
@@ -589,7 +599,9 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   danger.style.opacity = String(hero.state === 'dead' ? 0 : Math.min(1, Math.max(0, 1 - hero.hp / hero.maxHp / DANGER) * 1.5)); // 약 12% 아래에서 가장 짙다
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
   levelLabel.textContent = `Lv ${world.level}` + (world.points ? ` · 스킬 +${world.points}` : '');
-  if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}`);
+  pointsHint.hidden = !world.points;
+  pointsHint.textContent = `스킬 포인트 ${world.points} — 스킬의 [+]를 눌러 배우거나 올리기 (Shift+Q·W·E·R)`;
+  if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}` + (world.points ? ' — 스킬 포인트를 얻었습니다' : ''));
   shownLevel = world.level;
   const cd = cooldowns(world); // 재사용 대기 남은 비율
   skillShade.style.height = `${(world.skillCd / cd.cleave) * 100}%`;
@@ -637,13 +649,13 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   // 닫힌 사슬 문에 처음 다가가면 여는 법을 알린다
   if (!shownGateHint && world.gates.some((g) => !g.open && Math.hypot(g.x + 0.5 - hero.x, g.z + 0.5 - hero.z) < 3.5)) {
     shownGateHint = true;
-    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 관통 사격(Q)으로 사슬을 끊으세요', necromancer: '사슬로 묶인 문 — 저주(E)로 사슬을 녹이세요' }[world.cls]);
+    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 관통 사격(Q)으로 사슬을 끊으세요', necromancer: '사슬로 묶인 문 — 죽음의 표식(E)으로 사슬을 녹이세요' }[world.cls]);
   }
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
   bossBar.hidden = !boss;
   if (boss) {
-    bossName.textContent = STATS[boss.kind].name;
+    bossLabel.textContent = monsterName(boss);
     bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;
   }
   target.classList.toggle('below', !bossBar.hidden);
@@ -652,7 +664,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   target.hidden = !m;
   if (m) {
     const k = m.eliteKind && ELITE_KINDS[m.eliteKind];
-    targetName.textContent = (k ? `${k.name} ` : m.elite ? '정예 ' : '') + STATS[m.kind].name;
+    targetName.textContent = (k ? `${k.name} ` : m.elite ? '정예 ' : '') + monsterName(m);
     targetNote.textContent = k ? `정예 · ${k.desc}` : '';
     target.classList.toggle('elite', m.elite);
     target.style.setProperty('--elite', k ? k.color : '');
@@ -664,7 +676,8 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   banner.hidden = restartBtn.hidden = o !== 'dead' && o !== 'clear';
   if (o === 'dead') bannerText.textContent = '사망했습니다' + (lostGold ? ` — 금화 ${lostGold}을 잃었습니다` : '');
   if (o === 'clear') {
-    bannerText.textContent = `${STATS.boss.name}를 쓰러뜨렸습니다! 클리어!`;
+    const name = bossName(world.skins);
+    bannerText.textContent = `${name}${(name.charCodeAt(name.length - 1) - 0xac00) % 28 ? '을' : '를'} 쓰러뜨렸습니다! 클리어!`;
     summary.textContent = `플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;
   }
   summary.hidden = nextCycleBtn.hidden = o !== 'clear';

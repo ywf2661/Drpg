@@ -1,10 +1,14 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, BONES, winding, type World } from '../sim/world';
+import { attackInterval, winding, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
 import caveFloorUrl from '../assets/tiles/floor_cave.png';
 import caveWallUrl from '../assets/tiles/wall_cave.png';
+import fieldFloorUrl from '../assets/tiles/floor_field.png';
+import fieldWallUrl from '../assets/tiles/wall_field.png';
+import snowFloorUrl from '../assets/tiles/floor_snow.png';
+import snowWallUrl from '../assets/tiles/wall_snow.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
@@ -15,8 +19,17 @@ import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, makeSprite, setHeroGear, 
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
-const TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑
-const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색
+let TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑(테마가 정한다)
+const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색(테마가 정한다)
+// 테마의 빛: 지하는 주황 횃불과 칠흑, 초원은 달빛 아래 밤 들판, 설원은 눈에 반사된 푸르스름한 빛. [횃불 색, 시야 반경, 스프라이트 색, 하늘빛 세기]
+const DARK = { torch: 0xff9a4d, range: 9, tint: [1, 0.82, 0.62], sky: 0.1 };
+const MOOD: Record<Theme, typeof DARK> = {
+  dungeon: DARK,
+  cave: DARK,
+  field: { torch: 0xe8e0b0, range: 12, tint: [0.95, 0.95, 0.8], sky: 0.6 },
+  snow: { torch: 0xcfe2ff, range: 12, tint: [0.85, 0.92, 1], sky: 0.9 },
+};
+const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 const WINDUP = new THREE.Color(2.2, 0.2, 0.12); // 공격 준비(평타·내려찍기·돌진 예고) 색
 const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
 const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
@@ -135,7 +148,7 @@ export async function initRender(world: World, theme: Theme) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   document.body.prepend(renderer.domElement);
   scene.background = new THREE.Color(0x000000);
-  scene.add(new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1)); // 시야 밖이 완전한 검정은 아니게
+  scene.add(sky);
   torch.castShadow = true;
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.002;
@@ -143,14 +156,21 @@ export async function initRender(world: World, theme: Theme) {
   scene.add(zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
-  const [f, w, cf, cw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls)]);
+  const [f, w, cf, cw, ff, fw, sf, sw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls)]);
   tex.dungeon = { floor: f, wall: w };
   tex.cave = { floor: cf, wall: cw };
+  tex.field = { floor: ff, wall: fw };
+  tex.snow = { floor: sf, wall: sw };
   setWorld(world, theme);
 }
 
 export function setWorld(world: World, theme: Theme) {
   ({ floor: floorTex, wall: wallTex } = tex[theme]);
+  const mood = MOOD[theme];
+  torch.color.set(mood.torch);
+  torch.distance = TORCH_RANGE = mood.range;
+  TORCH_TINT.fromArray(mood.tint);
+  sky.intensity = mood.sky;
   buildMap(world);
   for (const s of sprites) s.mesh.removeFromParent();
   dropAllies(new Set());
@@ -222,7 +242,7 @@ export function draw(world: World, dt: number) {
       allySprites.set(a.id, s);
       scene.add(s.mesh);
     }
-    updateSprite(s, a, dt, BONES.interval);
+    updateSprite(s, a, dt, a.interval);
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(light(a.x, a.z) * (0.45 + (0.55 * a.hp) / a.maxHp)); // 맞을수록 어두워진다
   }
   markT -= dt;

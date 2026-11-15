@@ -10,21 +10,15 @@ export const FLOORS = 5;
 export const floorPower = (n: number, cycle = 0) => (1 + 0.15 * (n - 1)) * cyclePower(cycle);
 export const cyclePower = (cycle: number) => 1 + 0.5 * cycle;
 // 층의 모습(렌더용): 깊은 층은 동굴
-export type Theme = 'dungeon' | 'cave';
+export type Theme = 'dungeon' | 'cave' | 'field' | 'snow';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
-const SIZE = 48;
+export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c' && c !== 'D'; // 지나갈 수 있는 글자
+export const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c' && c !== 'D'; // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 
 export function generateFloor(seed: number, floor: number): string[] {
-  let s = seed | 0;
-  const rand = () => {
-    let t = (s = (s + 0x6d2b79f5) | 0); // mulberry32
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+  const rand = mulberry(seed);
   const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1)); // lo..hi 포함
   const cells = Array.from({ length: SIZE }, () => Array<string>(SIZE).fill('#'));
 
@@ -167,14 +161,28 @@ export function generateFloor(seed: number, floor: number): string[] {
     return true;
   };
   for (const i of order) if (rooms[i] !== goalRoom && (vault(rooms[i], true) || vault(rooms[i], false))) break;
-  // 정예: 몬스터마다 ELITE.chance로. 사슬 문처럼 맨 끝에 굴려 앞의 난수열(방·몬스터 배치)을 바꾸지 않는다
-  const ELITE_OF: Record<string, string> = { m: 'N', w: 'W', a: 'A', g: 'G' };
+  return finish(cells, rand);
+}
+
+export function mulberry(seed: number) {
+  let s = seed | 0;
+  return () => {
+    let t = (s = (s + 0x6d2b79f5) | 0); // mulberry32
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 정예: 몬스터마다 ELITE.chance로. 사슬 문처럼 맨 끝에 굴려 앞의 난수열(방·몬스터 배치)을 바꾸지 않는다
+const ELITE_OF: Record<string, string> = { m: 'N', w: 'W', a: 'A', g: 'G' };
+export function finish(cells: string[][], rand: () => number): string[] {
   for (const row of cells) row.forEach((c, x) => ELITE_OF[c] && rand() < ELITE.chance && (row[x] = ELITE_OF[c]));
   return cells.map((row) => row.join(''));
 }
 
 // (sx, sz)에서 지나갈 수 있는 칸까지의 4방향 걸음 수([z * SIZE + x]). 도달 불가는 -1.
-function walkDistances(cells: string[][], sx: number, sz: number): Int32Array {
+export function walkDistances(cells: string[][], sx: number, sz: number): Int32Array {
   const d = new Int32Array(SIZE * SIZE).fill(-1);
   d[sz * SIZE + sx] = 0;
   const q = [sz * SIZE + sx];

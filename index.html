@@ -63,6 +63,10 @@
       @keyframes trait-new { to { box-shadow: 0 0 8px 2px var(--gold-hi); } }
       #skill i, #dash i, #shout i, #throw i, #potion i, #roll i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #000b; }
       #roll { font-size: 11px; color: var(--ink); }
+      #hud .locked { filter: grayscale(1) brightness(0.45); } /* 아직 안 배운 스킬 */
+      #hud .locked.can { filter: none; border-color: var(--gold-hi); animation: trait-new 0.8s infinite alternate; } /* 포인트가 있어 지금 배울 수 있다 */
+      #hud .can .up { animation: trait-new 0.8s infinite alternate; }
+      #points { position: absolute; left: 0; bottom: 100%; margin-bottom: 14px; padding: 3px 10px; font-size: 13px; color: var(--gold-hi); background: #000a; border: 1px solid var(--gold-lo); border-radius: 3px; white-space: nowrap; pointer-events: none; }
       .slot[data-q='1'] { border-color: var(--magic); }
       .slot[data-q='2'] { border-color: var(--rare); }
       .slot { background-size: 640px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
@@ -203,6 +207,7 @@
     <div id="boss" hidden><span>미노타우르스</span><div class="bar"><i></i></div></div>
     <div id="target" hidden><span></span><div class="bar"><i></i></div><small></small></div>
     <div id="hud">
+      <div id="points" hidden></div>
       <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
       <button id="skill" title="가르기 (Q / 우클릭): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
       <button id="dash" title="돌진 베기 (W): 5m 돌진, 길 위의 적 모두 100%, 6초"><i></i></button>
@@ -231,7 +236,7 @@
     </div>
     <canvas id="automap"></canvas>
     <div id="floor"></div>
-    <div id="tester" hidden><button id="test-level" title="경험치를 채워 레벨 +1 (스킬 포인트 +1, 체력 회복)">레벨 +1</button><button id="test-floor" title="상점을 건너뛰고 바로 다음 층으로">다음 층 ▼</button></div>
+    <div id="tester" hidden><button id="test-level" title="경험치를 채워 레벨 +1 (스킬 포인트 +1, 체력 회복)">레벨 +1</button><button id="test-floor" title="상점을 건너뛰고 바로 다음 층으로">다음 층 ▼</button><button id="test-land" title="같은 층 번호의 다른 지역으로: 미궁 → 초원 → 설원">다음 지역 ▶</button></div>
     <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="next-cycle" hidden>다음 회차 ▶ (레벨·장비 유지, 몬스터 강화)</button><button id="restart" hidden>다시 시작 (R)</button></div>
     <div id="title" hidden>

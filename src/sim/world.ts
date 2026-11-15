@@ -1,9 +1,9 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
-import { attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rollGear, walk, wear, worn } from './core';
+import { attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rollGear, walk, wear, worn } from './core';
 import { focus, pierce, rain, shaft, tickRain, tickTraps, trap } from './ranger';
-import { boneArmor, bones, curse, drain, tickAllies, tickCurses } from './necro';
+import { bones, curse, giant, lord, tickAllies, tickCurses } from './necro';
 import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
 import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
@@ -11,7 +11,7 @@ import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_
 export * from './rules';
 export { boltStat, fireStat, frostStat, wardStat } from './wizard';
 export { focusStat, pierceStat, rainStat, trapStat } from './ranger';
-export { armorStat, bonesStat, curseStat, drainStat } from './necro';
+export { bonesStat, curseStat, giantStat, lordStat } from './necro';
 export { attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, bagBlocked, bagFits, bagSpot, cleaveStat, dashStat, discardFromBag, equipFromBag, gainXp, gearDiff, gearSize, heroMax, isBetter, mastered, mod, moveInBag, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
@@ -21,7 +21,7 @@ const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'wa
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
 // power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만)
-export function createWorld(seed: number, map: string[], power = 1, bossPower = 1): World {
+export function createWorld(seed: number, map: string[], power = 1, bossPower = 1, skins: World['skins'] = {}): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
   const spawns: { kind: Kind; x: number; z: number; elite: boolean }[] = [];
@@ -45,11 +45,11 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   // 문이 막는 통로의 방향: 양옆(x±1)이 뚫려 있으면 x 방향 통로
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false }));
-  const entities = spawns.map((s, id) => makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite));
+  const entities = spawns.map((s, id) => dress(makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite), skins));
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
   for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -74,7 +74,6 @@ export function step(w: World, cmds: Command[]): void {
     tickRain(w, hero);
   }
   if (w.cls === 'necromancer') {
-    tickWard(w, hero); // 뼈 갑옷 = 마나 방패 장치
     tickCurses(w, hero);
   }
   if (w.queued && hero.phase === 'none') {
@@ -157,7 +156,7 @@ function pickup(w: World, hero: Entity) {
   w.items.push(...fallen);
 }
 
-// 스킬 포인트 1을 써서 단계 +1(최대 RANK_MAX)
+// 스킬 포인트 1을 써서 단계 +1(최대 RANK_MAX). 0단계에서는 배우기
 function learn(w: World, s: SkillName) {
   if (w.points <= 0 || w.ranks[s] >= RANK_MAX) return;
   w.ranks[s]++;
@@ -230,6 +229,8 @@ function command(w: World, hero: Entity, c: Command) {
 
 // 같은 명령, 직업마다 다른 스킬. 가던 길·상자·계단은 쓴 뒤에 이어 간다
 function cast(w: World, hero: Entity, c: Command) {
+  const slot = ({ skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' } as Partial<Record<Command['type'], SkillName>>)[c.type];
+  if (slot && !w.ranks[slot]) return; // 아직 안 배운 스킬
   if (w.cls === 'wizard') {
     if (c.type === 'roll') return blink(w, hero, c.x, c.z);
     if (c.type === 'dash') return frost(w, hero);
@@ -243,9 +244,9 @@ function cast(w: World, hero: Entity, c: Command) {
     if (c.type === 'throw') return focus(w, hero);
   } else if (w.cls === 'necromancer') {
     if (c.type === 'skill') return bones(w, hero);
-    if (c.type === 'dash') return drain(w, hero);
+    if (c.type === 'dash') return giant(w, hero);
     if (c.type === 'shout') return curse(w, hero, c.x, c.z);
-    if (c.type === 'throw') return boneArmor(w, hero);
+    if (c.type === 'throw') return lord(w, hero);
   }
   if (c.type === 'roll') return rollStart(w, hero, c.x, c.z);
   if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
