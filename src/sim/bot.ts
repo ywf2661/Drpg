@@ -1,8 +1,8 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
 import { FLOORS, floorPower } from './dungeon';
-import { makeMap } from './wilds';
+import { makeMap, opposite, type Side } from './wilds';
 import { buy, deathGold, sell } from '../shop';
-import { uniqueOf, BASIC, canAfford, copyMods, createWorld, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
+import { uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
 const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
@@ -10,8 +10,8 @@ const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { we
 const LEARN = (cls: HeroClass): SkillId[] => BASIC[cls].flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
-function makeFloor(seed: number, n: number, c: Carry, land: Land): World {
-  const w = createWorld(seed, makeMap(seed, n, land), floorPower(n), 1, LANDS[land].skins);
+function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): World {
+  const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n), 1, LANDS[land].skins);
   w.cls = c.cls;
   w.potions = c.potions;
   w.gear = { ...c.gear };
@@ -28,8 +28,8 @@ function makeFloor(seed: number, n: number, c: Carry, land: Land): World {
 }
 
 // 간단한 플레이어: 체력이 낮으면 물약, 가까운 적부터 공격, 스킬은 뻔한 상황에만(무리면 가르기, 둘러싸이거나 보스 예고면 함성,
-// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단. dodge면 바닥의 예고 구역은 걸어 나가고 평타·화살·화염구는 굴러서 피한다
-function think(w: World, skills: boolean, dodge: boolean): Command[] {
+// 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단(바깥 지역은 같은 지역 출구). dodge면 바닥의 예고 구역은 걸어 나가고 평타·화살·화염구는 굴러서 피한다
+function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'): Command[] {
   const hero = w.entities[0];
   const cmds: Command[] = [];
   if (hero.hp < hero.maxHp * 0.6 && w.potions > 0) cmds.push({ type: 'drink' }); // 서서히 차므로 미리 마신다
@@ -115,7 +115,11 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
     const opener = nec ? 'shout' : wiz || rng ? 'skill' : 'throw'; // 마법사는 화염구, 궁수는 관통 사격, 강령술사는 저주로 연다
     if (door && d(door.g.x + 0.5, door.g.z + 0.5) < 2 && ready(opener === 'skill' ? 'cleave' : opener)) cmds.push({ type: opener, x: door.g.x + 0.5, z: door.g.z + 0.5 });
     else if (door) cmds.push({ type: 'move', x: door.side![0] + 0.5, z: door.side![1] + 0.5 });
-  } else if (w.stairs) cmds.push({ type: 'move', x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5 });
+  } else {
+    const exit = w.exits.find((e) => e.to === land);
+    if (exit) cmds.push({ type: 'move', x: exit.x + 0.5, z: exit.z + 0.5 });
+    else if (w.stairs) cmds.push({ type: 'move', x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5 });
+  }
   return cmds;
 }
 
@@ -149,15 +153,18 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
   let carry = START(cls);
   let deaths = 0;
   let uniques = 0;
+  let from: Side = 'w'; // 들어온 가장자리(바깥 지역): 나간 출구의 맞은편
   for (let n = 1; n <= FLOORS; n++) {
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
-      const w = makeFloor(seed * 100 + n * 10 + attempt, n, carry, land);
+      const w = makeFloor(seed * 100 + n * 10 + attempt, n, carry, land, from);
       for (let t = 0; t < 600 / DT; t++) {
-        step(w, t % THINK === 0 ? think(w, skills, dodge) : []);
+        step(w, t % THINK === 0 ? think(w, skills, dodge, land) : []);
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
+          const ex = exitAt(w);
+          if (ex) from = opposite[sideOf(w, ex)];
           uniques += w.bag.filter((it) => uniqueOf(it)).length;
           carry = shopping({ pity: w.pity, cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, keys: { ...w.keys }, points: w.points, bag: w.bag });
           done = true;

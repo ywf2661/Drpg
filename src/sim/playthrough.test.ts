@@ -53,3 +53,10 @@ test('강령술사 봇도 5층까지 깨지만 여러 번 죽고, 스킬 없이�
   expect(standing.filter((r) => r.cleared).length).toBeLessThan(withSkills.filter((r) => r.cleared).length); // 피하지 않으면 더 못 깬다. 지금 6
   expect(bare.filter((r) => r.cleared).length).toBeLessThanOrEqual(3); // 뼈 화살만으로는 못 깬다. 지금 0
 });
+
+test('바깥 지역: 봇이 다 잡은 뒤 같은 지역 출구로 걸어 나가 다음 구역에 간다', { timeout: 120_000 }, () => {
+  for (const land of ['field', 'snow'] as const) {
+    const r = playthrough(1, true, true, 'ranger', land);
+    expect(r.cleared || r.floor > 1).toBe(true);
+  }
+});
