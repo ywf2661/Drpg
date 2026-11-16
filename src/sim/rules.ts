@@ -190,6 +190,8 @@ export type Zone = { id: number; x: number; z: number; r: number; t: number; tot
 // 장착 장비 단계(1~4). WEAPONS·ARMORS·HELMS·BOOTS[단계 − 1]
 export type Gear = Record<Slot, number>;
 
+// 바깥 지역 출구 한 칸: 맨 바깥 줄에 있고, to 지역의 다음 구역으로 이어진다
+export type Exit = { x: number; z: number; to: 'field' | 'snow' };
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
 // potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
 // level·xp: 주인공 레벨과 현재 레벨에서 쌓인 경험치
@@ -200,6 +202,7 @@ export type World = {
   rng: number;
   stairs: Cell | null;
   toStairs: boolean;
+  exits: Exit[]; // 바깥 지역 가장자리의 출구 칸(들어서면 다음 구역)
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
   queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
   castT: number; // 스킬 시전으로 발이 묶인 남은 시간(초)

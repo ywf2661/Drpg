@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, MONSTER_DMG, outcome, RADIUS, setLevel, STATS, step, TELL, WEAPONS, winding, xpToNext, type Command, type World } from './world';
+import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, exitAt, MONSTER_DMG, outcome, sideOf, RADIUS, setLevel, STATS, step, TELL, WEAPONS, winding, xpToNext, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
 const MAP = [
@@ -316,6 +316,27 @@ test('계단 칸 중심 0.5m 안에 들어서면 descend', () => {
   expect(outcome(w)).toBeNull();
   run(w, 60);
   expect(outcome(w)).toBe('descend');
+});
+
+test('바깥 출구(맨 바깥 줄)에 들어서기만 하면 descend, 어느 출구·가장자리인지 안다', () => {
+  const w = createWorld(1, ['#F#', '#.#', '#H#', '###']);
+  expect(w.exits).toEqual([{ x: 1, z: 0, to: 'field' }]);
+  expect(outcome(w)).toBeNull();
+  expect(exitAt(w)).toBeNull();
+  run(w, 60, [{ type: 'move', x: 1.5, z: 0.5 }]);
+  expect(outcome(w)).toBe('descend');
+  expect(exitAt(w)).toEqual({ x: 1, z: 0, to: 'field' });
+  expect(sideOf(w, exitAt(w)!)).toBe('n');
+  const e = createWorld(1, ['####', 'H..S', '####']);
+  expect(sideOf(e, e.exits[0])).toBe('e');
+  expect(e.exits[0].to).toBe('snow');
+});
+
+test('바깥 맵의 동굴 입구(계단)는 지나가기만 해서는 내려가지 않는다', () => {
+  const w = createWorld(1, ['H.>..']);
+  run(w, 80, [{ type: 'move', x: 4.5, z: 0.5 }]); // 계단 칸을 지나 그 너머로
+  expect(w.entities[0].x).toBeGreaterThan(4);
+  expect(outcome(w)).toBeNull();
 });
 
 test('계단이 있는 층은 몬스터를 다 잡아도 clear가 아니고, 사망이 계단보다 우선', () => {

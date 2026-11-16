@@ -1,12 +1,13 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
+import type { Side } from './wilds';
 import { rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
 import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
-import { LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
@@ -45,6 +46,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const props: Prop[] = [];
   const chests: Chest[] = [];
   const gateCells: Cell[] = [];
+  const exits: Exit[] = [];
   map.forEach((row, z) =>
     [...row].forEach((c, x) => {
       const kind = SPAWN[c];
@@ -52,6 +54,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
       if (prop) props.push({ kind: prop, x, z });
       if (c === 'c') chests.push({ id: chests.length, x, z, open: false });
       if (c === 'D') gateCells.push([x, z]);
+      if (c === 'F' || c === 'S') exits.push({ x, z, to: c === 'F' ? 'field' : 'snow' });
       if (c === '#' || c === 'B' || c === 'o' || c === 'c' || c === 'D') grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c) });
@@ -66,7 +69,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
   for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 // 봉인 문의 문지기: 문을 닫은 채로 주인공 칸에서 걸어서 닿는 몬스터(문 너머의 방에 있는 몬스터는 빼고) 중 가까운 것들
@@ -246,10 +249,20 @@ function drink(w: World, hero: Entity) {
   w.potions--;
 }
 
+// 주인공이 서 있는 바깥 출구 칸(없으면 null)
+export function exitAt(w: World): Exit | null {
+  const [x, z] = [Math.floor(w.entities[0].x), Math.floor(w.entities[0].z)];
+  return w.exits.find((e) => e.x === x && e.z === z) ?? null;
+}
+// 출구가 맞닿은 가장자리
+export const sideOf = (w: World, e: Exit): Side => (e.z === 0 ? 'n' : e.z === w.grid.h - 1 ? 's' : e.x === 0 ? 'w' : 'e');
+
 export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
   const hero = w.entities[0];
   if (hero.state === 'dead') return 'dead';
+  if (exitAt(w)) return 'descend';
   if (w.stairs) return w.toStairs && Math.hypot(hero.x - w.stairs[0] - 0.5, hero.z - w.stairs[1] - 0.5) <= 0.5 ? 'descend' : null;
+  if (w.exits.length) return null; // 출구가 있는 구역은 걸어 나가야 끝난다
   const boss = w.entities.find((e) => e.kind === 'boss');
   if (boss) return boss.state === 'dead' ? 'clear' : null; // 보스 층: 보스만 쓰러뜨리면 된다
   return w.entities.every((e) => e.kind === 'hero' || e.state === 'dead') ? 'clear' : null;
