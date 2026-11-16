@@ -47,7 +47,7 @@ function ringAt(i: number) {
 
 // 흙먼지: 바닥에 눕힌 원이 커지며 옅어진다
 const puffs: { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
-function puff(x: number, z: number) {
+export function puff(x: number, z: number) {
   const p = puffs.find((p) => p.age >= DUST) ?? puffs[puffs.push({ mesh: new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0xb59a74, transparent: true, depthWrite: false })), age: DUST }) - 1];
   if (!p.mesh.parent) rainGroup.add(p.mesh);
   p.mesh.position.set(x, 0.03, z);

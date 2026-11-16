@@ -17,6 +17,7 @@ import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
+import { rollFx, rollGroup } from './roll';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -169,7 +170,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -265,9 +266,9 @@ export function draw(world: World, dt: number) {
       const k = Math.exp(-20 * dt);
       [f.kx, f.kz] = [f.kx * k, f.kz * k];
     }
-    if (e === hero) s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1; // 구르기: 몸을 낮춘다
     s.mesh.position.x += f.kx;
     s.mesh.position.z += f.kz;
+    if (e === hero) rollFx(s, e, frozen ? 0 : dt); // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts)
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
