@@ -268,7 +268,9 @@ export function draw(world: World, dt: number) {
     }
     s.mesh.position.x += f.kx;
     s.mesh.position.z += f.kz;
-    if (e === hero) rollFx(s, e, frozen ? 0 : dt); // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts)
+    // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts). 마법사의 순간이동도 sim에선 'roll'(잠깐 무적)이지만 예전처럼 몸만 낮춘다
+    if (e === hero && world.cls === 'wizard') s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
+    else if (e === hero) rollFx(s, e, frozen ? 0 : dt);
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
