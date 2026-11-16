@@ -70,7 +70,6 @@ const gateFx: Sheet = { info: gateInfo as SheetInfo, url: gateUrl };
 const flameFx: Sheet = { info: flameInfo as SheetInfo, url: flameUrl };
 const trapFx: Sheet = { info: trapInfo as SheetInfo, url: trapUrl };
 const stuckFx: Sheet = { info: stuckInfo as SheetInfo, url: stuckUrl };
-const RAIN_ARROWS = 7; // 화살비 한 번에 꽂히는 화살 수(그림)
 const wiz = { ember: fx('ember'), thunder: fx('thunder'), spark: fx('spark'), ice: fx('ice'), frost: fx('frost'), blink: fx('blink'), heal: fx('heal') };
 const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
 const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
@@ -364,6 +363,15 @@ const free = (c: Card) => {
 };
 
 // 열린 상자는 열린 그림으로
+// 화살비 빛줄기가 닿은 자리에 꽂힌 화살(잠시 남는다). dir: 방향 행 0~7
+export function stickArrow(x: number, z: number, dir: number) {
+  const c = card(stuckFx, 'stuck', x, z, false);
+  Object.assign(c, { t: 0, dir });
+  effects.push(c);
+  cards.push(c);
+  group.add(c.mesh);
+}
+
 export function syncChests(world: World) {
   world.chests.forEach((ch, i) => {
     const c = chestCards[i];
@@ -447,16 +455,7 @@ export function syncEffects(world: World) {
       continue;
     }
     if (b.kind === 'rain') {
-      // 화살비: 반경 안 여기저기에 화살이 꽂혀 잠시 남는다
-      for (let k = 0; k < RAIN_ARROWS; k++) {
-        const a = k * 2.39996 + b.id, r = (b.r ?? 1.5) * 0.9 * Math.sqrt((k + 0.5) / RAIN_ARROWS);
-        const c = card(stuckFx, 'stuck', b.x + Math.sin(a) * r, b.z + Math.cos(a) * r, false);
-        Object.assign(c, { t: 0, dir: (b.id + k) % 8 });
-        effects.push(c);
-        cards.push(c);
-        group.add(c.mesh);
-      }
-      rumble(0.08);
+      rumble(0.08); // 화살비의 그림(예고 원·빛줄기·꽂힌 화살)은 rain.ts
       continue;
     }
     if (b.kind === 'thunder') flash(b.x, b.z, b.r ? b.r * 1.1 : 1.1); // 낙뢰는 맞는 범위만큼, 천둥의 잇따른 벼락은 작게

@@ -12,10 +12,11 @@ import snowWallUrl from '../assets/tiles/wall_snow.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
-import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, updateProps } from './props';
+import { BRAZIER_RANGE, braziers, buildProps, floorVariant, stickArrow, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
+import { clearRain, rainGroup, syncRain } from './rain';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -166,7 +167,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -194,6 +195,7 @@ export function setWorld(world: World, theme: Theme) {
   torch.castShadow = !view.day; // 그림자는 낮엔 해가, 밤엔 횃불이
   sun.castShadow = view.day;
   buildMap(world);
+  clearRain();
   for (const s of sprites) s.mesh.removeFromParent();
   dropAllies(new Set());
   sprites = world.entities.map(makeSprite);
@@ -294,6 +296,7 @@ export function draw(world: World, dt: number) {
   syncFlames(world);
   syncChests(world);
   syncGates(world);
+  syncRain(world, frozen ? 0 : dt, stickArrow);
   updateProps(dt, light);
   focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
   camera.position.copy(focus).add(CAM_OFFSET);
