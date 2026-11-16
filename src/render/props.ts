@@ -361,16 +361,18 @@ export function syncChests(world: World) {
   });
 }
 
-// 돌진 '불길': 길이 늘어나는 만큼 불꽃을 줄지어 세우고(조금씩 어긋나게), 꺼지면 치운다
+// 불길: 길이 늘어나는 만큼 불꽃을 줄지어 세우고(조금씩 어긋나게), 넓은 불은 원 안에 흩어 세우고, 꺼지면 치운다
 export function syncFires(world: World) {
   for (const f of world.fires) {
     const list = flames.get(f.id) ?? [];
     flames.set(f.id, list);
     const len = Math.hypot(f.x1 - f.x0, f.z1 - f.z0);
-    for (let k = list.length; k * FLAME_GAP <= len; k++) {
+    const spots = len > 1e-6 || f.r < 0.9 ? 0 : Math.round(f.r * f.r * 2.5); // 점에 떨어진 넓은 불(불바다·운석): 원 안에 고르게
+    for (let k = list.length; spots ? k < spots : k * FLAME_GAP <= len; k++) {
       const t = len > 1e-6 ? (k * FLAME_GAP) / len : 0;
       const side = ((cellHash(f.id, k) % 100) / 100 - 0.5) * 0.5; // 길 옆으로 ±0.25m
-      const c = card(flameFx, 'flame', f.x0 + (f.x1 - f.x0) * t + side, f.z0 + (f.z1 - f.z0) * t - side, false);
+      const a = k * 2.39996, r = f.r * 0.9 * Math.sqrt((k + 0.5) / Math.max(1, spots)); // 해바라기 씨 배열
+      const c = spots ? card(flameFx, 'flame', f.x0 + Math.sin(a) * r, f.z0 + Math.cos(a) * r, false) : card(flameFx, 'flame', f.x0 + (f.x1 - f.x0) * t + side, f.z0 + (f.z1 - f.z0) * t - side, false);
       Object.assign(c, { t: (cellHash(k, f.id) % 500) / 1000, glow: 1 });
       c.mesh.renderOrder = 2;
       list.push(c);

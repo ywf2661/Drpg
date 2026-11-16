@@ -1,12 +1,12 @@
 // 마법사: 마력탄(원거리 평타), 화염구·서리 고리·낙뢰·마나 방패·순간이동
 import { expect, test } from 'vitest';
 import { gearName } from '../render/labels';
-import { BLINK, BOLT, boltStat, createWorld, frostStat, heroMax, setLevel, step, WARD, WIZ, type Command, type World } from './world';
+import { BLINK, BOLT, boltStat, createWorld, frostStat, heroMax, setLevel, step, useClass, WARD, WIZ, type Command, type World } from './world';
 import { hurt } from './core';
 
 function wizard(map: string[]): World {
   const w = createWorld(1, map);
-  w.cls = 'wizard';
+  useClass(w, 'wizard');
   setLevel(w, 1, 0);
   return w;
 }
@@ -88,24 +88,6 @@ test('순간이동: 조준한 쪽으로 최대 5m, 벽 앞에서 멈추고 잠�
   const v = wizard(['H..#....']);
   run(v, 1, [{ type: 'roll', x: 7, z: 0.5 }]);
   expect(v.entities[0].x).toBeLessThan(3); // 벽 칸(x = 3) 앞
-});
-
-test('낙뢰 천둥(특성 2): 범위 안 여러 곳에 벼락이 잇따라 떨어지고, 피해는 한 번만', () => {
-  const w = wizard(['H...m....', '.........', '.........', '.........']);
-  w.traits.shout = 2;
-  const m = w.entities[1];
-  run(w, 1, [{ type: 'shout', x: 4.5, z: 1.5 }]);
-  const hp = m.hp;
-  expect(hp).toBeLessThan(m.maxHp);
-  expect(w.blasts.filter((b) => b.kind === 'thunder')).toHaveLength(1);
-  const strikes = new Set<number>();
-  for (let i = 0; i < 60; i++) {
-    step(w, []);
-    for (const b of w.blasts) if (b.kind === 'thunder') strikes.add(b.id);
-  }
-  expect(strikes.size).toBeGreaterThanOrEqual(5); // 첫 벼락 + 잇따른 벼락들
-  expect(w.storm).toHaveLength(0);
-  expect(m.hp).toBe(hp);
 });
 
 test('스킬을 쓰면 시전 횟수가 늘고(렌더가 시전 동작을 보여 준다), 못 쓰면 그대로', () => {

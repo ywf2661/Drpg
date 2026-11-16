@@ -1,12 +1,12 @@
 // 궁수: 화살(원거리 평타), 명사수, 관통 사격·덫·화살비·집중, 구르기
 import { expect, test } from 'vitest';
 import { gearName } from '../render/labels';
-import { attackInterval, createWorld, DT, FOCUS, heroMax, RAIN, RANGER, setLevel, step, type Command, type World } from './world';
+import { attackInterval, createWorld, DT, FOCUS, heroMax, RAIN, RANGER, setLevel, step, useClass, type Command, type World } from './world';
 import { hurt, makeEntity } from './core';
 
 function ranger(map: string[]): World {
   const w = createWorld(1, map);
-  w.cls = 'ranger';
+  useClass(w, 'ranger');
   setLevel(w, 1, 0);
   return w;
 }
@@ -52,25 +52,25 @@ test('관통 사격: 일렬의 적 셋을 모두 맞히고 재사용 대기가 �
   expect(w.skillCd).toBeGreaterThan(0);
 });
 
-test('관통 사격 특성 1(밀쳐내기): 벽에 밀어붙인 적은 기절한다', () => {
+test('밀쳐내기 사격: 벽에 밀어붙인 적은 기절한다', () => {
   const w = ranger(['H..m#', '.....']);
   const m = w.entities[1];
-  Object.assign(w, { ranks: { ...w.ranks, cleave: 3 }, traits: { ...w.traits, cleave: 1 } });
+  Object.assign(w, { ranks: { ...w.ranks, push: 3 }, keys: { ...w.keys, cleave: 'push' } });
   m.hp = m.maxHp = 1000;
   run(w, 20, [{ type: 'skill', x: 4.5, z: 0.5 }]);
   expect(m.stunT).toBeGreaterThan(1);
 });
 
-test('관통 사격 특성 2: 세 갈래', () => {
+test('세 갈래', () => {
   const w = ranger(['H.......']);
-  Object.assign(w, { ranks: { ...w.ranks, cleave: 3 }, traits: { ...w.traits, cleave: 2 } });
+  Object.assign(w, { ranks: { ...w.ranks, spread: 3 }, keys: { ...w.keys, cleave: 'spread' } });
   step(w, [{ type: 'skill', x: 7.5, z: 0.5 }]);
   expect(w.shots.filter((s) => s.kind === 'pierce').length).toBe(3);
 });
 
 test('관통 사격 5단계: 한 발이 더 뒤따른다', () => {
   const w = ranger(['H.......']);
-  w.ranks.cleave = 5;
+  w.ranks.pierce = 5;
   step(w, [{ type: 'skill', x: 7.5, z: 0.5 }]);
   const shots = w.shots.filter((s) => s.kind === 'pierce');
   expect(shots.length).toBe(2);
@@ -112,17 +112,17 @@ test('덫 5단계: 밟은 적 주변의 적도 묶인다(1단계는 밟은 적�
   for (const rank of [1, 5]) {
     const w = ranger(['H...mm..', '........']);
     const [, a, b] = w.entities;
-    w.ranks.dash = rank;
+    w.ranks.trap = rank;
     run(w, 2, [{ type: 'dash', x: a.x, z: a.z }]);
     expect(a.stunT).toBeGreaterThan(0);
     expect(b.stunT > 0).toBe(rank === 5);
   }
 });
 
-test('덫 특성 1(폭발 덫): 주변 적도 피해를 입는다', () => {
+test('덫 숙련(패시브): 주변 적도 피해를 입는다', () => {
   const w = ranger(['H...mm..', '........']);
   const [, a, b] = w.entities;
-  Object.assign(w, { ranks: { ...w.ranks, dash: 3 }, traits: { ...w.traits, dash: 1 } });
+  Object.assign(w, { ranks: { ...w.ranks, trap: 3, snare: 1 } });
   run(w, 2, [{ type: 'dash', x: a.x, z: a.z }]);
   expect(b.hp).toBeLessThan(b.maxHp);
 });
@@ -149,26 +149,26 @@ test('화살비: 조준한 원 안의 적만, delay 뒤에 맞는다', () => {
   expect(b.hp).toBe(b.maxHp);
 });
 
-test('화살비 특성 2: 여러 번 내린다', () => {
+test('폭우(패시브): 화살비가 여러 번 내린다', () => {
   const w = ranger(['H...m....', '.........']);
   const a = w.entities[1];
   a.stunT = 100;
   a.hp = a.maxHp = 10000;
-  Object.assign(w, { ranks: { ...w.ranks, shout: 3 }, traits: { ...w.traits, shout: 2 } });
+  Object.assign(w, { ranks: { ...w.ranks, rain: 3, downpour: 5 } });
   step(w, [{ type: 'shout', x: a.x, z: a.z }]);
   let hits = 0;
   for (let i = 0, hp = a.hp; i < 5 / DT; i++, hp = a.hp) {
     step(w, []);
     if (a.hp < hp) hits++;
   }
-  expect(hits).toBe(RAIN.waves);
+  expect(hits).toBe(1 + 3); // 폭우 5단계: 세 번 더
 });
 
-test('화살비 특성 1(불화살): 떨어진 자리에 불길이 남는다', () => {
+test('불화살: 떨어진 자리에 불길이 남는다', () => {
   const w = ranger(['H...m....', '.........']);
   const a = w.entities[1];
   a.stunT = 10;
-  Object.assign(w, { ranks: { ...w.ranks, shout: 3 }, traits: { ...w.traits, shout: 1 } });
+  Object.assign(w, { ranks: { ...w.ranks, fireRain: 3 }, keys: { ...w.keys, shout: 'fireRain' } });
   run(w, Math.ceil(RAIN.delay / DT) + 2, [{ type: 'shout', x: a.x, z: a.z }]);
   expect(w.fires.length).toBeGreaterThan(0);
 });
@@ -191,11 +191,10 @@ test('집중: 공격 간격이 1.4배 빨라지고, 끝나면 돌아온다', () 
   expect(attackInterval(w, hero)).toBeCloseTo(base);
 });
 
-test('집중 특성 1(멀티샷): 집중 중 평타가 두 발', () => {
+test('집중: 집중 중 평타가 두 발', () => {
   const w = ranger(['H....m..', '........']);
   const m = w.entities[1];
   m.stunT = 100;
-  Object.assign(w, { ranks: { ...w.ranks, throw: 3 }, traits: { ...w.traits, throw: 1 } });
   step(w, [{ type: 'throw' }, { type: 'attack', targetId: 1 }]);
   for (let i = 0; i < 120 && !w.shots.length; i++) step(w, []);
   expect(w.shots.filter((s) => s.kind === 'shaft').length).toBe(2);
@@ -204,7 +203,7 @@ test('집중 특성 1(멀티샷): 집중 중 평타가 두 발', () => {
 test('집중 5단계: 집중 중 처치하면 재사용 대기가 준다', () => {
   const w = ranger(['H....m..', '........']);
   const [hero, m] = w.entities;
-  w.ranks.throw = 5;
+  w.ranks.focus = 5;
   step(w, [{ type: 'throw' }]);
   const cd = w.throwCd;
   m.hp = 1;
@@ -223,7 +222,7 @@ test('보스·해골 왕은 덫에 묶이지 않고 피해만 입는다(5단계 
   for (const map of [['H...M...', '........'], ['H...K...', '........']]) {
     const w = ranger(map);
     const big = w.entities[1];
-    w.ranks.dash = 5;
+    w.ranks.trap = 5;
     run(w, 2, [{ type: 'dash', x: big.x, z: big.z }]);
     expect(big.hp).toBeLessThan(big.maxHp);
     expect(big.stunT).toBe(0);

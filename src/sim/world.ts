@@ -1,18 +1,34 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
-import { attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rollGear, walk, wear, worn } from './core';
-import { focus, pierce, rain, shaft, tickRain, tickTraps, trap } from './ranger';
-import { bones, curse, giant, lord, tickAllies, tickCurses } from './necro';
-import { blink, bolt, fireball, frost, lightning, tickStorm, tickWard, ward } from './wizard';
-import { charge, cleave, cleaveStart, dashStart, dashStep, flee, fly, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones } from './abilities';
-import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, MAGE, POTION, RADIUS, RANK_MAX, REPATH, TELL, TRAIT, type Chest, type Gate, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
+import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
+import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
+import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
+import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, meteor, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
+import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
-export { boltStat, fireStat, frostStat, wardStat } from './wizard';
-export { focusStat, pierceStat, rainStat, trapStat } from './ranger';
-export { bonesStat, curseStat, giantStat, lordStat } from './necro';
-export { attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, bagBlocked, bagFits, bagSpot, cleaveStat, dashStat, discardFromBag, equipFromBag, gainXp, gearDiff, gearSize, heroMax, isBetter, mastered, mod, moveInBag, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
+export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
+export { boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
+export { canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, cleaveStat, dashStat, discardFromBag, equipFromBag, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+
+// 직업마다 예전 스킬 넷(트리 이전의 Q W E R). 테스트·봇의 기본 장비이고, createWorld가 기사 것을 넣는다
+export const BASIC: Record<HeroClass, [SkillId, SkillId, SkillId, SkillId]> = {
+  knight: ['cleave', 'dash', 'shout', 'throw'],
+  wizard: ['fireball', 'frost', 'lightning', 'ward'],
+  ranger: ['pierce', 'trap', 'rain', 'focus'],
+  necromancer: ['bones', 'giant', 'curse', 'lord'],
+};
+// 직업을 바꾸고 그 직업의 예전 스킬 넷을 1단계로 Q W E R에 끼운다(테스트·봇)
+export function useClass(w: World, cls: HeroClass) {
+  w.cls = cls;
+  w.ranks = Object.fromEntries(BASIC[cls].map((id) => [id, 1]));
+  w.keys = Object.fromEntries(KEYS.map((k, i) => [k, BASIC[cls][i]])) as World['keys'];
+}
+// 새 판의 스킬: 첫 탭 1단계 스킬만 1단계로 Q에
+export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ ranks: { [startSkill(cls)]: 1 }, keys: { cleave: startSkill(cls), dash: null, shout: null, throw: null } });
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 // 'D' 사슬 문(닫힌 동안 막음)
@@ -49,7 +65,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
   for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', res: 100, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 export function step(w: World, cmds: Command[]): void {
@@ -61,21 +77,17 @@ export function step(w: World, cmds: Command[]): void {
   w.focusT = Math.max(0, w.focusT - DT);
   w.throwCd = Math.max(0, w.throwCd - DT);
   w.rollCd = Math.max(0, w.rollCd - DT);
+  if (hero.state !== 'dead') w.res = Math.min(resMax(w), w.res + resRegen(w) * DT);
   w.castT = Math.max(0, w.castT - DT);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
   w.combos = w.combos.filter((c) => (c.age += DT) <= COMBO.age);
   regen(w, hero);
-  if (w.cls === 'wizard') {
-    tickWard(w, hero);
-    tickStorm(w);
-  }
-  if (w.cls === 'ranger') {
-    tickTraps(w, hero);
-    tickRain(w, hero);
-  }
-  if (w.cls === 'necromancer') {
-    tickCurses(w, hero);
-  }
+  if (w.wardT > 0 || w.wardBroke) tickWard(w, hero);
+  if (w.storm.length) tickStorm(w, hero);
+  if (w.auraT > 0) tickAura(w, hero);
+  if (w.traps.length) tickTraps(w, hero);
+  if (w.volleys.length) tickVolleys(w, hero);
+  if (w.curses.length) tickCurses(w, hero);
   if (w.queued && hero.phase === 'none') {
     cmds = [w.queued, ...cmds]; // 구르기·돌진 중에 누른 이동·공격을 이제 따른다
     w.queued = null;
@@ -156,23 +168,48 @@ function pickup(w: World, hero: Entity) {
   w.items.push(...fallen);
 }
 
-// 스킬 포인트 1을 써서 단계 +1(최대 RANK_MAX). 0단계에서는 배우기
-function learn(w: World, s: SkillName) {
-  if (w.points <= 0 || w.ranks[s] >= RANK_MAX) return;
-  w.ranks[s]++;
-  w.points--;
+// 배울 수 없는 까닭(배울 수 있으면 null): 다른 직업, 최고 단계, 레벨, 같은 탭 아래 단계, 포인트
+export function learnBlock(w: World, id: SkillId): string | null {
+  const { cls, tab, tier } = SKILLS[id];
+  if (cls !== w.cls) return '다른 직업의 스킬';
+  if (rank(w, id) >= RANK_MAX) return '최고 단계';
+  if (w.level < TIER_LEVEL[tier]) return `레벨 ${TIER_LEVEL[tier]}부터`;
+  const below = tier ? TREES[cls][tab].skills[tier - 1] : null;
+  if (below && !rank(w, below)) return '아래 단계를 먼저 배워야 한다';
+  if (w.points <= 0) return '스킬 포인트가 없다';
+  return null;
 }
 
-// 특성 고르기: TRAIT.rank단계부터. 처음은 공짜, 바꿀 때는 금화 TRAIT.respec. 하던 회오리·박힌 도끼는 사라진다
-function pickTrait(w: World, s: SkillName, pick: number) {
-  if ((pick !== 1 && pick !== 2) || w.ranks[s] < TRAIT.rank || w.traits[s] === pick) return;
-  if (w.traits[s]) {
-    if (w.gold < TRAIT.respec) return;
-    w.gold -= TRAIT.respec;
+// 스킬 포인트 1을 써서 단계 +1. 처음 배운 액티브 스킬은 빈 칸에 끼운다.
+// 창이 열린 동안 sim이 멈추므로 HUD는 명령 큐를 거치지 않고 learn·bind·respec을 바로 부른다(보관함과 같다)
+export function learn(w: World, id: SkillId) {
+  if (learnBlock(w, id)) return;
+  w.ranks[id] = rank(w, id) + 1;
+  w.points--;
+  const free = KEYS.find((k) => !w.keys[k]);
+  if (w.ranks[id] === 1 && !isPassive(id) && free) w.keys[free] = id;
+}
+
+// 배운 액티브 스킬을 칸에 끼운다. 다른 칸에 있었으면 맞바꾸고, 두 칸의 재사용 대기는 긴 쪽으로 맞춘다(바꿔 끼워 대기를 건너뛰지 못하게)
+export function bind(w: World, key: SkillName, id: SkillId) {
+  if (SKILLS[id]?.cls !== w.cls || isPassive(id) || !rank(w, id) || !KEYS.includes(key)) return;
+  const from = KEYS.find((k) => w.keys[k] === id);
+  if (from === key) return;
+  if (from) {
+    w.keys[from] = w.keys[key];
+    const cd = Math.max(w[KEY_CD[from]], w[KEY_CD[key]]);
+    w[KEY_CD[from]] = w[KEY_CD[key]] = cd;
+    w.cdFull[from] = w.cdFull[key] = Math.max(w.cdFull[from], w.cdFull[key]);
   }
-  w.traits[s] = pick;
-  if (s === 'cleave') w.spinT = 0;
-  if (s === 'throw') w.shots = w.shots.filter((x) => x.stuck === undefined);
+  w.keys[key] = id;
+}
+
+// 금화 RESPEC으로 스킬 포인트를 모두 되돌린다(새 판처럼 첫 스킬만 1단계로 Q에). 하던 회오리·눈보라는 멈춘다
+export function respec(w: World) {
+  const spent = Object.values(w.ranks).reduce((s, r) => s + (r ?? 0), 0) - 1;
+  if (w.gold < RESPEC || spent <= 0) return;
+  w.gold -= RESPEC;
+  Object.assign(w, newSkills(w.cls), { points: w.points + spent, spinT: 0, auraT: 0 });
 }
 
 // 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
@@ -194,7 +231,8 @@ export function outcome(w: World): 'dead' | 'descend' | 'clear' | null {
 function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'drink') return drink(w, hero);
   if (c.type === 'learn') return learn(w, c.skill);
-  if (c.type === 'trait') return pickTrait(w, c.skill, c.pick);
+  if (c.type === 'bind') return bind(w, c.key, c.skill);
+  if (c.type === 'respec') return respec(w);
   if (hero.state === 'dead') return;
   const going = c.type === 'move' || c.type === 'amove' || c.type === 'attack' || c.type === 'open';
   if (hero.phase !== 'none' || (going && (w.castT > 0 || (hero.state === 'attack' && hero.skill)))) {
@@ -227,32 +265,28 @@ function command(w: World, hero: Entity, c: Command) {
   moveTo(w, hero, c);
 }
 
-// 같은 명령, 직업마다 다른 스킬. 가던 길·상자·계단은 쓴 뒤에 이어 간다
+// 액티브 스킬: (x, z)는 조준점(없으면 스스로 고른다). 쓰이면 재사용 대기(초), 쓰지 못했으면 0
+type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
+const CASTS: Partial<Record<SkillId, Cast>> = {
+  cleave: cleaveStart, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe, axeStorm,
+  fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest,
+  pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,
+  bones, giant, lord, curse, plague, corpseBlast, spear, boneArmor, prison,
+};
+const CMD_KEY: Partial<Record<Command['type'], SkillName>> = { skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' };
+
+// 명령 skill·dash·shout·throw = 칸 Q W E R에 끼운 스킬. 재사용 대기는 칸마다(KEY_CD). 가던 길·상자·계단은 쓴 뒤에 이어 간다
 function cast(w: World, hero: Entity, c: Command) {
-  const slot = ({ skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' } as Partial<Record<Command['type'], SkillName>>)[c.type];
-  if (slot && !w.ranks[slot]) return; // 아직 안 배운 스킬
-  if (w.cls === 'wizard') {
-    if (c.type === 'roll') return blink(w, hero, c.x, c.z);
-    if (c.type === 'dash') return frost(w, hero);
-    if (c.type === 'shout') return lightning(w, hero, c.x, c.z);
-    if (c.type === 'throw') return ward(w, hero);
-    if (c.type === 'skill') return fireball(w, hero, c.x, c.z);
-  } else if (w.cls === 'ranger') {
-    if (c.type === 'dash') return trap(w, hero, c.x, c.z);
-    if (c.type === 'skill') return pierce(w, hero, c.x, c.z);
-    if (c.type === 'shout') return rain(w, hero, c.x, c.z);
-    if (c.type === 'throw') return focus(w, hero);
-  } else if (w.cls === 'necromancer') {
-    if (c.type === 'skill') return bones(w, hero);
-    if (c.type === 'dash') return giant(w, hero);
-    if (c.type === 'shout') return curse(w, hero, c.x, c.z);
-    if (c.type === 'throw') return lord(w, hero);
+  if (c.type === 'roll') return w.cls === 'wizard' ? blink(w, hero, c.x, c.z) : rollStart(w, hero, c.x, c.z);
+  const key = CMD_KEY[c.type];
+  const id = key && w.keys[key];
+  if (!key || !id || !rank(w, id) || w[KEY_CD[key]] > 0) return; // 빈 칸·재사용 대기 중
+  if (!canAfford(w, id)) return; // 기력·마나 부족
+  const cd = CASTS[id]?.(w, hero, 'x' in c ? c.x : undefined, 'z' in c ? c.z : undefined) ?? 0;
+  if (cd > 0) {
+    w[KEY_CD[key]] = w.cdFull[key] = cd;
+    pay(w, id); // 나갔을 때만 비용
   }
-  if (c.type === 'roll') return rollStart(w, hero, c.x, c.z);
-  if (c.type === 'dash') return dashStart(w, hero, c.x, c.z);
-  if (c.type === 'shout') return shout(w, hero);
-  if (c.type === 'throw') return throwAxe(w, hero, c.x, c.z);
-  if (c.type === 'skill') return cleaveStart(w, hero, c.x, c.z);
 }
 
 function moveTo(w: World, hero: Entity, c: Extract<Command, { type: 'move' | 'amove' }>) {

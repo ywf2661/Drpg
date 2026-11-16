@@ -1,11 +1,11 @@
 // 강령술사: 해골 소환·시체 거인·죽음의 표식·해골 왕 강림
 import { expect, test } from 'vitest';
-import { BONES, bonesStat, createWorld, CURSE, GIANT, giantStat, lordStat, heroMax, outcome, setLevel, step, type Command, type World } from './world';
+import { BONES, bonesStat, createWorld, CURSE, GIANT, giantStat, lordStat, heroMax, outcome, setLevel, step, type Command, type World, useClass } from './world';
 import { hurt, makeEntity } from './core';
 
 function necro(map: string[]): World {
   const w = createWorld(1, map);
-  w.cls = 'necromancer';
+  useClass(w, 'necromancer');
   setLevel(w, 1, 0);
   return w;
 }
@@ -42,12 +42,12 @@ test('해골은 최대 수를 넘지 않는다(오래된 것부터 무너진다)
 
 test('해골 소환: 단계가 오르면 궁수·법사가 섞이고, 궁수는 멀리서 뼈 화살로 맞힌다', () => {
   const w = necro(['H......m']);
-  const kinds = (rank: number) => bonesStat(Object.assign(w, { ranks: { ...w.ranks, cleave: rank } })).kinds;
+  const kinds = (rank: number) => bonesStat(Object.assign(w, { ranks: { ...w.ranks, bones: rank } })).kinds;
   expect(kinds(1)).toEqual(['minion', 'minion']);
   expect(kinds(2)).toEqual(['minion', 'archer']);
   expect(kinds(4)).toEqual(['minion', 'archer', 'mage']);
   expect(kinds(5)).toEqual(['minion', 'archer', 'mage', 'minion']);
-  w.ranks.cleave = 2;
+  w.ranks.bones = 2;
   const m = w.entities[1];
   m.hp = m.maxHp = 100000;
   m.stunT = 99;
@@ -96,7 +96,7 @@ test('해골 왕 강림: 왕 하나가 와서 적을 때리고 시간이 다 되
   const w = necro(['H.m']);
   const m = w.entities[1];
   Object.assign(m, { hp: 100000, maxHp: 100000, stunT: 99 });
-  w.ranks.throw = 5;
+  w.ranks.lord = 5;
   run(w, 60 * 3, [{ type: 'throw' }]);
   expect(w.allies.map((a) => a.kind).sort()).toEqual(['king', 'minion', 'minion']);
   expect(m.hp).toBeLessThan(m.maxHp);
@@ -106,7 +106,7 @@ test('해골 왕 강림: 왕 하나가 와서 적을 때리고 시간이 다 되
 
 test('저주 5단계: 구역 안의 시체가 해골로 일어난다(한 번만)', () => {
   const w = necro(['H.......']);
-  w.ranks.shout = 5;
+  w.ranks.curse = 5;
   const m = makeEntity(1, 'minion', 4.5, 0.5, 1);
   m.state = 'dead';
   w.entities.push(m);

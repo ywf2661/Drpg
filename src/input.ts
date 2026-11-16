@@ -25,7 +25,7 @@ let pickRadius = PICK_RADIUS; // 마지막 입력이 터치면 PICK_TOUCH
 export const commands: Command[] = [];
 export let hovered: number | null = null;
 // 조준 중인 스킬(롤의 일반 시전): 궤적을 보여 주다가 좌클릭에 발사, 우클릭·Esc에 취소
-export type AimCmd = 'skill' | 'dash' | 'shout' | 'throw'; // 조준할 수 있는 스킬 명령(Q W E R)
+export type AimCmd = 'skill' | 'dash' | 'shout' | 'throw' | 'roll'; // 조준할 수 있는 명령(Q W E R, 구르기는 터치로 끌 때만)
 export let aiming: AimCmd | null = null;
 let fire = false; // 조준 중 좌클릭: 다음 pollInput에서 발사
 // 공격 이동(스타크래프트의 A): A를 누른 뒤 좌클릭한 곳으로 가면서 가까운 적을 공격. 우클릭·Esc에 취소
@@ -33,18 +33,63 @@ export let amoving = false;
 export const startAim = (s: AimCmd) => ((amoving = false), (aiming = s));
 export const startAmove = () => ((aiming = null), (amoving = true));
 export const cancelAim = () => ((aiming = null), (amoving = false));
+// 스킬 명령을 넣기 전 확인(main: 기력·마나가 모자라면 알리고 false). 우클릭·조준 발사가 거친다
+let skillGate: (cmd: AimCmd) => boolean = () => true;
+export const setSkillGate = (f: (cmd: AimCmd) => boolean) => (skillGate = f);
 // 조준한 스킬을 커서 쪽으로 쓴다(마우스가 없으면 sim의 자동 조준)
 export function fireAim() {
-  if (aiming) commands.push({ type: aiming, ...(aim() ?? {}) });
+  if (aiming && skillGate(aiming)) commands.push({ type: aiming, ...(aim() ?? {}) });
   aiming = null;
 }
 let hoveredAt: { x: number; z: number } | null = null; // 커서가 가리키는 몬스터(조준은 그 몬스터로)
+const DRAG_MIN = 12; // 버튼을 이만큼(px) 끌어야 조준. 덜 움직이면 탭(자동 조준)
+const DRAG_GAIN = 3; // 끈 거리 × 3 = 주인공에서 조준점까지 화면 거리(약 30px/m라 70px 끌면 약 7m)
+let dragging = false; // 터치로 버튼을 끌어 조준 중: 가상 커서가 주인공 기준으로 움직인다
+let heroAt = { x: 0, z: 0 };
+const v = new THREE.Vector3();
+
+// 터치: 스킬 버튼을 누른 채 끌면 궤적이 보이고, 놓으면 끈 방향으로 쓴다. 끌지 않고 떼면 원래 click(자동 조준)
+export function dragAim(el: HTMLElement, cmd: AimCmd, canAim: () => boolean) {
+  let sx = 0;
+  let sy = 0;
+  let id: number | null = null;
+  let moved = false;
+  el.addEventListener('pointerdown', (e) => {
+    moved = false;
+    if (e.pointerType !== 'touch' || (e.target as Element).closest('.up, .trait')) return;
+    [sx, sy, id] = [e.clientX, e.clientY, e.pointerId];
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== id) return;
+    const [dx, dy] = [e.clientX - sx, e.clientY - sy];
+    if (!moved) {
+      if (Math.hypot(dx, dy) < DRAG_MIN || !canAim()) return;
+      moved = dragging = true;
+      startAim(cmd);
+    }
+    const r = renderer.domElement.getBoundingClientRect();
+    v.set(heroAt.x, 0.9, heroAt.z).project(camera);
+    pointer.set(v.x + (dx * DRAG_GAIN * 2) / r.width, v.y - (dy * DRAG_GAIN * 2) / r.height);
+  });
+  const end = (fire: boolean) => (e: PointerEvent) => {
+    if (e.pointerId !== id) return;
+    id = null;
+    if (!moved) return;
+    if (fire && aiming === cmd) fireAim();
+    else cancelAim();
+    dragging = false;
+  };
+  el.addEventListener('pointerup', end(true));
+  el.addEventListener('pointercancel', end(false)); // 시스템 제스처: 쓰지 않고 취소
+  el.addEventListener('click', (e) => moved && e.stopImmediatePropagation(), true); // 끌어서 쓴 뒤의 click은 삼킨다(두 번 쓰지 않게)
+}
 
 export function initInput() {
   const el = renderer.domElement;
   el.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'mouse') hasPointer = true;
-    setPointer(e);
+    if (!dragging) setPointer(e); // 버튼을 끄는 동안 다른 손가락이 조준점을 옮기지 않게
   });
   el.addEventListener('contextmenu', (e) => e.preventDefault()); // 우클릭 = 가르기
   el.addEventListener('pointerdown', (e) => {
@@ -58,7 +103,7 @@ export function initInput() {
     if (e.button === 2) {
       setPointer(e);
       ray.setFromCamera(pointer, camera);
-      if (ray.ray.intersectPlane(chest, hit)) commands.push({ type: 'skill', x: hit.x, z: hit.z });
+      if (skillGate('skill') && ray.ray.intersectPlane(chest, hit)) commands.push({ type: 'skill', x: hit.x, z: hit.z });
       return;
     }
     if (e.button !== 0) return;
@@ -83,8 +128,10 @@ export function pollInput(world: World, dt: number, paused: boolean) {
     held = clicked = fire = amoving = false;
     aiming = null;
     hovered = hoveredAt = null;
+    dragging = false;
     return;
   }
+  heroAt = world.entities[0];
   ray.setFromCamera(pointer, camera);
   hovered = pick(world);
   hoveredAt = hovered === null ? null : world.entities[hovered];
@@ -112,9 +159,9 @@ export function pollInput(world: World, dt: number, paused: boolean) {
   }
 }
 
-// 커서가 가리키는 곳(스킬·구르기 조준): 몬스터 위면 그 몬스터, 아니면 가슴 높이 지점. 마우스가 없으면(모바일) null
+// 커서가 가리키는 곳(스킬·구르기 조준): 몬스터 위면 그 몬스터, 아니면 가슴 높이 지점. 마우스도 버튼 끌기도 없으면(모바일 탭) null
 export function aim(): { x: number; z: number } | null {
-  if (!hasPointer) return null;
+  if (!hasPointer && !dragging) return null;
   if (hoveredAt) return { x: hoveredAt.x, z: hoveredAt.z };
   ray.setFromCamera(pointer, camera);
   return ray.ray.intersectPlane(chest, hit) ? { x: hit.x, z: hit.z } : null;

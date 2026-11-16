@@ -1,28 +1,28 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, sayLocked, showBag, showTitle, showTraits, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
-import { aim, aiming, amoving, cancelAim, commands, fireAim, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
+import { $, initHud, sayLocked, sayShort, showBag, showTitle, showTree, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
+import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels } from './render/labels';
 import { camera, draw, initRender, renderer, setAim, setWorld } from './render/render';
 import { walkable } from './sim/path';
-import { clearRun, loadRun, saveRun, type Mods, type Ranks, type Stats, type Traits } from './save';
+import { clearRun, loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, themeOf } from './sim/wilds';
-import { LANDS, LAND_LIST, type Land, ROLL, START_RANKS, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, copyMods, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, FIREBALL, gainXp, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillName, type World } from './sim/world';
+import { canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
 const bag = document.querySelector<HTMLDialogElement>('#bag')!;
-const traits = document.querySelector<HTMLDialogElement>('#traits')!;
+const tree = document.querySelector<HTMLDialogElement>('#tree')!;
 // 새 판의 시작 상태: 2단계 장비(기사 = 숏소드 + 가죽 갑옷·두건·장화, 마법사 = 마법 막대 + 견습 로브·두건·장화)
-const startOf = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ranks: { ...START_RANKS }, points: 0, traits: { cleave: 0, dash: 0, shout: 0, throw: 0 }, bag: [], autoEquip: true });
-type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; traits: Traits; bag: BagItem[]; autoEquip: boolean };
+const startOf = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [], autoEquip: true });
+type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean };
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
-const carryOf = (c: Carry): Carry => ({ cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, traits: { ...c.traits }, bag: [...c.bag], autoEquip: c.autoEquip });
+const carryOf = (c: Carry): Carry => ({ cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, keys: { ...c.keys }, bag: [...c.bag], autoEquip: c.autoEquip });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const saved = loadRun(); // 지난번 진행(있으면 시작 화면에 이어하기)
 let choosing = true; // 시작 화면(이어하기·직업 선택)을 보는 중. 뒤에는 기사 1층이 미리 그려져 있다
@@ -48,7 +48,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.gold = carry.gold;
   w.ranks = { ...carry.ranks };
   w.points = carry.points;
-  w.traits = { ...carry.traits };
+  w.keys = { ...carry.keys };
   w.bag = [...carry.bag];
   w.autoEquip = carry.autoEquip;
   w.maxTier = Math.min(4, n + 1);
@@ -158,9 +158,17 @@ function openBag() {
   if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) renderBag();
 }
 
-// 특성 고르기 창. 고르면 명령으로 쌓고 닫는다(창이 열린 동안은 sim이 멈춘다)
-function openTraits(skill: SkillName) {
-  if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) showTraits(world, skill, (pick) => commands.push({ type: 'trait', skill, pick }));
+// 스킬 트리 창. 창이 열린 동안 sim이 멈추므로 배우기·끼우기·되돌리기를 바로 하고 다시 그린다(보관함과 같다)
+function renderTree() {
+  showTree(world, {
+    learn: (id) => (learnNow(world, id), renderTree()),
+    bind: (key, id) => (bind(world, key, id), renderTree()),
+    respec: () => (respec(world), renderTree()),
+  });
+}
+function openTree() {
+  if (tree.open) return tree.close();
+  if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) renderTree();
 }
 
 const drink = () => commands.push({ type: 'drink' });
@@ -169,35 +177,68 @@ const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim
 const shout = () => commands.push({ type: 'shout' });
 const throwAxe = (aimed: boolean) => commands.push({ type: 'throw', ...((aimed && aim()) || {}) });
 const roll = (aimed: boolean) => ROLL.on && commands.push({ type: 'roll', ...((aimed && aim()) || {}) }); // 버튼은 가까운 적의 반대쪽
-const learn = (skill: SkillName) => commands.push({ type: 'learn', skill });
-const CMD_SKILL: Record<AimCmd, SkillName> = { skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' };
-// 스킬 버튼: 배운 스킬은 쓰고, 안 배운 스킬은 포인트가 있으면 배우고 없으면 알린다
-const tap = (cmd: AimCmd, use: () => void) => () => {
-  const s = CMD_SKILL[cmd];
-  if (world.ranks[s]) use();
-  else if (world.points) learn(s);
-  else sayLocked(world, s);
+// 칸에 끼운 스킬의 단계를 올린다(버튼의 [+]·Shift+키)
+const learn = (key: SkillName) => {
+  const id = world.keys[key];
+  if (id) commands.push({ type: 'learn', skill: id });
+};
+const CMD_SKILL: Record<Exclude<AimCmd, 'roll'>, SkillName> = { skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' };
+// 빈 칸을 누르면: 포인트가 있으면 스킬 창, 없으면 알림
+const emptyKey = (key: SkillName) => (world.points ? openTree() : sayLocked(key));
+// 스킬 버튼: 끼운 스킬은 쓰고, 빈 칸이면 emptyKey
+// 칸의 스킬을 쓸 기력·마나가 모자라면 알리고 true(조준도 시작하지 않는다)
+const short = (cmd: Exclude<AimCmd, 'roll'>) => {
+  const id = world.keys[CMD_SKILL[cmd]];
+  if (!id || canAfford(world, id)) return false;
+  sayShort(world, id);
+  return true;
+};
+const tap = (cmd: Exclude<AimCmd, 'roll'>, use: () => void) => () => {
+  if (!world.keys[CMD_SKILL[cmd]]) emptyKey(CMD_SKILL[cmd]);
+  else if (!short(cmd)) use();
 };
 // 스킬 조준(롤의 일반 시전): 날아가는 스킬은 직선, 지점에 떨어지는 스킬은 원. 표에 없는 스킬은 누르면 바로 쓴다
 type AimShape = { kind: 'line'; len: number; width: number } | { kind: 'circle'; range: number; r: number };
+const ARROW = (): AimShape => ({ kind: 'line', len: PIERCE.flight, width: PIERCE.hit * 2 });
+const AXE_LINE = (): AimShape => ({ kind: 'line', len: AXE.flight, width: AXE.hit * 2 });
+const AIM: Partial<Record<SkillId, (w: World) => AimShape>> = {
+  dash: (w) => ({ kind: 'line', len: dashStat(w).dist, width: DASH.hit * 2 }),
+  throw: AXE_LINE,
+  bounce: AXE_LINE,
+  execute: () => ({ kind: 'circle', range: EXECUTE.reach, r: 0.6 }),
+  leap: (w) => ({ kind: 'circle', range: LEAP.range, r: leapStat(w).radius }),
+  fireball: () => ({ kind: 'line', len: FIREBALL.flight, width: FIREBALL.hit * 2 }),
+  firefield: (w) => ({ kind: 'circle', range: FIREFIELD.range, r: firefieldStat(w).radius }),
+  comet: (w) => ({ kind: 'circle', range: COMET.range, r: cometStat(w).radius }),
+  lightning: (w) => ({ kind: 'circle', range: BOLT.range, r: boltStat(w).radius }),
+  chain: (w) => ({ kind: 'circle', range: BOLT.range, r: chainStat(w).radius }),
+  tempest: () => ({ kind: 'circle', range: TEMPEST.range, r: TEMPEST.radius }),
+  pierce: ARROW,
+  spread: ARROW,
+  push: ARROW,
+  spear: ARROW,
+  trap: () => ({ kind: 'circle', range: TRAP.range, r: TRAP.trigger }),
+  hunt: () => ({ kind: 'circle', range: HUNT.range, r: HUNT.ring }),
+  rain: (w) => ({ kind: 'circle', range: RAIN.range, r: rainStat(w).radius }),
+  fireRain: (w) => ({ kind: 'circle', range: RAIN.range, r: fireRainStat(w).radius }),
+  curse: (w) => ({ kind: 'circle', range: CURSE.range, r: curseStat(w).radius }),
+  plague: (w) => ({ kind: 'circle', range: PLAGUE.range, r: plagueStat(w).radius }),
+  corpseBlast: () => ({ kind: 'circle', range: CORPSE.range, r: CORPSE.radius }),
+  prison: (w) => ({ kind: 'circle', range: PRISON.range, r: prisonStat(w).radius }),
+};
+// 칸에 끼운 스킬의 조준 모양(표에 없으면 null = 누르면 바로 쓴다)
 function aimShape(cmd: AimCmd): AimShape | null {
-  if (world.cls === 'wizard') {
-    if (cmd === 'skill') return { kind: 'line', len: FIREBALL.flight, width: FIREBALL.hit * 2 }; // 화염구
-    if (cmd === 'shout') return { kind: 'circle', range: BOLT.range, r: boltStat(world).radius }; // 낙뢰
-    return null;
-  }
-  if (world.cls === 'necromancer') return cmd === 'shout' ? { kind: 'circle', range: CURSE.range, r: curseStat(world).radius } : null; // 저주
-  if (world.cls === 'ranger') {
-    if (cmd === 'skill') return { kind: 'line', len: PIERCE.flight, width: PIERCE.hit * 2 }; // 관통 사격
-    if (cmd === 'dash') return { kind: 'circle', range: TRAP.range, r: TRAP.trigger }; // 덫
-    if (cmd === 'shout') return { kind: 'circle', range: RAIN.range, r: rainStat(world).radius }; // 화살비
-    return null;
-  }
-  if (cmd === 'dash') return { kind: 'line', len: dashStat(world).dist, width: DASH.hit * 2 }; // 돌진 베기
-  if (cmd === 'throw') return { kind: 'line', len: AXE.flight, width: AXE.hit * 2 }; // 도끼
-  return null;
+  const id = cmd !== 'roll' && world.keys[CMD_SKILL[cmd]];
+  return (id && AIM[id]?.(world)) || null;
 }
-const COOLDOWN: Record<AimCmd, 'skillCd' | 'dashCd' | 'shoutCd' | 'throwCd'> = { skill: 'skillCd', dash: 'dashCd', shout: 'shoutCd', throw: 'throwCd' };
+// 터치로 버튼을 끌어 조준할 때의 궤적: 키보드 조준 스킬 + 방향이 있는 구르기·순간이동·기사 가르기(키보드로는 바로 쓴다)
+function dragShape(cmd: AimCmd): AimShape | null {
+  if (cmd === 'roll') return !ROLL.on ? null : world.cls === 'wizard' ? { kind: 'circle', range: BLINK.dist, r: 0.5 } : { kind: 'line', len: ROLL.dist, width: 0.8 };
+  if (world.keys[CMD_SKILL[cmd]] === 'cleave') return { kind: 'line', len: SKILL.radius, width: SKILL.radius * 2 };
+  return aimShape(cmd);
+}
+const COOLDOWN: Record<AimCmd, 'skillCd' | 'dashCd' | 'shoutCd' | 'throwCd' | 'rollCd'> = { skill: KEY_CD.cleave, dash: KEY_CD.dash, shout: KEY_CD.shout, throw: KEY_CD.throw, roll: 'rollCd' };
+const canDrag = (cmd: AimCmd) => !!dragShape(cmd) && world[COOLDOWN[cmd]] <= 0 && world.entities[0].state !== 'dead' && (cmd === 'roll' || (!!world.keys[CMD_SKILL[cmd]] && canAfford(world, world.keys[CMD_SKILL[cmd]]!)));
 // 스마트 키(설정): 켜면 조준 없이 누르는 순간 커서 쪽으로 쓴다
 const SMART_KEY = 'drpg-smart';
 let smartKey = (() => {
@@ -208,19 +249,19 @@ let smartKey = (() => {
   }
 })();
 // 스킬 키(Q W E R): 조준할 스킬이면 조준 시작 → 좌클릭(또는 같은 키 한 번 더)에 쓴다. 재사용 대기 중이면 조준하지 않는다.
-// 기사 Q·E, 마법사 W·R은 바로 쓴다(Q는 가까운 적 쪽 — 커서 쪽은 우클릭). 박힌 도끼가 있으면 R은 바로 순간이동
-function skillKey(cmd: AimCmd) {
-  if (!world.ranks[CMD_SKILL[cmd]]) return sayLocked(world, CMD_SKILL[cmd]);
+// 조준 표(AIM)에 없는 스킬(가르기·함성·소환 등)은 바로 쓴다(가르기는 가까운 적 쪽 — 커서 쪽은 우클릭)
+function skillKey(cmd: Exclude<AimCmd, 'roll'>) {
+  if (!world.keys[CMD_SKILL[cmd]]) return emptyKey(CMD_SKILL[cmd]);
+  if (short(cmd)) return void (aiming === cmd && cancelAim()); // 모자라면 조준하지 않고 알린다
   const shape = aimShape(cmd);
-  const stuck = cmd === 'throw' && world.cls === 'knight' && world.shots.some((s) => s.stuck !== undefined);
-  if (!shape || stuck) return commands.push({ type: cmd });
+  if (!shape) return commands.push({ type: cmd });
   if (smartKey) return commands.push({ type: cmd, ...(aim() ?? {}) });
   if (aiming === cmd) return fireAim();
   if (world[COOLDOWN[cmd]] <= 0 && world.entities[0].state !== 'dead') startAim(cmd);
 }
 // 조준 표시: 직선은 주인공에서 커서 쪽으로 사거리만큼(벽·닫힌 문에서 끊음), 원은 커서 지점(사거리까지로 당김). 커서가 없으면 null
 function aimGuide() {
-  const shape = aiming && aimShape(aiming);
+  const shape = aiming && dragShape(aiming);
   const hero = world.entities[0];
   const p = aim();
   const d = p ? Math.hypot(p.x - hero.x, p.z - hero.z) : 0;
@@ -259,7 +300,7 @@ initHud({
   roll: () => roll(false),
   learn,
   bag: openBag,
-  traits: openTraits,
+  tree: openTree,
   restart,
   nextCycle,
   toggleMap: toggleAutomap,
@@ -286,6 +327,8 @@ initHud({
   smartOn: () => smartKey,
 });
 initInput();
+setSkillGate((cmd) => cmd === 'roll' || !short(cmd)); // 우클릭·조준 발사도 기력·마나가 모자라면 알린다
+for (const [sel, cmd] of [['#skill', 'skill'], ['#dash', 'dash'], ['#shout', 'shout'], ['#throw', 'throw'], ['#roll', 'roll']] as const) dragAim($(sel), cmd, () => canDrag(cmd));
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 initLabels($('#labels'));
 sound.initSound();
@@ -300,6 +343,10 @@ const SKILL_KEYS: Record<string, SkillName> = { KeyQ: 'cleave', KeyW: 'dash', Ke
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyI') {
     if (!e.repeat && !e.ctrlKey && !e.metaKey) (bag.open ? bag.close() : openBag()); // 누르고 있을 때·개발자 도구 단축키는 무시
+    return;
+  }
+  if (e.code === 'KeyT') {
+    if (!e.repeat && !e.ctrlKey && !e.metaKey) openTree(); // 스킬 트리(열려 있으면 닫기)
     return;
   }
   if (document.querySelector('dialog[open]')) return; // 창을 보는 동안은 게임 키를 쌓지 않는다
@@ -336,7 +383,7 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  const paused = credits.open || help.open || bag.open || traits.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  const paused = credits.open || help.open || bag.open || tree.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
   pollInput(world, dt, paused);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : null);

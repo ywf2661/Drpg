@@ -1,18 +1,18 @@
 // 진행 저장: 층에 들어갈 때의 상태(층·물약·장비·레벨). localStorage는 손상·조작될 수 있어 읽을 때 검증한다.
 import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
-import { AFFIXES, bagFits, bagSpot, POTION, RANK_MAX, SLOTS, TRAIT, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillName, type Slot } from './sim/world';
+import { AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
-export type Ranks = Record<SkillName, number>;
-export type Traits = Record<SkillName, number>;
-export type Run = { cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; traits: Traits; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats };
+export type Ranks = World['ranks'];
+export type Keys = World['keys'];
+export type Run = { cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats };
 const VERSION = 1;
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, traits: r.traits, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats });
+  return JSON.stringify({ v: VERSION, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -49,6 +49,24 @@ function bagItems(v: unknown): { bag: BagItem[]; refund: number } | null {
   return { bag, refund };
 }
 
+// 스킬 트리: 단계(그 직업의 스킬, 1~RANK_MAX)·포인트·칸(배운 액티브, 겹치지 않게). 아니면 null.
+// 트리 이전 저장(칸이 없음)은 새 판의 스킬로 돌리고 레벨만큼의 포인트(레벨 − 1)를 돌려준다
+function skillTree(d: Record<string, unknown>, cls: HeroClass): Pick<Run, 'ranks' | 'points' | 'keys'> | null {
+  if (d.keys === undefined) return { ...newSkills(cls), points: (d.level as number) - 1 };
+  const r = d.ranks as Record<string, unknown>;
+  const k = d.keys as Record<string, unknown>;
+  if (!r || typeof r !== 'object' || !k || typeof k !== 'object' || !int(d.points, 0, 1000)) return null;
+  const ranks: Ranks = {};
+  for (const [id, n] of Object.entries(r)) {
+    if (SKILLS[id as SkillId]?.cls !== cls || !int(n, 1, RANK_MAX)) return null;
+    ranks[id as SkillId] = n as number;
+  }
+  const keys = Object.fromEntries(KEYS.map((key) => [key, k[key] ?? null])) as Keys;
+  const used = KEYS.map((key) => keys[key]).filter((id): id is SkillId => id !== null);
+  if (used.some((id) => !ranks[id] || isPassive(id)) || new Set(used).size !== used.length) return null;
+  return { ranks, points: d.points as number, keys };
+}
+
 export function decodeSave(text: string | null): Run | null {
   if (!text) return null;
   let d: Record<string, unknown>;
@@ -71,14 +89,6 @@ export function decodeSave(text: string | null): Run | null {
   const m = m0 && typeof m0 === 'object' ? ({ helm: [], boots: [], ...m0 } as Record<string, unknown>) : null;
   const mods = m && Object.fromEntries(SLOTS.map((s) => [s, affixes(m[s], s)]));
   if (!mods || !SLOTS.every((s) => mods[s])) return null;
-  // 스킬 단계·포인트(나중에 생긴 항목: 없으면 1단계·0)
-  const r = (d.ranks ?? { cleave: 1, dash: 1, shout: 1, throw: 1 }) as Record<string, unknown>;
-  const names: SkillName[] = ['cleave', 'dash', 'shout', 'throw'];
-  const points = d.points ?? 0;
-  if (!r || typeof r !== 'object' || !names.every((n) => int(r[n], n === 'cleave' ? 1 : 0, RANK_MAX)) || !int(points, 0, 1000)) return null;
-  // 특성(나중에 생긴 항목: 없으면 안 고름). 0~2, 고른 것은 그 스킬이 TRAIT.rank단계 이상이어야
-  const tr = (d.traits ?? { cleave: 0, dash: 0, shout: 0, throw: 0 }) as Record<string, unknown>;
-  if (!tr || typeof tr !== 'object' || !names.every((n) => int(tr[n], 0, 2) && (!tr[n] || (r[n] as number) >= TRAIT.rank))) return null;
   // 보관함(나중에 생긴 항목: 없으면 빈 칸·자동 장착)
   const bagged = bagItems(d.bag ?? []);
   const autoEquip = d.autoEquip ?? true;
@@ -86,6 +96,8 @@ export function decodeSave(text: string | null): Run | null {
   // 직업(나중에 생긴 항목: 없으면 기사)
   const cls = d.cls ?? 'knight';
   if (cls !== 'knight' && cls !== 'wizard' && cls !== 'ranger' && cls !== 'necromancer') return null;
+  const skills = skillTree(d, cls);
+  if (!skills) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
@@ -99,9 +111,7 @@ export function decodeSave(text: string | null): Run | null {
     gold: (gold as number) + bagged.refund,
     cycle: cycle as number,
     mods: mods as Mods,
-    ranks: { cleave: r.cleave as number, dash: r.dash as number, shout: r.shout as number, throw: r.throw as number },
-    points: points as number,
-    traits: { cleave: tr.cleave as number, dash: tr.dash as number, shout: tr.shout as number, throw: tr.throw as number },
+    ...skills,
     bag: bagged.bag,
     autoEquip,
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },

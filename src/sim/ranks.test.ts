@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { createWorld, DT, START_RANKS, step, type World } from './world';
+import { createWorld, DT, newSkills, step, type World } from './world';
 
 const run = (w: World, ticks: number) => {
   for (let i = 0; i < ticks; i++) step(w, []);
@@ -86,7 +86,7 @@ test('도끼 단계: 배율이 커지고(2.2배) 재사용이 짧아진다', () 
 
 test('안 배운 스킬(0단계)은 나가지 않고, 포인트로 배우면 나간다', () => {
   const w = createWorld(1, ['H.']);
-  w.ranks = { ...START_RANKS };
+  Object.assign(w, newSkills('knight'));
   step(w, [{ type: 'dash' }]);
   expect(w.dashCd).toBe(0);
   w.points = 1;

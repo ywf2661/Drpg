@@ -1,48 +1,52 @@
-// 강령술사 스킬: 뼈 화살(평타 = 마법사 마력탄), 해골 소환(Q), 시체 거인(W), 죽음의 표식(E), 해골 왕 강림(R). 스페이스는 기사 구르기.
-// 스킬 칸·명령·재사용 필드·단계·특성은 다른 직업과 같은 것을 쓴다(rules의 HeroClass 설명). 표식 배율은 core의 hurt
+// 강령술사 스킬: 뼈 화살(평타 = 마법사 마력탄), 소환(해골 소환·시체 거인·해골 숙련·해골 왕 강림), 저주(죽음의 표식·역병·표식 숙련·시체 폭발),
+// 뼈(뼈 창·뼈 갑옷·생명 흡수·뼈 감옥). 스페이스는 기사 구르기. 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다.
+// 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
-import { BONE_KINDS, BONES, CURSE, DT, GIANT, HIT_AT, LORD, RADIUS, REPATH, WIZ, type Ally, type Entity, type Kind, type SkillName, type World } from './rules';
-import { clearLine, dist, face, heroMax, hurt, makeEntity, mastered, pathTo, roll, walk } from './core';
-import { openGate } from './abilities';
-import { blast, foes, nearest } from './wizard';
+import { BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type World } from './rules';
+import { clearLine, dist, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
+import { burst, openGate } from './abilities';
+import { aimDir, blast, foes, spot, stun } from './wizard';
 
-const extra = (w: World, s: SkillName) => w.ranks[s] - 1;
 type BoneKind = keyof typeof BONE_KINDS;
 export function bonesStat(w: World) {
-  const horde = w.traits.cleave === 1;
-  const strong = w.traits.cleave === 2;
-  const rank = w.ranks.cleave;
-  const count = BONES.count + (rank >= 3 ? 1 : 0) + (mastered(w, 'cleave') ? 1 : 0) + (horde ? BONES.horde : 0);
+  const r = w.ranks.bones ?? 1;
+  const m = rank(w, 'boneMastery'); // 해골 숙련
+  const count = BONES.count + (r >= 3 ? 1 : 0) + (mastered(w, 'bones') ? 1 : 0) + (m >= BONE_MASTERY.at ? 1 : 0);
   // 검사 → 궁수 → 법사 순서로 되풀이. 궁수·법사는 단계가 올라야 섞인다
-  const kinds = Array.from({ length: count }, (_, k): BoneKind => (k % 3 === 1 && rank >= BONES.archerAt ? 'archer' : k % 3 === 2 && rank >= BONES.mageAt ? 'mage' : 'minion'));
+  const kinds = Array.from({ length: count }, (_, k): BoneKind => (k % 3 === 1 && r >= BONES.archerAt ? 'archer' : k % 3 === 2 && r >= BONES.mageAt ? 'mage' : 'minion'));
   return {
-    cd: BONES.cd - 0.4 * extra(w, 'cleave'),
+    cd: BONES.cd - 0.4 * ext(w, 'bones'),
     count,
     kinds,
     max: count + 2,
-    life: BONES.life * (strong ? BONES.strongLife : 1),
-    hp: Math.round(heroMax(w) * BONES.hp * (strong ? BONES.strongLife : 1)), // 몬스터에게 맞아 0이 되면 무너진다
-    mult: (BONES.mult + 0.08 * extra(w, 'cleave')) * (horde ? BONES.hordeMult : 1) * (strong ? BONES.strong : 1),
+    life: BONES.life * (1 + BONE_MASTERY.life * m),
+    hp: Math.round(heroMax(w) * BONES.hp), // 몬스터에게 맞아 0이 되면 무너진다
+    mult: (BONES.mult + 0.08 * ext(w, 'bones')) * syn(w, 'bones') * (1 + BONE_MASTERY.mult * m),
   };
 }
 export const giantStat = (w: World) => ({
-  cd: GIANT.cd - extra(w, 'dash'),
+  cd: GIANT.cd - ext(w, 'giant'),
   life: GIANT.life,
-  hp: Math.round(heroMax(w) * (GIANT.hp + 0.25 * extra(w, 'dash')) * (w.traits.dash === 1 ? GIANT.thick : 1)),
-  mult: GIANT.mult + 0.1 * extra(w, 'dash'),
+  hp: Math.round(heroMax(w) * (GIANT.hp + 0.25 * ext(w, 'giant'))),
+  mult: (GIANT.mult + 0.1 * ext(w, 'giant')) * syn(w, 'giant'),
 });
 export const lordStat = (w: World) => ({
-  cd: LORD.cd - 2 * extra(w, 'throw'),
-  life: LORD.life * (w.traits.throw === 2 ? LORD.long : 1),
-  hp: Math.round(heroMax(w) * (LORD.hp + 0.3 * extra(w, 'throw'))),
-  mult: LORD.mult + 0.15 * extra(w, 'throw'),
+  cd: LORD.cd - 2 * ext(w, 'lord'),
+  life: LORD.life,
+  hp: Math.round(heroMax(w) * (LORD.hp + 0.3 * ext(w, 'lord'))),
+  mult: (LORD.mult + 0.15 * ext(w, 'lord')) * syn(w, 'lord'),
 });
 export const curseStat = (w: World) => ({
-  cd: CURSE.cd - 0.5 * extra(w, 'shout'),
-  radius: (CURSE.radius + 0.15 * extra(w, 'shout')) * (w.traits.shout === 1 ? CURSE.wide : 1),
-  time: CURSE.time + 0.5 * extra(w, 'shout'),
-  amp: CURSE.amp + 0.05 * extra(w, 'shout'),
+  cd: CURSE.cd - 0.5 * ext(w, 'curse'),
+  radius: (CURSE.radius + 0.15 * ext(w, 'curse')) * (1 + CURSE_MASTERY.radius * rank(w, 'curseMastery')),
+  time: CURSE.time + 0.5 * ext(w, 'curse'),
+  amp: CURSE.amp + 0.05 * ext(w, 'curse') + CURSE_MASTERY.amp * rank(w, 'curseMastery'),
 });
+export const plagueStat = (w: World) => ({ cd: PLAGUE.cd - 0.4 * ext(w, 'plague'), radius: PLAGUE.radius + 0.15 * ext(w, 'plague'), mult: (PLAGUE.mult + 0.06 * ext(w, 'plague')) * syn(w, 'plague') });
+export const corpseStat = (w: World) => ({ cd: CORPSE.cd - 0.5 * ext(w, 'corpseBlast'), hp: (CORPSE.hp + 0.05 * ext(w, 'corpseBlast')) * syn(w, 'corpseBlast') });
+export const spearStat = (w: World) => ({ cd: SPEAR.cd - 0.1 * ext(w, 'spear'), mult: (SPEAR.mult + 0.3 * ext(w, 'spear')) * syn(w, 'spear') });
+export const boneArmorStat = (w: World) => ({ cd: BONE_ARMOR.cd - 0.5 * ext(w, 'boneArmor'), absorb: BONE_ARMOR.absorb + 0.05 * ext(w, 'boneArmor') });
+export const prisonStat = (w: World) => ({ cd: PRISON.cd - 0.5 * ext(w, 'prison'), radius: PRISON.radius + 0.1 * ext(w, 'prison'), time: PRISON.time + 0.25 * ext(w, 'prison'), mult: (PRISON.mult + 0.2 * ext(w, 'prison')) * syn(w, 'prison') });
 
 const isBone = (a: Ally) => a.kind !== 'warrior' && a.kind !== 'king'; // 거인·왕은 해골 수에 세지 않는다
 // 소환수 하나를 (x, z)에. same 종류가 max를 넘으면 오래된 것부터 무너진다
@@ -69,40 +73,37 @@ export function raise(w: World, x: number, z: number, n: number) {
 }
 
 // 해골 소환: 주인공 둘레에 소환
-export function bones(w: World, hero: Entity) {
-  if (w.skillCd > 0) return;
+export function bones(w: World, hero: Entity): number {
   const st = bonesStat(w);
   raise(w, hero.x, hero.z, st.count);
   w.casts++;
-  w.skillCd = st.cd;
+  return st.cd;
 }
 
-// 시체 거인: 튼튼한 거인 하나(다시 쓰면 바뀐다). 나타나며 주변 적(보스·해골 왕 제외)의 눈길을 끈다. 강타(특성 2): 때릴 때 주변도 함께
-export function giant(w: World, hero: Entity) {
-  if (w.dashCd > 0) return;
+// 시체 거인: 튼튼한 거인 하나(다시 쓰면 바뀐다). 나타나며 주변 적(보스·해골 왕 제외)의 눈길을 끈다
+export function giant(w: World, hero: Entity): number {
   const st = giantStat(w);
-  const g = spawn(w, hero.x, hero.z, 'warrior', { life: st.life, hp: st.hp, mult: st.mult, reach: GIANT.reach, interval: GIANT.interval, splash: w.traits.dash === 2 ? GIANT.smash : undefined }, (a) => a.kind === 'warrior', 1, { skin: 'zombie', elite: true });
+  const g = spawn(w, hero.x, hero.z, 'warrior', { life: st.life, hp: st.hp, mult: st.mult, reach: GIANT.reach, interval: GIANT.interval }, (a) => a.kind === 'warrior', 1, { skin: 'zombie', elite: true });
   for (const e of foes(w, hero)) if (dist(e, g) <= GIANT.taunt && e.kind !== 'boss' && e.kind !== 'king') e.target = g.id;
   w.casts++;
-  w.dashCd = st.cd;
+  return st.cd;
 }
 
-// 해골 왕 강림: 가장 센 소환수 하나, 휘두르면 주변도 함께 맞는다. 군주(특성 1): 왕이 있는 동안 다른 소환수 피해 증가. 5단계: 해골도 함께
-export function lord(w: World, hero: Entity) {
-  if (w.throwCd > 0) return;
+// 해골 왕 강림: 가장 센 소환수 하나, 휘두르면 주변도 함께 맞고, 있는 동안 다른 소환수 피해 증가. 5단계: 해골도 함께
+export function lord(w: World, hero: Entity): number {
   const st = lordStat(w);
   spawn(w, hero.x, hero.z, 'king', { life: st.life, hp: st.hp, mult: st.mult, reach: LORD.reach, interval: LORD.interval, splash: LORD.splash }, (a) => a.kind === 'king', 1);
-  if (mastered(w, 'throw')) raise(w, hero.x, hero.z, LORD.guard);
+  if (mastered(w, 'lord')) raise(w, hero.x, hero.z, LORD.guard);
   w.casts++;
-  w.throwCd = st.cd;
+  return st.cd;
 }
 
 // 소환수 한 틱: 표식 안의 적이 먼저, 아니면 주인공 가까이(BONES.aggro 안)의 적을 쫓아 공격, 적이 없으면 주인공 뒤를 따른다. 시간이 다 되거나 맞아 죽으면 사라진다.
 // 소환수에게 맞은 몬스터는 주인공 대신 그 소환수를 노린다(보스·해골 왕은 한눈팔지 않는다)
 // ponytail: 소환수끼리·몬스터와는 겹치지 않게 소환수만 밀린다(separate는 entities만 본다)
 export function tickAllies(w: World, hero: Entity) {
-  const aura = w.traits.throw === 1 && w.allies.some((a) => a.kind === 'king') ? LORD.aura : 1;
-  const marked = (e: Entity) => w.curses.some((c) => Math.hypot(e.x - c.x, e.z - c.z) <= c.r);
+  const aura = w.allies.some((a) => a.kind === 'king') ? LORD.aura : 1;
+  const marked = (e: Entity) => w.curses.some((c) => c.amp > 0 && Math.hypot(e.x - c.x, e.z - c.z) <= c.r);
   const near = (a: Ally, list: Entity[]) => list.sort((p, q) => dist(p, a) - dist(q, a))[0] ?? null;
   w.allies.forEach((a, i) => {
     a.life -= DT;
@@ -155,7 +156,7 @@ export function tickAllies(w: World, hero: Entity) {
   for (const a of w.allies) {
     if (!gone(a)) continue;
     blast(w, 'blink', a.x, a.z);
-    if (a.kind !== 'warrior' || !mastered(w, 'dash')) continue;
+    if (a.kind !== 'warrior' || !mastered(w, 'giant')) continue;
     // 시체 거인 5단계: 쓰러지며 터진다
     blast(w, 'fire', a.x, a.z);
     for (const e of foes(w, hero)) if (dist(e, a) <= GIANT.burst) hurt(w, e, Math.round(roll(w, hero) * GIANT.burstMult), hero);
@@ -163,36 +164,40 @@ export function tickAllies(w: World, hero: Entity) {
   w.allies = w.allies.filter((a) => !gone(a));
 }
 
-// 죽음의 표식(코드에서는 curse): 조준점(사거리로 당김), 없으면 가까운 적. 조준점도 적도 없으면 쓰지 않는다. 반경 안의 닫힌 사슬 문은 녹는다
-export function curse(w: World, hero: Entity, x?: number, z?: number) {
-  if (w.shoutCd > 0) return;
-  let [tx, tz] = [x, z];
-  if (tx === undefined || tz === undefined) {
-    const t = nearest(w, hero, CURSE.range);
-    if (!t) return;
-    [tx, tz] = [t.x, t.z];
-  }
-  const d = Math.hypot(tx - hero.x, tz - hero.z);
-  if (d > CURSE.range) [tx, tz] = [hero.x + ((tx - hero.x) * CURSE.range) / d, hero.z + ((tz - hero.z) * CURSE.range) / d];
-  if (d > 1e-6) hero.facing = Math.atan2(tx - hero.x, tz - hero.z);
+// 죽음의 표식(코드에서는 curse): 지점(사거리로 당김), 없으면 가까운 적. 반경 안의 닫힌 사슬 문은 녹는다
+export function curse(w: World, hero: Entity, x?: number, z?: number): number {
+  const at = spot(w, hero, CURSE.range, x, z);
+  if (!at) return 0;
+  const [tx, tz] = at;
   const st = curseStat(w);
-  w.curses.push({ id: w.nextItem++, x: tx, z: tz, r: st.radius, t: st.time, acc: 0, amp: st.amp });
+  w.curses.push({ id: w.nextItem++, x: tx, z: tz, r: st.radius, t: st.time, acc: 0, amp: st.amp, plague: 0 });
   blast(w, 'curse', tx, tz, st.radius);
   for (const g of w.gates) if (!g.open && Math.hypot(g.x + 0.5 - tx, g.z + 0.5 - tz) <= st.radius + 0.5) openGate(w, g.x, g.z);
   w.casts++;
-  w.shoutCd = st.cd;
+  return st.cd;
 }
 
-// 표식 한 틱: 역병(특성 2)은 CURSE.tick마다 피해, 5단계는 안의 시체를 해골로(시체마다 한 번)
+// 역병: 지점이 PLAGUE.time초 동안 썩어 안의 적이 PLAGUE.tick마다 피해(소환수가 먼저 노리지는 않는다)
+export function plague(w: World, hero: Entity, x?: number, z?: number): number {
+  const at = spot(w, hero, PLAGUE.range, x, z);
+  if (!at) return 0;
+  const st = plagueStat(w);
+  w.curses.push({ id: w.nextItem++, x: at[0], z: at[1], r: st.radius, t: PLAGUE.time, acc: 0, amp: 0, plague: st.mult });
+  blast(w, 'curse', at[0], at[1], st.radius);
+  w.casts++;
+  return st.cd;
+}
+
+// 표식·역병 한 틱: 역병은 PLAGUE.tick마다 피해, 표식 5단계는 안의 시체를 해골로(시체마다 한 번)
 export function tickCurses(w: World, hero: Entity) {
   for (const c of w.curses) {
     const inside = (e: Entity) => e !== hero && Math.hypot(e.x - c.x, e.z - c.z) <= c.r;
-    if (w.traits.shout === 2 && (c.acc += DT) >= CURSE.tick - 1e-9) {
+    if (c.plague && (c.acc += DT) >= PLAGUE.tick - 1e-9) {
       c.acc = 0;
-      const dmg = Math.round(roll(w, hero) * CURSE.plague);
+      const dmg = Math.round(roll(w, hero) * c.plague);
       for (const e of foes(w, hero)) if (inside(e)) hurt(w, e, dmg, hero);
     }
-    if (mastered(w, 'shout'))
+    if (c.amp > 0 && mastered(w, 'curse'))
       for (const e of w.entities)
         if (e.state === 'dead' && inside(e) && !w.raised.includes(e.id)) {
           w.raised.push(e.id);
@@ -201,4 +206,53 @@ export function tickCurses(w: World, hero: Entity) {
     c.t -= DT;
   }
   w.curses = w.curses.filter((c) => c.t > 0);
+}
+
+// 시체 폭발: 지점(없으면 발밑) 둘레의 아직 안 쓴 시체가 모두 터진다(터져 죽은 적도 이어서). 시체가 없으면 쓰지 않는다
+export function corpseBlast(w: World, hero: Entity, x?: number, z?: number): number {
+  const [cx, cz] = spot(w, hero, CORPSE.range, x, z) ?? [hero.x, hero.z];
+  const dead = w.entities.filter((e) => e !== hero && e.state === 'dead' && !w.raised.includes(e.id) && Math.hypot(e.x - cx, e.z - cz) <= CORPSE.radius);
+  if (!dead.length) return 0;
+  const st = corpseStat(w);
+  const before = w.entities.filter((e) => e.state === 'dead').length;
+  burst(w, hero, dead, st.hp, CORPSE.blast);
+  w.raised.push(...w.entities.filter((e) => e !== hero && e.state === 'dead').map((e) => e.id)); // 터진 시체(이어서 죽은 것도)는 다시 못 쓴다
+  if (w.entities.filter((e) => e.state === 'dead').length > before) w.shouts++; // 연쇄로 죽였다: 땅 울림
+  w.casts++;
+  return st.cd;
+}
+
+// 뼈 창: 조준 방향으로 꿰뚫는 창(관통 사격과 같은 화살로 난다 — ranger의 arrowHit)
+export function spear(w: World, hero: Entity, x?: number, z?: number): number {
+  const st = spearStat(w);
+  const [dx, dz] = aimDir(w, hero, PIERCE.aim, x, z);
+  hero.facing = Math.atan2(dx, dz);
+  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg: Math.round(roll(w, hero) * st.mult), left: PIERCE.flight, kind: 'pierce' });
+  w.casts++;
+  return st.cd;
+}
+
+// 뼈 갑옷: 최대 체력 비율만큼 피해를 흡수(마나 방패와 같은 wardHp, 되돌림·폭발은 없다)
+export function boneArmor(w: World): number {
+  const st = boneArmorStat(w);
+  Object.assign(w, { wardHp: Math.round(heroMax(w) * st.absorb), wardT: BONE_ARMOR.time, wardBroke: false });
+  w.casts++;
+  return st.cd;
+}
+
+// 뼈 감옥: 지점 둘레의 적을 뼈벽에 가둔다(피해 + 묶음, 보스·해골 왕은 짧게)
+export function prison(w: World, hero: Entity, x?: number, z?: number): number {
+  const at = spot(w, hero, PRISON.range, x, z);
+  if (!at) return 0;
+  const st = prisonStat(w);
+  blast(w, 'curse', at[0], at[1], st.radius);
+  blast(w, 'slam', at[0], at[1]);
+  for (const e of foes(w, hero)) {
+    if (Math.hypot(e.x - at[0], e.z - at[1]) > st.radius) continue;
+    skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    stun(e, e.kind === 'boss' || e.kind === 'king' ? PRISON.big : st.time);
+    blast(w, 'ice', e.x, e.z);
+  }
+  w.casts++;
+  return st.cd;
 }

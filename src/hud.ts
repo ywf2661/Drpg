@@ -21,11 +21,14 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { bonesStat, curseStat, CURSE, giantStat, GIANT, lordStat, LORD, axeStat, BAG, focusStat, FOCUS, pierceStat, rainStat, RAIN, RANGER, trapStat, TRAP, bagBlocked, bagFits, BLINK, BOLT, boltStat, CLASSES, cleaveStat, ELITE_KINDS, bossName, LANDS, monsterName, dashStat, fireStat, frostStat, gearDiff, gearSize, gearTable, mastered, outcome, POTION, RANK_MAX, ROLL, SLOTS, TRAIT, shoutStat, WARD, wardStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillName, type Slot, type World } from './sim/world';
+import { canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, gearTable, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
 const xpFill = $('#xp i');
+const resBar = $('#res');
+const resFill = $('#res i');
+const resName = (c: HeroClass) => (RESOURCE[c] === 'energy' ? '기력' : '마나');
 const levelLabel = $('#level');
 const pointsHint = $('#points');
 const target = $('#target');
@@ -47,9 +50,7 @@ const floorTitle = $('#floor-title');
 const potionBtn = $('#potion');
 const potionCount = $('#potion span');
 const skillBtn = $('#skill');
-const skillShade = $('#skill i');
 const dashBtn = $('#dash');
-const dashShade = $('#dash i');
 const shoutBtn = $('#shout');
 const throwBtn = $('#throw');
 const gearSlots: Record<Slot, HTMLElement> = { weapon: $('#weapon'), armor: $('#armor'), helm: $('#helm'), boots: $('#boots') };
@@ -76,7 +77,7 @@ let shownLevel = 0;
 let shownGateHint = false; // 사슬 문 안내는 층마다 한 번
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; traits(s: SkillName): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; pick(cls: HeroClass): void; smart(on: boolean): void; smartOn(): boolean };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; tree(): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; pick(cls: HeroClass): void; smart(on: boolean): void; smartOn(): boolean };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -95,14 +96,10 @@ export function initHud(h: Handlers) {
       e.stopPropagation();
       h.learn(s);
     });
-    // ★: 특성 고르기(3단계부터). 아직 안 골랐으면 금색으로 깜빡인다
-    const star = Object.assign(document.createElement('span'), { className: 'trait', textContent: '★', hidden: true });
-    star.addEventListener('click', (e) => {
-      e.stopPropagation();
-      h.traits(s);
-    });
-    btn.append(rank, up, star);
+    btn.append(rank, up);
   }
+  $('#tree-btn').addEventListener('click', h.tree);
+  pointsHint.addEventListener('click', h.tree);
   restartBtn.addEventListener('click', h.restart); // 모바일용
   for (const el of [bagBtn, ...Object.values(gearSlots)]) el.addEventListener('click', h.bag);
   nextCycleBtn.addEventListener('click', h.nextCycle);
@@ -166,179 +163,184 @@ export function showTitle(open: boolean, saved: Run | null = null) {
 const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [dashBtn, 'dash'], [shoutBtn, 'shout'], [throwBtn, 'throw']];
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const sec = (v: number) => `${+v.toFixed(1)}초`;
-// 스킬 툴팁: 이름(키) · 단계, 지금 수치, 다음 단계 수치
-// cap: 5단계 완성 효과
-type SkillText = Record<SkillName, { name: string; key: string; cap: string; stat(w: World): string }>;
-const KNIGHT_SKILLS: SkillText = {
-  cleave: { name: '가르기', key: 'Q / 우클릭', cap: '반원 대신 한 바퀴를 벤다', stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '한 바퀴' : '앞쪽 반원'} ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  dash: { name: '돌진 베기', key: 'W', cap: '돌진으로 처치하면 바로 다시 돌진', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 길 위 적 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  shout: { name: '전투의 함성', key: 'E', cap: '쓸 때 최대 체력의 15% 회복', stat: (w) => { const s = shoutStat(w); return `${s.radius.toFixed(1)}m 안 적 ${sec(s.stun)} 기절, 받는 피해 −${pct(s.reduce)}, ${sec(s.cd)}`; } },
-  throw: { name: '도끼 던지기', key: 'R 조준 → 클릭', cap: '적을 관통한다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '길 위의 적 모두' : '처음 닿는 적'}에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+// 스킬 설명: 이름, 한 줄 설명, 지금 단계의 수치(stat), 5단계 완성 효과(cap)
+type SkillText = { name: string; desc: string; stat?: (w: World) => string; cap?: string };
+const SKILL_TEXT: Record<SkillId, SkillText> = {
+  // 기사
+  cleave: { name: '가르기', desc: '앞쪽 적을 한 번에 벤다 (Q는 가까운 적 쪽, 우클릭은 커서 쪽)', cap: '반원 대신 한 바퀴를 벤다', stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '한 바퀴' : '앞쪽 반원'} ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  whirl: { name: '회오리', desc: '돌면서 걸어 다니며 주변 적을 계속 벤다', cap: '1초 더 돈다', stat: (w) => { const s = whirlStat(w); return `${sec(s.time)} 동안 ${s.radius.toFixed(1)}m 적에게 0.25초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  burst: { name: '시체 폭발', desc: '패시브 — 가르기·회오리·처형으로 죽은 적이 터져 주변을 태운다. 터져 죽은 적도 또 터진다', stat: (w) => `시체 최대 체력의 ${pct(burstStat(w).hp)} 피해, 반경 ${BURST.radius}m` },
+  execute: { name: '처형', desc: '닿는 적 하나를 벤다. 체력이 낮으면 단칼에 죽이고, 죽이면 주변 적이 공포에 질려 도망친다', stat: (w) => { const s = executeStat(w); return `체력 ${pct(s.below)} 이하 즉사(보스 제외), 아니면 ${pct(s.mult)}, 공포 ${sec(EXECUTE.fear)}, ${sec(s.cd)}`; } },
+  dash: { name: '돌진 베기', desc: '커서 쪽으로 돌진하며 길 위의 적을 벤다. 맞히면 가르기가 바로 준비된다', cap: '돌진으로 처치하면 바로 다시 돌진', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 길 위 적 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  shout: { name: '전투의 함성', desc: '주변 적을 기절시키고 밀어내며, 잠시 받는 피해가 준다', cap: '쓸 때 최대 체력의 15% 회복', stat: (w) => { const s = shoutStat(w); return `${s.radius.toFixed(1)}m 안 적 ${sec(s.stun)} 기절, 받는 피해 −${pct(s.reduce)}, ${sec(s.cd)}`; } },
+  trail: { name: '불길', desc: '패시브 — 돌진 베기가 지나간 길이 3초 동안 불탄다', stat: (w) => `0.5초마다 ${pct(trailStat(w).mult)}` },
+  leap: { name: '대지 강타', desc: '커서 지점으로 뛰어올라 내려찍는다. 내린 자리 둘레의 적이 기절한다', stat: (w) => { const s = leapStat(w); return `${LEAP.range}m까지, ${s.radius}m 적 모두 ${pct(s.mult)} + ${sec(LEAP.stun)} 기절, ${sec(s.cd)}`; } },
+  throw: { name: '도끼 던지기', desc: '처음 닿는 적에게 도끼를 던진다. 사슬 문도 부순다', cap: '적을 관통한다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '길 위의 적 모두' : '처음 닿는 적'}에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  bounce: { name: '튕기는 도끼', desc: '맞은 적에서 가까운 적으로 튀어 다니는 도끼', cap: '두 배로 튄다', stat: (w) => { const s = bounceStat(w); return `${pct(s.mult)}, ${s.count}번 튐, ${sec(s.cd)}`; } },
+  axes: { name: '도끼 숙련', desc: '패시브 — 도끼 스킬(던지기·튕기는 도끼·도끼 폭풍)이 더 자주, 더 세게', stat: (w) => `재사용 대기 −${pct(AXES.cd * Math.max(1, w.ranks.axes ?? 0))}, 피해 +${pct(AXES.dmg * Math.max(1, w.ranks.axes ?? 0))}` },
+  axeStorm: { name: '도끼 폭풍', desc: '사방으로 도끼를 한꺼번에 던진다(모두 관통)', stat: (w) => { const s = axeStormStat(w); return `도끼 ${s.count}자루 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  // 마법사
+  fireball: { name: '화염구', desc: '날아가 터지는 불덩이 (우클릭은 커서 쪽)', cap: '세 갈래로 날아간다', stat: (w) => { const s = fireStat(w); return `날아가 ${s.radius.toFixed(1)}m 폭발, 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  firefield: { name: '불바다', desc: '지점을 불태운다', stat: (w) => { const s = firefieldStat(w); return `${s.radius.toFixed(1)}m를 ${sec(FIREFIELD.time)} 동안, 0.5초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  embers: { name: '잔불', desc: '패시브 — 화염구가 터진 자리가 잠시 탄다', stat: (w) => { const s = embersStat(w); return `${EMBERS.radius}m를 ${sec(s.time)} 동안, 0.5초마다 ${pct(s.mult)}`; } },
+  comet: { name: '운석', desc: '잠시 뒤 지점에 운석이 떨어지고, 그 자리가 탄다', stat: (w) => { const s = cometStat(w); return `${sec(COMET.delay)} 뒤 ${s.radius}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  frost: { name: '서리 고리', desc: '주변 적에게 피해를 주고 얼린다(얼은 적은 약점)', cap: '주변의 화살·화염구도 얼려 없앤다', stat: (w) => { const s = frostStat(w); return `${s.radius.toFixed(1)}m 안 적 ${pct(s.mult)} 후 ${sec(s.freeze)} 얼림, ${sec(s.cd)}`; } },
+  ward: { name: '마나 방패', desc: '피해를 흡수하는 방패. 막은 피해 일부를 공격자에게 되돌린다', cap: '방패가 깨지면 주변 폭발', stat: (w) => { const s = wardStat(w); return `${WARD.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${pct(WARD.reflect)} 반사, ${sec(s.cd)}`; } },
+  frostArmor: { name: '서리 갑옷', desc: `패시브 — 서리 고리·마나 방패·눈보라를 쓰면 ${FROST_ARMOR.time}초 동안 받는 피해가 준다`, stat: (w) => `받는 피해 −${pct(frostArmorStat(w).reduce)}` },
+  blizzard: { name: '눈보라', desc: '몸에 붙어 따라다니는 냉기장. 닿는 적을 계속 때리고 얼린다', stat: (w) => { const s = blizzardStat(w); return `${sec(s.time)} 동안 ${s.radius}m, 0.5초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  lightning: { name: '낙뢰', desc: '지점에 벼락. 맞은 적이 기절한다', cap: '범위 ×1.3, 기절 2배', stat: (w) => { const s = boltStat(w); return `${BOLT.range}m 안 지점 ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.stun)} 기절, ${sec(s.cd)}`; } },
+  chain: { name: '연쇄 번개', desc: '벼락이 맞은 적에서 가까운 적으로 튄다', stat: (w) => { const s = chainStat(w); return `${pct(s.mult)}, ${s.count}번 튐(${pct(CHAIN.hop)}), ${sec(s.cd)}`; } },
+  static: { name: '정전기', desc: '패시브 — 마력탄이 맞은 적 옆의 적에게 튄다', stat: (w) => { const s = staticStat(w); return `${s.count}명에게 ${pct(s.mult)} (3단계부터 둘)`; } },
+  tempest: { name: '천둥 폭풍', desc: '지점 둘레에 벼락이 잇따라 쏟아진다', stat: (w) => { const s = tempestStat(w); return `벼락 ${s.strikes}개 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  // 궁수
+  pierce: { name: '관통 사격', desc: '길 위의 적을 모두 꿰뚫는 화살 (우클릭은 커서 쪽)', cap: '한 발이 더 뒤따른다', stat: (w) => { const s = pierceStat(w); return `직선으로 꿰뚫어 길 위 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  spread: { name: '세 갈래', desc: '꿰뚫는 화살이 부채꼴로 날아간다', cap: '다섯 발', stat: (w) => { const s = spreadStat(w); return `${s.count}발 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  crit: { name: '치명', desc: '패시브 — 화살(평타·스킬)이 확률로 2배 피해', stat: (w) => `${pct(Math.max(CRIT.chance, critStat(w).chance))} 확률` },
+  focus: { name: '집중', desc: '잠시 공격 속도가 빨라지고 화살이 두 발씩 나간다', cap: '집중 중 처치하면 재사용 대기 −1초', stat: (w) => { const s = focusStat(w); return `${sec(s.time)} 동안 공격 속도 +${pct(FOCUS.speed)}, ${sec(s.cd)}`; } },
+  trap: { name: '덫', desc: '밟은 적을 묶는 덫을 놓는다', cap: '닫힐 때 주변 적도 묶는다', stat: (w) => { const s = trapStat(w); return `${TRAP.range}m 안에 덫(최대 ${s.max}개), 밟은 적 ${pct(s.mult)} 후 ${sec(s.hold)} 묶음, ${sec(s.cd)}`; } },
+  push: { name: '밀쳐내기 사격', desc: '맞은 적을 멀리 밀어내는 꿰뚫는 화살. 벽에 부딪히면 기절', stat: (w) => { const s = pushStat(w); return `${pct(s.mult)}, 벽에 부딪히면 ${sec(PUSH.stun)} 기절, ${sec(s.cd)}`; } },
+  snare: { name: '덫 숙련', desc: '패시브 — 덫 하나 더, 더 오래 묶고, 닫힐 때 주변 적도 다친다', stat: (w) => `주변 ${TRAP.radius}m에 덫 피해의 ${pct(snareStat(w).blast)}` },
+  hunt: { name: '사냥터', desc: '지점 둘레에 덫을 둥글게 한꺼번에 깐다(개수 제한 없음)', stat: (w) => { const s = huntStat(w); return `덫 ${s.count}개 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  rain: { name: '화살비', desc: '잠시 뒤 지점에 화살이 쏟아진다', cap: '범위 ×1.3', stat: (w) => { const s = rainStat(w); return `${RAIN.range}m 안 지점 ${s.radius.toFixed(1)}m에 ${sec(RAIN.delay)} 뒤 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  fireRain: { name: '불화살', desc: '화살비가 떨어진 자리가 3초 동안 불탄다', stat: (w) => { const s = fireRainStat(w); return `${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)} + 불, ${sec(s.cd)}`; } },
+  downpour: { name: '폭우', desc: `패시브 — 화살비·불화살이 몇 번 더 내린다(한 번에 ${pct(DOWNPOUR.mult)})`, stat: (w) => `${Math.max(1, downpourStat(w).waves)}번 더` },
+  arrowStorm: { name: '화살 폭풍', desc: '주변 여기저기에 화살비가 잇따라 떨어진다', stat: (w) => { const s = arrowStormStat(w); return `화살비 ${s.count}번 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  // 강령술사
+  bones: { name: '해골 소환', desc: '싸워 주는 해골을 일으킨다(2단계 궁수, 4단계 법사가 섞인다)', cap: '한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `${s.count}기(최대 ${s.max}) ${sec(s.life)} 동안, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  giant: { name: '시체 거인', desc: '튼튼한 거인 하나. 나타나며 주변 적의 눈길을 끈다', cap: '쓰러지면 터져 주변 적에게 피해', stat: (w) => { const s = giantStat(w); return `체력 ${s.hp}의 거인 ${sec(s.life)} 동안, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  boneMastery: { name: '해골 숙련', desc: `패시브 — 해골이 더 세고 오래 남는다. ${BONE_MASTERY.at}단계부터 한 기 더`, stat: (w) => `피해 +${pct(BONE_MASTERY.mult * Math.max(1, w.ranks.boneMastery ?? 0))}, 유지 +${pct(BONE_MASTERY.life * Math.max(1, w.ranks.boneMastery ?? 0))}` },
+  lord: { name: '해골 왕 강림', desc: '가장 센 소환수. 휘두르면 둘레가 함께 맞고, 있는 동안 다른 소환수가 세진다', cap: '해골 둘이 함께 온다', stat: (w) => { const s = lordStat(w); return `체력 ${s.hp}의 왕 ${sec(s.life)} 동안, 둘레 ${LORD.splash}m ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  curse: { name: '죽음의 표식', desc: '표식 안의 적은 피해를 더 받고 소환수가 먼저 노린다. 사슬 문을 녹인다', cap: '표식 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `${s.radius.toFixed(1)}m, ${sec(s.time)} 동안 받는 피해 +${pct(s.amp)}, ${sec(s.cd)}`; } },
+  plague: { name: '역병', desc: '지점을 썩게 해 안의 적이 계속 다친다', stat: (w) => { const s = plagueStat(w); return `${s.radius.toFixed(1)}m를 ${sec(PLAGUE.time)} 동안, 0.5초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  curseMastery: { name: '표식 숙련', desc: '패시브 — 죽음의 표식이 넓어지고 받는 피해가 더 는다', stat: (w) => `범위 +${pct(CURSE_MASTERY.radius * Math.max(1, w.ranks.curseMastery ?? 0))}, 받는 피해 +${pct(CURSE_MASTERY.amp * Math.max(1, w.ranks.curseMastery ?? 0))}p` },
+  corpseBlast: { name: '시체 폭발', desc: '지점 둘레의 시체를 모두 터뜨린다(터져 죽은 적도 이어서). 시체가 없으면 못 쓴다', stat: (w) => { const s = corpseStat(w); return `시체 최대 체력의 ${pct(s.hp)}, 반경 ${CORPSE.blast}m, ${sec(s.cd)}`; } },
+  spear: { name: '뼈 창', desc: '길 위의 적을 모두 꿰뚫는 뼈 창', stat: (w) => { const s = spearStat(w); return `${pct(s.mult)}, ${sec(s.cd)}`; } },
+  boneArmor: { name: '뼈 갑옷', desc: '피해를 흡수하는 뼈 갑옷', stat: (w) => { const s = boneArmorStat(w); return `${BONE_ARMOR.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${sec(s.cd)}`; } },
+  drain: { name: '생명 흡수', desc: '패시브 — 내가(해골도) 준 피해의 일부만큼 회복', stat: (w) => `준 피해의 ${pct(DRAIN.per * Math.max(1, w.ranks.drain ?? 0))}` },
+  prison: { name: '뼈 감옥', desc: '지점 둘레의 적을 뼈벽에 가둔다', stat: (w) => { const s = prisonStat(w); return `${s.radius.toFixed(1)}m 적 ${pct(s.mult)} + ${sec(s.time)} 묶음(보스 ${sec(PRISON.big)}), ${sec(s.cd)}`; } },
 };
-let shownRanks = '';
-const shownTraitHint = new Set<SkillName>(); // 특성 알림을 띄운 스킬
-// 특성 [이름, 설명] — 스킬마다 1번·2번
-const KNIGHT_TRAITS: Record<SkillName, [string, string][]> = {
-  cleave: [
-    ['회오리', '휘두르는 대신 2초 동안 돌면서 걸어 다니며 주변 적을 계속 벤다 (5단계: 3초)'],
-    ['시체 폭발', '가르기로 죽은 적이 터져 주변에 피해를 준다. 터져서 죽은 적도 또 터진다'],
-  ],
-  dash: [
-    ['꼬치', '맞은 적을 끝까지 끌고 가 벽에 박는다. 박히면 추가 피해와 기절'],
-    ['불길', '지나간 길이 3초 동안 불타 그 위의 적을 태운다'],
-  ],
-  shout: [
-    ['끌어당김', '밀어내는 대신 주변 적을 발밑으로 끌어모은다'],
-    ['공포', '기절 대신 4초 동안 도망치게 한다. 도망치는 적은 스킬 피해 2배'],
-  ],
-  throw: [
-    ['튕기는 도끼', '맞으면 가까운 적으로 세 번 더 튄다 (5단계: 여섯 번)'],
-    ['박힌 도끼', '적에게 박혀 남는다. 다시 누르면 그 적 앞으로 순간이동해 뽑으며 폭발'],
-  ],
-};
-const WIZARD_SKILLS: SkillText = {
-  cleave: { name: '화염구', key: 'Q 조준 / 우클릭', cap: '세 갈래로 날아간다', stat: (w) => { const s = fireStat(w); return `날아가 ${s.radius.toFixed(1)}m 폭발, 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  dash: { name: '서리 고리', key: 'W', cap: '주변의 화살·화염구도 얼려 없앤다', stat: (w) => { const s = frostStat(w); return `${s.radius.toFixed(1)}m 안 적 ${pct(s.mult)} 후 ${sec(s.freeze)} 얼림, ${sec(s.cd)}`; } },
-  shout: { name: '낙뢰', key: 'E 조준', cap: '범위 ×1.3, 기절 2배', stat: (w) => { const s = boltStat(w); return `${BOLT.range}m 안 지점 ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.stun)} 기절, ${sec(s.cd)}`; } },
-  throw: { name: '마나 방패', key: 'R', cap: '방패가 깨지면(치유는 쓸 때) 주변 폭발', stat: (w) => { const s = wardStat(w); return `${WARD.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${sec(s.cd)}`; } },
-};
-const WIZARD_TRAITS: Record<SkillName, [string, string][]> = {
-  cleave: [
-    ['불바다', '폭발한 자리가 3초 동안 불타 그 위의 적을 태운다'],
-    ['관통', '적을 뚫고 지나가며 맞은 적마다 폭발한다'],
-  ],
-  dash: [
-    ['얼음 감옥', '얼리는 시간 75% 증가'],
-    ['서리 갑옷', '쓰면 5초 동안 받는 피해 −30%'],
-  ],
-  shout: [
-    ['연쇄 번개', '맞은 적에서 가까운 적으로 세 번 더 튄다(60%)'],
-    ['천둥', '범위 2배, 피해 70%, 벼락이 잇따라 쏟아진다'],
-  ],
-  throw: [
-    ['치유', '방패 대신 즉시 최대 체력의 25% 회복'],
-    ['반사', '방패가 막은 피해의 50%를 공격한 적에게 되돌린다'],
-  ],
-};
-const RANGER_SKILLS: SkillText = {
-  cleave: { name: '관통 사격', key: 'Q 조준 / 우클릭', cap: '한 발이 더 뒤따른다', stat: (w) => { const s = pierceStat(w); return `직선으로 꿰뚫어 길 위 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  dash: { name: '덫', key: 'W 조준', cap: '닫힐 때 주변 적도 묶는다', stat: (w) => { const s = trapStat(w); return `${TRAP.range}m 안에 덫(최대 ${s.max}개), 밟은 적 ${pct(TRAP.mult)} 후 ${sec(s.hold)} 묶음, ${sec(s.cd)}`; } },
-  shout: { name: '화살비', key: 'E 조준', cap: '범위 ×1.3', stat: (w) => { const s = rainStat(w); return `${RAIN.range}m 안 지점 ${s.radius.toFixed(1)}m에 ${sec(RAIN.delay)} 뒤 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  throw: { name: '집중', key: 'R', cap: '집중 중 처치하면 재사용 대기 −1초', stat: (w) => { const s = focusStat(w); return `${sec(s.time)} 동안 공격 속도 +${pct(FOCUS.speed)}, ${sec(s.cd)}`; } },
-};
-const RANGER_TRAITS: Record<SkillName, [string, string][]> = {
-  cleave: [
-    ['밀쳐내기', '맞은 적을 멀리 밀어낸다. 벽에 부딪히면 1.5초 기절'],
-    ['세 갈래', '화살 세 발이 부채꼴로 날아간다'],
-  ],
-  dash: [
-    ['폭발 덫', '닫힐 때 주변 적에게도 피해를 준다'],
-    ['덫 세 개', '덫을 세 개까지 놓고, 묶는 시간 40% 증가'],
-  ],
-  shout: [
-    ['불화살', '떨어진 자리가 3초 동안 불타 그 위의 적을 태운다'],
-    ['폭우', '3초 동안 네 번 내린다(한 번에 50%)'],
-  ],
-  throw: [
-    ['멀티샷', '집중 중 화살이 두 발씩 나간다'],
-    ['치명', `집중 중 화살이 ${pct(FOCUS.crit)} 확률로 2배 피해`],
-  ],
-};
-const NECRO_SKILLS: SkillText = {
-  cleave: { name: '해골 소환', key: 'Q', cap: '한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); const n = (k: string) => s.kinds.filter((x) => x === k).length; return `검사 ${n('minion')}${n('archer') ? `·궁수 ${n('archer')}` : ''}${n('mage') ? `·법사 ${n('mage')}` : ''}(최대 ${s.max}) ${sec(s.life)} 동안, 검사 한 대에 ${pct(s.mult)}, ${sec(s.cd)} — 2단계 궁수, 3단계 한 기 더, 4단계 법사`; } },
-  dash: { name: '시체 거인', key: 'W', cap: '쓰러지면 터져 주변 적에게 피해', stat: (w) => { const s = giantStat(w); return `체력 ${s.hp}의 거인 하나 ${sec(s.life)} 동안, 나타나며 ${GIANT.taunt}m 안 적의 눈길을 끈다, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  shout: { name: '죽음의 표식', key: 'E 조준', cap: '표식 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `${CURSE.range}m 안 지점 ${s.radius.toFixed(1)}m, ${sec(s.time)} 동안 소환수가 안의 적부터 노리고 받는 피해 +${pct(s.amp)}, 사슬 문을 녹인다, ${sec(s.cd)}`; } },
-  throw: { name: '해골 왕 강림', key: 'R', cap: '해골 둘이 함께 온다', stat: (w) => { const s = lordStat(w); return `체력 ${s.hp}의 해골 왕 ${sec(s.life)} 동안, 휘두르면 둘레 ${LORD.splash}m 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-};
-const NECRO_TRAITS: Record<SkillName, [string, string][]> = {
-  cleave: [
-    ['군단', '두 기 더 일으킨다(최대 수도 +2), 한 대 피해 70%'],
-    ['정예 해골', '해골 피해 60% 증가, 50% 더 오래 남는다'],
-  ],
-  dash: [
-    ['두꺼운 살', '거인 체력 50% 증가'],
-    ['강타', `때릴 때 둘레 ${GIANT.smash}m의 적도 함께 맞는다`],
-  ],
-  shout: [
-    ['넓은 표식', '범위 60% 증가'],
-    ['역병', '표식 안의 적이 0.5초마다 피해를 입는다'],
-  ],
-  throw: [
-    ['군주', '왕이 있는 동안 다른 소환수 피해 30% 증가'],
-    ['긴 강림', '50% 더 오래 머문다'],
-  ],
-};
-const SKILL_TEXTS: Record<HeroClass, SkillText> = { knight: KNIGHT_SKILLS, wizard: WIZARD_SKILLS, ranger: RANGER_SKILLS, necromancer: NECRO_SKILLS };
-const TRAIT_TEXTS: Record<HeroClass, Record<SkillName, [string, string][]>> = { knight: KNIGHT_TRAITS, wizard: WIZARD_TRAITS, ranger: RANGER_TRAITS, necromancer: NECRO_TRAITS };
-// 재사용 대기(초): 스킬 4칸 + 구르기·순간이동
-const cooldowns = (w: World): Record<SkillName | 'roll', number> =>
-  w.cls === 'wizard'
-    ? { cleave: fireStat(w).cd, dash: frostStat(w).cd, shout: boltStat(w).cd, throw: wardStat(w).cd, roll: BLINK.cd }
-    : w.cls === 'ranger'
-      ? { cleave: pierceStat(w).cd, dash: trapStat(w).cd, shout: rainStat(w).cd, throw: focusStat(w).cd, roll: ROLL.cd }
-      : w.cls === 'necromancer'
-        ? { cleave: bonesStat(w).cd, dash: giantStat(w).cd, shout: curseStat(w).cd, throw: lordStat(w).cd, roll: ROLL.cd }
-      : { cleave: cleaveStat(w).cd, dash: dashStat(w).cd, shout: shoutStat(w).cd, throw: axeStat(w).cd, roll: ROLL.cd };
-const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
+export const skillName = (id: SkillId) => SKILL_TEXT[id].name;
 
-// 직업에 맞게 스킬 버튼 그림·구르기 글자·장비 칸 아이콘을 바꾼다(마법사·궁수 스킬 아이콘은 띠 한 장: 스킬 4칸 + 스페이스)
+// 스킬 아이콘: 직업의 아이콘 띠(스킬 4칸 + 스페이스)에서 몇 번째 그림인가. 새 스킬은 같은 계열 그림을 빌리고 이름 두 글자를 얹는다
+// ponytail: 트리 스킬 그림이 생기면 ICON을 그 띠로 바꾸고 이름 글자를 뺄 것
+const ICON: Record<SkillId, number> = {
+  cleave: 0, whirl: 0, burst: 0, execute: 0, dash: 1, shout: 2, trail: 1, leap: 1, throw: 3, bounce: 3, axes: 3, axeStorm: 3,
+  fireball: 0, firefield: 0, embers: 0, comet: 0, frost: 1, ward: 3, frostArmor: 1, blizzard: 1, lightning: 2, chain: 2, static: 2, tempest: 2,
+  pierce: 0, spread: 0, crit: 0, focus: 3, trap: 1, push: 0, snare: 1, hunt: 1, rain: 2, fireRain: 2, downpour: 2, arrowStorm: 2,
+  bones: 0, giant: 1, boneMastery: 0, lord: 3, curse: 2, plague: 2, curseMastery: 2, corpseBlast: 2, spear: 0, boneArmor: 1, drain: 2, prison: 2,
+};
+const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
 const SKILL_STRIPS: Partial<Record<HeroClass, string>> = { wizard: wizardSkillIcons, ranger: rangerSkillIcons, necromancer: necroSkillIcons };
+const ORIGINAL = new Set<SkillId>(['cleave', 'dash', 'shout', 'throw', 'fireball', 'frost', 'lightning', 'ward', 'pierce', 'trap', 'rain', 'focus', 'bones', 'giant', 'curse', 'lord']);
+function paintIcon(el: HTMLElement, id: SkillId | null, size: number) {
+  const strip = id && SKILL_STRIPS[SKILLS[id].cls];
+  el.style.backgroundImage = id ? `url(${strip ?? KNIGHT_ICONS[ICON[id]]})` : 'none';
+  el.style.backgroundSize = strip ? `${size * 5}px ${size}px` : `${size}px ${size}px`;
+  el.style.backgroundPosition = strip ? `${-ICON[id!] * size}px 0` : '';
+  el.dataset.tag = id && !ORIGINAL.has(id) ? SKILL_TEXT[id].name.replace(/\s/g, '').slice(0, 2) : '';
+}
+
+// 직업에 맞게 구르기 글자·장비 칸 아이콘을 바꾼다(스킬 버튼 그림은 끼운 스킬을 따라 showKeys가)
 function showClass(c: HeroClass) {
   cls = c;
-  const strip = SKILL_STRIPS[c];
-  SKILL_BUTTONS().forEach(([btn], k) => {
-    btn.style.backgroundImage = `url(${strip ?? KNIGHT_ICONS[k]})`;
-    btn.style.backgroundSize = strip ? '200px 40px' : '';
-    btn.style.backgroundPosition = strip ? `${-k * 40}px 0` : '';
-  });
   const roll = $('#roll');
   roll.hidden = !ROLL.on;
   roll.firstChild!.textContent = c === 'wizard' ? '이동' : '구르기';
-  roll.title = c === 'wizard' ? `순간이동 (스페이스): 커서 쪽으로 ${BLINK.dist}m, 잠깐 무적, ${BLINK.cd}초` : '구르기 (스페이스): 3m 구르는 동안 무적, 1초';
+  roll.title = c === 'wizard' ? `순간이동 (스페이스): 커서 쪽으로 ${BLINK.dist}m, 잠깐 무적, ${BLINK.cd}초` : `구르기 (스페이스): ${ROLL.dist}m 구르는 동안 무적, ${ROLL.cd}초`;
   for (const slot of Object.values(gearSlots)) slot.style.backgroundImage = `url(${GEAR_ICONS[c]})`;
-  shownRanks = '';
+  resBar.className = RESOURCE[c]; // 기력 초록, 마나 파랑
+  shownKeys = '';
 }
 
-// 특성 고르기 창: 둘 중 하나. 이미 골랐으면 바꾸는 데 금화가 든다
-export function showTraits(w: World, s: SkillName, onPick: (pick: number) => void) {
-  const dlg = document.querySelector<HTMLDialogElement>('#traits')!;
-  const now = w.traits[s];
-  $('#traits-title').textContent = `${SKILL_TEXTS[cls][s].name} 특성` + (now ? ` — 바꾸기: 금화 ${TRAIT.respec} (지금 ${w.gold})` : ' — 하나를 고르세요');
-  $('#traits-list').replaceChildren(
-    ...TRAIT_TEXTS[cls][s].map(([name, text], k) => {
-      const b = document.createElement('button');
-      b.append(Object.assign(document.createElement('b'), { textContent: name + (now === k + 1 ? ' ✓' : '') }), Object.assign(document.createElement('small'), { textContent: text }));
-      b.disabled = now === k + 1 || (now > 0 && w.gold < TRAIT.respec);
-      b.addEventListener('click', () => {
-        onPick(k + 1);
-        dlg.close();
-      });
-      return b;
+// 스킬 한 줄 설명(툴팁·스킬 창): 지금 단계(안 배웠으면 1단계) 수치, 다음 단계, 5단계 효과
+function skillLines(w: World, id: SkillId): string[] {
+  const t = SKILL_TEXT[id];
+  const r = w.ranks[id] ?? 0;
+  const at = (n: number) => t.stat?.({ ...w, ranks: { ...w.ranks, [id]: n } }) ?? '';
+  return [t.desc, isPassive(id) ? '' : `비용: ${resName(w.cls)} ${skillCost(w.cls, id)}`, r ? `지금: ${at(r)}` : `배우면: ${at(1)}`, r && r < RANK_MAX ? `다음 단계: ${at(r + 1)}` : '', t.cap ? `5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}` : ''].filter(Boolean);
+}
+
+// 스킬 버튼: 끼운 스킬의 그림·단계·[+]·툴팁(칸·단계·포인트가 바뀔 때만 다시 씀)
+let shownKeys = '';
+function showKeys(w: World) {
+  const key = JSON.stringify([w.ranks, w.points, w.keys, w.level]);
+  if (key === shownKeys) return;
+  shownKeys = key;
+  for (const [btn, k] of SKILL_BUTTONS()) {
+    const id = w.keys[k];
+    const r = id ? (w.ranks[id] ?? 0) : 0;
+    paintIcon(btn, id, 40);
+    btn.querySelector('.rank')!.textContent = r ? String(r) : '';
+    btn.classList.toggle('locked', !id);
+    const up = !!id && !learnBlock(w, id);
+    btn.classList.toggle('can', up || (!id && !!w.points));
+    (btn.querySelector('.up') as HTMLElement).hidden = !up;
+    btn.title = id ? `${SKILL_TEXT[id].name} (${KEY_LABEL[k]}) · ${r}단계\n${skillLines(w, id).join('\n')}` + (up ? '\n[+] 또는 Shift+키: 단계 올리기' : '') + '\nT: 스킬 창' : `${KEY_LABEL[k]} 칸 비어 있음 — T(스킬 창)에서 배운 스킬을 끼운다`;
+  }
+}
+
+// 스킬 트리 창: 계열 탭 셋 중 고른 탭의 [1단계, 2단계, 패시브, 궁극기]. 배우기 [+], 칸 끼우기 Q W E R, 모두 되돌리기(금화)
+let treeTab = 0; // 고른 탭(창을 닫았다 열어도 그대로)
+export function showTree(w: World, h: { learn(id: SkillId): void; bind(key: SkillName, id: SkillId): void; respec(): void }) {
+  const dlg = document.querySelector<HTMLDialogElement>('#tree')!;
+  const el = (tag: string, cls = '', text = '') => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+  $('#tree-title').textContent = `스킬 — 포인트 ${w.points}` + (w.points ? ' (+로 배우기)' : '');
+  // 탭 머리: 계열 이름 · 찍은 포인트, 지금 배울 수 있는 스킬이 있으면 ●
+  const bar = el('nav', 'tabbar');
+  TREES[w.cls].forEach((tab, i) => {
+    const spent = tab.skills.reduce((s, id) => s + (w.ranks[id] ?? 0), 0);
+    const b = el('button', i === treeTab ? 'on' : '', `${tab.name}${spent ? ` · ${spent}` : ''}${tab.skills.some((id) => !learnBlock(w, id)) ? ' ●' : ''}`);
+    b.addEventListener('click', () => {
+      treeTab = i;
+      showTree(w, h);
+    });
+    bar.append(b);
+  });
+  $('#tree-tabs').replaceChildren(
+    bar,
+    ...[TREES[w.cls][treeTab]].map((tab) => {
+      const col = el('section');
+      for (const id of tab.skills) {
+        const r = w.ranks[id] ?? 0;
+        const block = learnBlock(w, id);
+        const card = el('div', `sk${r ? '' : ' unlearned'}`);
+        const icon = el('div', 'ic');
+        paintIcon(icon, id, 32);
+        const body = el('div', 'body');
+        const head = el('div', 'head');
+        head.append(el('b', '', SKILL_TEXT[id].name), el('span', 'lv', `${r}/${RANK_MAX}`));
+        if (isPassive(id)) head.append(el('i', '', '패시브'));
+        if (!block) {
+          const up = el('button', 'up', '+');
+          up.title = r ? '단계 올리기' : '배우기';
+          up.addEventListener('click', () => h.learn(id));
+          head.append(up);
+        }
+        body.append(head);
+        for (const line of skillLines(w, id)) body.append(el('small', '', line));
+        if (block && block !== '스킬 포인트가 없다' && block !== '최고 단계') body.append(el('small', 'why', `🔒 ${block}`));
+        if (r && !isPassive(id)) {
+          const keys = el('div', 'keys');
+          for (const k of KEYS) {
+            const b = el('button', w.keys[k] === id ? 'on' : '', KEY_LABEL[k]);
+            b.title = `${KEY_LABEL[k]} 칸에 끼우기` + (w.keys[k] && w.keys[k] !== id ? ` (지금: ${SKILL_TEXT[w.keys[k]!].name})` : '');
+            b.addEventListener('click', () => h.bind(k, id));
+            keys.append(b);
+          }
+          body.append(keys);
+        }
+        card.append(icon, body);
+        col.append(card);
+      }
+      return col;
     }),
   );
-  dlg.showModal();
-}
-
-// 스킬 버튼의 단계 숫자·[+]·툴팁(단계나 포인트가 바뀔 때만 다시 씀)
-function showRanks(w: World) {
-  const key = JSON.stringify([w.ranks, w.points, w.traits]);
-  if (key === shownRanks) return;
-  shownRanks = key;
-  for (const [btn, s] of SKILL_BUTTONS()) {
-    const r = w.ranks[s];
-    const t = SKILL_TEXTS[cls][s];
-    btn.querySelector('.rank')!.textContent = r ? String(r) : '';
-    btn.classList.toggle('locked', !r);
-    btn.classList.toggle('can', !!w.points && r < RANK_MAX);
-    (btn.querySelector('.up') as HTMLElement).hidden = !w.points || r >= RANK_MAX;
-    const star = btn.querySelector('.trait') as HTMLElement;
-    star.hidden = r < TRAIT.rank;
-    star.classList.toggle('new', !w.traits[s]);
-    const picked = TRAIT_TEXTS[cls][s][w.traits[s] - 1];
-    const trait = picked ? `\n특성 ★ ${picked[0]}: ${picked[1]}` : r >= TRAIT.rank ? '\n★를 눌러 특성 고르기' : `\n${TRAIT.rank}단계: 특성 둘 중 하나`;
-    const next = r < RANK_MAX ? `\n다음 단계: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: r + 1 } })}` : '\n(최고 단계)';
-    btn.title = !r ? `${t.name} (${t.key}) · 아직 안 배움\n배우면: ${t.stat({ ...w, ranks: { ...w.ranks, [s]: 1 } })}` + (w.points ? '\n[+] 또는 Shift+키: 배우기' : '\n레벨이 오르면 스킬 포인트로 배운다') : `${t.name} (${t.key}) · ${r}단계\n${t.stat(w)}${next}\n5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}${trait}` + (w.points && r < RANK_MAX ? '\n[+] 또는 Shift+키: 단계 올리기' : '');
-  }
+  const spent = Object.values(w.ranks).reduce((s, r) => s + (r ?? 0), 0) - 1;
+  const respecBtn = $('#tree-respec') as HTMLButtonElement;
+  respecBtn.textContent = `포인트 모두 되돌리기 — 금화 ${RESPEC} (지금 ${w.gold})`;
+  respecBtn.disabled = spent <= 0 || w.gold < RESPEC;
+  respecBtn.onclick = () => h.respec();
+  if (!dlg.open) dlg.showModal();
 }
 
 // 옵션 한 줄 설명
@@ -387,9 +389,14 @@ function say(text: string) {
   replay(toast);
 }
 
+// 기력·마나가 모자란 스킬을 쓰려 할 때
+export function sayShort(w: World, id: SkillId) {
+  say(`${SKILL_TEXT[id].name}: ${resName(w.cls)}${RESOURCE[w.cls] === 'energy' ? '이' : '가'} 부족합니다 (${skillCost(w.cls, id)} 필요)`);
+}
+
 // 안 배운 스킬을 쓰려 할 때
-export function sayLocked(w: World, s: SkillName) {
-  say(`${SKILL_TEXTS[cls][s].name}: 아직 배우지 않았습니다 — ` + (w.points ? '[+] 또는 Shift+스킬 키로 배우기' : '레벨이 오르면 스킬 포인트로 배웁니다'));
+export function sayLocked(key: SkillName) {
+  say(`${KEY_LABEL[key]} 칸이 비어 있습니다 — 레벨이 오르면 스킬 포인트로 배우고, T(스킬 창)에서 끼웁니다`);
 }
 
 // 팔기·버리기는 목록이 바로 올라오므로, 더블클릭의 두 번째가 아래 장비까지 없애지 않게 무시한다
@@ -592,30 +599,25 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownGear = '';
     shownBag = world.bag.length;
     shownBlocked = false;
-    shownTraitHint.clear();
     shownGateHint = false;
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   danger.style.opacity = String(hero.state === 'dead' ? 0 : Math.min(1, Math.max(0, 1 - hero.hp / hero.maxHp / DANGER) * 1.5)); // 약 12% 아래에서 가장 짙다
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
+  resFill.style.width = `${(world.res / resMax(world)) * 100}%`;
+  resBar.title = `${resName(world.cls)} ${Math.floor(world.res)}/${resMax(world)}`;
   levelLabel.textContent = `Lv ${world.level}` + (world.points ? ` · 스킬 +${world.points}` : '');
   pointsHint.hidden = !world.points;
-  pointsHint.textContent = `스킬 포인트 ${world.points} — 스킬의 [+]를 눌러 배우거나 올리기 (Shift+Q·W·E·R)`;
+  pointsHint.textContent = `스킬 포인트 ${world.points} — 눌러서 또는 T로 스킬 창`;
   if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}` + (world.points ? ' — 스킬 포인트를 얻었습니다' : ''));
   shownLevel = world.level;
-  const cd = cooldowns(world); // 재사용 대기 남은 비율
-  skillShade.style.height = `${(world.skillCd / cd.cleave) * 100}%`;
-  dashShade.style.height = `${(world.dashCd / cd.dash) * 100}%`;
-  $('#shout i').style.height = `${(world.shoutCd / cd.shout) * 100}%`;
-  $('#throw i').style.height = `${(world.throwCd / cd.throw) * 100}%`;
-  $('#roll i').style.height = `${(world.rollCd / cd.roll) * 100}%`;
-  showRanks(world);
-  // 3단계가 된 순간 특성을 고르라고 알린다
-  const fresh = (Object.keys(world.ranks) as SkillName[]).find((s) => world.ranks[s] >= TRAIT.rank && !world.traits[s] && !shownTraitHint.has(s));
-  if (fresh) {
-    shownTraitHint.add(fresh);
-    if (shownLevel) say(`${SKILL_TEXTS[cls][fresh].name} 특성을 고를 수 있습니다 — 스킬 버튼의 ★`);
+  // 재사용 대기 남은 비율(칸마다 마지막으로 건 대기 기준)
+  for (const [btn, k] of SKILL_BUTTONS()) {
+    (btn.querySelector('i') as HTMLElement).style.height = `${Math.min(1, world[KEY_CD[k]] / world.cdFull[k]) * 100}%`;
+    btn.classList.toggle('short', !!world.keys[k] && !canAfford(world, world.keys[k]!)); // 기력·마나 부족(파랗게 어둡게)
   }
+  $('#roll i').style.height = `${(world.rollCd / (world.cls === 'wizard' ? BLINK.cd : ROLL.cd)) * 100}%`;
+  showKeys(world);
   potionCount.textContent = String(world.potions);
   $('#potion i').style.height = `${world.healing ? (1 - world.healing.t / POTION.time) * 100 : 0}%`; // 차는 동안은 다시 못 마신다
   goldLabel.textContent = String(world.gold);

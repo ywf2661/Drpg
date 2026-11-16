@@ -1,6 +1,6 @@
 // 바닥의 위험 구역(예고 공격): 붉은 테두리 + 안에서 차오르는 원(다 차면 터진다). world.zones와 평타 준비 중인 적을 읽기만 한다.
 import * as THREE from 'three';
-import { TELL, TRAIL, type World } from '../sim/world';
+import { TELL, type World } from '../sim/world';
 
 const flat = (color: number, opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false });
 const RING = new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2);
@@ -38,7 +38,7 @@ export function syncZones(world: World) {
   }
 }
 
-// 돌진 '불길'이 남긴 불타는 길의 바닥 불빛: 눕힌 주황 띠(일렁이고, 꺼질 때 옅어진다). 불꽃 그림은 props.ts
+// 불길·불바다·잔불이 남긴 불타는 자리의 바닥 불빛: 눕힌 주황 띠(점이면 지름 2r의 네모)(일렁이고, 꺼질 때 옅어진다). 불꽃 그림은 props.ts
 const STRIP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const fires = new Map<number, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
 
@@ -54,7 +54,7 @@ export function syncFires(world: World, time: number) {
     const [dx, dz] = [f.x1 - f.x0, f.z1 - f.z0];
     m.position.set((f.x0 + f.x1) / 2, 0.035, (f.z0 + f.z1) / 2);
     m.rotation.y = Math.atan2(dx, dz);
-    m.scale.set(2 * TRAIL.width, 1, Math.hypot(dx, dz) + 2 * TRAIL.width);
+    m.scale.set(2 * f.r, 1, Math.hypot(dx, dz) + 2 * f.r);
     m.material.opacity = Math.min(1, f.t) * (0.28 + 0.1 * Math.sin(time * 18 + f.id)); // 불꽃(props.ts) 아래에 깔리는 불빛
   }
   for (const [id, m] of fires) {

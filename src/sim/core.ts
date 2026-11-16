@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { AFFIXES, ARCHER, BONES, FOCUS, type Ally, RANGER, BAG, CLASSES, FROST, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -8,22 +8,54 @@ export function setLevel(w: World, level: number, xp: number) {
   w.xp = xp;
   const hero = w.entities[0];
   hero.maxHp = hero.hp = heroMax(w);
+  w.res = resMax(w); // 층에 들어갈 때·레벨업 때 가득
 }
 
-// 스킬 단계별 수치(1단계 = 기본값, 단계마다 조금씩 강해진다)
-const extra = (w: World, s: SkillName) => w.ranks[s] - 1;
-export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * extra(w, 'cleave'), radius: SKILL.radius + 0.2 * extra(w, 'cleave'), mult: SKILL.mult + 0.2 * extra(w, 'cleave') });
-export const dashStat = (w: World) => ({ cd: DASH.cd - 0.5 * extra(w, 'dash'), dist: DASH.dist + 0.5 * extra(w, 'dash'), mult: 1 + 0.2 * extra(w, 'dash') });
-export const shoutStat = (w: World) => ({
-  cd: SHOUT.cd - extra(w, 'shout'),
-  stun: SHOUT.stun + 0.3 * extra(w, 'shout'),
-  reduce: SHOUT.reduce + 0.04 * extra(w, 'shout'),
-  radius: SHOUT.radius + 0.3 * extra(w, 'shout'),
-});
-export const axeStat = (w: World) => ({ cd: AXE.cd - 0.2 * extra(w, 'throw'), mult: AXE.mult + 0.25 * extra(w, 'throw') });
+// 기력·마나 최대치와 초당 회복(기력은 고정, 마나는 레벨마다 는다)
+export const resMax = (w: World) => (RESOURCE[w.cls] === 'energy' ? ENERGY.max : MANA.max + MANA.perLevel * (w.level - 1));
+export const resRegen = (w: World) => (RESOURCE[w.cls] === 'energy' ? ENERGY.regen : MANA.regen + MANA.regenPerLevel * (w.level - 1));
+// 스킬 비용: 덮어쓰기가 있으면 그것, 아니면 트리 등급(0 1단계, 1 2단계, 2 패시브 = 0, 3 궁극)
+export function skillCost(cls: HeroClass, id: SkillId): number {
+  const t = TIER_COST[RESOURCE[cls]];
+  return COST_OVERRIDE[id] ?? [t.tier1, t.tier2, 0, t.ultimate][SKILLS[id].tier];
+}
+export const canAfford = (w: World, id: SkillId) => w.res >= skillCost(w.cls, id);
+export const pay = (w: World, id: SkillId) => void (w.res -= skillCost(w.cls, id));
 
-// 5단계 완성 효과가 있는가(가르기 한 바퀴, 돌진 처치 시 초기화, 함성 회복, 도끼 관통)
-export const mastered = (w: World, s: SkillName) => w.ranks[s] >= RANK_MAX;
+// 스킬 단계(0 = 안 배움), 1단계에서 더 올린 단계 수(수치 표의 기본값 = 1단계), 5단계 완성 효과
+export const rank = (w: World, id: SkillId) => w.ranks[id] ?? 0;
+export const ext = (w: World, id: SkillId) => Math.max(0, rank(w, id) - 1);
+export const mastered = (w: World, id: SkillId) => rank(w, id) >= RANK_MAX;
+// 시너지: 같은 탭의 다른 스킬에 찍은 포인트마다 피해 +SYNERGY
+export function syn(w: World, id: SkillId) {
+  const { cls, tab } = SKILLS[id];
+  return 1 + SYNERGY * TREES[cls][tab].skills.reduce((s, o) => s + (o === id ? 0 : rank(w, o)), 0);
+}
+// 그 스킬을 끼운 칸(없으면 undefined)과, 그 칸의 재사용 대기를 by초 줄이기(Infinity = 바로 준비)
+export const keyOf = (w: World, id: SkillId) => KEYS.find((k) => w.keys[k] === id);
+export function cutCd(w: World, id: SkillId, by: number) {
+  const k = keyOf(w, id);
+  if (k) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - by);
+}
+
+// 기사 스킬의 단계별 수치(1단계 = 기본값, 단계마다 조금씩 강해진다). 피해 배율에는 시너지가 붙는다
+const axeMod = (w: World) => ({ cd: 1 - AXES.cd * rank(w, 'axes'), dmg: 1 + AXES.dmg * rank(w, 'axes') }); // 도끼 숙련
+export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * ext(w, 'cleave'), radius: SKILL.radius + 0.2 * ext(w, 'cleave'), mult: (SKILL.mult + 0.2 * ext(w, 'cleave')) * syn(w, 'cleave') });
+export const whirlStat = (w: World) => ({ cd: WHIRL.cd - 0.4 * ext(w, 'whirl'), time: WHIRL.time + (mastered(w, 'whirl') ? WHIRL.extra : 0), radius: SKILL.radius + 0.15 * ext(w, 'whirl'), mult: (WHIRL.mult + 0.08 * ext(w, 'whirl')) * syn(w, 'whirl') });
+export const burstStat = (w: World) => ({ hp: BURST.hp + 0.05 * ext(w, 'burst') });
+export const executeStat = (w: World) => ({ cd: EXECUTE.cd - 0.5 * ext(w, 'execute'), below: EXECUTE.below + 0.03 * ext(w, 'execute'), mult: (EXECUTE.mult + 0.4 * ext(w, 'execute')) * syn(w, 'execute') });
+export const dashStat = (w: World) => ({ cd: DASH.cd - 0.5 * ext(w, 'dash'), dist: DASH.dist + 0.5 * ext(w, 'dash'), mult: (1 + 0.2 * ext(w, 'dash')) * syn(w, 'dash') });
+export const shoutStat = (w: World) => ({
+  cd: SHOUT.cd - ext(w, 'shout'),
+  stun: SHOUT.stun + 0.3 * ext(w, 'shout'),
+  reduce: SHOUT.reduce + 0.04 * ext(w, 'shout'),
+  radius: SHOUT.radius + 0.3 * ext(w, 'shout'),
+});
+export const trailStat = (w: World) => ({ mult: TRAIL.mult * (1 + 0.25 * ext(w, 'trail')) });
+export const leapStat = (w: World) => ({ cd: LEAP.cd - 0.5 * ext(w, 'leap'), radius: LEAP.radius, mult: (LEAP.mult + 0.3 * ext(w, 'leap')) * syn(w, 'leap') });
+export const axeStat = (w: World) => ({ cd: (AXE.cd - 0.2 * ext(w, 'throw')) * axeMod(w).cd, mult: (AXE.mult + 0.25 * ext(w, 'throw')) * syn(w, 'throw') * axeMod(w).dmg });
+export const bounceStat = (w: World) => ({ cd: (BOUNCE.cd - 0.2 * ext(w, 'bounce')) * axeMod(w).cd, count: BOUNCE.count * (mastered(w, 'bounce') ? 2 : 1), mult: (BOUNCE.mult + 0.2 * ext(w, 'bounce')) * syn(w, 'bounce') * axeMod(w).dmg });
+export const axeStormStat = (w: World) => ({ cd: (AXE_STORM.cd - 0.5 * ext(w, 'axeStorm')) * axeMod(w).cd, count: AXE_STORM.count + ext(w, 'axeStorm'), mult: (AXE_STORM.mult + 0.2 * ext(w, 'axeStorm')) * syn(w, 'axeStorm') * axeMod(w).dmg });
 
 // 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
 export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));
@@ -215,24 +247,24 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   }
   // 궁수의 명사수: 멀리 있는 적에게 더 아프게
   let dmg = from?.kind === 'hero' && t.kind !== 'hero' && w.cls === 'ranger' && dist(from, t) > RANGER.far ? Math.round(raw * RANGER.farMult) : raw;
-  // 강령술사의 저주: 구역 안의 적은 모든 피해를 더 받는다
-  const curse = t.kind !== 'hero' && t.id >= 0 && w.curses.find((c) => Math.hypot(t.x - c.x, t.z - c.z) <= c.r);
-  if (curse) dmg = Math.round(dmg * (1 + curse.amp));
-  // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패가 먼저 흡수(반사 특성이면 근접 공격자에게 일부 되돌림)
+  // 강령술사의 표식: 구역 안의 적은 모든 피해를 더 받는다(겹치면 가장 센 것. 역병 구역은 0)
+  const amp = t.kind !== 'hero' && t.id >= 0 ? Math.max(0, ...w.curses.filter((c) => Math.hypot(t.x - c.x, t.z - c.z) <= c.r).map((c) => c.amp)) : 0;
+  if (amp) dmg = Math.round(dmg * (1 + amp));
+  // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패·뼈 갑옷이 먼저 흡수(마나 방패는 공격자에게 일부 되돌림)
   if (t.kind === 'hero') {
-    dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST.armor : shoutStat(w).reduce) : 1)));
+    dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST_ARMOR.reduce + FROST_ARMOR.per * ext(w, 'frostArmor') : shoutStat(w).reduce) : 1)));
     const absorbed = Math.min(w.wardHp, dmg);
     if (absorbed > 0) {
       w.wardHp -= absorbed;
       dmg -= absorbed;
-      if (w.traits.throw === 2 && from && from.state !== 'dead') hurt(w, from, Math.round(absorbed * WARD.reflect));
+      if (rank(w, 'ward') && from && from.state !== 'dead') hurt(w, from, Math.round(absorbed * WARD.reflect));
       if (!w.wardHp) w.wardBroke = true; // 깨짐(5단계 폭발은 wizard.ts가 다음 틱에)
     }
   }
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
   const hero = w.entities[0];
-  const leech = from?.kind === 'hero' ? Math.round((dealt * mod(w.mods.weapon, 'leech')) / 100) : 0;
+  const leech = from?.kind === 'hero' ? Math.round((dealt * mod(w.mods.weapon, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
   if (leech > 0 && hero.state !== 'dead') hero.hp = Math.min(hero.maxHp, hero.hp + leech);
   const thorns = t.kind === 'hero' && from && from.state !== 'dead' ? Math.round((dealt * worn(w, 'thorns')) / 100) : 0;
   if (thorns > 0) hurt(w, from!, thorns);
@@ -242,7 +274,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   t.path = [];
   t.target = null;
   if (t.kind === 'hero' || t.id < 0) return dealt; // 해골 병사는 경험치도 드롭도 없다(tickAllies가 치운다)
-  if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'throw')) w.throwCd = Math.max(0, w.throwCd - FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
+  if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'focus')) cutCd(w, 'focus', FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
     gainXp(w, Math.round(XP.king * t.power));

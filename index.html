@@ -27,7 +27,7 @@
       #hud, #target, #boss, #banner { z-index: 2; }
 
       /* 금테 버튼(대화상자·배너) */
-      dialog button, #banner button, #traits-list button, #shop-items button, #shop-sell-items button {
+      dialog button, #banner button, #shop-items button, #shop-sell-items button {
         font: inherit; color: var(--gold-hi); text-shadow: 0 1px 0 #000; padding: 6px 14px; cursor: pointer;
         background: linear-gradient(#4a3020, #2a1a10 55%, #1c120b); border: 1px solid var(--gold-lo); border-top-color: #a07c3c; border-radius: 3px;
         box-shadow: inset 0 1px 0 #ffffff1c, 0 2px 0 #000;
@@ -49,17 +49,20 @@
       #hud { position: fixed; left: 20px; bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: calc(100vw - 64px); padding: 8px 12px; background: var(--panel-bg); border: 1px solid var(--gold-lo); border-radius: 4px; box-shadow: var(--frame); } /* 좁으면 줄바꿈(아래에 붙어 위로 늘어남) */
       #hp { width: 100%; pointer-events: none; }
       #bars { position: relative; width: min(240px, calc(100vw - 260px)); }
+      #res { height: 6px; margin-top: 3px; background: #0b0d12; border: 1px solid #000; outline: 1px solid #2a2c3a; } /* 기력·마나 */
+      #res i { display: block; width: 0; height: 100%; background: linear-gradient(#d8ff9a, #7ccf3a 50%, #2f6a14); } /* 기력: 초록(경험치 금색·체력 빨강과 구분) */
+      #res.mana i { background: linear-gradient(#c8d6ff, var(--magic) 50%, #2c3c8a); }
+      #hud button.short { box-shadow: inset 0 0 0 40px #1a2a6a88, inset 0 0 6px #000, 0 0 0 1px #000; filter: brightness(0.8); } /* 기력·마나가 모자란 스킬 */
       #xp { height: 5px; margin-top: 3px; background: #120e05; border: 1px solid #000; outline: 1px solid #3a2c14; }
       #xp i { display: block; width: 0; height: 100%; background: linear-gradient(var(--gold-hi), var(--gold) 50%, #7a5a1c); }
-      #level { position: absolute; left: 0; bottom: 26px; font-size: 13px; font-weight: bold; letter-spacing: 1px; color: var(--gold-hi); text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+      #level { position: absolute; left: 0; bottom: 100%; font-size: 13px; font-weight: bold; letter-spacing: 1px; color: var(--gold-hi); text-shadow: 0 1px 2px #000, 0 0 6px #000; }
       /* 아이콘 칸: 움푹 들어간 쇠 틀 */
-      #potion, #skill, #dash, #shout, #throw, #roll, .slot, #bag-btn { position: relative; width: 40px; height: 40px; padding: 0; background-color: var(--iron); border: 2px solid #4a3a26; border-top-color: #2a2016; border-left-color: #2a2016; border-radius: 3px; box-shadow: inset 0 0 6px #000, 0 0 0 1px #000; cursor: inherit; box-sizing: content-box; }
-      #potion:hover, #skill:hover, #dash:hover, #shout:hover, #throw:hover, #roll:hover, #hud .slot:hover, #bag-btn:hover { border-color: var(--gold); }
+      #potion, #skill, #dash, #shout, #throw, #roll, .slot, #bag-btn, #tree-btn { position: relative; width: 40px; height: 40px; padding: 0; background-color: var(--iron); border: 2px solid #4a3a26; border-top-color: #2a2016; border-left-color: #2a2016; border-radius: 3px; box-shadow: inset 0 0 6px #000, 0 0 0 1px #000; cursor: inherit; box-sizing: content-box; }
+      #potion:hover, #skill:hover, #dash:hover, #shout:hover, #throw:hover, #roll:hover, #hud .slot:hover, #bag-btn:hover, #tree-btn:hover { border-color: var(--gold); }
       #skill, #dash, #shout, #throw { background-size: 40px 40px; image-rendering: pixelated; overflow: visible; }
       #hud .rank { position: absolute; left: 2px; top: 0; font-size: 10px; color: var(--gold-hi); text-shadow: 0 1px 2px #000; pointer-events: none; }
       #hud .up { position: absolute; right: -8px; top: -10px; width: 18px; height: 18px; line-height: 16px; font-size: 14px; font-weight: bold; color: #1a1006; background: radial-gradient(circle at 35% 30%, #fff1b8, var(--gold) 60%, #7a5a1c); border: 1px solid #000; border-radius: 50%; text-align: center; cursor: pointer; z-index: 1; }
-      #hud .trait { position: absolute; left: -8px; bottom: -10px; width: 18px; height: 18px; line-height: 17px; font-size: 12px; color: var(--ink-dim); background: var(--iron); border: 1px solid var(--gold-lo); border-radius: 50%; text-align: center; cursor: pointer; z-index: 1; }
-      #hud .trait.new { color: #1a1006; background: var(--gold-hi); border-color: var(--gold-hi); animation: trait-new 1s infinite alternate; }
+      [data-tag]:not([data-tag=""])::after { content: attr(data-tag); position: absolute; left: 0; right: 0; bottom: 1px; font-size: 10px; line-height: 1; text-align: center; color: #fff; text-shadow: 0 0 3px #000, 0 1px 2px #000; pointer-events: none; } /* 빌린 그림 위의 스킬 이름 */
       @keyframes trait-new { to { box-shadow: 0 0 8px 2px var(--gold-hi); } }
       #skill i, #dash i, #shout i, #throw i, #potion i, #roll i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #000b; }
       #roll { font-size: 11px; color: var(--ink); }
@@ -75,7 +78,7 @@
       #potion.empty { opacity: 0.4; }
       #gold { min-width: 40px; font-size: 13px; font-weight: bold; color: var(--gold-hi); text-shadow: 0 1px 2px #000; }
       #gold::before { content: '◉ '; color: var(--gold); }
-      #bag-btn { font: 11px var(--serif); color: var(--ink); }
+      #bag-btn, #tree-btn { font: 11px var(--serif); color: var(--ink); }
       #bag-btn span { display: block; font-size: 10px; color: var(--ink-dim); }
 
       /* 대상·보스 이름: 금빛 글자 */
@@ -102,9 +105,9 @@
       canvas.aiming { cursor: crosshair; } /* 스킬 조준 중 */
 
       /* 대화상자: 금테 두른 가죽 패널, 제목은 금빛 */
-      #credits, #help, #shop, #bag, #traits { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); padding: 18px 20px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.6; }
-      #credits::backdrop, #help::backdrop, #shop::backdrop, #bag::backdrop, #traits::backdrop { background: radial-gradient(ellipse at center, #0008, #000c); }
-      dialog b, #traits-title { color: var(--gold-hi); letter-spacing: 0.5px; }
+      #credits, #help, #shop, #bag { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); padding: 18px 20px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.6; }
+      #credits::backdrop, #help::backdrop, #shop::backdrop, #bag::backdrop, #tree::backdrop { background: radial-gradient(ellipse at center, #0008, #000c); }
+      dialog b, #tree-title { color: var(--gold-hi); letter-spacing: 0.5px; }
       dialog form { margin-top: 12px; text-align: right; }
       #credits a { color: var(--gold); }
       /* 소제목: 양옆에 금줄 */
@@ -113,11 +116,31 @@
       #help table { border-collapse: collapse; font-size: 13px; }
       #help td { padding: 4px 8px; border-bottom: 1px solid #3a2a1a; }
       #help td:first-child { color: var(--gold-hi); white-space: nowrap; }
-      #traits-list { display: grid; gap: 8px; margin: 12px 0; }
-      #traits-list button { text-align: left; padding: 10px 12px; color: var(--ink); }
-      #traits-list button b { color: var(--gold-hi); }
-      #traits-list small, #shop-items small, #shop-sell-items small, .gear-row small { color: var(--ink-dim); }
-      #traits-list small, #shop-sell-items small, .gear-row small { display: block; }
+      #shop-items small, #shop-sell-items small, .gear-row small { color: var(--ink-dim); }
+      #shop-sell-items small, .gear-row small { display: block; }
+      /* 스킬 트리 창: 탭 셋을 나란히(좁으면 아래로) */
+      #tree { width: min(560px, 96vw); max-width: min(560px, 96vw); max-height: 92vh; box-sizing: border-box; padding: 14px 16px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.45; }
+      #tree-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      #tree-tabs { margin: 10px 0; }
+      #tree .tabbar { display: flex; gap: 4px; margin-bottom: 8px; border-bottom: 1px solid var(--gold-lo); }
+      #tree .tabbar button { flex: 1; padding: 6px 4px; font-size: 14px; color: var(--ink-dim); border-bottom: none; border-radius: 4px 4px 0 0; }
+      #tree .tabbar button.on { color: #1a1006; background: var(--gold-hi); }
+      #tree .sk { display: flex; gap: 8px; padding: 6px; margin-bottom: 6px; background: #0004; border: 1px solid #4a3a26; border-radius: 3px; }
+      #tree .sk.unlearned .ic { filter: grayscale(1) brightness(0.55); }
+      #tree .ic { position: relative; flex: none; width: 32px; height: 32px; image-rendering: pixelated; border: 1px solid #000; background-color: var(--iron); }
+      #tree .body { flex: 1; min-width: 0; }
+      #tree .head { display: flex; align-items: center; gap: 6px; }
+      #tree .head b { font-size: 14px; }
+      #tree .head .lv { font-size: 12px; color: var(--gold-hi); }
+      #tree .head i { font-size: 11px; font-style: normal; color: var(--ink-dim); border: 1px solid var(--ink-dim); border-radius: 3px; padding: 0 3px; }
+      #tree .head .up { margin-left: auto; width: 22px; height: 22px; padding: 0; font-weight: bold; color: #1a1006; background: radial-gradient(circle at 35% 30%, #fff1b8, var(--gold) 60%, #7a5a1c); border-radius: 50%; }
+      #tree small { display: block; font-size: 12px; color: var(--ink-dim); }
+      #tree small.why { color: #c98a6a; }
+      #tree .keys { display: flex; gap: 4px; margin-top: 4px; }
+      #tree .keys button { width: 26px; height: 22px; padding: 0; font-size: 12px; }
+      #tree .keys button.on { color: #1a1006; background: var(--gold-hi); }
+      #tree-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      #points { pointer-events: auto; cursor: pointer; }
       #shop-items, #shop-sell-items { display: grid; gap: 8px; margin: 12px 0; }
       #shop-items button, #shop-sell-items button { text-align: left; padding: 8px 12px; color: var(--ink); }
       #shop-leave { border-color: var(--blood); border-top-color: var(--blood-hi); }
@@ -208,12 +231,12 @@
     <div id="target" hidden><span></span><div class="bar"><i></i></div><small></small></div>
     <div id="hud">
       <div id="points" hidden></div>
-      <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="xp"><i></i></div></div>
+      <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="res"><i></i></div><div id="xp"><i></i></div></div>
       <button id="skill" title="가르기 (Q / 우클릭): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
       <button id="dash" title="돌진 베기 (W): 5m 돌진, 길 위의 적 모두 100%, 6초"><i></i></button>
       <button id="shout" title="전투의 함성 (E): 4m 안 적 2초 기절, 6초간 받는 피해 −30%, 15초"><i></i></button>
       <button id="throw" title="도끼 던지기 (R): 처음 닿는 적에게 120%, 2.5초"><i></i></button>
-      <button id="roll" title="구르기 (스페이스): 3m 구르는 동안 무적, 1초">구르기<i></i></button>
+      <button id="roll" title="구르기 (스페이스): 3m 구르는 동안 무적, 2.5초">구르기<i></i></button>
       <button id="potion" title="물약 마시기 (1): 4초에 걸쳐 최대 체력 50% 회복"><img alt="물약" /><i></i><span>0</span></button>
       <div id="gold" title="금화">0</div>
       <div id="weapon" class="slot"></div>
@@ -221,6 +244,7 @@
       <div id="helm" class="slot"></div>
       <div id="boots" class="slot"></div>
       <button id="bag-btn" title="보관함 (I)">가방<span>0/40</span></button>
+      <button id="tree-btn" title="스킬 트리 (T)">스킬</button>
     </div>
     <div id="danger"></div>
     <div id="toast"></div>
@@ -262,10 +286,11 @@
         <tr><td>돌진 베기</td><td>W(커서 방향) · 돌진 버튼 — 5m 돌진하며 길 위의 적 100%, 6초</td></tr>
         <tr><td>전투의 함성</td><td>E · 함성 버튼 — 4m 안 적 2초 기절, 6초간 받는 피해 −30%, 15초</td></tr>
         <tr><td>도끼 던지기</td><td>R로 조준(바닥에 궤적) → 좌클릭 또는 R로 던지기, 우클릭·Esc 취소 · 도끼 버튼(자동 조준) — 처음 닿는 적에게 120%, 2.5초</td></tr>
-        <tr><td>조준</td><td>날아가는 스킬은 직선, 지점에 떨어지는 스킬은 원으로 미리 보인다. 설정의 '스마트 키'를 켜면 조준 없이 바로 커서 쪽으로</td></tr>
+        <tr><td>조준</td><td>날아가는 스킬은 직선, 지점에 떨어지는 스킬은 원으로 미리 보인다. 설정의 '스마트 키'를 켜면 조준 없이 바로 커서 쪽으로. 터치: 스킬·구르기 버튼을 누른 채 끌면 조준, 놓으면 사용(톡 누르면 자동 조준)</td></tr>
         <tr><td>마법사</td><td>클릭 = 마력탄(원거리). Q 화염구(직선 조준·우클릭은 바로), W 서리 고리(주변에 얼음 장판), E 낙뢰(원 조준), R 마나 방패, 스페이스 순간이동</td></tr>
         <tr><td>강령술사</td><td>클릭 = 뼈 화살(원거리). Q 해골 병사(주변에 소환, 가까운 적을 친다), W 생명 흡수(주변 피해 + 회복), E 저주(원 조준, 받는 피해 증가·사슬 문을 녹임), R 뼈 갑옷, 스페이스 구르기</td></tr>
-        <tr><td>구르기</td><td>스페이스(커서 방향) · 구르기 버튼(적 반대쪽) — 3m 구르는 동안 무적, 1초</td></tr>
+        <tr><td>기력·마나</td><td>스킬을 쓰면 줄고 저절로 찬다(체력 아래 막대). 기사·궁수는 기력(빨리 참), 마법사·강령술사는 마나(천천히, 레벨마다 늘어남). 평타·구르기는 무료. 층에 들어갈 때·레벨업 때 가득</td></tr>
+        <tr><td>구르기</td><td>스페이스(커서 방향) · 구르기 버튼(적 반대쪽) — 3m 구르는 동안 무적, 2.5초</td></tr>
         <tr><td>붉은 적</td><td>적이 붉게 달아오르면 곧 공격 — 구르거나 물러나서 피하고, 빗나간 뒤의 빈틈에 때리기. 스킬로 치면 끊기고 2배</td></tr>
         <tr><td>물약</td><td>1 · 물약 버튼 — 4초에 걸쳐 최대 체력 50% 회복(차는 동안은 다시 못 마심)</td></tr>
         <tr><td>붉은 원</td><td>바닥에 붉은 원이 차오르면 곧 큰 공격 — 밖으로 걸어 나가거나 스킬로 끊기</td></tr>
@@ -274,7 +299,7 @@
         <tr><td>사슬 문</td><td>쇠창살 문은 도끼(R)를 던져 사슬을 끊으면 열림 — 뒤에 보물 방, 2층부터는 계단 방</td></tr>
         <tr><td>지도</td><td>M · 지도 버튼</td></tr>
         <tr><td>스킬 성장</td><td>레벨업마다 포인트 1. 스킬 버튼의 [+] 또는 Shift+Q·W·E·R로 단계 올리기(최대 5). 5단계에는 스킬마다 특별한 효과</td></tr>
-        <tr><td>특성</td><td>스킬이 3단계가 되면 버튼의 ★를 눌러 둘 중 하나 — 스킬이 다르게 동작(회오리·꼬치·공포·박힌 도끼 등). 바꾸려면 금화 100</td></tr>
+        <tr><td>스킬 트리</td><td>T · 스킬 버튼 — 직업마다 탭 셋(1단계·2단계·패시브·궁극기). 레벨업 포인트로 배우고, 배운 액티브를 Q W E R 칸에 끼운다. 같은 탭에 몰아 찍으면 시너지(포인트마다 +8%). 금화 100으로 포인트 전부 되돌리기</td></tr>
         <tr><td>연계</td><td>붉게 예고 중인 적을 스킬로 치면 2배(받아치기), 기절한 적은 1.5배(약점), 돌진 베기가 맞으면 가르기가 바로 준비</td></tr>
         <tr><td>상점</td><td>계단을 내려가면 금화로 물약·장비 강화, 보관함 장비 팔기</td></tr>
         <tr><td>장비</td><td>밟으면 보관함으로, 더 좋은 장비(▲ 표시)는 바로 장착. 이름 색 = 등급(흰색 일반·파랑 마법·금색 희귀)</td></tr>
@@ -291,10 +316,10 @@
       <button id="shop-stay" title="Esc">◀ 이 층에 남기</button>
       <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
     </dialog>
-    <dialog id="traits">
-      <b id="traits-title"></b>
-      <div id="traits-list"></div>
-      <form method="dialog"><button>닫기</button></form>
+    <dialog id="tree">
+      <div id="tree-head"><b id="tree-title"></b><form method="dialog"><button>닫기 (T)</button></form></div>
+      <div id="tree-tabs"></div>
+      <div id="tree-foot"><small>같은 탭의 다른 스킬에 찍은 포인트마다 피해 +8%. 2단계 Lv 4, 패시브 Lv 8, 궁극기 Lv 12부터, 아래 단계를 배워야 열린다</small><button id="tree-respec"></button></div>
     </dialog>
     <dialog id="bag">
       <div id="bag-head"><b>보관함</b> <span id="bag-count"></span><form method="dialog"><button>닫기</button></form></div>

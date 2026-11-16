@@ -2,10 +2,50 @@
 import type { Cell, Grid } from './path';
 
 export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'king' | 'boss';
-// 주인공 직업. 스킬 4칸(SkillName)과 명령(skill·dash·shout·throw·roll)은 같고, 직업마다 하는 일이 다르다:
-// 기사 = 가르기·돌진 베기·전투의 함성·도끼 던지기·구르기, 마법사 = 화염구·서리 고리·낙뢰·마나 방패·순간이동,
-// 궁수 = 관통 사격·덫·화살비·집중·구르기, 강령술사 = 해골 소환·시체 거인·죽음의 표식·해골 왕 강림·구르기
+// 주인공 직업. 직업마다 스킬 트리(탭 3개 × 4단계, TREES)가 있고, 배운 액티브 스킬을 스킬 칸 Q W E R(SkillName)에 끼워 쓴다.
+// 스페이스는 구르기(마법사는 순간이동)
 export type HeroClass = 'knight' | 'wizard' | 'ranger' | 'necromancer';
+
+// 스킬 트리의 스킬. 탭마다 [1단계, 2단계, 패시브, 궁극기] 순서(TREES)
+export type SkillId =
+  | 'cleave' | 'whirl' | 'burst' | 'execute' | 'dash' | 'shout' | 'trail' | 'leap' | 'throw' | 'bounce' | 'axes' | 'axeStorm'
+  | 'fireball' | 'firefield' | 'embers' | 'comet' | 'frost' | 'ward' | 'frostArmor' | 'blizzard' | 'lightning' | 'chain' | 'static' | 'tempest'
+  | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
+  | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison';
+type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
+export const TREES: Record<HeroClass, [Tab, Tab, Tab]> = {
+  knight: [
+    { name: '검술', skills: ['cleave', 'whirl', 'burst', 'execute'] },
+    { name: '돌격', skills: ['dash', 'shout', 'trail', 'leap'] },
+    { name: '투척', skills: ['throw', 'bounce', 'axes', 'axeStorm'] },
+  ],
+  wizard: [
+    { name: '화염', skills: ['fireball', 'firefield', 'embers', 'comet'] },
+    { name: '냉기', skills: ['frost', 'ward', 'frostArmor', 'blizzard'] },
+    { name: '번개', skills: ['lightning', 'chain', 'static', 'tempest'] },
+  ],
+  ranger: [
+    { name: '사격', skills: ['pierce', 'spread', 'crit', 'focus'] },
+    { name: '사냥', skills: ['trap', 'push', 'snare', 'hunt'] },
+    { name: '하늘', skills: ['rain', 'fireRain', 'downpour', 'arrowStorm'] },
+  ],
+  necromancer: [
+    { name: '소환', skills: ['bones', 'giant', 'boneMastery', 'lord'] },
+    { name: '저주', skills: ['curse', 'plague', 'curseMastery', 'corpseBlast'] },
+    { name: '뼈', skills: ['spear', 'boneArmor', 'drain', 'prison'] },
+  ],
+};
+// 스킬 → 직업·탭·단계(0~3). 단계 2는 패시브(칸에 끼우지 않고 배우기만 하면 늘 켜져 있다)
+export const SKILLS = Object.fromEntries(
+  (Object.keys(TREES) as HeroClass[]).flatMap((cls) => TREES[cls].flatMap((t, tab) => t.skills.map((id, tier) => [id, { cls, tab, tier }]))),
+) as Record<SkillId, { cls: HeroClass; tab: number; tier: number }>;
+export const isPassive = (id: SkillId) => SKILLS[id].tier === 2;
+// 단계별로 배울 수 있는 레벨. 아래 단계(같은 탭)를 1 이상 배워야 다음 단계가 열린다
+export const TIER_LEVEL = [1, 4, 8, 12];
+export const SYNERGY = 0.08; // 같은 탭의 다른 스킬에 찍은 포인트 1마다 이 스킬 피해 +8%
+export const RESPEC = 100; // 스킬 포인트 전부 되돌리기(금화)
+// 새 판에서 Q에 끼워 주는 1단계 스킬(첫 탭의 첫 스킬)
+export const startSkill = (cls: HeroClass) => TREES[cls][0].skills[0];
 
 export type State = 'idle' | 'move' | 'attack' | 'dead';
 
@@ -20,9 +60,14 @@ export type Command =
   | { type: 'shout'; x?: number; z?: number } // 전투의 함성(기사) · 낙뢰(마법사, (x, z)가 있으면 그 지점)
   | { type: 'roll'; x?: number; z?: number } // 구르기(무적). (x, z)가 있으면 그쪽으로, 없으면 가까운 적의 반대쪽
   | { type: 'throw'; x?: number; z?: number } // 도끼 던지기. (x, z)가 있으면 그쪽으로
-  | { type: 'learn'; skill: SkillName } // 스킬 포인트로 단계 올리기
-  | { type: 'trait'; skill: SkillName; pick: number }; // 특성 고르기(1 또는 2). 3단계부터, 바꿀 때는 금화
-export type SkillName = 'cleave' | 'dash' | 'shout' | 'throw'; // 스킬 칸(Q W E R). 이름은 기사 기준, 마법사는 같은 칸에 화염구·서리 고리·낙뢰·마나 방패
+  | { type: 'learn'; skill: SkillId } // 스킬 포인트로 단계 올리기(처음 배운 액티브는 빈 칸에 끼운다)
+  | { type: 'bind'; key: SkillName; skill: SkillId } // 스킬을 칸에 끼운다(다른 칸에 있었으면 맞바꾼다)
+  | { type: 'respec' }; // 금화 RESPEC으로 스킬 포인트를 모두 되돌린다
+// 스킬 칸 Q W E R(코드 이름은 명령 skill·dash·shout·throw에 맞춘 옛 이름). 칸마다 재사용 대기 필드가 따로다(KEY_CD)
+export type SkillName = 'cleave' | 'dash' | 'shout' | 'throw';
+export const KEYS: SkillName[] = ['cleave', 'dash', 'shout', 'throw'];
+export const KEY_CD = { cleave: 'skillCd', dash: 'dashCd', shout: 'shoutCd', throw: 'throwCd' } as const;
+export const KEY_LABEL: Record<SkillName, string> = { cleave: 'Q', dash: 'W', shout: 'E', throw: 'R' };
 
 export type Point = [x: number, z: number];
 
@@ -94,13 +139,14 @@ export type Chest = { id: number; x: number; z: number; open: boolean };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
 // 주인공 것(몬스터만 맞음): axe = 도끼, bolt = 마법사 마력탄(평타), fireball = 마법사 화염구
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; stuck?: number; wait?: number }; // bounce: 남은 튕김, stuck: 박힌 적 id(그 적을 따라다닌다), wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number }; // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계·도끼 폭풍), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
 export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge'; age: number }; // back = 공포로 도망치는 적
 
 // 돌진 '불길'이 남긴 불타는 길(선분). t초 동안, acc가 TRAIL.tick을 넘을 때마다 길 위의 적에게 피해
-export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number; t: number; acc: number };
+// r: 폭(반경), mult: 한 번 피해 배율(× 주인공 굴림). 불바다·잔불·운석은 점(x0 = x1)에 넓은 r
+export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number; t: number; acc: number; r: number; mult: number };
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
@@ -160,20 +206,25 @@ export type World = {
   wardHp: number; // 마나 방패가 흡수할 남은 피해(0 = 없음)
   wardT: number; // 마나 방패 남은 시간(초)
   wardBroke: boolean; // 이번 틱에 방패가 깨졌다(5단계 폭발)
-  storm: { x: number; z: number; t: number }[]; // 천둥: 뒤이어 떨어질 벼락(보이기만, t초 뒤)
-  traps: { id: number; x: number; z: number }[]; // 궁수가 놓은 덫(오래된 것부터)
+  storm: { x: number; z: number; t: number; r: number; mult: number }[]; // 천둥 폭풍: t초 뒤 떨어질 벼락(반경 r 안 적에게 굴림 × mult, 잠깐 기절)
+  traps: { id: number; x: number; z: number; mult: number; keep?: boolean }[]; // 궁수가 놓은 덫(오래된 것부터). keep = 사냥터 덫(개수 제한에 세지 않는다)
   focusT: number; // 궁수 집중 남은 시간(초)
   allies: Ally[]; // 강령술사의 해골 병사(entities 밖, id는 음수. 몬스터가 노리고 때린다)
-  curses: { id: number; x: number; z: number; r: number; t: number; acc: number; amp: number }[]; // 저주 구역(t초 남음, acc = 역병 틱 누적, amp = 받는 피해 증가)
+  curses: { id: number; x: number; z: number; r: number; t: number; acc: number; amp: number; plague: number }[]; // 표식·역병 구역(t초 남음). amp = 받는 피해 증가(0 = 역병, 소환수가 노리지 않는다), plague = 0.5초마다 피해 배율, acc = 그 누적
   raised: number[]; // 저주(5단계)로 이미 일으킨 시체 id
-  volleys: { x: number; z: number; r: number; t: number; left: number }[]; // 떨어질 화살비(t초 뒤, left번 남음)
+  volleys: { x: number; z: number; r: number; t: number; left: number; mult: number; later: number; blast: 'rain' | 'fire'; burn?: number }[]; // 떨어질 화살비·운석(t초 뒤, left번 남음, 처음엔 굴림 × mult, 그 뒤로는 × later). burn: 떨어진 자리가 이 반경으로 불탄다
   shouts: number; // 함성 횟수(렌더·소리용)
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
   throwCd: number; // 도끼 던지기 재사용까지(초)
   rollCd: number; // 구르기 재사용까지(초)
-  ranks: Record<SkillName, number>; // 스킬 단계 0(아직 안 배움)~RANK_MAX. 새 판은 Q(cleave)만 1, 나머지는 포인트로 배운다(START_RANKS)
+  res: number; // 기력·마나(직업에 따라 RESOURCE). 스킬 비용을 내고 저절로 찬다. 층 시작·레벨업 때 가득
+  ranks: Partial<Record<SkillId, number>>; // 배운 스킬의 단계 1~RANK_MAX(없으면 안 배움). 새 판은 첫 탭 1단계 스킬만 1(startSkill)
   points: number; // 남은 스킬 포인트(레벨업마다 1)
-  traits: Record<SkillName, number>; // 스킬마다 고른 특성(0 = 아직, 1·2). TRAIT.rank단계부터 고른다
+  keys: Record<SkillName, SkillId | null>; // 칸 Q W E R에 끼운 액티브 스킬
+  cdFull: Record<SkillName, number>; // 칸마다 마지막으로 건 재사용 대기(HUD의 남은 비율)
+  trail: number; // 지금 돌진이 늘이는 불길(fires의 id, -1 = 없음)
+  auraT: number; // 눈보라 남은 시간(초)
+  auraAcc: number; // 눈보라 다음 타격까지 쌓인 시간
   spinT: number; // 회오리 남은 시간(초)
   spinAcc: number; // 회오리 다음 타격까지 쌓인 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
@@ -261,18 +312,16 @@ export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, �
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
 
 export const RANK_MAX = 5;
-export const START_RANKS: Record<SkillName, number> = { cleave: 1, dash: 0, shout: 0, throw: 0 };
 export const COMBO = { counter: 2, stunned: 1.5, back: 2, age: 0.6 }; // 연계 배율(예고 중·기절 중·도망치는 적에게 스킬), 기록 유지 시간
-// 특성: 고를 수 있는 단계, 바꾸는 값(금화)
-export const TRAIT = { rank: 3, respec: 100 };
-export const WHIRL = { time: 2, extra: 1, tick: 0.25, mult: 0.25 }; // 가르기 1 회오리: 시간, 5단계 추가 시간, 타격 간격, 타격당 배율(× 가르기 배율)
-export const BURST = { radius: 1.6, hp: 0.4 }; // 가르기 2 시체 폭발: 반경, 피해(시체 최대 체력 비율)
-export const SKEWER = { hold: 0.7, stun: 1.5, mult: 1 }; // 돌진 1 꼬치: 끌고 가는 거리(주인공 앞), 벽에 박힌 기절·추가 피해(× 돌진 배율)
-export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 돌진 2 불길: 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율
-export const PULL = { to: 1.1 }; // 함성 1 끌어당김: 주인공에게서 이 거리까지
-export const FEAR = { time: 4 }; // 함성 2 공포: 도망치는 시간
-export const BOUNCE = { count: 3, range: 5 }; // 도끼 1 튕김: 횟수(5단계는 두 배), 다음 적을 찾는 거리
-export const STUCK = { radius: 2, mult: 1.5, gap: 1 }; // 도끼 2 박힌 도끼: 뽑을 때 폭발 반경·배율(× 도끼 배율), 순간이동해 서는 거리
+export const WHIRL = { cd: 6, time: 2, extra: 1, tick: 0.25, mult: 0.4 }; // 회오리(검술 2): 재사용, 시간, 5단계 추가 시간, 타격 간격, 타격당 배율
+export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·회오리·처형으로 죽은 적
+export const EXECUTE = { cd: 8, reach: 2.5, below: 0.3, mult: 2.5, fear: 3, fearR: 4 }; // 처형(검술 궁극): 재사용, 닿는 거리, 즉사 체력 비율(단계마다 +0.03), 아니면 배율, 처치 시 주변 공포(시간·반경)
+export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
+export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1 }; // 대지 강타(돌격 궁극): 재사용, 뛰는 거리, 착지 반경, 배율, 기절
+
+export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율
+export const AXES = { cd: 0.06, dmg: 0.1 }; // 도끼 숙련(투척 패시브): 단계마다 도끼 스킬 재사용 대기 −6%, 피해 +10%
+export const AXE_STORM = { cd: 12, count: 8, mult: 1 }; // 도끼 폭풍(투척 궁극): 재사용, 도끼 수(단계마다 +1), 배율
 export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8, gate: 3 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준(적), 자동 조준(닫힌 문)
@@ -280,7 +329,19 @@ export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베
 
 // 구르기: 재사용, 거리, 속도(거리 ÷ 속도 = 무적 시간), 조준이 없을 때 피할 적을 찾는 거리
 // on: false = 구르기(마법사 순간이동)를 막아 둔 실험(입력·봇이 명령을 내지 않는다. sim은 그대로)
-export const ROLL = { on: false, cd: 1, dist: 3, speed: 9, away: 4 };
+export const ROLL = { on: true, cd: 2.5, dist: 3, speed: 9, away: 4 };
+
+// 기력·마나(롤식 자원): 스킬을 쓰면 비용만큼 줄고 저절로 찬다. 재사용 대기는 그대로, 비용이 더해진다. 평타·구르기는 무료
+export type ResourceKind = 'energy' | 'mana';
+export const RESOURCE: Record<HeroClass, ResourceKind> = { knight: 'energy', ranger: 'energy', wizard: 'mana', necromancer: 'mana' };
+export const ENERGY = { max: 100, regen: 10 }; // 기력: 고정, 빨리 찬다(10초면 가득)
+export const MANA = { max: 100, perLevel: 8, regen: 4, regenPerLevel: 0.2 }; // 마나: 레벨마다 늘고 천천히 찬다
+// 비용 기본값: 트리 등급(SKILLS[id].tier)으로. 패시브는 0. 특별한 스킬만 COST_OVERRIDE로
+export const TIER_COST: Record<ResourceKind, { tier1: number; tier2: number; ultimate: number }> = {
+  energy: { tier1: 16, tier2: 24, ultimate: 36 }, // 봇 30판: 시작값(20·30·45 / 25·40·70)이면 마법사 클리어 21 → 2, ×0.8로 11
+  mana: { tier1: 20, tier2: 32, ultimate: 56 },
+};
+export const COST_OVERRIDE: Partial<Record<SkillId, number>> = {};
 // 근접 평타의 준비 시간(초): 휘두르기 시작 후 이만큼 지나야 맞는다. 남은 휘두르기 시간이 빈틈. 없는 종류는 간격 × HIT_AT
 export const TELL: Partial<Record<Kind, number>> = { minion: 0.5, warrior: 0.8, king: 0.9, boss: 0.9 };
 
@@ -412,37 +473,78 @@ export const gearTable = (cls: HeroClass): Record<Slot, { name: string }[]> => (
 export const WIZ = { range: 6.5, speed: 12, flight: 8, hit: 0.45 };
 // 화염구(Q): 재사용, 속도, 비행 거리, 맞는 반경, 폭발 반경, 배율, 5단계 세 갈래 각도(라디안), 자동 조준 거리
 export const FIREBALL = { cd: 5, speed: 11, flight: 9, hit: 0.5, radius: 1.6, mult: 1.5, spread: 0.3, aim: 8 };
-// 서리 고리(W): 재사용, 반경, 얼리는 시간, 배율, 얼음 감옥 배수, 서리 갑옷(받는 피해 감소·시간)
-export const FROST = { cd: 9, radius: 3.5, freeze: 1.2, mult: 0.8, prison: 1.75, armor: 0.3, armorTime: 5 };
-// 낙뢰(E): 재사용, 사거리, 반경, 배율, 기절, 연쇄 번개(횟수·찾는 거리·배율), 천둥(반경 배수·배율 배수)
-export const BOLT = { cd: 6, range: 8, radius: 1.4, mult: 1.6, stun: 0.6, chain: 3, chainRange: 4, chainMult: 0.6, wide: 2, wideMult: 0.7, storm: 7, stormTime: 0.55 };
-// 마나 방패(R): 재사용, 시간, 흡수(최대 체력 비율), 치유(최대 체력 비율), 반사 비율, 5단계 폭발(반경·배율)
-export const WARD = { cd: 15, time: 6, absorb: 0.2, heal: 0.25, reflect: 0.5, nova: 2.5, novaMult: 1.2 };
+// 서리 고리(냉기 1): 재사용, 반경, 얼리는 시간, 배율
+export const FROST = { cd: 9, radius: 3.5, freeze: 1.2, mult: 0.8 };
+// 서리 갑옷(냉기 패시브): 서리 고리·마나 방패·눈보라를 쓰면 time초 동안 받는 피해 −(reduce + per × (단계 − 1))
+export const FROST_ARMOR = { time: 5, reduce: 0.15, per: 0.04 };
+// 눈보라(냉기 궁극): 재사용, 시간, 반경, 타격 간격, 배율, 맞은 적을 얼리는 시간
+export const BLIZZARD = { cd: 15, time: 6, radius: 3, tick: 0.5, mult: 0.4, freeze: 0.3 };
+// 낙뢰(번개 1): 재사용, 사거리, 반경, 배율, 기절
+export const BOLT = { cd: 6, range: 8, radius: 1.4, mult: 1.6, stun: 0.6 };
+// 연쇄 번개(번개 2): 재사용, 튀는 횟수(2단계마다 +1), 찾는 거리, 배율, 튈 때 배율
+export const CHAIN = { cd: 7, count: 3, range: 4, mult: 1.4, hop: 0.6 };
+// 정전기(번개 패시브): 마력탄이 맞은 적에서 range 안의 적에게 튄다(3단계부터 둘). 배율 mult + 단계마다 0.08
+export const STATIC = { range: 3.5, mult: 0.3 };
+// 천둥 폭풍(번개 궁극): 재사용, 사거리, 반경, 벼락 수, 걸리는 시간, 벼락 하나의 반경·배율·기절
+export const TEMPEST = { cd: 16, range: 8, radius: 3.5, strikes: 10, time: 2.5, hit: 1.2, mult: 1, stun: 0.3 };
+// 마나 방패(냉기 2): 재사용, 시간, 흡수(최대 체력 비율), 막은 피해 반사 비율, 5단계 폭발(반경·배율)
+export const WARD = { cd: 15, time: 6, absorb: 0.2, reflect: 0.3, nova: 2.5, novaMult: 1.2 };
+// 불바다(화염 2): 재사용, 사거리, 반경, 시간, 한 번 피해 배율. 잔불(화염 패시브): 화염구 폭발 자리가 반경 r로 time + 0.5 × (단계 − 1)초 탄다
+export const FIREFIELD = { cd: 8, range: 8, radius: 1.8, time: 4, mult: 0.35 };
+export const EMBERS = { radius: 1, time: 2, mult: 0.3 };
+// 운석(화염 궁극): 재사용, 사거리, 떨어지기까지, 반경, 배율, 떨어진 자리가 타는 시간
+export const COMET = { cd: 12, range: 9, delay: 1, radius: 2.2, mult: 3, burn: 3 };
 // 순간이동(스페이스): 재사용, 거리, 무적 시간(초)
 export const BLINK = { cd: 3, dist: 5, guard: 0.25 };
 
 // 궁수. 화살(평타): 사거리, 속도, 비행 거리, 맞는 반경. 명사수: far m 넘게 떨어진 적에게 주는 피해 ×farMult
 export const RANGER = { range: 7.5, speed: 14, flight: 9, hit: 0.4, far: 5, farMult: 1.25 };
-// 관통 사격(Q): 재사용, 배율, 속도, 비행 거리, 맞는 반경, 세 갈래 각도(라디안), 밀쳐내기 거리·벽 기절, 5단계 두 번째 화살 대기(초), 자동 조준 거리
-export const PIERCE = { cd: 5, mult: 1.8, speed: 16, flight: 10, hit: 0.5, spread: 0.25, push: 1.2, wallStun: 1.5, wait: 0.15, aim: 9 };
-// 덫(W): 재사용, 놓는 사거리, 밟는 반경, 묶는 시간, 배율, 최대 개수, 폭발·5단계 범위, 덫 3개 특성(개수·묶는 시간 배수)
-export const TRAP = { cd: 6, range: 6, trigger: 0.6, hold: 1.5, mult: 1.2, max: 2, radius: 1.8, bigMax: 3, bigHold: 1.4 };
-// 화살비(E): 재사용, 사거리, 반경, 떨어지기까지(초), 배율, 지속 특성(횟수·간격·회당 배율 배수), 5단계 반경 배수
-export const RAIN = { cd: 8, range: 8, radius: 1.8, delay: 0.6, mult: 1.6, waves: 4, every: 0.75, waveMult: 0.5, big: 1.3 };
-// 집중(R): 재사용, 시간, 공격 속도 증가, 치명 확률, 멀티샷 각도(라디안), 5단계 처치당 재사용 감소(초)
-export const FOCUS = { cd: 14, time: 6, speed: 0.4, crit: 0.25, spread: 0.15, kill: 1 };
+// 관통 사격(사격 1): 재사용, 배율, 속도, 비행 거리, 맞는 반경, 5단계 두 번째 화살 대기(초), 자동 조준 거리. 뼈 창도 같은 화살로 난다
+export const PIERCE = { cd: 5, mult: 1.8, speed: 16, flight: 10, hit: 0.5, wait: 0.15, aim: 9 };
+// 세 갈래(사격 2): 재사용, 배율, 벌어지는 각도(라디안), 5단계 화살 수. 밀쳐내기 사격(사냥 2): 재사용, 배율, 미는 거리, 벽에 부딪힌 기절
+export const SPREAD = { cd: 6, mult: 1.2, angle: 0.25, max: 5 };
+export const PUSH = { cd: 6, mult: 1, dist: 1.2, stun: 1.5 };
+export const CRIT = { chance: 0.06 }; // 치명(사격 패시브): 단계마다 화살이 2배 피해일 확률
+// 덫(사냥 1): 재사용, 놓는 사거리, 밟는 반경, 묶는 시간, 배율, 최대 개수, 5단계(주변도 묶음)·덫 숙련 폭발 범위
+export const TRAP = { cd: 6, range: 6, trigger: 0.6, hold: 1.5, mult: 1.2, max: 2, radius: 1.8 };
+// 덫 숙련(사냥 패시브): 덫 하나 더, 묶는 시간 단계마다 +10%, 닫힐 때 TRAP.radius 안 적에게 덫 피해 × (blast + 0.1 × (단계 − 1))
+export const SNARE = { hold: 0.1, blast: 0.5 };
+// 사냥터(사냥 궁극): 재사용, 사거리, 덫 수, 둥글게 까는 반경, 덫 배율
+export const HUNT = { cd: 14, range: 6, count: 6, ring: 2, mult: 1.2 };
+// 화살비(하늘 1): 재사용, 사거리, 반경, 떨어지기까지(초), 배율, 5단계 반경 배수
+export const RAIN = { cd: 8, range: 8, radius: 1.8, delay: 0.6, mult: 1.6, big: 1.3 };
+// 불화살(하늘 2): 재사용, 배율. 폭우(하늘 패시브): 화살비가 ceil(단계 / 2)번 더 every초마다, 한 번에 mult배
+export const FIRE_RAIN = { cd: 9, mult: 1.2 };
+export const DOWNPOUR = { every: 0.6, mult: 0.5 };
+// 화살 폭풍(하늘 궁극): 재사용, 화살비 수, 퍼지는 반경(주인공 둘레), 걸리는 시간, 하나의 반경·배율
+export const ARROW_STORM = { cd: 16, count: 10, spread: 6, time: 2, radius: 1.5, mult: 1 };
+// 집중(사격 궁극): 재사용, 시간, 공격 속도 증가, 화살 두 발의 각도(라디안), 5단계 처치당 재사용 감소(초)
+export const FOCUS = { cd: 14, time: 6, speed: 0.4, spread: 0.15, kill: 1 };
 
 // 강령술사. 평타(뼈 화살)는 마법사 마력탄(WIZ)과 같다.
-// 해골 소환(Q): 재사용, 소환 수(3단계 +1, 5단계 +1. 최대 수는 +2), 유지(초), 배율(× 강령술사 굴림), 공격 간격, 닿는 거리, 속도, 적을 찾는 거리, 군단(+수·배율 배수), 정예(배율·유지 배수)
-export const BONES = { cd: 6, count: 2, life: 14, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, horde: 2, hordeMult: 0.7, strong: 1.6, strongLife: 1.5, archerAt: 2, mageAt: 4 }; // archerAt·mageAt: 궁수·법사가 섞이기 시작하는 단계
+// 해골 소환(소환 1): 재사용, 소환 수(3단계 +1, 5단계 +1. 최대 수는 +2), 유지(초), 배율(× 강령술사 굴림), 공격 간격, 닿는 거리, 속도, 적을 찾는 거리
+export const BONES = { cd: 6, count: 2, life: 14, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, archerAt: 2, mageAt: 4 }; // archerAt·mageAt: 궁수·법사가 섞이기 시작하는 단계
+// 해골 숙련(소환 패시브): 단계마다 해골 피해 +12%·유지 +10%, at단계부터 한 기 더
+export const BONE_MASTERY = { mult: 0.12, life: 0.1, at: 3 };
 // 해골 종류(검사 기준 체력·피해 배수, 공격 간격, 사거리). 궁수는 뼈 화살을 쏘고, 법사는 맞은 적 둘레(splash)도 함께 태운다
 export const BONE_KINDS = { minion: { hp: 1, mult: 1, interval: 1.1, reach: 1.2 }, archer: { hp: 0.6, mult: 0.8, interval: 1.4, reach: 6 }, mage: { hp: 0.5, mult: 1.1, interval: 2.2, reach: 5, splash: 1.3 } };
-// 시체 거인(W): 재사용, 유지, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 눈길을 끄는 반경, 두꺼운 살(체력 배수), 강타(둘레), 5단계 폭발(반경·배율)
-export const GIANT = { cd: 16, life: 15, hp: 1, mult: 0.6, interval: 1.6, reach: 1.4, taunt: 6, thick: 1.5, smash: 1.6, burst: 2.5, burstMult: 2 };
-// 죽음의 표식(E, 코드에서는 curse — 소환수가 안의 적부터 노린다): 재사용, 사거리, 반경, 시간, 받는 피해 증가, 넓은 저주 반경 배수, 역병(간격·배율)
-export const CURSE = { cd: 9, range: 8, radius: 2.2, time: 6, amp: 0.35, wide: 1.6, tick: 0.5, plague: 0.3 };
-// 해골 왕 강림(R): 재사용, 유지, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 휘두르는 둘레, 군주(다른 소환수 피해 배수), 긴 강림(유지 배수), 5단계 함께 오는 해골 수
-export const LORD = { cd: 30, life: 12, hp: 1.5, mult: 1, interval: 1.4, reach: 1.5, splash: 1.5, aura: 1.3, long: 1.5, guard: 2 };
+// 시체 거인(소환 2): 재사용, 유지, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 눈길을 끄는 반경, 5단계 폭발(반경·배율)
+export const GIANT = { cd: 16, life: 15, hp: 1, mult: 0.6, interval: 1.6, reach: 1.4, taunt: 6, burst: 2.5, burstMult: 2 };
+// 죽음의 표식(저주 1, 코드에서는 curse — 소환수가 안의 적부터 노린다): 재사용, 사거리, 반경, 시간, 받는 피해 증가
+export const CURSE = { cd: 9, range: 8, radius: 2.2, time: 6, amp: 0.35 };
+// 역병(저주 2): 재사용, 사거리, 반경, 시간, 피해 간격, 한 번 배율. 표식 숙련(저주 패시브): 단계마다 표식 범위 +8%, 받는 피해 +5%p
+export const PLAGUE = { cd: 8, range: 8, radius: 2.2, time: 6, tick: 0.5, mult: 0.3 };
+export const CURSE_MASTERY = { radius: 0.08, amp: 0.05 };
+// 시체 폭발(저주 궁극): 재사용, 사거리, 고르는 반경, 시체 하나가 터지는 반경, 피해(시체 최대 체력 비율)
+export const CORPSE = { cd: 10, range: 8, radius: 3, blast: 2, hp: 0.4 };
+// 해골 왕 강림(소환 궁극): 재사용, 유지, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 휘두르는 둘레, 왕이 있는 동안 다른 소환수 피해 배수, 5단계 함께 오는 해골 수
+export const LORD = { cd: 30, life: 12, hp: 1.5, mult: 1, interval: 1.4, reach: 1.5, splash: 1.5, aura: 1.3, guard: 2 };
+// 뼈 창(뼈 1): 재사용, 배율. 뼈 갑옷(뼈 2): 재사용, 시간, 흡수(최대 체력 비율). 생명 흡수(뼈 패시브): 단계마다 준 피해의 2% 회복
+export const SPEAR = { cd: 2.5, mult: 1.6 };
+export const BONE_ARMOR = { cd: 15, time: 10, absorb: 0.25 };
+export const DRAIN = { per: 0.02 };
+// 뼈 감옥(뼈 궁극): 재사용, 사거리, 반경, 묶는 시간(보스·해골 왕은 big), 배율
+export const PRISON = { cd: 14, range: 7, radius: 2.5, time: 2.5, big: 1, mult: 1 };
 
 export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, number]; interval: number; speed: number }> = {
   hero: { name: '기사', hp: 100, dmg: [8, 12], interval: 0.8, speed: 4 }, // 데미지·간격은 실제로는 장착 무기(WEAPONS)

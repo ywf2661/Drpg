@@ -2,10 +2,12 @@
 import { FLOORS, floorPower } from './dungeon';
 import { makeMap } from './wilds';
 import { buy, deathGold, sell } from '../shop';
-import { copyMods, createWorld, LANDS, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, START_RANKS, step, TELL, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillName, type World } from './world';
+import { BASIC, canAfford, copyMods, createWorld, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
-type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: Record<SkillName, number>; points: number; bag: BagItem[] };
-const START = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ranks: { ...START_RANKS }, points: 0, bag: [] });
+type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
+const START = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
+// 봇이 포인트를 넣는 스킬: 예전 스킬 넷(BASIC)과, 그중 궁극기에 이르는 같은 탭의 아래 단계들. 칸은 BASIC 순서 그대로
+const LEARN = (cls: HeroClass): SkillId[] => BASIC[cls].flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry, land: Land): World {
@@ -16,6 +18,7 @@ function makeFloor(seed: number, n: number, c: Carry, land: Land): World {
   w.mods = copyMods(c.mods);
   w.gold = c.gold;
   w.ranks = { ...c.ranks };
+  w.keys = { ...c.keys };
   w.points = c.points;
   w.bag = [...c.bag];
   w.maxTier = Math.min(4, n + 1);
@@ -36,15 +39,17 @@ function think(w: World, skills: boolean, dodge: boolean): Command[] {
   const ok = (x: number, z: number) => !seen || seen[Math.floor(z) * w.grid.w + Math.floor(x)] === 1;
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead' && ok(e.x, e.z)).sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
-  const ready = (k: SkillName) => w.ranks[k] > 0 && w[`${k === 'cleave' ? 'skill' : k}Cd` as const] <= 0; // 배웠고 재사용 대기가 끝난 스킬
+  const ready = (k: SkillName) => !!w.keys[k] && w[KEY_CD[k]] <= 0 && canAfford(w, w.keys[k]!); // 칸에 스킬이 있고 재사용 대기가 끝났고 기력·마나가 된다
   const wiz = w.cls === 'wizard';
   const rng = w.cls === 'ranger';
   const nec = w.cls === 'necromancer';
   if (skills && w.points > 0) {
-    // 포인트는 가장 낮은 단계부터(같으면 기사: 가르기 → 도끼 → 함성 → 돌진, 마법사: 화염구 → 낙뢰 → 서리 → 방패, 궁수: 관통 → 화살비 → 덫 → 집중)
-    const order: SkillName[] = nec ? ['cleave', 'shout', 'dash', 'throw'] : wiz || rng ? ['cleave', 'shout', 'dash', 'throw'] : ['cleave', 'throw', 'shout', 'dash']; // 강령술사: 해골 → 표식 → 거인 → 해골 왕
-    cmds.push({ type: 'learn', skill: order.reduce((a, b) => (w.ranks[b] < w.ranks[a] ? b : a)) });
+    // 포인트는 배울 수 있는 것 중 가장 낮은 단계부터(같으면 LEARN 순서)
+    const can = LEARN(w.cls).filter((id) => !learnBlock(w, id));
+    if (can.length) cmds.push({ type: 'learn', skill: can.reduce((a, b) => ((w.ranks[b] ?? 0) < (w.ranks[a] ?? 0) ? b : a)) });
   }
+  // 예전 스킬 넷은 예전 칸에(봇의 판단이 칸 이름을 스킬로 본다)
+  if (skills) KEYS.forEach((k, i) => w.ranks[BASIC[w.cls][i]] && w.keys[k] !== BASIC[w.cls][i] && cmds.push({ type: 'bind', key: k, skill: BASIC[w.cls][i] }));
   // 예고된 위험 구역 안이면 다른 일은 접고 바깥으로 걸어 나간다
   const zone = dodge && w.zones.find((z) => d(z.x, z.z) < z.r + 0.3);
   if (zone) {
@@ -152,7 +157,7 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = shopping({ cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, points: w.points, bag: w.bag });
+          carry = shopping({ cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, keys: { ...w.keys }, points: w.points, bag: w.bag });
           done = true;
           break;
         }

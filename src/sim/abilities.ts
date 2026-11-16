@@ -1,19 +1,14 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, FEAR, FIREBALL, KING, KNOCK, MAGE, METEOR, PIERCE, RANGER, PULL, REPATH, ROLL, SHOUT, SKEWER, SKILL, SLAM, STATS, STUCK, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
-import { fireBurst, magicHit } from './wizard';
+import { ARCHER, AXE, BLINK, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
-import { axeStat, canHit, cellOf, cleaveStat, clearLine, dashStat, dist, face, friends, heroMax, hurt, knock, makeEntity, mastered, pathTo, roll, shoutStat, skillHit, walk, waypoints } from './core';
+import { axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
+
+// 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 가던 길은 휘두른 뒤에 이어 간다
-export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
-  if (w.skillCd > 0) return;
-  if (w.traits.cleave === 1) {
-    // 회오리: 휘두르지 않고 돈다. 걷던 길·공격 대상은 그대로(돌면서 따라간다)
-    Object.assign(w, { skillCd: cleaveStat(w).cd, spinT: WHIRL.time + (mastered(w, 'cleave') ? WHIRL.extra : 0), spinAcc: WHIRL.tick });
-    if (hero.state === 'attack') Object.assign(hero, { state: 'idle', attackT: 0, skill: false });
-    return;
-  }
+export function cleaveStart(w: World, hero: Entity, x?: number, z?: number): number {
   if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
   else {
     const near = w.entities
@@ -22,7 +17,40 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number) {
     if (near) face(hero, near);
   }
   Object.assign(hero, { state: 'attack', attackT: 0, repathT: 0, skill: true }); // 공격 대상은 유지: 끝나면 이어서 친다
-  w.skillCd = cleaveStat(w).cd;
+  return cleaveStat(w).cd;
+}
+
+// 회오리: 휘두르지 않고 돈다. 걷던 길·공격 대상은 그대로(돌면서 따라간다)
+export function whirl(w: World, hero: Entity): number {
+  const st = whirlStat(w);
+  Object.assign(w, { spinT: st.time, spinAcc: WHIRL.tick });
+  if (hero.state === 'attack') Object.assign(hero, { state: 'idle', attackT: 0, skill: false });
+  return st.cd;
+}
+
+// 처형: 닿는 거리 안의 적 하나(조준점에 가장 가까운, 없으면 가장 가까운)를 벤다. 체력이 낮으면(보스·해골 왕 제외) 단칼에,
+// 아니면 큰 피해. 죽이면 주변 적이 공포에 질려 도망친다. 닿는 적이 없으면 쓰지 않는다
+export function execute(w: World, hero: Entity, x?: number, z?: number): number {
+  const st = executeStat(w);
+  const [ax, az] = x !== undefined && z !== undefined ? [x, z] : [hero.x, hero.z];
+  const t = w.entities
+    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= EXECUTE.reach && clearLine(w, hero, e))
+    .sort((a, b) => Math.hypot(a.x - ax, a.z - az) - Math.hypot(b.x - ax, b.z - az))[0];
+  if (!t) return 0;
+  face(hero, t);
+  const big = t.kind === 'boss' || t.kind === 'king';
+  if (!big && t.hp <= t.maxHp * st.below) hurt(w, t, t.hp, hero);
+  else skillHit(w, t, Math.round(roll(w, hero) * st.mult));
+  const d = dist(t, hero) || 1;
+  knock(w, t, (t.x - hero.x) / d, (t.z - hero.z) / d, KNOCK.cleave);
+  w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'slam' });
+  w.cleaves++;
+  if (t.hp <= 0) {
+    if (rank(w, 'burst')) burst(w, hero, [t]);
+    for (const e of w.entities)
+      if (e !== hero && e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king' && dist(e, t) <= EXECUTE.fearR) Object.assign(e, { fearT: EXECUTE.fear, state: 'idle', attackT: 0, path: [], phase: 'none' });
+  }
+  return st.cd;
 }
 
 // 가르기 타격: 바라보는 방향 반원(내적 ≥ 0, 5단계는 한 바퀴)·반경 안, 벽에 막히지 않은 적 모두
@@ -41,31 +69,35 @@ export function cleave(w: World, hero: Entity) {
     knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
     if (e.hp <= 0) killed.push(e);
   }
-  if (w.traits.cleave === 2) burst(w, hero, killed);
+  if (rank(w, 'burst')) burst(w, hero, killed);
   w.cleaves++;
 }
 
-// 회오리 한 틱: WHIRL.tick마다 가르기 범위 한 바퀴의 적을 벤다(밀어내지 않는다 — 계속 붙어서 갈린다)
+// 회오리 한 틱: WHIRL.tick마다 둘레 한 바퀴의 적을 벤다(밀어내지 않는다 — 계속 붙어서 갈린다)
 export function spin(w: World, hero: Entity) {
   w.spinT = Math.max(0, w.spinT - DT);
   if ((w.spinAcc += DT) < WHIRL.tick - 1e-9) return;
   w.spinAcc = 0;
-  const st = cleaveStat(w);
+  const st = whirlStat(w);
+  const killed: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius || !clearLine(w, hero, e)) continue;
-    skillHit(w, e, Math.round(roll(w, hero) * st.mult * WHIRL.mult));
+    skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    if (e.hp <= 0) killed.push(e);
   }
+  if (rank(w, 'burst')) burst(w, hero, killed);
   w.cleaves++;
 }
 
-// 시체 폭발: 죽은 적마다 그 자리에서 터져 주변 적에게 최대 체력에 비례한 피해. 터져서 죽은 적도 줄에 넣어 이어서 터진다
-function burst(w: World, hero: Entity, dead: Entity[]) {
+// 시체 폭발(검술 패시브)·시체 폭발(강령술사 궁극): 죽은 적마다 그 자리에서 터져 주변 적에게 최대 체력에 비례한 피해.
+// 터져서 죽은 적도 줄에 넣어 이어서 터진다
+export function burst(w: World, hero: Entity, dead: Entity[], hp = burstStat(w).hp, radius = BURST.radius) {
   for (let i = 0; i < dead.length; i++) {
     const c = dead[i];
     w.blasts.push({ id: w.nextItem++, x: c.x, z: c.z, age: 0, kind: 'fire' });
     for (const e of w.entities) {
-      if (e === hero || e.state === 'dead' || Math.hypot(e.x - c.x, e.z - c.z) > BURST.radius) continue;
-      hurt(w, e, Math.round(c.maxHp * BURST.hp), hero);
+      if (e === hero || e.state === 'dead' || Math.hypot(e.x - c.x, e.z - c.z) > radius) continue;
+      hurt(w, e, Math.round(c.maxHp * hp), hero);
       if (e.hp <= 0) dead.push(e);
     }
   }
@@ -138,8 +170,7 @@ export function rush(w: World, e: Entity, speed: number): boolean {
 }
 
 // 돌진 베기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)으로. 하던 일은 모두 끊는다
-export function dashStart(w: World, hero: Entity, x?: number, z?: number) {
-  if (w.dashCd > 0) return;
+export function dashStart(w: World, hero: Entity, x?: number, z?: number): number {
   let [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
   const near = w.entities
     .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= DASH.aim)
@@ -149,9 +180,37 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number) {
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
   Object.assign(hero, { phase: 'charge', phaseT: dashStat(w).dist, dx, dz, state: 'move', path: [], target: null, attackT: 0, skill: false });
   hero.facing = Math.atan2(dx, dz);
-  Object.assign(w, { dashCd: dashStat(w).cd, dashHit: [], opening: null, toStairs: false });
-  if (w.traits.dash === 2) w.fires.push({ id: w.nextItem++, x0: hero.x, z0: hero.z, x1: hero.x, z1: hero.z, t: TRAIL.time, acc: 0 }); // 불길: 돌진하며 늘어난다
+  Object.assign(w, { dashHit: [], opening: null, toStairs: false });
+  w.trail = rank(w, 'trail') ? w.nextItem : -1;
+  if (rank(w, 'trail')) w.fires.push({ id: w.nextItem++, x0: hero.x, z0: hero.z, x1: hero.x, z1: hero.z, t: TRAIL.time, acc: 0, r: TRAIL.width, mult: trailStat(w).mult }); // 불길: 돌진하며 늘어난다
   w.dashes++;
+  return dashStat(w).cd;
+}
+
+// 대지 강타: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 쪽)으로 LEAP.range까지 뛰어 내려찍는다(벽 앞에서 멈춤).
+// 내린 자리 둘레의 적에게 피해·기절·밀어냄. 뛰는 동안은 순간이동처럼 잠깐 무적
+export function leap(w: World, hero: Entity, x?: number, z?: number): number {
+  const near = nearest(w, hero, LEAP.range);
+  const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + Math.sin(hero.facing) * LEAP.range, hero.z + Math.cos(hero.facing) * LEAP.range];
+  const d = Math.hypot(tx - hero.x, tz - hero.z);
+  const [dx, dz] = d > 1e-6 ? [(tx - hero.x) / d, (tz - hero.z) / d] : [Math.sin(hero.facing), Math.cos(hero.facing)];
+  let k = 0;
+  while (k + 0.1 <= Math.min(LEAP.range, d) && walkable(w.grid, Math.floor(hero.x + dx * (k + 0.1)), Math.floor(hero.z + dz * (k + 0.1)))) k += 0.1;
+  Object.assign(hero, { x: hero.x + dx * k, z: hero.z + dz * k, phase: 'roll', phaseT: BLINK.guard * ROLL.speed, dx: 0, dz: 0, state: 'idle', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
+  Object.assign(w, { opening: null, toStairs: false });
+  const st = leapStat(w);
+  w.blasts.push({ id: w.nextItem++, x: hero.x, z: hero.z, age: 0, kind: 'slam' });
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead') continue;
+    const r = dist(e, hero);
+    if (r > st.radius) continue;
+    skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    stun(e, LEAP.stun);
+    knock(w, e, r > 1e-6 ? (e.x - hero.x) / r : 1, r > 1e-6 ? (e.z - hero.z) / r : 0, KNOCK.shout);
+  }
+  w.dashes++;
+  w.shouts++; // 땅 울림 그림·소리
+  return st.cd;
 }
 
 // 구르기 시작: 조준점(없으면 가까운 적의 반대쪽, 적도 없으면 바라보는 쪽)으로. 휘두르기는 끊기고 공격 대상·가던 목적지는 유지한다
@@ -178,44 +237,24 @@ export function rollStep(w: World, hero: Entity) {
   Object.assign(hero, { phase: 'none', state: 'idle', path: (to && pathTo(w, hero, to[0], to[1])) ?? [] });
 }
 
-// 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해
-// 꼬치(특성 1): 맞은 적을 주인공 앞에 꿰어 끌고 가고, 벽에서 멈추면 박아서 기절 + 추가 피해. 보스·해골 왕은 끌려가지 않는다
+// 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해. 불길(돌격 패시브)은 길을 따라 늘어난다
 export function dashStep(w: World, hero: Entity) {
-  const skewer = w.traits.dash === 1;
-  const step = DASH.speed * DT;
-  const wall = hero.phaseT > 0 && !walkable(w.grid, Math.floor(hero.x + hero.dx * step), Math.floor(hero.z + hero.dz * step));
-  const going = rush(w, hero, DASH.speed);
-  const trail = w.traits.dash === 2 && w.fires.at(-1);
+  if (!rush(w, hero, DASH.speed)) return;
+  const trail = w.fires.find((f) => f.id === w.trail);
   if (trail) [trail.x1, trail.z1] = [hero.x, hero.z];
-  const held = skewer ? w.dashHit.map((id) => w.entities[id]).filter((e) => e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king') : [];
-  if (!going) {
-    if (!wall) return;
-    for (const e of held) {
-      e.stunT = Math.max(e.stunT, SKEWER.stun); // 먼저 기절 → 박는 피해에 약점 배율이 붙는다
-      w.blasts.push({ id: w.nextItem++, x: e.x, z: e.z, age: 0, kind: 'slam' });
-      skillHit(w, e, Math.round(roll(w, hero) * dashStat(w).mult * SKEWER.mult));
-      if (e.hp <= 0 && mastered(w, 'dash')) w.dashCd = 0;
-    }
-    return;
-  }
-  for (const e of held) {
-    const [cx, cz] = [hero.x + hero.dx * SKEWER.hold, hero.z + hero.dz * SKEWER.hold];
-    if (walkable(w.grid, Math.floor(cx), Math.floor(cz))) [e.x, e.z] = [cx, cz];
-    Object.assign(e, { stunT: Math.max(e.stunT, 0.1), state: 'idle', attackT: 0, path: [], phase: 'none' }); // 꿰인 동안은 아무것도 못 한다
-  }
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
-    if (!w.dashHit.length && w.skillCd > 0) {
+    const q = keyOf(w, 'cleave');
+    if (!w.dashHit.length && q && w[KEY_CD[q]] > 0) {
       // 연속: 돌진이 적을 맞히면 가르기가 바로 준비된다(돌진당 한 번)
-      w.skillCd = 0;
+      cutCd(w, 'cleave', Infinity);
       w.combos.push({ id: w.nextItem++, x: hero.x, z: hero.z, kind: 'reset', age: 0 });
     }
     w.dashHit.push(e.id);
     skillHit(w, e, Math.round(roll(w, hero) * dashStat(w).mult));
-    if (e.hp <= 0 && mastered(w, 'dash')) w.dashCd = 0; // 5단계: 처치하면 다시 돌진
+    if (e.hp <= 0 && mastered(w, 'dash')) cutCd(w, 'dash', Infinity); // 5단계: 처치하면 다시 돌진
     const side = (e.x - hero.x) * -hero.dz + (e.z - hero.z) * hero.dx < 0 ? -1 : 1; // 돌진 길의 어느 쪽에 있는가
-    if (skewer) knock(w, e, hero.dx, hero.dz, 0); // 옆으로 밀지 않고 꿴다(타격감·끊기만)
-    else knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
+    knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
   }
 }
 
@@ -250,22 +289,19 @@ export function shoot(w: World, a: Entity, t: Entity, kind: Shot['kind']) {
   w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg: roll(w, a), left, kind });
 }
 
-// 전투의 함성: 반경 안 살아 있는 적을 기절(하던 휘두르기·예고·돌진도 끊김), 주인공은 잠시 받는 피해 감소
-export function shout(w: World, hero: Entity) {
-  if (w.shoutCd > 0) return;
+// 전투의 함성: 반경 안 살아 있는 적을 기절(하던 휘두르기·예고·돌진도 끊김)·밀어냄, 주인공은 잠시 받는 피해 감소
+export function shout(w: World, hero: Entity): number {
   const st = shoutStat(w);
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius) continue;
-    const big = e.kind === 'boss' || e.kind === 'king'; // 보스·해골 왕은 겁먹지도 끌려오지도 않는다(기절만)
-    Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none' }, w.traits.shout === 2 && !big ? { fearT: FEAR.time } : { stunT: st.stun });
+    Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none', stunT: st.stun });
     const d = dist(e, hero);
-    const [ux, uz] = d > 1e-6 ? [(e.x - hero.x) / d, (e.z - hero.z) / d] : [1, 0];
-    if (w.traits.shout === 1) knock(w, e, -ux, -uz, Math.max(0, d - PULL.to)); // 끌어당김
-    else knock(w, e, ux, uz, KNOCK.shout);
+    knock(w, e, d > 1e-6 ? (e.x - hero.x) / d : 1, d > 1e-6 ? (e.z - hero.z) / d : 0, KNOCK.shout);
   }
-  Object.assign(w, { shoutCd: st.cd, shoutT: SHOUT.time });
+  w.shoutT = SHOUT.time;
   if (mastered(w, 'shout')) hero.hp = Math.min(hero.maxHp, hero.hp + Math.round(heroMax(w) * SHOUT.heal)); // 5단계: 회복
   w.shouts++;
+  return st.cd;
 }
 
 // 공포에 질린 적의 한 틱: 주인공 반대쪽으로 걷는다. 막히면 옆으로, 그것도 막히면(구석) 서서 떤다
@@ -281,7 +317,7 @@ export function scare(w: World, e: Entity, hero: Entity) {
   }
 }
 
-// 불길 한 틱: TRAIL.tick마다 길(선분)에서 TRAIL.width 안의 적에게 피해. 시간이 다 되면 꺼진다
+// 불 한 틱(불길·불바다·잔불·운석·불화살): TRAIL.tick마다 선분(점)에서 r 안의 적에게 굴림 × mult. 시간이 다 되면 꺼진다
 export function tickFires(w: World, hero: Entity) {
   w.fires = w.fires.filter((f) => {
     if ((f.acc += DT) >= TRAIL.tick - 1e-9) {
@@ -291,39 +327,37 @@ export function tickFires(w: World, hero: Entity) {
       for (const e of w.entities) {
         if (e === hero || e.state === 'dead') continue;
         const k = len2 > 1e-9 ? Math.min(1, Math.max(0, ((e.x - f.x0) * sx + (e.z - f.z0) * sz) / len2)) : 0; // 선분 위 가장 가까운 점
-        if (Math.hypot(e.x - f.x0 - sx * k, e.z - f.z0 - sz * k) <= TRAIL.width) hurt(w, e, Math.round(roll(w, hero) * TRAIL.mult), hero);
+        if (Math.hypot(e.x - f.x0 - sx * k, e.z - f.z0 - sz * k) <= f.r) hurt(w, e, Math.round(roll(w, hero) * f.mult), hero);
       }
     }
     return (f.t -= DT) > 0;
   });
 }
 
-// 박힌 도끼 뽑기: 박힌 적 앞으로 순간이동(주인공 쪽 STUCK.gap, 막혔으면 적의 자리)해 뽑으며 주변을 터뜨린다
-function recall(w: World, hero: Entity, axe: Shot) {
-  const t = w.entities[axe.stuck!];
-  w.shots = w.shots.filter((s) => s !== axe);
-  const d = dist(hero, t) || 1;
-  const [x, z] = [t.x + ((hero.x - t.x) / d) * STUCK.gap, t.z + ((hero.z - t.z) / d) * STUCK.gap];
-  [hero.x, hero.z] = walkable(w.grid, Math.floor(x), Math.floor(z)) ? [x, z] : [t.x, t.z];
-  Object.assign(hero, { path: [], state: 'idle', attackT: 0, skill: false, target: t.id, repathT: 0 });
-  face(hero, t);
-  Object.assign(w, { opening: null, toStairs: false });
-  w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'fire' });
-  for (const e of w.entities) {
-    if (e === hero || e.state === 'dead' || dist(e, t) > STUCK.radius) continue;
-    skillHit(w, e, Math.round(roll(w, hero) * axeStat(w).mult * STUCK.mult));
-    const k = dist(e, t);
-    if (e !== t && k > 1e-6) knock(w, e, (e.x - t.x) / k, (e.z - t.z) / k, KNOCK.axe);
-  }
-  w.dashes++; // 순간이동 소리
+// 도끼 던지기(5단계는 관통)·튕기는 도끼: 조준점(없으면 가까운 적·닫힌 문, 그것도 없으면 바라보는 방향)으로. 주인공은 하던 일을 계속한다
+export function throwAxe(w: World, hero: Entity, x?: number, z?: number): number {
+  const st = axeStat(w);
+  hurl(w, hero, Math.round(roll(w, hero) * st.mult), { through: mastered(w, 'throw') }, x, z);
+  return st.cd;
+}
+export function bounceAxe(w: World, hero: Entity, x?: number, z?: number): number {
+  const st = bounceStat(w);
+  hurl(w, hero, Math.round(roll(w, hero) * st.mult), { bounce: st.count }, x, z);
+  return st.cd;
 }
 
-// 도끼 던지기: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 방향)으로. 주인공은 하던 일을 계속한다.
-// 박힌 도끼(특성 2)가 있으면 던지지 않고 뽑으러 간다(재사용 대기와 무관)
-export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
-  const stuck = w.shots.find((s) => s.stuck !== undefined);
-  if (stuck) return recall(w, hero, stuck);
-  if (w.throwCd > 0) return;
+// 도끼 폭풍: 사방으로 도끼를 고르게 던진다(모두 관통)
+export function axeStorm(w: World, hero: Entity): number {
+  const st = axeStormStat(w);
+  for (let k = 0; k < st.count; k++) {
+    const a = hero.facing + (k / st.count) * Math.PI * 2;
+    w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: Math.sin(a), dz: Math.cos(a), dmg: Math.round(roll(w, hero) * st.mult), left: AXE.flight, kind: 'axe', through: true });
+  }
+  w.shouts++; // 땅 울림
+  return st.cd;
+}
+
+function hurl(w: World, hero: Entity, dmg: number, more: Partial<Shot>, x?: number, z?: number) {
   // 자동 조준: 가까운 적, 또는 바로 앞의 닫힌 문 중 더 가까운 쪽
   const doors = w.gates.filter((g) => !g.open).map((g) => ({ x: g.x + 0.5, z: g.z + 0.5 }));
   const near = [...w.entities.filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= AXE.aim), ...doors.filter((g) => Math.hypot(g.x - hero.x, g.z - hero.z) <= AXE.gate)]
@@ -333,8 +367,7 @@ export function throwAxe(w: World, hero: Entity, x?: number, z?: number) {
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
   hero.facing = Math.atan2(dx, dz);
-  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg: Math.round(roll(w, hero) * axeStat(w).mult), left: AXE.flight, kind: 'axe' });
-  w.throwCd = axeStat(w).cd;
+  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx, dz, dmg, left: AXE.flight, kind: 'axe', ...more });
 }
 
 // 그 칸의 닫힌 문과, 거기에 붙어 있는(4방향) 닫힌 문들을 연다: 칸이 뚫리고 먼지가 인다
@@ -352,16 +385,9 @@ export function openGate(w: World, x: number, z: number) {
 
 // 비행: 화살은 벽·비행 끝에서 사라지고 주인공에 닿으면 피해. 화염구(몬스터)는 그 모든 경우에 그 자리에서 폭발.
 // 마법사의 마력탄·화염구는 wizard.ts(화염구는 벽·비행 끝에서도 폭발), 궁수의 화살은 ranger.ts.
-// 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해(5단계는 관통)
+// 도끼(주인공)는 처음 닿는 살아 있는 몬스터에게 피해(through면 관통, bounce면 튕김)
 export function fly(w: World, hero: Entity) {
-  const added: Shot[] = [];
   w.shots = w.shots.filter((s) => {
-    if (s.stuck !== undefined) {
-      // 박힌 도끼: 적을 따라다니다가 그 적이 죽으면 사라진다
-      const t = w.entities[s.stuck];
-      [s.x, s.z] = [t.x, t.z];
-      return t.state !== 'dead';
-    }
     if (s.wait) {
       // 뒤따르는 화살(관통 사격 5단계): 기다리는 동안 주인공 자리에 있다
       s.wait = Math.max(0, s.wait - DT);
@@ -389,21 +415,18 @@ export function fly(w: World, hero: Entity) {
         hit.push(t.id);
         skillHit(w, t, s.dmg);
         knock(w, t, s.dx, s.dz, KNOCK.axe);
-        if (w.traits.throw === 1) {
+        if (s.bounce !== undefined) {
           // 튕김: 아직 안 맞은 가까운 적(시야가 트인)에게로 방향을 바꾼다. 없거나 횟수를 다 쓰면 사라진다
-          const left = s.bounce ?? BOUNCE.count * (mastered(w, 'throw') ? 2 : 1);
           const next = w.entities
             .filter((e) => e !== hero && e.state !== 'dead' && !hit.includes(e.id) && dist(e, t) <= BOUNCE.range && clearLine(w, t, e))
             .sort((a, b) => dist(a, t) - dist(b, t))[0];
-          if (!left || !next) return false;
+          if (!s.bounce || !next) return false;
           const d = dist(next, t) || 1;
-          Object.assign(s, { bounce: left - 1, x: t.x, z: t.z, dx: (next.x - t.x) / d, dz: (next.z - t.z) / d, left: AXE.flight });
+          Object.assign(s, { bounce: s.bounce - 1, x: t.x, z: t.z, dx: (next.x - t.x) / d, dz: (next.z - t.z) / d, left: AXE.flight });
           return true;
         }
-        // 박힘: 살아남은 적에게 하나만 박힌다
-        if (w.traits.throw === 2 && t.hp > 0 && ![...w.shots, ...added].some((o) => o.stuck !== undefined)) added.push({ ...s, id: w.nextItem++, x: t.x, z: t.z, stuck: t.id });
       }
-      return !t || mastered(w, 'throw'); // 5단계: 관통(맞힌 적은 다시 안 맞는다)
+      return !t || !!s.through; // 관통(맞힌 적은 다시 안 맞는다)
     }
     const v = friends(w).find((e) => Math.hypot(s.x - e.x, s.z - e.z) <= (fire ? MAGE.hitRadius : ARCHER.hitRadius)); // 해골 병사도 맞는다
     if (!v) return true;
@@ -411,7 +434,6 @@ export function fly(w: World, hero: Entity) {
     else hurt(w, v, s.dmg);
     return false;
   });
-  w.shots.push(...added);
 }
 
 // 화염구 폭발: 반경 안의 살아 있는 주인공·해골 병사에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다

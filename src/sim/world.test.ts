@@ -551,18 +551,21 @@ function bossFight(seed: number, gear: { weapon: number; armor: number }, potion
     if (w.entities[0].hp < 40) cmds.push({ type: 'drink' });
     const [hero, boss] = w.entities;
     const swing = boss.state === 'attack' && winding(boss) && boss.attackT >= TELL.boss! - 0.3;
-    if (dodge && (swing || (boss.phase === 'charge' && Math.abs(boss.x - hero.x) < 2))) cmds.push({ type: 'roll' });
+    if (dodge && (swing || (boss.phase === 'charge' && Math.abs(boss.x - hero.x) < 2))) cmds.push({ type: w.rollCd > 0 && swing ? 'skill' : 'roll' }); // 구르기 대기 중이면 가르기로 받아친다
     step(w, cmds);
   }
   return outcome(w) === 'clear';
 }
 
-test('보스 밸런스: 5층에 올 만한 레벨(8)이라도 서서 맞으면 물약이 있어도 지고, 구르기로 피하면 이긴다', () => {
+test('보스 밸런스: 서서 맞으면 물약이 있어도 지고, 구르고 받아치면 레벨 10이면 이긴다(레벨 8은 가끔)', () => {
   const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
   const wins = (gear: { weapon: number; armor: number }, potions: number, level: number, dodge: boolean) =>
     seeds.filter((s) => bossFight(s, gear, potions, level, dodge)).length;
-  expect(wins({ weapon: 3, armor: 3 }, 3, 8, true)).toBeGreaterThan(30);
-  expect(wins({ weapon: 3, armor: 3 }, 3, 8, false)).toBeLessThan(10);
+  // 구르기 재사용 2.5초(보스 휘두르기보다 길다): 구르기만으로는 다 못 피해서, 구르기 대기 중엔 가르기로 받아친다. 지금 레벨 8: 10/40, 레벨 10·4단계: 30/40
+  expect(wins({ weapon: 3, armor: 3 }, 3, 8, true)).toBeGreaterThanOrEqual(6);
+  expect(wins({ weapon: 3, armor: 3 }, 3, 8, false)).toBeLessThan(3); // 지금 0
+  expect(wins({ weapon: 4, armor: 4 }, 3, 10, true)).toBeGreaterThan(25);
+  expect(wins({ weapon: 4, armor: 4 }, 3, 10, false)).toBeLessThan(5); // 지금 0
 });
 
 test('보스가 있는 층은 보스가 죽으면 클리어(다른 몬스터 생존 무관)', () => {
