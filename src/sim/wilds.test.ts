@@ -1,25 +1,53 @@
 import { expect, test } from 'vitest';
 import { bossName, createWorld, LANDS, step } from './world';
 import { FLOORS, OPEN, walkDistances } from './dungeon';
-import { generateWild, wildCount } from './wilds';
+import { exitsFor, generateWild, WILD, wildCount, type Side } from './wilds';
 
 const count = (map: string[], chars: string) => map.join('').split('').filter((c) => chars.includes(c)).length;
+const find = (map: string[], ch: string): [number, number][] => map.flatMap((r, z) => [...r].flatMap((c, x) => (c === ch ? [[x, z] as [number, number]] : [])));
+// 칸이 맞닿은 가장자리(맨 바깥 줄)
+const edgeOf = ([x, z]: [number, number]): Side | null => (z === 0 ? 'n' : z === WILD - 1 ? 's' : x === 0 ? 'w' : x === WILD - 1 ? 'e' : null);
+
+test('출구 종류: 같은 지역·다른 지역, 다음 구역이 3 이상이면 동굴 입구, 5구역은 없음', () => {
+  expect(exitsFor(1, 'field')).toEqual(['field', 'snow']);
+  expect(exitsFor(2, 'snow')).toEqual(['snow', 'field', 'dungeon']);
+  expect(exitsFor(4, 'field')).toEqual(['field', 'snow', 'dungeon']);
+  expect(exitsFor(FLOORS, 'field')).toEqual([]);
+});
 
 for (const land of ['field', 'snow'] as const)
-  test(`${LANDS[land].name}: 시드가 같으면 같은 맵, 모든 칸이 이어져 있고 주인공·출구·몬스터가 있다`, () => {
+  test(`${LANDS[land].name}: 72칸, 시드가 같으면 같은 맵, 들어온 쪽에서 시작해 다른 가장자리의 출구까지 길이 이어진다`, () => {
     for (let seed = 1; seed <= 40; seed++) {
       const floor = 1 + (seed % FLOORS);
-      const map = generateWild(seed, floor, land);
-      expect(map).toEqual(generateWild(seed, floor, land));
+      const from = (['n', 'e', 's', 'w'] as const)[seed % 4];
+      const map = generateWild(seed, floor, land, from);
+      expect(map.length).toBe(WILD);
+      expect(map.every((r) => r.length === WILD)).toBe(true);
+      expect(map).toEqual(generateWild(seed, floor, land, from));
+      const [[hx, hz]] = find(map, 'H');
       expect(count(map, 'H')).toBe(1);
-      expect(count(map, floor < FLOORS ? '>' : 'M')).toBe(1);
+      expect({ n: hz, s: WILD - 1 - hz, w: hx, e: WILD - 1 - hx }[from]).toBeLessThanOrEqual(8); // 들어온 가장자리 가까이
+      const kinds = exitsFor(floor, land);
+      const outer = kinds.filter((k) => k !== 'dungeon');
+      const exits = [...find(map, 'F'), ...find(map, 'S')];
+      expect(exits.length).toBe(outer.length * 3);
+      const sides = new Set(exits.map(edgeOf));
+      expect(sides.has(null)).toBe(false); // 모두 맨 바깥 줄
+      expect(sides.has(from)).toBe(false);
+      expect(sides.size).toBe(outer.length); // 출구마다 다른 가장자리
+      expect(count(map, 'F') / 3 + count(map, 'S') / 3).toBe(outer.length);
+      expect(count(map, land === 'field' ? 'F' : 'S')).toBe(outer.length ? 3 : 0); // 같은 지역 출구
+      expect(count(map, '>')).toBe(kinds.includes('dungeon') ? 1 : 0);
+      expect(count(map, 'M')).toBe(floor === FLOORS ? 1 : 0);
       expect(count(map, 'mwagNWAG')).toBe(wildCount(floor, land));
       expect(count(map, land === 'field' ? 'aA' : 'gG')).toBe(0); // 초원에 궁수, 설원에 마법사는 없다
+      expect(count(map, '=')).toBeGreaterThan(20); // 길
       const cells = map.map((r) => r.split(''));
-      const hz = map.findIndex((r) => r.includes('H'));
-      const d = walkDistances(cells, map[hz].indexOf('H'), hz);
-      expect(cells.flatMap((row, z) => row.filter((c, x) => OPEN(c) && d[z * 48 + x] < 0))).toEqual([]); // 닿지 못하는 칸이 없다
-      expect(count(map, '#')).toBeLessThan(48 * 48 - 500);
+      const d = walkDistances(cells, hx, hz);
+      expect(cells.flatMap((row, z) => row.filter((c, x) => OPEN(c) && d[z * WILD + x] < 0))).toEqual([]); // 닿지 못하는 칸이 없다
+      const far = Math.max(...d);
+      for (const [x, z] of find(map, '>')) expect(d[z * WILD + x]).toBeGreaterThanOrEqual(0.6 * far); // 동굴 입구는 먼 곳
+      expect(count(map, '#')).toBeLessThan(WILD * WILD - 1500);
     }
   });
 

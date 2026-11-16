@@ -181,16 +181,18 @@ export function finish(cells: string[][], rand: () => number): string[] {
   return cells.map((row) => row.join(''));
 }
 
-// (sx, sz)에서 지나갈 수 있는 칸까지의 4방향 걸음 수([z * SIZE + x]). 도달 불가는 -1.
+// (sx, sz)에서 지나갈 수 있는 칸까지의 4방향 걸음 수([z * 너비 + x], 크기는 맵에서). 도달 불가는 -1.
 export function walkDistances(cells: string[][], sx: number, sz: number): Int32Array {
-  const d = new Int32Array(SIZE * SIZE).fill(-1);
-  d[sz * SIZE + sx] = 0;
-  const q = [sz * SIZE + sx];
+  const [W, H] = [cells[0].length, cells.length];
+  const d = new Int32Array(W * H).fill(-1);
+  d[sz * W + sx] = 0;
+  const q = [sz * W + sx];
   for (let i = 0; i < q.length; i++) {
-    const x = q[i] % SIZE;
-    const z = Math.floor(q[i] / SIZE);
+    const x = q[i] % W;
+    const z = Math.floor(q[i] / W);
     for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
-      const ni = nz * SIZE + nx;
+      if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue; // 바깥 지역의 출구는 맨 바깥 줄에 있다
+      const ni = nz * W + nx;
       if (OPEN(cells[nz][nx]) && d[ni] < 0) {
         d[ni] = d[q[i]] + 1;
         q.push(ni);
