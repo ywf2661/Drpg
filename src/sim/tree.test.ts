@@ -24,9 +24,9 @@ test('배우기: 레벨·아래 단계·포인트가 모자라면 못 배우고,
   Object.assign(w, newSkills('knight'), { points: 10 });
   expect(w.keys).toEqual({ cleave: 'cleave', dash: null, shout: null, throw: null });
   expect(learnBlock(w, 'fireball')).toBe('다른 직업의 스킬');
-  expect(learnBlock(w, 'whirl')).toBe(`레벨 ${TIER_LEVEL[1]}부터`);
+  expect(learnBlock(w, 'whirl')).toBe(`레벨 ${TIER_LEVEL[1]}부터 배울 수 있음`);
   setLevel(w, TIER_LEVEL[1], 0);
-  expect(learnBlock(w, 'shout')).toBe('아래 단계를 먼저 배워야 한다'); // 돌진 베기를 안 배웠다
+  expect(learnBlock(w, 'shout')).toBe('바로 아래 단계 스킬을 먼저 배워야 함'); // 돌진 베기를 안 배웠다
   learn(w, 'whirl');
   learn(w, 'throw');
   expect(w.keys).toEqual({ cleave: 'cleave', dash: 'whirl', shout: 'throw', throw: null });
@@ -38,13 +38,13 @@ test('배우기: 레벨·아래 단계·포인트가 모자라면 못 배우고,
   expect(w.ranks.burst).toBe(5);
   expect(w.points).toBe(10 - 7); // 최고 단계에서는 포인트를 쓰지 않는다
   w.points = 0;
-  expect(learnBlock(w, 'dash')).toBe('스킬 포인트가 없다');
+  expect(learnBlock(w, 'dash')).toBe('스킬 포인트 없음');
   // 명령으로도 같다
   w.points = 1;
   step(w, [{ type: 'learn', skill: 'dash' }]);
   expect(w.keys.throw).toBe('dash');
   // 궁극기도 레벨과 패시브를 거쳐야
-  expect(learnBlock(w, 'execute')).toBe(`레벨 ${TIER_LEVEL[3]}부터`);
+  expect(learnBlock(w, 'execute')).toBe(`레벨 ${TIER_LEVEL[3]}부터 배울 수 있음`);
 });
 
 test('끼우기: 배운 액티브만, 다른 칸에 있던 스킬은 맞바꾸고 두 칸의 재사용 대기는 긴 쪽으로', () => {

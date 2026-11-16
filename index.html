@@ -56,6 +56,17 @@
       #xp { height: 5px; margin-top: 3px; background: #120e05; border: 1px solid #000; outline: 1px solid #3a2c14; }
       #xp i { display: block; width: 0; height: 100%; background: linear-gradient(var(--gold-hi), var(--gold) 50%, #7a5a1c); }
       #level { position: absolute; left: 0; bottom: 100%; font-size: 13px; font-weight: bold; letter-spacing: 1px; color: var(--gold-hi); text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+      /* 소환수(강령술사): HUD 위에 작은 초상화 + 체력. 시간제(해골 왕)는 초상화 위로 시계 방향 어둠이 차오르고, 3초 남으면 깜빡인다(--gone = 지난 비율) */
+      #allies { position: absolute; left: 0; bottom: calc(100% + 24px); display: flex; gap: 4px; pointer-events: none; }
+      #points:not([hidden]) + #allies { bottom: calc(100% + 44px); } /* 스킬 포인트 안내 위로 */
+      #allies .ally { width: 28px; }
+      #allies .pic { position: relative; height: 28px; background-color: #4a4034; border: 1px solid #3c7a4a; border-radius: 3px; box-shadow: 0 0 0 1px #000; image-rendering: pixelated; }
+      #allies .king .pic { border-color: #a070d0; }
+      #allies .pic::after { content: ''; position: absolute; inset: 0; border-radius: 2px; background: conic-gradient(#000b calc(var(--gone, 0) * 1turn), transparent 0); }
+      #allies .ending .pic { animation: ally-end 0.4s infinite alternate; }
+      @keyframes ally-end { to { opacity: 0.35; } }
+      #allies .hp { height: 3px; margin-top: 2px; background: #0c0505; border: 1px solid #000; }
+      #allies .hp i { display: block; height: 100%; background: linear-gradient(#ff7a5e, var(--blood)); }
       /* 아이콘 칸: 움푹 들어간 쇠 틀 */
       #potion, #skill, #dash, #shout, #throw, #roll, .slot, #bag-btn, #tree-btn { position: relative; width: 40px; height: 40px; padding: 0; background-color: var(--iron); border: 2px solid #4a3a26; border-top-color: #2a2016; border-left-color: #2a2016; border-radius: 3px; box-shadow: inset 0 0 6px #000, 0 0 0 1px #000; cursor: inherit; box-sizing: content-box; }
       #potion:hover, #skill:hover, #dash:hover, #shout:hover, #throw:hover, #roll:hover, #hud .slot:hover, #bag-btn:hover, #tree-btn:hover { border-color: var(--gold); }
@@ -234,7 +245,7 @@
       #danger { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
       #danger::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, #b3261e99 100%); animation: danger 1.6s ease-in-out infinite alternate; }
       @keyframes danger { from { opacity: 0.7; } to { opacity: 1; } }
-      @media (prefers-reduced-motion: reduce) { #danger::before { animation: none; } }
+      @media (prefers-reduced-motion: reduce) { #danger::before, #allies .ending .pic { animation: none; } }
       @keyframes floor-title { 0% { opacity: 0; } 15%, 60% { opacity: 1; } 100% { opacity: 0; } }
     </style>
   </head>
@@ -243,6 +254,7 @@
     <div id="target" hidden><span></span><div class="bar"><i></i></div><small></small></div>
     <div id="hud">
       <div id="points" hidden></div>
+      <div id="allies"></div>
       <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="res"><i></i></div><div id="xp"><i></i></div></div>
       <button id="skill" title="가르기 (Q / 우클릭): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
       <button id="dash" title="돌진 베기 (W): 5m 돌진, 길 위의 적 모두 100%, 6초"><i></i></button>
@@ -308,7 +320,7 @@
         <tr><td>붉은 원</td><td>바닥에 붉은 원이 차오르면 곧 큰 공격 — 밖으로 걸어 나가거나 스킬로 끊기</td></tr>
         <tr><td>죽으면</td><td>금화 절반을 잃고 같은 층을 다시 시작</td></tr>
         <tr><td>상자·계단</td><td>클릭해서 열기 · 내려가기</td></tr>
-        <tr><td>사슬 문</td><td>쇠창살 문은 도끼(R)를 던져 사슬을 끊으면 열림 — 뒤에 보물 방, 2층부터는 계단 방</td></tr>
+        <tr><td>사슬 문</td><td>쇠창살 문은 사슬을 끊거나(기사 도끼, 마법사 화염구, 궁수 화살, 강령술사 죽음의 표식) 문 앞을 지키는 몬스터를 모두 쓰러뜨리면 열림 — 뒤에 보물 방, 2층부터는 계단 방</td></tr>
         <tr><td>지도</td><td>M · 지도 버튼</td></tr>
         <tr><td>스킬 성장</td><td>레벨업마다 포인트 1. 스킬 버튼의 [+] 또는 Shift+Q·W·E·R로 단계 올리기(최대 5). 5단계에는 스킬마다 특별한 효과</td></tr>
         <tr><td>스킬 트리</td><td>T · 스킬 버튼 — 직업마다 탭 셋(1단계·2단계·패시브·궁극기). 레벨업 포인트로 배우고, 배운 액티브를 Q W E R 칸에 끼운다. 같은 탭에 몰아 찍으면 시너지(포인트마다 +8%). 금화 100으로 포인트 전부 되돌리기</td></tr>
@@ -331,7 +343,7 @@
     <dialog id="tree">
       <div id="tree-head"><b id="tree-title"></b><form method="dialog"><button>닫기 (T)</button></form></div>
       <div id="tree-tabs"></div>
-      <div id="tree-foot"><small>같은 탭의 다른 스킬에 찍은 포인트마다 피해 +8%. 2단계 Lv 4, 패시브 Lv 8, 궁극기 Lv 12부터, 아래 단계를 배워야 열린다</small><button id="tree-respec"></button></div>
+      <div id="tree-foot"><small>같은 탭의 다른 스킬에 포인트를 1 찍을 때마다 피해 +8%. 2단계는 Lv 4, 패시브는 Lv 8, 궁극기는 Lv 12부터 열리고, 바로 아래 단계를 배워야 한다</small><button id="tree-respec"></button></div>
     </dialog>
     <dialog id="bag">
       <div id="bag-head"><b>보관함</b> <span id="bag-count"></span><form method="dialog"><button>닫기</button></form></div>

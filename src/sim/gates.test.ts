@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { FLOORS, generateFloor } from './dungeon';
 import { findPath } from './path';
-import { createWorld, DT, step, type Command, type World } from './world';
+import { createWorld, DT, SEAL, step, type Command, type World } from './world';
 
 const run = (w: World, sec: number, cmds: Command[] = []) => {
   step(w, cmds);
@@ -11,7 +11,7 @@ const reach = (w: World, x: number, z: number) => findPath(w.grid, [0, 0], [x, z
 
 test('사슬 문은 닫힌 동안 길을 막고, 도끼가 맞으면 열린다', () => {
   const w = createWorld(1, ['H..D..', '######']);
-  expect(w.gates).toEqual([{ id: 0, x: 3, z: 0, axis: 'x', open: false }]);
+  expect(w.gates).toEqual([{ id: 0, x: 3, z: 0, axis: 'x', open: false, guards: [] }]); // 몬스터가 없으면 문지기도 없다(스킬로만 연다)
   expect(reach(w, 5, 0)).toBe(false);
   step(w, [{ type: 'move', x: 5.5, z: 0.5 }]);
   expect(w.entities[0].state).toBe('idle'); // 길이 없어 움직이지 않는다
@@ -48,6 +48,28 @@ test('조준 없이 던지면 바로 앞의 닫힌 문을 겨눈다(모바일 �
   run(v, 1, [{ type: 'throw' }]);
   expect(v.entities[1].hp).toBeLessThan(1e5);
   expect(v.gates[0].open).toBe(false);
+});
+
+test('봉인 문: 문 앞(주인공 쪽)의 몬스터를 모두 쓰러뜨리면 사슬이 풀린다. 문 너머의 몬스터는 문지기가 아니다', () => {
+  const w = createWorld(1, ['H.m.m.D.m', '#########']);
+  expect([...w.gates[0].guards].sort()).toEqual([1, 2]);
+  w.entities[1].state = 'dead';
+  step(w, []);
+  expect(w.gates[0].open).toBe(false);
+  w.entities[2].state = 'dead';
+  step(w, []);
+  expect(w.gates[0].open).toBe(true);
+  expect(reach(w, 8, 0)).toBe(true);
+});
+
+test('봉인 문: 반경 안이 비면 가까운 몬스터 SEAL.min마리가 문지기, 같은 시드의 실제 층은 계단 문마다 문지기가 있다', () => {
+  const far = '.'.repeat(20);
+  const w = createWorld(1, ['m' + 'm' + 'm' + 'm' + far + 'H.D.']);
+  expect(w.gates[0].guards.length).toBe(SEAL.min);
+  const map = generateFloor(3, 2);
+  const v = createWorld(3, map);
+  expect(v.gates.length).toBeGreaterThan(0);
+  expect(v.gates.every((g) => g.guards.length >= 1)).toBe(true);
 });
 
 // 문을 못 지난다고 볼 때 주인공에게서 걸어서 닿는 칸

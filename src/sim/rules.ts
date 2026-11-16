@@ -101,7 +101,7 @@ export type Entity = {
 };
 
 // 강령술사의 소환수(해골 검사·궁수·법사, 시체 거인, 해골 왕): life초 뒤 사라진다
-export type Ally = Entity & { life: number; mult: number; reach: number; interval: number; splash?: number }; // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께
+export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId }; // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
@@ -131,7 +131,9 @@ export const GEAR_SIZE: Record<GearItem['kind'], [number, number][]> = {
 
 // 사슬로 묶인 쇠창살 문(칸 좌표). 닫힌 동안 그 칸은 막혀 있고, 도끼가 맞으면 붙어 있는 문과 함께 열린다.
 // axis: 막고 있는 통로의 방향(렌더가 문 그림을 고른다)
-export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: boolean };
+export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: boolean; guards: number[] }; // guards: 문 앞을 지키는 몬스터 id(모두 쓰러지면 사슬이 풀린다)
+// 봉인 문: 주인공 쪽에서 닿는 몬스터 중 문에서 radius m 안의 것들이 문지기(적으면 가까운 순으로 min마리까지 채운다)
+export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
 export type Chest = { id: number; x: number; z: number; open: boolean };
@@ -523,13 +525,13 @@ export const FOCUS = { cd: 14, time: 6, speed: 0.4, spread: 0.15, kill: 1 };
 
 // 강령술사. 평타(뼈 화살)는 마법사 마력탄(WIZ)과 같다.
 // 해골 소환(소환 1): 재사용, 소환 수(3단계 +1, 5단계 +1. 최대 수는 +2), 유지(초), 배율(× 강령술사 굴림), 공격 간격, 닿는 거리, 속도, 적을 찾는 거리
-export const BONES = { cd: 6, count: 2, life: 14, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, archerAt: 2, mageAt: 4 }; // archerAt·mageAt: 궁수·법사가 섞이기 시작하는 단계
-// 해골 숙련(소환 패시브): 단계마다 해골 피해 +12%·유지 +10%, at단계부터 한 기 더
-export const BONE_MASTERY = { mult: 0.12, life: 0.1, at: 3 };
+export const BONES = { cd: 6, count: 2, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, archerAt: 2, mageAt: 4 }; // archerAt·mageAt: 궁수·법사가 섞이기 시작하는 단계
+// 해골 숙련(소환 패시브): 단계마다 해골 피해 +12%·체력 +10%, at단계부터 한 기 더
+export const BONE_MASTERY = { mult: 0.12, hp: 0.1, at: 3 };
 // 해골 종류(검사 기준 체력·피해 배수, 공격 간격, 사거리). 궁수는 뼈 화살을 쏘고, 법사는 맞은 적 둘레(splash)도 함께 태운다
 export const BONE_KINDS = { minion: { hp: 1, mult: 1, interval: 1.1, reach: 1.2 }, archer: { hp: 0.6, mult: 0.8, interval: 1.4, reach: 6 }, mage: { hp: 0.5, mult: 1.1, interval: 2.2, reach: 5, splash: 1.3 } };
-// 시체 거인(소환 2): 재사용, 유지, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 눈길을 끄는 반경, 5단계 폭발(반경·배율)
-export const GIANT = { cd: 16, life: 15, hp: 1, mult: 0.6, interval: 1.6, reach: 1.4, taunt: 6, burst: 2.5, burstMult: 2 };
+// 시체 거인(소환 2): 재사용, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 눈길을 끄는 반경, 5단계 폭발(반경·배율)
+export const GIANT = { cd: 16, hp: 1, mult: 0.6, interval: 1.6, reach: 1.4, taunt: 6, burst: 2.5, burstMult: 2 };
 // 죽음의 표식(저주 1, 코드에서는 curse — 소환수가 안의 적부터 노린다): 재사용, 사거리, 반경, 시간, 받는 피해 증가
 export const CURSE = { cd: 9, range: 8, radius: 2.2, time: 6, amp: 0.35 };
 // 역병(저주 2): 재사용, 사거리, 반경, 시간, 피해 간격, 한 번 배율. 표식 숙련(저주 패시브): 단계마다 표식 범위 +8%, 받는 피해 +5%p

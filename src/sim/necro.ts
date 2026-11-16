@@ -2,7 +2,7 @@
 // 뼈(뼈 창·뼈 갑옷·생명 흡수·뼈 감옥). 스페이스는 기사 구르기. 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다.
 // 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
-import { BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type World } from './rules';
+import { BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
 import { clearLine, dist, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
 import { burst, openGate } from './abilities';
 import { aimDir, blast, foes, spot, stun } from './wizard';
@@ -19,14 +19,14 @@ export function bonesStat(w: World) {
     count,
     kinds,
     max: count + 2,
-    life: BONES.life * (1 + BONE_MASTERY.life * m),
-    hp: Math.round(heroMax(w) * BONES.hp), // 몬스터에게 맞아 0이 되면 무너진다
+    life: Infinity, // 해골·거인은 시간이 다하지 않는다(맞아 무너지거나 다시 부르면 물러난다). 해골 왕만 시간제
+    hp: Math.round(heroMax(w) * BONES.hp * (1 + BONE_MASTERY.hp * m)), // 몬스터에게 맞아 0이 되면 무너진다
     mult: (BONES.mult + 0.08 * ext(w, 'bones')) * syn(w, 'bones') * (1 + BONE_MASTERY.mult * m),
   };
 }
 export const giantStat = (w: World) => ({
   cd: GIANT.cd - ext(w, 'giant'),
-  life: GIANT.life,
+  life: Infinity,
   hp: Math.round(heroMax(w) * (GIANT.hp + 0.25 * ext(w, 'giant'))),
   mult: (GIANT.mult + 0.1 * ext(w, 'giant')) * syn(w, 'giant'),
 });
@@ -49,9 +49,15 @@ export const boneArmorStat = (w: World) => ({ cd: BONE_ARMOR.cd - 0.5 * ext(w, '
 export const prisonStat = (w: World) => ({ cd: PRISON.cd - 0.5 * ext(w, 'prison'), radius: PRISON.radius + 0.1 * ext(w, 'prison'), time: PRISON.time + 0.25 * ext(w, 'prison'), mult: (PRISON.mult + 0.2 * ext(w, 'prison')) * syn(w, 'prison') });
 
 const isBone = (a: Ally) => a.kind !== 'warrior' && a.kind !== 'king'; // 거인·왕은 해골 수에 세지 않는다
+// 스킬을 다시 쓰면 그 스킬로 부른 소환수는 물러난다
+function dismiss(w: World, from: SkillId) {
+  for (const a of w.allies) if (a.from === from) blast(w, 'blink', a.x, a.z);
+  w.allies = w.allies.filter((a) => a.from !== from);
+}
+
 // 소환수 하나를 (x, z)에. same 종류가 max를 넘으면 오래된 것부터 무너진다
-function spawn(w: World, x: number, z: number, kind: Kind, st: Pick<Ally, 'life' | 'hp' | 'mult' | 'reach' | 'interval' | 'splash'>, same: (a: Ally) => boolean, max: number, more: Partial<Entity> = {}) {
-  const a: Ally = { ...makeEntity(-(w.nextItem++) - 1, kind, x, z, 1), ...more, ...st, maxHp: st.hp }; // 음수 id: core의 byId
+function spawn(w: World, x: number, z: number, kind: Kind, st: Pick<Ally, 'life' | 'hp' | 'mult' | 'reach' | 'interval' | 'splash'>, same: (a: Ally) => boolean, max: number, more: Partial<Ally> = {}) {
+  const a: Ally = { ...makeEntity(-(w.nextItem++) - 1, kind, x, z, 1), ...more, ...st, maxHp: st.hp, lifeMax: st.life }; // 음수 id: core의 byId
   w.allies.push(a);
   blast(w, 'blink', x, z);
   const over = w.allies.filter(same).slice(0, -max);
@@ -60,7 +66,7 @@ function spawn(w: World, x: number, z: number, kind: Kind, st: Pick<Ally, 'life'
 }
 
 // (x, z) 둘레에 해골 n기를 일으킨다(종류는 해골 소환 단계의 순서대로)
-export function raise(w: World, x: number, z: number, n: number) {
+export function raise(w: World, x: number, z: number, n: number, from?: SkillId) {
   const st = bonesStat(w);
   for (let k = 0; k < n; k++) {
     const a = (k / Math.max(1, n)) * Math.PI * 2 + w.nextItem;
@@ -68,14 +74,15 @@ export function raise(w: World, x: number, z: number, n: number) {
     const [ax, az] = walkable(w.grid, Math.floor(sx), Math.floor(sz)) ? [sx, sz] : [x, z];
     const kind = st.kinds[k % st.kinds.length];
     const b: { hp: number; mult: number; interval: number; reach: number; splash?: number } = BONE_KINDS[kind];
-    spawn(w, ax, az, kind, { life: st.life, hp: Math.round(st.hp * b.hp), mult: st.mult * b.mult, reach: b.reach, interval: b.interval, splash: b.splash }, isBone, st.max);
+    spawn(w, ax, az, kind, { life: st.life, hp: Math.round(st.hp * b.hp), mult: st.mult * b.mult, reach: b.reach, interval: b.interval, splash: b.splash }, isBone, st.max, { from });
   }
 }
 
-// 해골 소환: 주인공 둘레에 소환
+// 해골 소환: 주인공 둘레에 소환(먼저 부른 해골은 물러난다)
 export function bones(w: World, hero: Entity): number {
   const st = bonesStat(w);
-  raise(w, hero.x, hero.z, st.count);
+  dismiss(w, 'bones');
+  raise(w, hero.x, hero.z, st.count, 'bones');
   w.casts++;
   return st.cd;
 }
@@ -83,7 +90,8 @@ export function bones(w: World, hero: Entity): number {
 // 시체 거인: 튼튼한 거인 하나(다시 쓰면 바뀐다). 나타나며 주변 적(보스·해골 왕 제외)의 눈길을 끈다
 export function giant(w: World, hero: Entity): number {
   const st = giantStat(w);
-  const g = spawn(w, hero.x, hero.z, 'warrior', { life: st.life, hp: st.hp, mult: st.mult, reach: GIANT.reach, interval: GIANT.interval }, (a) => a.kind === 'warrior', 1, { skin: 'zombie', elite: true });
+  dismiss(w, 'giant');
+  const g = spawn(w, hero.x, hero.z, 'warrior', { life: st.life, hp: st.hp, mult: st.mult, reach: GIANT.reach, interval: GIANT.interval }, (a) => a.kind === 'warrior', 1, { skin: 'zombie', elite: true, from: 'giant' });
   for (const e of foes(w, hero)) if (dist(e, g) <= GIANT.taunt && e.kind !== 'boss' && e.kind !== 'king') e.target = g.id;
   w.casts++;
   return st.cd;
@@ -92,8 +100,9 @@ export function giant(w: World, hero: Entity): number {
 // 해골 왕 강림: 가장 센 소환수 하나, 휘두르면 주변도 함께 맞고, 있는 동안 다른 소환수 피해 증가. 5단계: 해골도 함께
 export function lord(w: World, hero: Entity): number {
   const st = lordStat(w);
-  spawn(w, hero.x, hero.z, 'king', { life: st.life, hp: st.hp, mult: st.mult, reach: LORD.reach, interval: LORD.interval, splash: LORD.splash }, (a) => a.kind === 'king', 1);
-  if (mastered(w, 'lord')) raise(w, hero.x, hero.z, LORD.guard);
+  dismiss(w, 'lord');
+  spawn(w, hero.x, hero.z, 'king', { life: st.life, hp: st.hp, mult: st.mult, reach: LORD.reach, interval: LORD.interval, splash: LORD.splash }, (a) => a.kind === 'king', 1, { from: 'lord' });
+  if (mastered(w, 'lord')) raise(w, hero.x, hero.z, LORD.guard, 'lord');
   w.casts++;
   return st.cd;
 }

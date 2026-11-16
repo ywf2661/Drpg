@@ -15,13 +15,13 @@ import wizardPortrait from './assets/sprites/portrait_wizard.png';
 import rangerPortrait from './assets/sprites/portrait_ranger.png';
 import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
-import { drawHeroPortrait, PORTRAIT, setHeroGear } from './render/sprites';
+import { drawHeroPortrait, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, gearTable, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, gearTable, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -75,6 +75,7 @@ let shownBag = 0; // 층이 바뀌거나 보관함이 늘었는지 비교
 let shownBlocked = false; // '가득 찼습니다'는 밟은 순간 한 번만
 let shownLevel = 0;
 let shownGateHint = false; // 사슬 문 안내는 층마다 한 번
+let shownGatesOpen = 0; // 열린 사슬 문 수(늘면 알림)
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
 type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; tree(): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; pick(cls: HeroClass): void; smart(on: boolean): void; smartOn(): boolean };
@@ -163,61 +164,64 @@ export function showTitle(open: boolean, saved: Run | null = null) {
 const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [dashBtn, 'dash'], [shoutBtn, 'shout'], [throwBtn, 'throw']];
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const sec = (v: number) => `${+v.toFixed(1)}초`;
+const m = (v: number) => `${+v.toFixed(1)}m`;
+const wd = (v: number) => `무기 피해의 ${pct(v)}`;
+const cd = (v: number) => ` · 재사용 대기 ${sec(v)}`;
 // 스킬 설명: 이름, 한 줄 설명, 지금 단계의 수치(stat), 5단계 완성 효과(cap)
 type SkillText = { name: string; desc: string; stat?: (w: World) => string; cap?: string };
 const SKILL_TEXT: Record<SkillId, SkillText> = {
   // 기사
-  cleave: { name: '가르기', desc: '앞쪽 적을 한 번에 벤다 (Q는 가까운 적 쪽, 우클릭은 커서 쪽)', cap: '반원 대신 한 바퀴를 벤다', stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '한 바퀴' : '앞쪽 반원'} ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  whirl: { name: '회오리', desc: '돌면서 걸어 다니며 주변 적을 계속 벤다', cap: '1초 더 돈다', stat: (w) => { const s = whirlStat(w); return `${sec(s.time)} 동안 ${s.radius.toFixed(1)}m 적에게 0.25초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  burst: { name: '시체 폭발', desc: '패시브 — 가르기·회오리·처형으로 죽은 적이 터져 주변을 태운다. 터져 죽은 적도 또 터진다', stat: (w) => `시체 최대 체력의 ${pct(burstStat(w).hp)} 피해, 반경 ${BURST.radius}m` },
-  execute: { name: '처형', desc: '닿는 적 하나를 벤다. 체력이 낮으면 단칼에 죽이고, 죽이면 주변 적이 공포에 질려 도망친다', stat: (w) => { const s = executeStat(w); return `체력 ${pct(s.below)} 이하 즉사(보스 제외), 아니면 ${pct(s.mult)}, 공포 ${sec(EXECUTE.fear)}, ${sec(s.cd)}`; } },
-  dash: { name: '돌진 베기', desc: '커서 쪽으로 돌진하며 길 위의 적을 벤다. 맞히면 가르기가 바로 준비된다', cap: '돌진으로 처치하면 바로 다시 돌진', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 길 위 적 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  shout: { name: '전투의 함성', desc: '주변 적을 기절시키고 밀어내며, 잠시 받는 피해가 준다', cap: '쓸 때 최대 체력의 15% 회복', stat: (w) => { const s = shoutStat(w); return `${s.radius.toFixed(1)}m 안 적 ${sec(s.stun)} 기절, 받는 피해 −${pct(s.reduce)}, ${sec(s.cd)}`; } },
-  trail: { name: '불길', desc: '패시브 — 돌진 베기가 지나간 길이 3초 동안 불탄다', stat: (w) => `0.5초마다 ${pct(trailStat(w).mult)}` },
-  leap: { name: '대지 강타', desc: '커서 지점으로 뛰어올라 내려찍는다. 내린 자리 둘레의 적이 기절한다', stat: (w) => { const s = leapStat(w); return `${LEAP.range}m까지, ${s.radius}m 적 모두 ${pct(s.mult)} + ${sec(LEAP.stun)} 기절, ${sec(s.cd)}`; } },
-  throw: { name: '도끼 던지기', desc: '처음 닿는 적에게 도끼를 던진다. 사슬 문도 부순다', cap: '적을 관통한다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '길 위의 적 모두' : '처음 닿는 적'}에게 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  bounce: { name: '튕기는 도끼', desc: '맞은 적에서 가까운 적으로 튀어 다니는 도끼', cap: '두 배로 튄다', stat: (w) => { const s = bounceStat(w); return `${pct(s.mult)}, ${s.count}번 튐, ${sec(s.cd)}`; } },
-  axes: { name: '도끼 숙련', desc: '패시브 — 도끼 스킬(던지기·튕기는 도끼·도끼 폭풍)이 더 자주, 더 세게', stat: (w) => `재사용 대기 −${pct(AXES.cd * Math.max(1, w.ranks.axes ?? 0))}, 피해 +${pct(AXES.dmg * Math.max(1, w.ranks.axes ?? 0))}` },
-  axeStorm: { name: '도끼 폭풍', desc: '사방으로 도끼를 한꺼번에 던진다(모두 관통)', stat: (w) => { const s = axeStormStat(w); return `도끼 ${s.count}자루 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  cleave: { name: '가르기', desc: '앞쪽의 적을 한꺼번에 벤다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 벤다', cap: '앞쪽 반원이 아니라 주위를 한 바퀴 벤다', stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '주위' : '앞쪽 반원'} ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  whirl: { name: '회오리', desc: '빙글빙글 돌며 걷는 동안 주변 적을 계속 벤다', cap: '1초 더 돈다', stat: (w) => { const s = whirlStat(w); return `${sec(s.time)} 동안 0.25초마다 ${m(s.radius)} 안의 적에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  burst: { name: '시체 폭발', desc: '패시브 — 가르기·회오리·처형으로 쓰러뜨린 적이 터지며 주변을 태운다. 그 폭발로 죽은 적도 연달아 터진다', stat: (w) => `시체 최대 체력의 ${pct(burstStat(w).hp)} 피해 · 반경 ${BURST.radius}m` },
+  execute: { name: '처형', desc: '눈앞의 적 하나를 벤다. 체력이 낮은 적은 단칼에 베어 버리고, 처치하면 주변 적이 겁에 질려 달아난다', stat: (w) => { const s = executeStat(w); return `체력 ${pct(s.below)} 이하면 즉사(보스 제외), 아니면 ${wd(s.mult)} · 공포 ${sec(EXECUTE.fear)}${cd(s.cd)}`; } },
+  dash: { name: '돌진 베기', desc: '커서 쪽으로 돌진하며 지나는 길의 적을 벤다. 적을 맞히면 가르기를 바로 다시 쓸 수 있다', cap: '돌진으로 적을 처치하면 바로 다시 돌진할 수 있다', stat: (w) => { const s = dashStat(w); return `${s.dist}m 돌진, 지나는 길의 적에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  shout: { name: '전투의 함성', desc: '주변 적을 기절시켜 밀어내고, 잠시 동안 받는 피해가 줄어든다', cap: '외칠 때 최대 체력의 15%를 회복한다', stat: (w) => { const s = shoutStat(w); return `${m(s.radius)} 안의 적 ${sec(s.stun)} 기절 · 받는 피해 −${pct(s.reduce)}${cd(s.cd)}`; } },
+  trail: { name: '불길', desc: '패시브 — 돌진 베기로 지나간 자리가 3초 동안 불탄다', stat: (w) => `0.5초마다 ${wd(trailStat(w).mult)}` },
+  leap: { name: '대지 강타', desc: '커서 지점으로 뛰어올라 내려찍는다. 착지 지점 주변의 적이 기절한다', stat: (w) => { const s = leapStat(w); return `최대 ${LEAP.range}m · ${s.radius}m 안의 적 모두에게 ${wd(s.mult)}, ${sec(LEAP.stun)} 기절${cd(s.cd)}`; } },
+  throw: { name: '도끼 던지기', desc: '도끼를 던져 처음 맞는 적에게 피해를 준다. 사슬 문도 끊을 수 있다', cap: '도끼가 적을 꿰뚫고 날아간다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '지나는 길의 적 모두' : '처음 맞는 적'}에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  bounce: { name: '튕기는 도끼', desc: '맞은 적에게서 가까운 적으로 튕겨 다니는 도끼를 던진다', cap: '튕기는 횟수가 두 배로 늘어난다', stat: (w) => { const s = bounceStat(w); return `${wd(s.mult)} · ${s.count}번 튕김${cd(s.cd)}`; } },
+  axes: { name: '도끼 숙련', desc: '패시브 — 도끼 스킬(던지기·튕기는 도끼·도끼 폭풍)을 더 자주, 더 세게 쓴다', stat: (w) => `재사용 대기 −${pct(AXES.cd * Math.max(1, w.ranks.axes ?? 0))} · 피해 +${pct(AXES.dmg * Math.max(1, w.ranks.axes ?? 0))}` },
+  axeStorm: { name: '도끼 폭풍', desc: '사방으로 도끼를 한꺼번에 던진다. 모든 도끼가 적을 꿰뚫는다', stat: (w) => { const s = axeStormStat(w); return `도끼 ${s.count}자루, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
   // 마법사
-  fireball: { name: '화염구', desc: '날아가 터지는 불덩이 (우클릭은 커서 쪽)', cap: '세 갈래로 날아간다', stat: (w) => { const s = fireStat(w); return `날아가 ${s.radius.toFixed(1)}m 폭발, 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  firefield: { name: '불바다', desc: '지점을 불태운다', stat: (w) => { const s = firefieldStat(w); return `${s.radius.toFixed(1)}m를 ${sec(FIREFIELD.time)} 동안, 0.5초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  embers: { name: '잔불', desc: '패시브 — 화염구가 터진 자리가 잠시 탄다', stat: (w) => { const s = embersStat(w); return `${EMBERS.radius}m를 ${sec(s.time)} 동안, 0.5초마다 ${pct(s.mult)}`; } },
-  comet: { name: '운석', desc: '잠시 뒤 지점에 운석이 떨어지고, 그 자리가 탄다', stat: (w) => { const s = cometStat(w); return `${sec(COMET.delay)} 뒤 ${s.radius}m 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  frost: { name: '서리 고리', desc: '주변 적에게 피해를 주고 얼린다(얼은 적은 약점)', cap: '주변의 화살·화염구도 얼려 없앤다', stat: (w) => { const s = frostStat(w); return `${s.radius.toFixed(1)}m 안 적 ${pct(s.mult)} 후 ${sec(s.freeze)} 얼림, ${sec(s.cd)}`; } },
-  ward: { name: '마나 방패', desc: '피해를 흡수하는 방패. 막은 피해 일부를 공격자에게 되돌린다', cap: '방패가 깨지면 주변 폭발', stat: (w) => { const s = wardStat(w); return `${WARD.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${pct(WARD.reflect)} 반사, ${sec(s.cd)}`; } },
-  frostArmor: { name: '서리 갑옷', desc: `패시브 — 서리 고리·마나 방패·눈보라를 쓰면 ${FROST_ARMOR.time}초 동안 받는 피해가 준다`, stat: (w) => `받는 피해 −${pct(frostArmorStat(w).reduce)}` },
-  blizzard: { name: '눈보라', desc: '몸에 붙어 따라다니는 냉기장. 닿는 적을 계속 때리고 얼린다', stat: (w) => { const s = blizzardStat(w); return `${sec(s.time)} 동안 ${s.radius}m, 0.5초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  lightning: { name: '낙뢰', desc: '지점에 벼락. 맞은 적이 기절한다', cap: '범위 ×1.3, 기절 2배', stat: (w) => { const s = boltStat(w); return `${BOLT.range}m 안 지점 ${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)}, ${sec(s.stun)} 기절, ${sec(s.cd)}`; } },
-  chain: { name: '연쇄 번개', desc: '벼락이 맞은 적에서 가까운 적으로 튄다', stat: (w) => { const s = chainStat(w); return `${pct(s.mult)}, ${s.count}번 튐(${pct(CHAIN.hop)}), ${sec(s.cd)}`; } },
-  static: { name: '정전기', desc: '패시브 — 마력탄이 맞은 적 옆의 적에게 튄다', stat: (w) => { const s = staticStat(w); return `${s.count}명에게 ${pct(s.mult)} (3단계부터 둘)`; } },
-  tempest: { name: '천둥 폭풍', desc: '지점 둘레에 벼락이 잇따라 쏟아진다', stat: (w) => { const s = tempestStat(w); return `벼락 ${s.strikes}개 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  fireball: { name: '화염구', desc: '부딪히면 터지는 불덩이를 던진다. 우클릭은 커서 쪽으로 던진다', cap: '불덩이가 세 갈래로 날아간다', stat: (w) => { const s = fireStat(w); return `폭발 반경 ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  firefield: { name: '불바다', desc: '지정한 곳을 불바다로 만든다', stat: (w) => { const s = firefieldStat(w); return `반경 ${m(s.radius)}, ${sec(FIREFIELD.time)} 동안 0.5초마다 ${wd(s.mult)}${cd(s.cd)}`; } },
+  embers: { name: '잔불', desc: '패시브 — 화염구가 터진 자리에 잠시 불길이 남는다', stat: (w) => { const s = embersStat(w); return `반경 ${EMBERS.radius}m, ${sec(s.time)} 동안 0.5초마다 ${wd(s.mult)}`; } },
+  comet: { name: '운석', desc: '잠시 뒤 지정한 곳에 운석이 떨어지고, 떨어진 자리가 불탄다', stat: (w) => { const s = cometStat(w); return `${sec(COMET.delay)} 뒤 반경 ${s.radius}m 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  frost: { name: '서리 고리', desc: `주변 적에게 피해를 주고 얼린다. 얼어붙은 적은 스킬에 ${COMBO.stunned}배 피해를 입는다`, cap: '주변의 화살과 화염구도 얼려서 없앤다', stat: (w) => { const s = frostStat(w); return `${m(s.radius)} 안의 적에게 ${wd(s.mult)}, ${sec(s.freeze)} 빙결${cd(s.cd)}`; } },
+  ward: { name: '마나 방패', desc: '피해를 흡수하는 방패를 두른다. 막아 낸 피해의 일부를 공격한 적에게 되돌려 준다', cap: '방패가 깨질 때 주변에 폭발을 일으킨다', stat: (w) => { const s = wardStat(w); return `${WARD.time}초 동안 최대 체력의 ${pct(s.absorb)}까지 흡수 · ${pct(WARD.reflect)} 반사${cd(s.cd)}`; } },
+  frostArmor: { name: '서리 갑옷', desc: `패시브 — 서리 고리·마나 방패·눈보라를 쓰면 ${FROST_ARMOR.time}초 동안 받는 피해가 줄어든다`, stat: (w) => `받는 피해 −${pct(frostArmorStat(w).reduce)}` },
+  blizzard: { name: '눈보라', desc: '몸 주위를 따라다니는 눈보라를 일으킨다. 닿는 적을 계속 때리고 얼린다', stat: (w) => { const s = blizzardStat(w); return `${sec(s.time)} 동안 반경 ${s.radius}m, 0.5초마다 ${wd(s.mult)}${cd(s.cd)}`; } },
+  lightning: { name: '낙뢰', desc: '지정한 곳에 벼락을 내린다. 맞은 적은 기절한다', cap: '범위 1.3배, 기절 시간 2배', stat: (w) => { const s = boltStat(w); return `사거리 ${BOLT.range}m · 반경 ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}, ${sec(s.stun)} 기절${cd(s.cd)}`; } },
+  chain: { name: '연쇄 번개', desc: '적을 맞힌 벼락이 가까운 적에게 차례로 옮겨 간다', stat: (w) => { const s = chainStat(w); return `${wd(s.mult)} · ${s.count}번 옮겨 감(옮겨 간 뒤에는 ${pct(CHAIN.hop)})${cd(s.cd)}`; } },
+  static: { name: '정전기', desc: '패시브 — 마력탄에 맞은 적 옆의 적에게도 전기가 튄다', stat: (w) => { const s = staticStat(w); return `${s.count}명에게 ${wd(s.mult)} (3단계부터 2명)`; } },
+  tempest: { name: '천둥 폭풍', desc: '지정한 곳 주변에 벼락이 연달아 쏟아진다', stat: (w) => { const s = tempestStat(w); return `벼락 ${s.strikes}번, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
   // 궁수
-  pierce: { name: '관통 사격', desc: '길 위의 적을 모두 꿰뚫는 화살 (우클릭은 커서 쪽)', cap: '한 발이 더 뒤따른다', stat: (w) => { const s = pierceStat(w); return `직선으로 꿰뚫어 길 위 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  spread: { name: '세 갈래', desc: '꿰뚫는 화살이 부채꼴로 날아간다', cap: '다섯 발', stat: (w) => { const s = spreadStat(w); return `${s.count}발 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  crit: { name: '치명', desc: '패시브 — 화살(평타·스킬)이 확률로 2배 피해', stat: (w) => `${pct(Math.max(CRIT.chance, critStat(w).chance))} 확률` },
-  focus: { name: '집중', desc: '잠시 공격 속도가 빨라지고 화살이 두 발씩 나간다', cap: '집중 중 처치하면 재사용 대기 −1초', stat: (w) => { const s = focusStat(w); return `${sec(s.time)} 동안 공격 속도 +${pct(FOCUS.speed)}, ${sec(s.cd)}`; } },
-  trap: { name: '덫', desc: '밟은 적을 묶는 덫을 놓는다', cap: '닫힐 때 주변 적도 묶는다', stat: (w) => { const s = trapStat(w); return `${TRAP.range}m 안에 덫(최대 ${s.max}개), 밟은 적 ${pct(s.mult)} 후 ${sec(s.hold)} 묶음, ${sec(s.cd)}`; } },
-  push: { name: '밀쳐내기 사격', desc: '맞은 적을 멀리 밀어내는 꿰뚫는 화살. 벽에 부딪히면 기절', stat: (w) => { const s = pushStat(w); return `${pct(s.mult)}, 벽에 부딪히면 ${sec(PUSH.stun)} 기절, ${sec(s.cd)}`; } },
-  snare: { name: '덫 숙련', desc: '패시브 — 덫 하나 더, 더 오래 묶고, 닫힐 때 주변 적도 다친다', stat: (w) => `주변 ${TRAP.radius}m에 덫 피해의 ${pct(snareStat(w).blast)}` },
-  hunt: { name: '사냥터', desc: '지점 둘레에 덫을 둥글게 한꺼번에 깐다(개수 제한 없음)', stat: (w) => { const s = huntStat(w); return `덫 ${s.count}개 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  rain: { name: '화살비', desc: '잠시 뒤 지점에 화살이 쏟아진다', cap: '범위 ×1.3', stat: (w) => { const s = rainStat(w); return `${RAIN.range}m 안 지점 ${s.radius.toFixed(1)}m에 ${sec(RAIN.delay)} 뒤 적 모두 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  fireRain: { name: '불화살', desc: '화살비가 떨어진 자리가 3초 동안 불탄다', stat: (w) => { const s = fireRainStat(w); return `${s.radius.toFixed(1)}m 적 모두 ${pct(s.mult)} + 불, ${sec(s.cd)}`; } },
-  downpour: { name: '폭우', desc: `패시브 — 화살비·불화살이 몇 번 더 내린다(한 번에 ${pct(DOWNPOUR.mult)})`, stat: (w) => `${Math.max(1, downpourStat(w).waves)}번 더` },
-  arrowStorm: { name: '화살 폭풍', desc: '주변 여기저기에 화살비가 잇따라 떨어진다', stat: (w) => { const s = arrowStormStat(w); return `화살비 ${s.count}번 각 ${pct(s.mult)}, ${sec(s.cd)}`; } },
+  pierce: { name: '관통 사격', desc: '지나는 길의 적을 모두 꿰뚫는 화살을 쏜다. 우클릭은 커서 쪽으로 쏜다', cap: '한 발이 더 뒤따라 날아간다', stat: (w) => { const s = pierceStat(w); return `일직선 위의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  spread: { name: '세 갈래', desc: '적을 꿰뚫는 화살을 부채꼴로 여러 발 쏜다', cap: '다섯 발을 쏜다', stat: (w) => { const s = spreadStat(w); return `${s.count}발, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
+  crit: { name: '치명', desc: '패시브 — 화살(평타·스킬)이 일정 확률로 2배 피해를 준다', stat: (w) => `확률 ${pct(Math.max(CRIT.chance, critStat(w).chance))}` },
+  focus: { name: '집중', desc: '잠시 공격 속도가 빨라지고 화살을 두 발씩 쏜다', cap: '집중 중에 적을 처치하면 재사용 대기 시간이 1초 줄어든다', stat: (w) => { const s = focusStat(w); return `${sec(s.time)} 동안 공격 속도 +${pct(FOCUS.speed)}${cd(s.cd)}`; } },
+  trap: { name: '덫', desc: '밟은 적을 붙잡는 덫을 놓는다', cap: '덫이 닫힐 때 주변 적도 붙잡는다', stat: (w) => { const s = trapStat(w); return `사거리 ${TRAP.range}m, 최대 ${s.max}개 · 밟은 적에게 ${wd(s.mult)}, ${sec(s.hold)} 속박${cd(s.cd)}`; } },
+  push: { name: '밀쳐내기 사격', desc: '맞은 적을 멀리 밀쳐 내는 관통 화살을 쏜다. 벽에 부딪힌 적은 기절한다', stat: (w) => { const s = pushStat(w); return `${wd(s.mult)} · 벽에 부딪히면 ${sec(PUSH.stun)} 기절${cd(s.cd)}`; } },
+  snare: { name: '덫 숙련', desc: '패시브 — 덫을 하나 더 놓을 수 있고, 더 오래 붙잡으며, 닫힐 때 주변 적도 다친다', stat: (w) => `반경 ${TRAP.radius}m 안의 적에게 덫 피해의 ${pct(snareStat(w).blast)}` },
+  hunt: { name: '사냥터', desc: '지정한 곳 둘레에 덫을 둥글게 한꺼번에 깐다(개수 제한 없음)', stat: (w) => { const s = huntStat(w); return `덫 ${s.count}개, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
+  rain: { name: '화살비', desc: '잠시 뒤 지정한 곳에 화살이 비처럼 쏟아진다', cap: '범위 1.3배', stat: (w) => { const s = rainStat(w); return `사거리 ${RAIN.range}m · ${sec(RAIN.delay)} 뒤 반경 ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  fireRain: { name: '불화살', desc: '불붙은 화살비를 내린다. 떨어진 자리가 3초 동안 불탄다', stat: (w) => { const s = fireRainStat(w); return `반경 ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}, 이어서 불길${cd(s.cd)}`; } },
+  downpour: { name: '폭우', desc: `패시브 — 화살비·불화살이 몇 차례 더 쏟아진다(한 번에 ${pct(DOWNPOUR.mult)} 피해)`, stat: (w) => `${Math.max(1, downpourStat(w).waves)}번 더` },
+  arrowStorm: { name: '화살 폭풍', desc: '주변 곳곳에 화살비가 연달아 쏟아진다', stat: (w) => { const s = arrowStormStat(w); return `화살비 ${s.count}번, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
   // 강령술사
-  bones: { name: '해골 소환', desc: '싸워 주는 해골을 일으킨다(2단계 궁수, 4단계 법사가 섞인다)', cap: '한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `${s.count}기(최대 ${s.max}) ${sec(s.life)} 동안, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  giant: { name: '시체 거인', desc: '튼튼한 거인 하나. 나타나며 주변 적의 눈길을 끈다', cap: '쓰러지면 터져 주변 적에게 피해', stat: (w) => { const s = giantStat(w); return `체력 ${s.hp}의 거인 ${sec(s.life)} 동안, 한 대에 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  boneMastery: { name: '해골 숙련', desc: `패시브 — 해골이 더 세고 오래 남는다. ${BONE_MASTERY.at}단계부터 한 기 더`, stat: (w) => `피해 +${pct(BONE_MASTERY.mult * Math.max(1, w.ranks.boneMastery ?? 0))}, 유지 +${pct(BONE_MASTERY.life * Math.max(1, w.ranks.boneMastery ?? 0))}` },
-  lord: { name: '해골 왕 강림', desc: '가장 센 소환수. 휘두르면 둘레가 함께 맞고, 있는 동안 다른 소환수가 세진다', cap: '해골 둘이 함께 온다', stat: (w) => { const s = lordStat(w); return `체력 ${s.hp}의 왕 ${sec(s.life)} 동안, 둘레 ${LORD.splash}m ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  curse: { name: '죽음의 표식', desc: '표식 안의 적은 피해를 더 받고 소환수가 먼저 노린다. 사슬 문을 녹인다', cap: '표식 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `${s.radius.toFixed(1)}m, ${sec(s.time)} 동안 받는 피해 +${pct(s.amp)}, ${sec(s.cd)}`; } },
-  plague: { name: '역병', desc: '지점을 썩게 해 안의 적이 계속 다친다', stat: (w) => { const s = plagueStat(w); return `${s.radius.toFixed(1)}m를 ${sec(PLAGUE.time)} 동안, 0.5초마다 ${pct(s.mult)}, ${sec(s.cd)}`; } },
-  curseMastery: { name: '표식 숙련', desc: '패시브 — 죽음의 표식이 넓어지고 받는 피해가 더 는다', stat: (w) => `범위 +${pct(CURSE_MASTERY.radius * Math.max(1, w.ranks.curseMastery ?? 0))}, 받는 피해 +${pct(CURSE_MASTERY.amp * Math.max(1, w.ranks.curseMastery ?? 0))}p` },
-  corpseBlast: { name: '시체 폭발', desc: '지점 둘레의 시체를 모두 터뜨린다(터져 죽은 적도 이어서). 시체가 없으면 못 쓴다', stat: (w) => { const s = corpseStat(w); return `시체 최대 체력의 ${pct(s.hp)}, 반경 ${CORPSE.blast}m, ${sec(s.cd)}`; } },
-  spear: { name: '뼈 창', desc: '길 위의 적을 모두 꿰뚫는 뼈 창', stat: (w) => { const s = spearStat(w); return `${pct(s.mult)}, ${sec(s.cd)}`; } },
-  boneArmor: { name: '뼈 갑옷', desc: '피해를 흡수하는 뼈 갑옷', stat: (w) => { const s = boneArmorStat(w); return `${BONE_ARMOR.time}초 동안 최대 체력 ${pct(s.absorb)}만큼 흡수, ${sec(s.cd)}`; } },
-  drain: { name: '생명 흡수', desc: '패시브 — 내가(해골도) 준 피해의 일부만큼 회복', stat: (w) => `준 피해의 ${pct(DRAIN.per * Math.max(1, w.ranks.drain ?? 0))}` },
-  prison: { name: '뼈 감옥', desc: '지점 둘레의 적을 뼈벽에 가둔다', stat: (w) => { const s = prisonStat(w); return `${s.radius.toFixed(1)}m 적 ${pct(s.mult)} + ${sec(s.time)} 묶음(보스 ${sec(PRISON.big)}), ${sec(s.cd)}`; } },
+  bones: { name: '해골 소환', desc: '함께 싸울 해골을 일으킨다. 2단계부터 궁수, 4단계부터 법사가 섞인다. 다시 쓰면 먼저 부른 해골은 물러난다', cap: '해골을 한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `${s.count}기(최대 ${s.max}기) · 체력 ${s.hp} · ${wd(s.mult)}${cd(s.cd)}`; } },
+  giant: { name: '시체 거인', desc: '튼튼한 시체 거인을 하나 불러낸다. 나타날 때 주변 적의 시선을 끈다', cap: '쓰러질 때 터지며 주변 적에게 피해를 준다', stat: (w) => { const s = giantStat(w); return `체력 ${s.hp} · ${wd(s.mult)}${cd(s.cd)}`; } },
+  boneMastery: { name: '해골 숙련', desc: `패시브 — 해골이 더 강하고 튼튼해진다. ${BONE_MASTERY.at}단계부터 해골이 한 기 더 나온다`, stat: (w) => `피해 +${pct(BONE_MASTERY.mult * Math.max(1, w.ranks.boneMastery ?? 0))} · 체력 +${pct(BONE_MASTERY.hp * Math.max(1, w.ranks.boneMastery ?? 0))}` },
+  lord: { name: '해골 왕 강림', desc: '가장 강한 소환수인 해골 왕을 불러낸다. 휘두르면 주변 적까지 함께 베고, 머무는 동안 다른 소환수가 강해진다', cap: '해골 둘을 거느리고 온다', stat: (w) => { const s = lordStat(w); return `${sec(s.life)} 동안 · 체력 ${s.hp} · 반경 ${LORD.splash}m 안의 적에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  curse: { name: '죽음의 표식', desc: '땅에 표식을 새긴다. 표식 안의 적은 피해를 더 받고, 소환수가 먼저 공격한다. 사슬 문도 녹인다', cap: '표식 안의 시체가 해골로 일어난다', stat: (w) => { const s = curseStat(w); return `반경 ${m(s.radius)}, ${sec(s.time)} 동안 받는 피해 +${pct(s.amp)}${cd(s.cd)}`; } },
+  plague: { name: '역병', desc: '지정한 곳에 역병을 퍼뜨린다. 그 안의 적은 계속 피해를 입는다', stat: (w) => { const s = plagueStat(w); return `반경 ${m(s.radius)}, ${sec(PLAGUE.time)} 동안 0.5초마다 ${wd(s.mult)}${cd(s.cd)}`; } },
+  curseMastery: { name: '표식 숙련', desc: '패시브 — 죽음의 표식이 넓어지고, 표식 안의 적이 받는 피해가 더 커진다', stat: (w) => `범위 +${pct(CURSE_MASTERY.radius * Math.max(1, w.ranks.curseMastery ?? 0))} · 받는 피해 +${pct(CURSE_MASTERY.amp * Math.max(1, w.ranks.curseMastery ?? 0))}p` },
+  corpseBlast: { name: '시체 폭발', desc: '지정한 곳 주변의 시체를 모두 터뜨린다. 폭발로 죽은 적도 연달아 터진다. 시체가 없으면 쓸 수 없다', stat: (w) => { const s = corpseStat(w); return `시체 최대 체력의 ${pct(s.hp)} 피해 · 반경 ${CORPSE.blast}m${cd(s.cd)}`; } },
+  spear: { name: '뼈 창', desc: '지나는 길의 적을 모두 꿰뚫는 뼈 창을 던진다', stat: (w) => { const s = spearStat(w); return `${wd(s.mult)}${cd(s.cd)}`; } },
+  boneArmor: { name: '뼈 갑옷', desc: '피해를 흡수하는 뼈 갑옷을 두른다', stat: (w) => { const s = boneArmorStat(w); return `${BONE_ARMOR.time}초 동안 최대 체력의 ${pct(s.absorb)}까지 흡수${cd(s.cd)}`; } },
+  drain: { name: '생명 흡수', desc: '패시브 — 나와 해골이 준 피해의 일부만큼 체력을 회복한다', stat: (w) => `준 피해의 ${pct(DRAIN.per * Math.max(1, w.ranks.drain ?? 0))}` },
+  prison: { name: '뼈 감옥', desc: '지정한 곳 주변의 적을 뼈 감옥에 가둔다', stat: (w) => { const s = prisonStat(w); return `반경 ${m(s.radius)} 안의 적에게 ${wd(s.mult)} · ${sec(s.time)} 속박(보스 ${sec(PRISON.big)})${cd(s.cd)}`; } },
 };
 export const skillName = (id: SkillId) => SKILL_TEXT[id].name;
 
@@ -257,7 +261,7 @@ function skillLines(w: World, id: SkillId): string[] {
   const t = SKILL_TEXT[id];
   const r = w.ranks[id] ?? 0;
   const at = (n: number) => t.stat?.({ ...w, ranks: { ...w.ranks, [id]: n } }) ?? '';
-  return [t.desc, isPassive(id) ? '' : `비용: ${resName(w.cls)} ${skillCost(w.cls, id)}`, r ? `지금: ${at(r)}` : `배우면: ${at(1)}`, r && r < RANK_MAX ? `다음 단계: ${at(r + 1)}` : '', t.cap ? `5단계: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}` : ''].filter(Boolean);
+  return [t.desc, isPassive(id) ? '' : `비용: ${resName(w.cls)} ${skillCost(w.cls, id)}`, r ? `현재: ${at(r)}` : `배우면: ${at(1)}`, r && r < RANK_MAX ? `다음 단계: ${at(r + 1)}` : '', t.cap ? `5단계 달성 시: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}` : ''].filter(Boolean);
 }
 
 // 스킬 버튼: 끼운 스킬의 그림·단계·[+]·툴팁(칸·단계·포인트가 바뀔 때만 다시 씀)
@@ -319,7 +323,7 @@ export function showTree(w: World, h: { learn(id: SkillId): void; bind(key: Skil
         }
         body.append(head);
         for (const line of skillLines(w, id)) body.append(el('small', '', line));
-        if (block && block !== '스킬 포인트가 없다' && block !== '최고 단계') body.append(el('small', 'why', `🔒 ${block}`));
+        if (block && block !== '스킬 포인트 없음' && block !== '최고 단계') body.append(el('small', 'why', `🔒 ${block}`));
         if (r && !isPassive(id)) {
           const keys = el('div', 'keys');
           for (const k of KEYS) {
@@ -591,6 +595,33 @@ export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem)
 
 // 매 프레임. hovered: 마우스가 올라간 몬스터 id, choosing: 이어하기를 고르는 중(배너를 건드리지 않음)
 // lostGold: 이번 죽음에서 잃은 금화
+// 소환수 초상화 줄: id마다 칸 하나(새로 생기면 만들고, 사라지면 치운다)
+const ALLY_NAME: Partial<Record<string, string>> = { minion: '해골 검사', archer: '해골 궁수', mage: '해골 법사', warrior: '시체 거인', king: '해골 왕' };
+const ALLY_END = 3; // 남은 시간이 이만큼(초)이면 깜빡인다
+const allyCards = new Map<number, HTMLElement>();
+function showAllies(w: World) {
+  const box = $('#allies');
+  const live = new Set(w.allies.map((a) => a.id));
+  for (const [id, card] of allyCards) {
+    if (live.has(id)) continue;
+    card.remove();
+    allyCards.delete(id);
+  }
+  for (const a of w.allies) {
+    let card = allyCards.get(a.id);
+    if (!card) {
+      card = Object.assign(document.createElement('div'), { className: `ally ${a.kind}`, title: ALLY_NAME[a.kind] ?? '' });
+      card.innerHTML = '<div class="pic"></div><div class="hp"><i></i></div>';
+      paintPortrait(card.firstElementChild as HTMLElement, a, 28);
+      allyCards.set(a.id, card);
+      box.append(card);
+    }
+    (card.firstElementChild as HTMLElement).style.setProperty('--gone', String(isFinite(a.lifeMax) ? 1 - Math.max(0, a.life) / a.lifeMax : 0)); // 시간제(해골 왕)만 어둠이 찬다
+    card.classList.toggle('ending', a.life < ALLY_END);
+    (card.querySelector('.hp i') as HTMLElement).style.width = `${(Math.max(0, a.hp) / a.maxHp) * 100}%`;
+  }
+}
+
 export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats, lostGold = 0) {
   const hero = world.entities[0];
   if (world !== shownWorld) {
@@ -601,6 +632,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownBag = world.bag.length;
     shownBlocked = false;
     shownGateHint = false;
+    shownGatesOpen = 0;
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   danger.style.opacity = String(hero.state === 'dead' ? 0 : Math.min(1, Math.max(0, 1 - hero.hp / hero.maxHp / DANGER) * 1.5)); // 약 12% 아래에서 가장 짙다
@@ -619,6 +651,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   }
   $('#roll i').style.height = `${(world.rollCd / (world.cls === 'wizard' ? BLINK.cd : ROLL.cd)) * 100}%`;
   showKeys(world);
+  showAllies(world);
   potionCount.textContent = String(world.potions);
   $('#potion i').style.height = `${world.healing ? (1 - world.healing.t / POTION.time) * 100 : 0}%`; // 차는 동안은 다시 못 마신다
   goldLabel.textContent = String(world.gold);
@@ -652,8 +685,11 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   // 닫힌 사슬 문에 처음 다가가면 여는 법을 알린다
   if (!shownGateHint && world.gates.some((g) => !g.open && Math.hypot(g.x + 0.5 - hero.x, g.z + 0.5 - hero.z) < 3.5)) {
     shownGateHint = true;
-    say({ knight: '사슬로 묶인 문 — 도끼(R)를 던져 사슬을 끊으세요', wizard: '사슬로 묶인 문 — 화염구(Q)로 사슬을 끊으세요', ranger: '사슬로 묶인 문 — 관통 사격(Q)으로 사슬을 끊으세요', necromancer: '사슬로 묶인 문 — 죽음의 표식(E)으로 사슬을 녹이세요' }[world.cls]);
+    say({ knight: '사슬 문 — 도끼(R)로 끊거나', wizard: '사슬 문 — 화염구(Q)로 끊거나', ranger: '사슬 문 — 관통 사격(Q)으로 끊거나', necromancer: '사슬 문 — 죽음의 표식(E)으로 녹이거나' }[world.cls] + ' 문 앞을 지키는 몬스터를 모두 쓰러뜨리세요');
   }
+  const gatesOpen = world.gates.filter((g) => g.open).length;
+  if (gatesOpen > shownGatesOpen) say('사슬이 풀려 문이 열렸습니다');
+  shownGatesOpen = gatesOpen;
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
   bossBar.hidden = !boss;

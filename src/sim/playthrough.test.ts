@@ -12,7 +12,7 @@ test('봇이 구르고 받아치면 5층 보스까지 깨지만 여러 번 죽�
   for (const r of withSkills.filter((r) => r.cleared)) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
   expect(deaths(withSkills)).toBeLessThanOrEqual(165); // 지금 95(기력·마나 뒤. 비용 없을 때 97, 구르기 끈 때 136)
   expect(deaths(withSkills)).toBeGreaterThanOrEqual(95); // 너무 쉬워지면 걸린다
-  expect(without.filter((r) => r.cleared).length).toBe(0); // 받아치기 없이는 못 깬다. 지금 0(사망 151)
+  expect(without.filter((r) => r.cleared).length).toBeLessThanOrEqual(6); // 받아치기 없이는 거의 못 깬다. 지금 5(봉인 문 뒤: 문지기를 잡으면 도끼 없이도 계단 방이 열린다. 그 전 0)
   expect(standing.filter((r) => r.cleared).length).toBeLessThanOrEqual(2); // 바닥의 예고도 안 피하면 진다. 지금 0
 });
 
@@ -35,7 +35,7 @@ test('궁수 봇도 5층까지 깨지만 여러 번 죽고, 스킬 없이는 못
   const standing = play(true, false);
   const bare = play(false);
   expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(14); // 지금 19. MONSTER_DMG 3.25(사용자: 너무 쉽다) 뒤. 봇은 층마다 4번 죽으면 포기해 사망 수가 포화한다 — 그 전 수치는 git 기록
-  expect(deaths(withSkills)).toBeGreaterThanOrEqual(75); // 지금 80(기력 뒤. 비용 없을 때 77): 궁수는 거리로 버틴다
+  expect(deaths(withSkills)).toBeGreaterThanOrEqual(60); // 지금 68(봉인 문 뒤. 그 전 80, 비용 없을 때 77): 궁수는 거리로 버틴다
   expect(deaths(withSkills)).toBeLessThanOrEqual(130);
   expect(deaths(standing)).toBeGreaterThan(deaths(withSkills) + 15); // 바닥의 예고를 안 피하면 훨씬 어렵다. 지금 135
   expect(bare.filter((r) => r.cleared).length).toBeLessThanOrEqual(5); // 화살만으로는 못 깬다. 지금 0

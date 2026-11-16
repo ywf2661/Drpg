@@ -308,7 +308,7 @@ function buildMap(world: World) {
   const { w, h, blocked } = world.grid;
   // 바닥은 걸을 수 있는 칸과 소품 칸에, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
-  const prop = new Set([...world.props, ...world.gates].map((p) => p.z * w + p.x)); // 소품·문 칸: 벽 상자 대신 바닥을 깐다
+  const prop = new Set([...world.props, ...world.gates, ...world.chests].map((p) => p.z * w + p.x)); // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
   const floorCells: [number, number][][] = Array.from({ length: FLOOR_VARIANTS }, () => []);
   const wallCells: [number, number][] = [];
   for (let z = 0; z < h; z++) {

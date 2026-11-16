@@ -184,6 +184,13 @@ async function applyHeroGear(g: Gear, cls: HeroClass, key: string) {
 
 // 보관함 인형: 정면을 보고 선 주인공(지금 장비)을 PORTRAIT 영역만 scale배로. 칸 위치는 이 영역 기준(hud)
 export const PORTRAIT = { dir: 6, x: 22, y: 24, w: 56, h: 60 }; // 칸 안 픽셀(머리 ≈ y 28–43, 발 ≈ 81)
+// HUD 소환수 초상화: 정면으로 서 있는 첫 칸에서 머리·어깨(발 기준점 위 48px, 20px 정사각형)를 px 크기의 CSS 배경으로
+export function paintPortrait(el: HTMLElement, e: Entity, px: number) {
+  const { info, url } = SHEETS[e.skin ?? e.kind];
+  const k = px / 20;
+  const [x, y] = [info.anchor[0] - 10, PORTRAIT.dir * info.cell[1] + info.anchor[1] - 48];
+  Object.assign(el.style, { backgroundImage: `url(${url})`, backgroundSize: `${info.cols * info.cell[0] * k}px ${info.rows * info.cell[1] * k}px`, backgroundPosition: `${-x * k}px ${-y * k}px` });
+}
 export function drawHeroPortrait(c: HTMLCanvasElement, scale: number) {
   const src = textures.get('hero')?.image as HTMLCanvasElement | undefined;
   if (!src) return;

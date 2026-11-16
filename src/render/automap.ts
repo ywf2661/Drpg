@@ -53,7 +53,7 @@ export function drawAutomap(world: World) {
   // 칸 (x, z)~(x+1, z+1)이 toMap을 거친 마름모가 되도록 변환을 건다: fillRect(x, z, 1, 1) = 칸 하나
   const [ox, oy] = toMap(0, 0, hero.x, hero.z, CELL);
   ctx.setTransform(CELL * dpr, (CELL / 2) * dpr, -CELL * dpr, (CELL / 2) * dpr, (W / 2 + ox) * dpr, (H / 2 + oy) * dpr);
-  const prop = new Set(world.props.map((p) => p.z * w + p.x));
+  const prop = new Set([...world.props, ...world.chests].map((p) => p.z * w + p.x));
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && (!blocked[z * w + x] || prop.has(z * w + x));
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
