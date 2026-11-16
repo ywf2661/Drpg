@@ -15,7 +15,7 @@ type Wild = 'field' | 'snow';
 
 export const makeMap = (seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w') => (land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from));
 export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land);
-export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 14) + 4 * (floor - 1); // 몬스터 수
+export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 16) + 4 * (floor - 1); // 몬스터 수
 // 이 구역의 출구가 이끄는 곳: 같은 지역, 다른 바깥 지역, 다음 구역이 3 이상이면 미궁. 마지막 구역은 없음
 export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : [land, land === 'field' ? 'snow' : 'field', ...(floor + 1 >= 3 ? ['dungeon' as const] : [])]);
 const MIN_OPEN = 1500; // 걸어 다닐 칸이 이보다 적으면 다시 만든다
@@ -165,10 +165,10 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   }
 
   // 몬스터: 초원은 고블린 떼(전사가 이끌고 2구역부터 불개미), 설원은 얼음 개미·시체(2구역부터 해골 궁수).
-  // 주인공에게서 먼 곳에 무리 지어 — 초원은 3~5마리 야영지, 설원은 2~3마리. 무리의 절반은 길가(길에서 6칸 안)
+  // 주인공에게서 먼 곳에 무리 지어 — 초원은 3~5마리 야영지, 설원은 3~4마리(궁수가 섞인다). 무리의 절반은 길가(길에서 6칸 안)
   const count = wildCount(floor, land);
   const warriors = Math.round(count * (land === 'field' ? 0.2 : 0.3));
-  const ranged = floor === 1 ? 0 : Math.round(count * 0.15);
+  const ranged = floor === 1 ? 0 : Math.round(count * (land === 'field' ? 0.15 : 0.25)); // 설원은 궁수가 많다(트인 눈밭에서 숨을 곳이 얼음 바위뿐)
   const monsters: string[] = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : i < warriors + ranged ? (land === 'field' ? 'g' : 'a') : 'm'));
   for (let i = monsters.length - 1; i > 0; i--) {
     const j = int(0, i);
@@ -198,7 +198,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     if (!camp) continue;
     camps++;
     let placed = 0;
-    for (let g = land === 'field' ? int(3, 5) : int(2, 3); g > 0 && k < count; g--) {
+    for (let g = land === 'field' ? int(3, 5) : int(3, 4); g > 0 && k < count; g--) {
       const p = pick((p) => near(p, camp, 3));
       if (p) (cells[p[1]][p[0]] = monsters[k++]), placed++;
     }

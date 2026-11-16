@@ -60,3 +60,8 @@ test('바깥 지역: 봇이 다 잡은 뒤 같은 지역 출구로 걸어 나가
     expect(r.cleared || r.floor > 1).toBe(true);
   }
 });
+
+test('초원 한 판: 기사 봇 10판 중 7판 이상 5구역을 깬다(같은 지역 출구만 탈 때)', { timeout: 300_000 }, () => {
+  const rs = Array.from({ length: 10 }, (_, i) => playthrough(i + 1, true, true, 'knight', 'field'));
+  expect(rs.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(7); // 지금 8. 사망 평균 1.4(설원 기사 1.9)
+});

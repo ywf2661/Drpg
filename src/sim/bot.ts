@@ -153,6 +153,7 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
   let carry = START(cls);
   let deaths = 0;
   let uniques = 0;
+  let time = 0; // 깬 구역에 쓴 sim 시간(초)
   let from: Side = 'w'; // 들어온 가장자리(바깥 지역): 나간 출구의 맞은편
   for (let n = 1; n <= FLOORS; n++) {
     let done = false;
@@ -163,6 +164,7 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
+          time += t * DT;
           const ex = exitAt(w);
           if (ex) from = opposite[sideOf(w, ex)];
           uniques += w.bag.filter((it) => uniqueOf(it)).length;
@@ -176,7 +178,7 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
         carry = { ...carry, gold: deathGold(carry.gold) };
       }
     }
-    if (!done) return { cleared: false, deaths, level: carry.level, floor: n, uniques };
+    if (!done) return { cleared: false, deaths, level: carry.level, floor: n, uniques, time };
   }
-  return { cleared: true, deaths, level: carry.level, floor: FLOORS, uniques };
+  return { cleared: true, deaths, level: carry.level, floor: FLOORS, uniques, time };
 }
