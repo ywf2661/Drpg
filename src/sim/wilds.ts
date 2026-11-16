@@ -1,7 +1,7 @@
 // 미궁(방 + 복도)이 아닌 바깥 지역의 맵(72×72). 결과는 generateFloor와 같은 글자 맵 + '=' 길, 'F'·'S' 출구(맨 바깥 줄, → 초원·설원).
 // 디아블로2의 평지처럼: 가장자리는 숲(초원)·얼음 절벽(설원) 띠, 들어온 가장자리에서 다른 가장자리의 출구까지 구불구불한 길.
 // 초원: 탁 트인 들판에 바위 무더기, 몬스터는 야영지마다 떼로(모닥불 'B' + 무리가 다 쓰러져야 열리는 상자 'C'). 설원: 눈밭에 얼음 바위 덩어리, 몬스터는 둘셋씩.
-// 다음 구역이 3 이상이면 맵 안쪽 먼 곳에 동굴 입구('>', 계단 → 미궁). 마지막 구역은 출구 대신 보스.
+// 초원 1구역은 갈림길: 초원·설원 출구와 맵 안쪽 먼 곳의 동굴 입구('>', 계단 → 미궁 1층). 그 밖은 같은 지역 출구 하나, 마지막 구역은 출구 대신 보스.
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import { finish, FLOORS, generateFloor, mulberry, OPEN, themeFor, walkDistances, type Theme } from './dungeon';
 import type { Cell } from './path';
@@ -16,8 +16,8 @@ type Wild = 'field' | 'snow';
 export const makeMap = (seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w') => (land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from));
 export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land);
 export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 16) + 4 * (floor - 1); // 몬스터 수
-// 이 구역의 출구가 이끄는 곳: 같은 지역, 다른 바깥 지역, 다음 구역이 3 이상이면 미궁. 마지막 구역은 없음
-export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : [land, land === 'field' ? 'snow' : 'field', ...(floor + 1 >= 3 ? ['dungeon' as const] : [])]);
+// 이 구역의 출구가 이끄는 곳. 초원 1구역만 갈림길(초원 2·설원 1·미궁 1, 미궁은 동굴 입구), 지역을 고른 뒤로는 그 지역의 다음 구역뿐. 마지막 구역은 없음
+export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : land === 'field' && floor === 1 ? ['field', 'snow', 'dungeon'] : [land]);
 const MIN_OPEN = 1500; // 걸어 다닐 칸이 이보다 적으면 다시 만든다
 const N = WILD;
 // 가장자리 side에서 가장자리를 따라 t번째, 안쪽으로 k칸

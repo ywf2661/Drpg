@@ -30,7 +30,7 @@ let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터
 let floor = 1;
 let land: Land = 'field'; // 지역(미궁·초원·설원). 한 판은 초원 1구역에서 시작하고, 구역 끝의 출구로 다음 지역을 고른다
 let from: Side = 'w'; // 바깥 지역에서 들어온 가장자리(나간 출구의 맞은편)
-let next: { land: Land; from: Side } = { land, from }; // 상점을 떠나면 갈 곳(출구를 지날 때 정한다)
+let next: { land: Land; from: Side; floor: number } = { land, from, floor: 1 }; // 상점을 떠나면 갈 곳(출구를 지날 때 정한다)
 let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 1씩
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
@@ -40,13 +40,15 @@ let stayed = false; // 상점에서 '이 층에 남기'를 골랐다: 계단에�
 const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그림(3×3칸)의 바깥
 let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구마다(같은 지역 칸끼리 묶어 가운데) "▶ 설원 3구역", 바깥 지역의 계단은 동굴 입구 "▼ 지하 3층"
-function signsOf(w: World, n: number): Sign[] {
+// 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
+const nextFloor = (to: Land) => (to === land ? floor + 1 : 1);
+function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
   for (const to of ['field', 'snow'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
-    if (cells.length) out.push({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5, text: `▶ ${LANDS[to].name} ${n + 1}${LANDS[to].unit}` });
+    if (cells.length) out.push({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5, text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
   }
-  if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${n + 1}${LANDS.dungeon.unit}` });
+  if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
 const progress = () => ({ floor, ...entry, cycle, stats, land, from }); // 저장할 진행
@@ -80,7 +82,7 @@ function enterFloor(n: number, carry: Carry) {
   entry = carryOf(carry);
   saveRun(progress()); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
-  signs = signsOf(world, n);
+  signs = signsOf(world);
   setWorld(world, themeOf(n, land));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
@@ -93,7 +95,8 @@ function openShop() {
   shopping = carryOf(world);
   // 바깥 출구면 그 지역(맞은편 가장자리에서), 계단(미궁·동굴 입구)이면 미궁
   const ex = exitAt(world);
-  next = ex ? { land: ex.to, from: opposite[sideOf(world, ex)] } : { land: 'dungeon', from: 'w' };
+  const to: Land = ex ? ex.to : 'dungeon';
+  next = { land: to, from: ex ? opposite[sideOf(world, ex)] : 'w', floor: nextFloor(to) };
   const coin = () => sound.play([{ name: 'gold', x: world.entities[0].x, z: world.entities[0].z }], world.entities[0].x, world.entities[0].z);
   const render = () =>
     showShop(
@@ -114,7 +117,7 @@ function openShop() {
         const c = shopping!;
         shopping = null;
         ({ land, from } = next);
-        enterFloor(floor + 1, c);
+        enterFloor(next.floor, c);
       },
       () => {
         // 남기: 사고판 것은 그대로 가지고 이 층에서 계속한다
@@ -123,7 +126,7 @@ function openShop() {
         stayed = true;
         Object.assign(world, { potions: c.potions, gear: { ...c.gear }, gold: c.gold, bag: [...c.bag], toStairs: false });
       },
-      `${LANDS[next.land].name} ${floor + 1}${LANDS[next.land].unit}`,
+      `${LANDS[next.land].name} ${next.floor}${LANDS[next.land].unit}`,
     );
   render();
 }

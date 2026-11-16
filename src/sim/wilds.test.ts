@@ -8,10 +8,11 @@ const find = (map: string[], ch: string): [number, number][] => map.flatMap((r, 
 // 칸이 맞닿은 가장자리(맨 바깥 줄)
 const edgeOf = ([x, z]: [number, number]): Side | null => (z === 0 ? 'n' : z === WILD - 1 ? 's' : x === 0 ? 'w' : x === WILD - 1 ? 'e' : null);
 
-test('출구 종류: 같은 지역·다른 지역, 다음 구역이 3 이상이면 동굴 입구, 5구역은 없음', () => {
-  expect(exitsFor(1, 'field')).toEqual(['field', 'snow']);
-  expect(exitsFor(2, 'snow')).toEqual(['snow', 'field', 'dungeon']);
-  expect(exitsFor(4, 'field')).toEqual(['field', 'snow', 'dungeon']);
+test('출구 종류: 초원 1구역만 갈림길(초원 2·설원 1·미궁 1), 그 밖은 같은 지역의 다음 구역뿐, 5구역은 없음', () => {
+  expect(exitsFor(1, 'field')).toEqual(['field', 'snow', 'dungeon']);
+  expect(exitsFor(2, 'field')).toEqual(['field']);
+  expect(exitsFor(1, 'snow')).toEqual(['snow']);
+  expect(exitsFor(4, 'snow')).toEqual(['snow']);
   expect(exitsFor(FLOORS, 'field')).toEqual([]);
 });
 
