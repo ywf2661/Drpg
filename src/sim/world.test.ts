@@ -777,6 +777,21 @@ test('상자(c): 막힌 칸, 클릭하면 걸어가서 열고 내용물이 주�
   expect(w.items.filter((i) => i.kind !== 'gold').length + w.potions).toBeLessThanOrEqual(1); // 다시 열리지 않는다
 });
 
+test('야영지 상자(C): 지키는 무리가 살아 있으면 안 열리고, 다 쓰러지면 열려 장비 하나와 금화를 준다', () => {
+  const w = createWorld(1, ['H..C#m']); // 졸개는 벽 너머에 갇혀 있다(주인공에게 못 온다)
+  expect(walkable(w.grid, 3, 0)).toBe(false);
+  expect(w.chests[0].guards).toEqual([1]);
+  run(w, 120, [{ type: 'open', chestId: 0 }]);
+  expect(w.chests[0].open).toBe(false);
+  w.entities[1].state = 'dead';
+  w.entities[1].hp = 0;
+  run(w, 120, [{ type: 'open', chestId: 0 }]);
+  expect(w.chests[0].open).toBe(true);
+  expect(w.potions).toBe(0); // 물약이 아니다
+  expect(w.items.filter((i) => i.kind !== 'gold').length + w.bag.length + (w.gear.weapon !== 3 || w.gear.armor !== 1 || w.gear.helm !== 1 || w.gear.boots !== 1 ? 1 : 0)).toBe(1);
+  expect(w.gold > 0 || w.items.some((i) => i.kind === 'gold')).toBe(true); // 바로 옆이라 주웠을 수도
+});
+
 test('상자 내용물: 물약 약 60%, 장비 약 40%(단계 1..maxTier)', () => {
   let potions = 0;
   for (let seed = 1; seed <= 300; seed++) {

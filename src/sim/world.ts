@@ -7,7 +7,7 @@ import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, sprea
 import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
-import { LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { CAMP, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
@@ -53,11 +53,11 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
       const kind = SPAWN[c];
       const prop = PROPS[c];
       if (prop) props.push({ kind: prop, x, z });
-      if (c === 'c') chests.push({ id: chests.length, x, z, open: false });
+      if (c === 'c' || c === 'C') chests.push({ id: chests.length, x, z, open: false, ...(c === 'C' && { guards: [] }) });
       if (c === 'D') gateCells.push([x, z]);
       if (c === '=') roads.push([x, z]);
       if (c === 'F' || c === 'S') exits.push({ x, z, to: c === 'F' ? 'field' : 'snow' });
-      if (c === '#' || c === 'B' || c === 'o' || c === 'c' || c === 'D') grid.blocked[z * w + x] = 1;
+      if (c === '#' || c === 'B' || c === 'o' || c === 'c' || c === 'C' || c === 'D') grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c) });
     }),
@@ -68,6 +68,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false, guards: [] }));
   const entities = spawns.map((s, id) => dress(makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite), skins));
   guardGates(grid, gates, entities);
+  for (const ch of chests) if (ch.guards) ch.guards = entities.filter((e) => e.kind !== 'hero' && Math.hypot(e.x - ch.x - 0.5, e.z - ch.z - 0.5) <= CAMP.radius).map((e) => e.id);
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
   for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
@@ -399,13 +400,14 @@ function reachChest(w: World, hero: Entity) {
     return;
   }
   w.opening = null;
+  if (ch.guards?.some((id) => w.entities[id].state !== 'dead')) return; // 야영지 무리가 살아 있으면 잠겨 있다
   ch.open = true;
   const [x, z] = [cx + ((hero.x - cx) / d) * CHEST.drop, cz + ((hero.z - cz) / d) * CHEST.drop];
-  const kind = rand(w) < CHEST.potion ? 'potion' : randSlot(w);
+  const kind = !ch.guards && rand(w) < CHEST.potion ? 'potion' : randSlot(w); // 야영지 상자는 늘 장비
   if (kind === 'potion') w.items.push({ id: w.nextItem++, x, z, kind, tier: 0 });
   else if (rand(w) < LEGEND_DROP.chest) w.items.push({ ...rollUnique(w, x, z, w.maxTier) });
   else w.items.push(rollGear(w, x, z, kind, 1 + Math.floor(rand(w) * w.maxTier)));
-  dropGold(w, x + (hero.z - cz) / d * 0.4, z - (hero.x - cx) / d * 0.4, GOLD_CHEST.lo, GOLD_CHEST.hi, w.power); // 옆에 금화
+  dropGold(w, x + (hero.z - cz) / d * 0.4, z - (hero.x - cx) / d * 0.4, GOLD_CHEST.lo * (ch.guards ? CAMP.gold : 1), GOLD_CHEST.hi * (ch.guards ? CAMP.gold : 1), w.power); // 옆에 금화
 
 }
 

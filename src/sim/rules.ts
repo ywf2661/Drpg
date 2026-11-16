@@ -165,7 +165,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean };
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[] }; // guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
@@ -353,6 +353,8 @@ export const GOLD_CHEST = { lo: 15, hi: 30 };
 
 export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8, mult: 1.5, cd: 7 }; // 보스 돌진
 
+// 초원 야영지: 상자 둘레 radius(m) 안의 몬스터가 지킨다. 상자는 늘 장비, 금화는 gold배
+export const CAMP = { radius: 6, gold: 2 };
 export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
 
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리

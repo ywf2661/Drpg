@@ -14,7 +14,7 @@ export type Theme = 'dungeon' | 'cave' | 'field' | 'snow';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-export const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c' && c !== 'D'; // 지나갈 수 있는 글자
+export const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c' && c !== 'C' && c !== 'D'; // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 
 export function generateFloor(seed: number, floor: number): string[] {

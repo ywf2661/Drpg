@@ -56,7 +56,7 @@ const VARIANTS: Record<Prop['kind'], string[]> = {
   debris: Array.from({ length: 8 }, (_, k) => `bones${k + 1}`),
 };
 type Sheet = { info: SheetInfo; url: string; tex?: THREE.Texture; geo?: THREE.BufferGeometry };
-type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number }; // dir: 방향 행(화살)
+type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number; dim?: number }; // dir: 방향 행(화살), dim: 밝기 배수(잠긴 야영지 상자)
 const props: Sheet = { info: propsInfo as SheetInfo, url: propsUrl };
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
@@ -368,6 +368,7 @@ export function syncChests(world: World) {
   world.chests.forEach((ch, i) => {
     const c = chestCards[i];
     if (ch.open && c) c.card.clip = props.info.anims[`${c.name}_open`];
+    if (c) c.card.dim = ch.guards?.some((id) => world.entities[id].state !== 'dead') ? 0.4 : 1; // 야영지 무리가 살아 있으면 어둡게(잠김)
   });
 }
 
@@ -679,6 +680,6 @@ export function updateProps(dt: number, light: (x: number, z: number) => number)
     c.t += dt;
     const f = frameAt(c.clip, c.t);
     c.mat.map!.offset.set(f / c.info.cols, 1 - (c.clip.row + c.dir + 1) / c.info.rows);
-    c.mat.color.copy(TINT).multiplyScalar(Math.max(c.glow, light(c.mesh.position.x, c.mesh.position.z)));
+    c.mat.color.copy(TINT).multiplyScalar(Math.max(c.glow, light(c.mesh.position.x, c.mesh.position.z)) * (c.dim ?? 1));
   }
 }

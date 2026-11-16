@@ -51,6 +51,26 @@ for (const land of ['field', 'snow'] as const)
     }
   });
 
+test('초원 야영지: 한 맵에 3~5개, 상자(C) 둘레 4칸 안에 모닥불과 몬스터 셋 이상. 설원엔 없다', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const floor = 1 + (seed % FLOORS);
+    const map = generateWild(seed, floor, 'field');
+    const camps = find(map, 'C');
+    expect(camps.length).toBeGreaterThanOrEqual(3);
+    expect(camps.length).toBeLessThanOrEqual(5);
+    const around = ([cx, cz]: [number, number], chars: string) => {
+      let n = 0;
+      for (let z = cz - 4; z <= cz + 4; z++) for (let x = cx - 4; x <= cx + 4; x++) if (chars.includes(map[z]?.[x] ?? '')) n++;
+      return n;
+    };
+    for (const c of camps) {
+      expect(around(c, 'B')).toBeGreaterThanOrEqual(1);
+      expect(around(c, 'mwagNWAG')).toBeGreaterThanOrEqual(3);
+    }
+    expect(count(generateWild(seed, floor, 'snow'), 'C')).toBe(0);
+  }
+});
+
 test('지역의 몬스터는 스킨을 입는다: 이름·체력·속도가 다르고, 스킨이 없는 원형은 해골 그대로', () => {
   const w = createWorld(1, generateWild(2, 2, 'snow'), 1, 1, LANDS.snow.skins);
   const zombie = w.entities.find((e) => e.kind === 'warrior' && !e.elite)!;

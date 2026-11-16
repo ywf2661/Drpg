@@ -1,6 +1,6 @@
 // 미궁(방 + 복도)이 아닌 바깥 지역의 맵(72×72). 결과는 generateFloor와 같은 글자 맵 + '=' 길, 'F'·'S' 출구(맨 바깥 줄, → 초원·설원).
 // 디아블로2의 평지처럼: 가장자리는 숲(초원)·얼음 절벽(설원) 띠, 들어온 가장자리에서 다른 가장자리의 출구까지 구불구불한 길.
-// 초원: 탁 트인 들판에 바위 무더기, 몬스터는 야영지마다 떼로. 설원: 눈밭에 얼음 바위 덩어리, 몬스터는 둘셋씩.
+// 초원: 탁 트인 들판에 바위 무더기, 몬스터는 야영지마다 떼로(모닥불 'B' + 무리가 다 쓰러져야 열리는 상자 'C'). 설원: 눈밭에 얼음 바위 덩어리, 몬스터는 둘셋씩.
 // 다음 구역이 3 이상이면 맵 안쪽 먼 곳에 동굴 입구('>', 계단 → 미궁). 마지막 구역은 출구 대신 보스.
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import { finish, FLOORS, generateFloor, mulberry, OPEN, themeFor, walkDistances, type Theme } from './dungeon';
@@ -157,8 +157,8 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     cells[p[1]][p[0]] = c;
     if (!connected()) cells[p[1]][p[0]] = '.';
   };
-  for (let k = 0; k < 8; k++) block('B');
-  for (let k = int(3, 4); k > 0; k--) block('c');
+  for (let k = land === 'field' ? 3 : 8; k > 0; k--) block('B'); // 초원은 야영지 모닥불이 더 생긴다
+  for (let k = land === 'field' ? int(1, 2) : int(3, 4); k > 0; k--) block('c');
   for (let k = 0; k < 30; k++) {
     const p = pick();
     if (p) cells[p[1]][p[0]] = ',';
@@ -178,16 +178,32 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     for (let dz = -6; dz <= 6; dz++) for (let dx = -6; dx <= 6; dx++) if (cells[z + dz]?.[x + dx] === '=') return true;
     return false;
   };
+  // 초원 야영지: 셋 이상 모인 무리 가운데에 모닥불(B)과 잠긴 상자(C) — 길을 끊으면 그 무리는 야영지가 아니다
+  const makeCamp = ([cx, cz]: Cell) => {
+    const free: Cell[] = [];
+    for (let r = 0; r <= 2; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dz)) === r && cells[cz + dz][cx + dx] === '.') free.push([cx + dx, cz + dz]);
+    if (free.length < 2) return false;
+    const [b, c] = [free[0], free[int(1, free.length - 1)]];
+    cells[b[1]][b[0]] = 'B';
+    cells[c[1]][c[0]] = 'C';
+    if (connected()) return true;
+    cells[b[1]][b[0]] = cells[c[1]][c[0]] = '.';
+    return false;
+  };
+  let campsLeft = land === 'field' ? int(3, 5) : 0;
   // ponytail: 600번 안에 자리를 못 찾으면 그 시드는 버리고 다음 시드로(실제로는 늘 채운다)
   for (let k = 0, guard = 0, camps = 0; k < count; guard++) {
     if (guard > 600) return generateWild(seed + 1, floor, land, from);
     const camp = pick((p) => dist(p) >= 12 && (camps % 2 === 1 || byRoad(p)));
     if (!camp) continue;
     camps++;
+    let placed = 0;
     for (let g = land === 'field' ? int(3, 5) : int(2, 3); g > 0 && k < count; g--) {
       const p = pick((p) => near(p, camp, 3));
-      if (p) cells[p[1]][p[0]] = monsters[k++];
+      if (p) (cells[p[1]][p[0]] = monsters[k++]), placed++;
     }
+    if (campsLeft > 0 && placed >= 3 && makeCamp(camp)) campsLeft--;
   }
+  if (campsLeft > 0) return generateWild(seed + 1, floor, land, from); // 야영지가 모자라면 다음 시드로
   return finish(cells, rand);
 }
