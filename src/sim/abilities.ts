@@ -3,7 +3,7 @@ import { findPath, walkable, type Cell } from './path';
 import { ARCHER, AXE, BLINK, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
-import { axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
+import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
 
@@ -225,13 +225,17 @@ export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
   Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   w.rollCd = ROLL.cd;
+  w.trail = emberLine(w, hero.x, hero.z); // 불꽃 걸음: 구르며 늘어나는 불길
 }
+
 
 // 구르기 한 틱: 벽에 막히면 제자리에서 구른다(무적 시간은 같다)
 export function rollStep(w: World, hero: Entity) {
   const step = ROLL.speed * DT;
   const [nx, nz] = [hero.x + hero.dx * step, hero.z + hero.dz * step];
   if (walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];
+  const ember = w.fires.find((f) => f.id === w.trail);
+  if (ember) [ember.x1, ember.z1] = [hero.x, hero.z];
   if ((hero.phaseT -= step) > 0) return;
   const to = hero.path[0]; // 가던 목적지: 구른 자리에서 길을 다시 잡는다
   Object.assign(hero, { phase: 'none', state: 'idle', path: (to && pathTo(w, hero, to[0], to[1])) ?? [] });
@@ -399,10 +403,22 @@ export function fly(w: World, hero: Entity) {
     const step = speed * DT;
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;
-    if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
+    const wall = !walkable(w.grid, Math.floor(nx), Math.floor(nz));
+    if (wall || s.left <= 0) {
       if (fire) explode(w, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
       if (s.kind === 'axe' || s.kind === 'fireball' || s.kind === 'bolt' || s.kind === 'shaft' || s.kind === 'pierce') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼·마법이 사슬 문에 맞으면 열린다
-      if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg);
+      if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg, s.small);
+      if (s.kind === 'axe' && !s.back && boomerang(w, s)) {
+        // 돌아오는 도끼날: 주인공에게 되돌아온다(맞힌 적도 다시 맞는다)
+        const d = Math.hypot(hero.x - s.x, hero.z - s.z) || 1;
+        return !!Object.assign(s, { back: true, dx: (hero.x - s.x) / d, dz: (hero.z - s.z) / d, left: d, hit: [] });
+      }
+      if (s.kind === 'pierce' && wall && !s.ricochet && hasUnique(w, 'hawkHood')) {
+        // 매의 눈 두건: 막힌 축의 방향을 뒤집어 한 번 튕긴다(모서리면 둘 다)
+        const bx = !walkable(w.grid, Math.floor(nx), Math.floor(s.z));
+        const bz = !walkable(w.grid, Math.floor(s.x), Math.floor(nz));
+        return !!Object.assign(s, { ricochet: true, hit: [], dx: bx || !bz ? -s.dx : s.dx, dz: bz || !bx ? -s.dz : s.dz, left: Math.max(s.left, PIERCE.flight / 2) });
+      }
       return false;
     }
     [s.x, s.z] = [nx, nz];
@@ -426,7 +442,7 @@ export function fly(w: World, hero: Entity) {
           return true;
         }
       }
-      return !t || !!s.through; // 관통(맞힌 적은 다시 안 맞는다)
+      return !t || !!s.through || boomerang(w, s); // 관통(맞힌 적은 다시 안 맞는다). 돌아오는 도끼날도 꿰뚫는다
     }
     const v = friends(w).find((e) => Math.hypot(s.x - e.x, s.z - e.z) <= (fire ? MAGE.hitRadius : ARCHER.hitRadius)); // 해골 병사도 맞는다
     if (!v) return true;
@@ -435,6 +451,9 @@ export function fly(w: World, hero: Entity) {
     return false;
   });
 }
+
+// 돌아오는 도끼날을 쥐었고, 튕기는 도끼가 아니다
+const boomerang = (w: World, s: Shot) => s.bounce === undefined && hasUnique(w, 'boomerang');
 
 // 화염구 폭발: 반경 안의 살아 있는 주인공·해골 병사에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다
 export function explode(w: World, x: number, z: number, dmg: number) {

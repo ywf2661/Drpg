@@ -1,8 +1,8 @@
 // 마법사 스킬: 마력탄(평타), 화염(화염구·불바다·잔불·운석), 냉기(서리 고리·마나 방패·서리 갑옷·눈보라), 번개(낙뢰·연쇄 번개·정전기·천둥 폭풍), 순간이동(스페이스).
 // 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다(칸에 적는 것은 world의 cast). 조준·지점 도구(aimDir·spot·stun)는 다른 직업도 쓴다
 import { walkable } from './path';
-import { BLINK, BLIZZARD, BOLT, CHAIN, COMET, DT, EMBERS, FIREBALL, FIREFIELD, FROST, FROST_ARMOR, KNOCK, ROLL, STATIC, TEMPEST, WARD, WIZ, type Blast, type Entity, type Shot, type World } from './rules';
-import { clearLine, dist, ext, heroMax, hurt, knock, mastered, rank, roll, skillHit, syn } from './core';
+import { LEGEND_FX, BLINK, BLIZZARD, BOLT, CHAIN, COMET, DT, EMBERS, FIREBALL, FIREFIELD, FROST, FROST_ARMOR, KNOCK, ROLL, STATIC, TEMPEST, WARD, WIZ, type Blast, type Entity, type Shot, type World } from './rules';
+import { emberLine, hasUnique, clearLine, dist, ext, heroMax, hurt, knock, mastered, rank, roll, skillHit, syn } from './core';
 
 // 스킬 단계별 수치(1단계 = 기본값). 5단계가 바꾸는 수치도 여기서. 피해 배율에는 시너지가 붙는다
 export const fireStat = (w: World) => ({ cd: FIREBALL.cd - 0.3 * ext(w, 'fireball'), radius: FIREBALL.radius + 0.15 * ext(w, 'fireball'), mult: (FIREBALL.mult + 0.25 * ext(w, 'fireball')) * syn(w, 'fireball') });
@@ -31,6 +31,7 @@ export const chainStat = (w: World) => ({ cd: CHAIN.cd - 0.4 * ext(w, 'chain'), 
 export const staticStat = (w: World) => ({ count: rank(w, 'static') >= 3 ? 2 : 1, mult: STATIC.mult + 0.08 * ext(w, 'static') });
 export const tempestStat = (w: World) => ({ cd: TEMPEST.cd - 0.5 * ext(w, 'tempest'), strikes: TEMPEST.strikes + ext(w, 'tempest'), mult: (TEMPEST.mult + 0.2 * ext(w, 'tempest')) * syn(w, 'tempest') });
 
+const ORB_GAP = 0.8; // 작은 화염구가 폭발 중심에서 떨어져 나오는 거리(m): 맞은 적에게서 바로 다시 터지지 않게
 export const foes = (w: World, hero: Entity) => w.entities.filter((e) => e !== hero && e.state !== 'dead');
 export const nearest = (w: World, hero: Entity, r: number) =>
   foes(w, hero)
@@ -81,8 +82,15 @@ export function fireball(w: World, hero: Entity, x?: number, z?: number): number
   return st.cd;
 }
 
-// 화염구 폭발: 반경 안 적 모두 피해·밀어냄. 잔불(화염 패시브)이면 그 자리가 잠시 탄다
-export function fireBurst(w: World, hero: Entity, x: number, z: number, dmg: number) {
+// 화염구 폭발: 반경 안 적 모두 피해·밀어냄. 잔불(화염 패시브)이면 그 자리가 잠시 탄다.
+// 쪼개지는 구슬(전설): 작은 화염구 LEGEND_FX.orbs개가 사방으로(작은 것은 다시 쪼개지지 않는다)
+export function fireBurst(w: World, hero: Entity, x: number, z: number, dmg: number, small = false) {
+  if (!small && hasUnique(w, 'splitOrb'))
+    for (let k = 0; k < LEGEND_FX.orbs; k++) {
+      const a = (k / LEGEND_FX.orbs) * Math.PI * 2 + hero.facing;
+      const [dx, dz] = [Math.sin(a), Math.cos(a)];
+      w.shots.push({ id: w.nextItem++, x: x + dx * ORB_GAP, z: z + dz * ORB_GAP, dx, dz, dmg: Math.round(dmg * LEGEND_FX.orbMult), left: FIREBALL.flight / 3, kind: 'fireball', small: true });
+    }
   blast(w, 'fire', x, z);
   const r = fireStat(w).radius;
   for (const e of foes(w, hero)) {
@@ -123,7 +131,7 @@ export function magicHit(w: World, hero: Entity, s: Shot): boolean {
   const r = s.kind === 'bolt' ? WIZ.hit : FIREBALL.hit;
   const t = foes(w, hero).find((e) => Math.hypot(e.x - s.x, e.z - s.z) <= r);
   if (!t) return true;
-  if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg);
+  if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg, s.small);
   else {
     hurt(w, t, s.dmg, hero);
     if (rank(w, 'static')) {
@@ -288,6 +296,9 @@ export function blink(w: World, hero: Entity, x?: number, z?: number) {
   let k = 0;
   while (k + 0.1 <= max && walkable(w.grid, Math.floor(hero.x + dx * (k + 0.1)), Math.floor(hero.z + dz * (k + 0.1)))) k += 0.1;
   blast(w, 'blink', hero.x, hero.z);
+  const id = emberLine(w, hero.x, hero.z); // 불꽃 걸음: 순간이동한 길
+  const ember = w.fires.find((f) => f.id === id);
+  if (ember) [ember.x1, ember.z1] = [hero.x + dx * k, hero.z + dz * k];
   Object.assign(hero, { x: hero.x + dx * k, z: hero.z + dz * k, phase: 'roll', phaseT: BLINK.guard * ROLL.speed, dx: 0, dz: 0, state: 'idle', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   blast(w, 'blink', hero.x, hero.z);
   w.rollCd = BLINK.cd;

@@ -1,43 +1,50 @@
 // 진행 저장: 층에 들어갈 때의 상태(층·물약·장비·레벨). localStorage는 손상·조작될 수 있어 읽을 때 검증한다.
 import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
-import { AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
+import { UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats };
+export type Run = { pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats };
 const VERSION = 1;
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats });
+  return JSON.stringify({ v: VERSION, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
 
-// 한 부위의 옵션 목록: 최대 2개, 서로 다른 종류, 그 부위의 옵션, 값은 범위 안. 아니면 null
-function affixes(v: unknown, slot: Slot): Affix[] | null {
-  if (!Array.isArray(v) || v.length > 2) return null;
-  const out: Affix[] = [];
-  for (const a of v) {
+// 한 부위의 옵션 목록: 최대 2개, 서로 다른 종류, 그 부위의 옵션, 값은 범위 안. 스킬 옵션은 그 직업의 스킬·탭 0~2.
+// 고유 장비는 맨 앞의 표식(표에 있고, 부위·직업이 맞음) + 최대 3개(고정 1 + 무작위 2). 아니면 null
+function affixes(v: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
+  if (!Array.isArray(v)) return null;
+  const def0 = v[0]?.kind === 'unique' ? UNIQUES[v[0].u as UniqueId] : undefined;
+  if (v[0]?.kind === 'unique' && (!def0 || !Object.hasOwn(UNIQUES, v[0].u) || def0.slot !== slot || (def0.cls && def0.cls !== cls) || v[0].value !== 0)) return null;
+  if (v.length > (def0 ? 4 : 2)) return null;
+  const out: Affix[] = def0 ? [{ kind: 'unique', value: 0, u: v[0].u }] : [];
+  for (const a of def0 ? v.slice(1) : v) {
     const def = a && AFFIXES[a.kind as AffixKind];
     if (!def || !def.slots.includes(slot) || !int(a.value, def.lo, def.hi) || out.some((o) => o.kind === a.kind)) return null;
-    out.push({ kind: a.kind, value: a.value });
+    if (a.kind === 'skill' && SKILLS[a.skill as SkillId]?.cls !== cls) return null;
+    if (a.kind === 'tab' && !int(a.tab, 0, 2)) return null;
+    if (a.kind === 'unique') return null;
+    out.push({ kind: a.kind, value: a.value, ...(a.kind === 'skill' && { skill: a.skill }), ...(a.kind === 'tab' && { tab: a.tab }) });
   }
   return out;
 }
 
 // 보관함: 부위, 단계, 옵션, 자리(격자 안·겹치지 않음)를 확인. 아니면 null.
 // 격자가 생기기 전 저장(자리 없음)은 빈 자리에 차례로 놓고, 안 들어가는 장비는 판 값(refund)으로 돌려준다
-function bagItems(v: unknown): { bag: BagItem[]; refund: number } | null {
+function bagItems(v: unknown, cls: HeroClass): { bag: BagItem[]; refund: number } | null {
   if (!Array.isArray(v) || v.length > 100) return null;
   const bag: BagItem[] = [];
   let refund = 0;
   for (const it of v) {
     if (!it || !SLOTS.includes(it.kind) || !int(it.tier, 1, 4)) return null;
-    const list = affixes(it.affixes, it.kind);
+    const list = affixes(it.affixes, it.kind, cls);
     if (!list) return null;
     const g = { kind: it.kind as Slot, tier: it.tier as number, affixes: list };
     const old = it.x === undefined && it.y === undefined;
@@ -85,23 +92,26 @@ export function decodeSave(text: string | null): Run | null {
   const gold = d.gold ?? 0;
   const cycle = d.cycle ?? 0;
   if (!int(gold, 0, 1e7) || !int(cycle, 0, 1000)) return null;
-  const m0 = d.mods ?? { weapon: [], armor: [] };
-  const m = m0 && typeof m0 === 'object' ? ({ helm: [], boots: [], ...m0 } as Record<string, unknown>) : null;
-  const mods = m && Object.fromEntries(SLOTS.map((s) => [s, affixes(m[s], s)]));
-  if (!mods || !SLOTS.every((s) => mods[s])) return null;
-  // 보관함(나중에 생긴 항목: 없으면 빈 칸·자동 장착)
-  const bagged = bagItems(d.bag ?? []);
-  const autoEquip = d.autoEquip ?? true;
-  if (!bagged || typeof autoEquip !== 'boolean') return null;
-  // 직업(나중에 생긴 항목: 없으면 기사)
+  // 직업(나중에 생긴 항목: 없으면 기사). 스킬 옵션 검증에 필요해 먼저
   const cls = d.cls ?? 'knight';
   if (cls !== 'knight' && cls !== 'wizard' && cls !== 'ranger' && cls !== 'necromancer') return null;
+  const m0 = d.mods ?? { weapon: [], armor: [] };
+  const m = m0 && typeof m0 === 'object' ? ({ helm: [], boots: [], ...m0 } as Record<string, unknown>) : null;
+  const mods = m && Object.fromEntries(SLOTS.map((s) => [s, affixes(m[s], s, cls)]));
+  if (!mods || !SLOTS.every((s) => mods[s])) return null;
+  // 보관함(나중에 생긴 항목: 없으면 빈 칸·자동 장착)
+  const bagged = bagItems(d.bag ?? [], cls);
+  const pity = d.pity ?? 0; // 나중에 생긴 항목: 없으면 0
+  if (typeof pity !== 'number' || !(pity >= 0 && pity <= 1)) return null;
+  const autoEquip = d.autoEquip ?? true;
+  if (!bagged || typeof autoEquip !== 'boolean') return null;
   const skills = skillTree(d, cls);
   if (!skills) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
   return {
+    pity,
     cls,
     floor: d.floor as number,
     potions: d.potions as number,

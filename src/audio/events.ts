@@ -1,5 +1,5 @@
 // 프레임 사이 world 변화 → 효과음 이벤트. sim을 건드리지 않고 상태 차이만 본다.
-import type { Blast, Entity, Gear, Slot, World } from '../sim/world';
+import { uniqueOf, type Blast, type Entity, type Gear, type Slot, type World } from '../sim/world';
 
 export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
@@ -79,6 +79,9 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (w.gold > prev.gold) at('gold');
   if (w.bag.length > prev.bag) at('loot');
   if (w.items.some((i) => !prev.items.has(i.id))) at('loot', w.items[w.items.length - 1].x, w.items[w.items.length - 1].z);
+  // 전설·세트 장비가 떨어지거나(바닥) 보관함으로 바로 들어옴(보스)
+  const legend = w.items.find((i) => !prev.items.has(i.id) && uniqueOf({ affixes: i.affixes ?? [] })) ?? (w.bag.length > prev.bag && uniqueOf(w.bag[w.bag.length - 1]) && w.entities[0]);
+  if (legend) at('level_up', legend.x, legend.z);
   // 장착이 바뀜(단계나 옵션)
   const old = JSON.parse(prev.mods) as World['mods'];
   const changed = (s: Slot) => w.gear[s] !== prev.gear[s] || JSON.stringify(w.mods[s]) !== JSON.stringify(old[s]);

@@ -113,8 +113,37 @@ export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // amount: 금화 양(금화만)
 export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | Slot; tier: number; amount?: number; affixes?: Affix[] };
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
-export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move';
-export type Affix = { kind: AffixKind; value: number };
+// skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~2), unique = 고유 장비(전설·세트) 표식(u)
+export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique';
+export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId };
+
+// 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
+export type UniqueId = 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots';
+// name의 %는 그 단계의 기본 이름. cls: 그 직업일 때만 떨어진다. fixed: 고정 옵션(tab = 탭 하나 +1, tier1 = 1단계 스킬 하나 +1을 드롭 때 굴림).
+// look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER)
+export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
+  boomerang: { name: '돌아오는 도끼날', slot: 'weapon', cls: 'knight', fixed: [{ kind: 'skill', value: 2, skill: 'throw' }], desc: '도끼 던지기의 도끼가 끝에서 돌아오며 한 번 더 맞힌다' },
+  splitOrb: { name: '쪼개지는 구슬', slot: 'weapon', cls: 'wizard', fixed: [{ kind: 'skill', value: 2, skill: 'fireball' }], look: '#e8261c', desc: '화염구가 터지면 작은 화염구 3개가 사방으로 퍼진다' },
+  hawkHood: { name: '매의 눈 두건', slot: 'helm', cls: 'ranger', fixed: [{ kind: 'skill', value: 2, skill: 'pierce' }], look: '#1fb83c', desc: '관통 사격이 벽에 닿으면 한 번 튕긴다' },
+  boneShroud: { name: '뼈 왕의 수의', slot: 'armor', cls: 'necromancer', fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], desc: '해골 병사가 2마리 더 서고, 쓰러지면 그 자리가 터진다' },
+  duelist: { name: '결투자의 투구', slot: 'helm', fixed: ['tab'], look: '#1f5fe8', desc: '받아치기에 성공하면 모든 스킬 재사용 대기 −1초, 기력·마나 +15' },
+  emberStep: { name: '불꽃 걸음', slot: 'boots', fixed: ['tab'], desc: '구른 길에 2초 동안 불길이 남는다' },
+  berserker: { name: '광전사의 손잡이', slot: 'weapon', fixed: ['tier1'], desc: '잃은 체력만큼 공격 속도·스킬 피해 증가(최대 +40%)' },
+  crownless: { name: '왕관 없는 왕의 망토', slot: 'armor', fixed: [{ kind: 'allSkills', value: 1 }], look: '#f5c400', desc: '모든 스킬 +1, 대신 최대 체력 −15%' },
+  hunterWeapon: { name: '정예 사냥꾼의 %', slot: 'weapon', set: true, fixed: [{ kind: 'dmg', value: 20 }], desc: '' },
+  hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: true, fixed: [{ kind: 'life', value: 25 }], desc: '' },
+  hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: true, fixed: ['tab'], desc: '' },
+  hunterBoots: { name: '정예 사냥꾼의 장화', slot: 'boots', set: true, fixed: [{ kind: 'move', value: 8 }], desc: '' },
+};
+export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
+// 등급 색(index.html의 --legend·--set과 같다): 빛기둥·지도 점
+export const UNIQUE_COLOR = { legend: '#ff8c1a', set: '#3fdc5a' };
+// 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
+export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100 };
+// 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
+export const SET_HUNTER = { dmg: 1.25, res: 30, time: 20, leech: 0.1, blastR: 1.2, blastMult: 1.5, aura: 1.3, allyLife: 10, allyMax: 3 };
+// 전설 효과 수치
+export const LEGEND_FX = { orbs: 3, orbMult: 0.4, bones: 2, boneBlastR: 1.2, boneBlast: 1.5, duelCd: 1, duelRes: 15, emberTime: 2, rage: 0.4, cloakHp: 0.85 };
 
 // 장비 하나(부위·단계·옵션)
 export type GearItem = { kind: Slot; tier: number; affixes: Affix[] };
@@ -141,7 +170,7 @@ export type Chest = { id: number; x: number; z: number; open: boolean };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
 // 주인공 것(몬스터만 맞음): axe = 도끼, bolt = 마법사 마력탄(평타), fireball = 마법사 화염구
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number }; // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계·도끼 폭풍), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number; back?: boolean; small?: boolean; ricochet?: boolean }; // back: 돌아오는 도끼날로 되돌아오는 중, small: 쪼개진 작은 화염구, ricochet: 매의 눈 두건으로 이미 튕김 // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계·도끼 폭풍), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
 export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge'; age: number }; // back = 공포로 도망치는 적
@@ -219,6 +248,8 @@ export type World = {
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
   throwCd: number; // 도끼 던지기 재사용까지(초)
   rollCd: number; // 구르기 재사용까지(초)
+  pity: number; // 고유 장비 운 보정: 정예를 잡고 못 얻을 때마다 쌓이는 확률(얻으면 0). 층·저장으로 넘긴다
+  trophies: Partial<Record<EliteKind, number>>; // 정예 사냥꾼 4부위: 잡은 정예에게서 얻은 특성의 남은 초
   res: number; // 기력·마나(직업에 따라 RESOURCE). 스킬 비용을 내고 저절로 찬다. 층 시작·레벨업 때 가득
   ranks: Partial<Record<SkillId, number>>; // 배운 스킬의 단계 1~RANK_MAX(없으면 안 배움). 새 판은 첫 탭 1단계 스킬만 1(startSkill)
   points: number; // 남은 스킬 포인트(레벨업마다 1)
@@ -276,7 +307,8 @@ export const monsterName = (e: Entity) => (e.skin ? SKINS[e.skin].name : STATS[e
 export const ELITE_FX = { swiftMove: 1.35, swiftAttack: 1.25, leech: 2, blastDelay: 1.2, blastMult: 1.5, auraRange: 5, auraDmg: 1.3, split: 2 };
 // 마법 옵션: 붙는 부위들, 이름(접두어), 값 범위. dmg·speed·leech·crit·guard·thorns·move는 %, life는 체력, regen은 초당 1/10.
 // 여러 부위에 붙은 같은 옵션은 더한다
-export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: number; hi: number }> = {
+// skill은 이름(접두어) 없이 줄로만 보인다. special = 무작위 옵션 후보가 아니다(탭은 희귀가 따로 굴리고, 모든 스킬·고유는 전설만)
+export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: number; hi: number; special?: true }> = {
   dmg: { slots: ['weapon'], name: '날카로운', lo: 15, hi: 30 },
   speed: { slots: ['weapon'], name: '신속한', lo: 8, hi: 15 },
   leech: { slots: ['weapon'], name: '흡혈의', lo: 4, hi: 8 },
@@ -286,7 +318,15 @@ export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: numbe
   regen: { slots: ['armor', 'boots'], name: '재생의', lo: 5, hi: 15 },
   thorns: { slots: ['armor', 'helm'], name: '가시', lo: 20, hi: 40 },
   move: { slots: ['boots'], name: '날랜', lo: 5, hi: 10 },
+  skill: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 2 },
+  tab: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 1, special: true },
+  allSkills: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 1, special: true },
+  unique: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 0, hi: 0, special: true },
 };
+// 스킬 옵션 굴림: 희귀(옵션 2개)는 tab 확률로 옵션 하나를 탭 +1로, 스킬 +2는 희귀에서 two 확률
+export const SKILL_AFFIX = { tab: 0.15, two: 0.25 };
+// 초월: 장비 보너스로 RANK_MAX 위로 오를 수 있는 단계 수
+export const RANK_OVER = 2;
 // 옵션 0·1·2개(일반·마법·희귀) 확률. boosted = 정예·해골 왕
 export const QUALITY = { normal: [0.6, 0.32, 0.08], boosted: [0, 0.7, 0.3] };
 

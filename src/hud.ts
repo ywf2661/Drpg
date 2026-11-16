@@ -15,13 +15,13 @@ import wizardPortrait from './assets/sprites/portrait_wizard.png';
 import rangerPortrait from './assets/sprites/portrait_ranger.png';
 import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
-import { drawHeroPortrait, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
+import { drawHeroPortrait, looksOf, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, gearTable, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -261,21 +261,24 @@ function skillLines(w: World, id: SkillId): string[] {
   const t = SKILL_TEXT[id];
   const r = w.ranks[id] ?? 0;
   const at = (n: number) => t.stat?.({ ...w, ranks: { ...w.ranks, [id]: n } }) ?? '';
-  return [t.desc, isPassive(id) ? '' : `비용: ${resName(w.cls)} ${skillCost(w.cls, id)}`, r ? `현재: ${at(r)}` : `배우면: ${at(1)}`, r && r < RANK_MAX ? `다음 단계: ${at(r + 1)}` : '', t.cap ? `5단계 달성 시: ${t.cap}${r >= RANK_MAX ? ' ✓' : ''}` : ''].filter(Boolean);
+  return [t.desc, isPassive(id) ? '' : `비용: ${resName(w.cls)} ${skillCost(w.cls, id)}`, r ? `현재: ${at(r)}` : `배우면: ${at(1)}`, r && r < RANK_MAX ? `다음 단계: ${at(r + 1)}` : '', t.cap ? `5단계 달성 시: ${t.cap}${mastered(w, id) ? ' ✓' : ''}` : '', r && gearBonus(w, id) ? `장비: +${rank(w, id) - r}단계${rank(w, id) > RANK_MAX ? ' (초월)' : ''}` : ''].filter(Boolean);
 }
 
 // 스킬 버튼: 끼운 스킬의 그림·단계·[+]·툴팁(칸·단계·포인트가 바뀔 때만 다시 씀)
 const SKILL_PX = matchMedia('(pointer: coarse)').matches ? 56 : 40; // 터치 화면은 버튼이 크다(index.html의 @media (pointer: coarse))
 let shownKeys = '';
 function showKeys(w: World) {
-  const key = JSON.stringify([w.ranks, w.points, w.keys, w.level]);
+  const key = JSON.stringify([w.ranks, w.points, w.keys, w.level, w.mods]);
   if (key === shownKeys) return;
   shownKeys = key;
   for (const [btn, k] of SKILL_BUTTONS()) {
     const id = w.keys[k];
     const r = id ? (w.ranks[id] ?? 0) : 0;
     paintIcon(btn, id, SKILL_PX);
-    btn.querySelector('.rank')!.textContent = r ? String(r) : '';
+    const rk = btn.querySelector<HTMLElement>('.rank')!;
+    rk.textContent = id && r ? String(rank(w, id)) : '';
+    rk.classList.toggle('boost', !!id && rank(w, id) > r); // 장비 보너스: 초록, 초월(6·7): 금색
+    rk.classList.toggle('over', !!id && rank(w, id) > RANK_MAX);
     btn.classList.toggle('locked', !id);
     const up = !!id && !learnBlock(w, id);
     btn.classList.toggle('can', up || (!id && !!w.points));
@@ -313,7 +316,10 @@ export function showTree(w: World, h: { learn(id: SkillId): void; bind(key: Skil
         paintIcon(icon, id, 32);
         const body = el('div', 'body');
         const head = el('div', 'head');
-        head.append(el('b', '', SKILL_TEXT[id].name), el('span', 'lv', `${r}/${RANK_MAX}`));
+        const lv = el('span', 'lv', `${r}/${RANK_MAX}`);
+        const extra = r ? rank(w, id) - r : 0;
+        if (extra) lv.append(el('em', rank(w, id) > RANK_MAX ? 'over' : 'boost', ` +${extra} → ${rank(w, id)}`)); // 장비 보너스(초록), 초월(금색)
+        head.append(el('b', '', SKILL_TEXT[id].name), lv);
         if (isPassive(id)) head.append(el('i', '', '패시브'));
         if (!block) {
           const up = el('button', 'up', '+');
@@ -349,7 +355,11 @@ export function showTree(w: World, h: { learn(id: SkillId): void; bind(key: Skil
 }
 
 // 옵션 한 줄 설명
-const AFFIX_TEXT: Record<Affix['kind'], (v: number) => string> = {
+// 스킬 옵션: 대상 스킬·탭 이름, 안 배운 스킬이면 표시(learned는 장비 칸·보관함을 그릴 때 맞춘다)
+let learned: World['ranks'] = {};
+let setNow = 0; // 입은 정예 사냥꾼 조각 수(세트 줄을 밝힐 때)
+const skillAffix = (a: Affix) => `${SKILL_TEXT[a.skill!].name} +${a.value}${learned[a.skill!] ? '' : ' (배우지 않음)'}`;
+const AFFIX_TEXT: Record<Affix['kind'], (v: number, a: Affix) => string> = {
   dmg: (v) => `데미지 +${v}%`,
   speed: (v) => `공격 속도 +${v}%`,
   leech: (v) => `준 피해의 ${v}% 회복`,
@@ -359,7 +369,17 @@ const AFFIX_TEXT: Record<Affix['kind'], (v: number) => string> = {
   regen: (v) => `초당 체력 ${v / 10} 회복`,
   thorns: (v) => `근접 피해 ${v}% 반사`,
   move: (v) => `이동 속도 +${v}%`,
+  skill: (_, a) => skillAffix(a),
+  tab: (v, a) => `${TREES[cls][a.tab!].name} 스킬 +${v}`,
+  allSkills: (v) => `모든 스킬 +${v}`,
+  unique: () => '',
 };
+
+// 정예 사냥꾼 세트 효과 줄(입은 수만큼 ●)
+const SET_LINES: [number, string][] = [
+  [2, `정예·보스에게 주는 피해 +${Math.round((SET_HUNTER.dmg - 1) * 100)}%, 정예를 잡으면 기력·마나 +${SET_HUNTER.res}`],
+  [4, `정예를 잡으면 ${SET_HUNTER.time}초 동안 그 정예의 특성을 얻는다`],
+];
 
 // 장비의 수치·옵션 설명 줄들
 function gearLines(it: GearItem): string[] {
@@ -372,7 +392,9 @@ function gearLines(it: GearItem): string[] {
     helm: `최대 체력 +${c.helms[t].hp}`,
     boots: `이동 속도 +${Math.round(c.boots[t].move * 100)}%`,
   }[it.kind];
-  return [base, ...it.affixes.map((a) => AFFIX_TEXT[a.kind](a.value))];
+  const u = uniqueOf(it);
+  const set = u && UNIQUES[u].set ? [`정예 사냥꾼 (${setNow}/4)`, ...SET_LINES.map(([n, t]) => `${setNow >= n ? '●' : '○'} ${n}부위: ${t}`)] : [];
+  return [base, ...(u && UNIQUES[u].desc ? [`★ ${UNIQUES[u].desc}`] : []), ...it.affixes.map((a) => AFFIX_TEXT[a.kind](a.value, a)), ...set].filter(Boolean);
 }
 
 // 장비 아이콘 위치(gear_icons.png = 무기 4 + 갑옷 4 + 투구 4 + 신발 4)
@@ -380,12 +402,14 @@ const iconX = (it: GearItem) => `${-(SLOTS.indexOf(it.kind) * 4 + it.tier - 1) *
 
 // 장비 칸: 아이콘과 이름·수치·옵션(툴팁)
 function showGear(w: World) {
+  learned = w.ranks;
+  setNow = setCount(w);
   for (const kind of SLOTS) {
     const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
     const slot = gearSlots[kind];
     slot.style.backgroundPositionX = iconX(it);
     slot.title = `${nameOf(it.kind, it.tier, it.affixes)}\n${gearLines(it).join('\n')}\n눌러서 보관함 열기`;
-    slot.dataset.q = String(it.affixes.length);
+    slot.dataset.q = String(quality(it));
   }
 }
 
@@ -415,9 +439,9 @@ function gearRow(it: GearItem, mark: string, buttons: [string, () => void][]) {
   const icon = Object.assign(document.createElement('div'), { className: 'slot' });
   icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
   icon.style.backgroundPositionX = iconX(it);
-  icon.dataset.q = String(it.affixes.length);
+  icon.dataset.q = String(quality(it));
   const info = document.createElement('div');
-  const name = Object.assign(document.createElement('b'), { className: `q${it.affixes.length}`, textContent: nameOf(it.kind, it.tier, it.affixes) + mark });
+  const name = Object.assign(document.createElement('b'), { className: `q${quality(it)}`, textContent: nameOf(it.kind, it.tier, it.affixes) + mark });
   info.append(name, Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }));
   row.append(icon, info);
   for (const [text, fn] of buttons) {
@@ -440,14 +464,14 @@ const DOLL_SCALE = 5;
 function showDoll(w: World, mark: (it: GearItem) => string, onPick: (s: Slot) => void) {
   const doll = $('#doll');
   const hero = doll.querySelector('canvas')!;
-  void setHeroGear(w.gear, w.cls).then(() => drawHeroPortrait(hero, DOLL_SCALE));
+  void setHeroGear(w.gear, w.cls, looksOf(w)).then(() => drawHeroPortrait(hero, DOLL_SCALE));
   doll.replaceChildren(
     hero,
     ...SLOTS.map((kind) => {
       const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
       const el = Object.assign(document.createElement('div'), { className: `slot doll-slot${selected === kind ? ' sel' : ''}`, title: `${SLOT_NAME[kind]}: ${nameOf(kind, it.tier, it.affixes)}${mark(it)}\n${gearLines(it).join('\n')}` });
       el.dataset.slot = kind;
-      el.dataset.q = String(it.affixes.length);
+      el.dataset.q = String(quality(it));
       el.dataset.name = SLOT_NAME[kind];
       el.style.left = `${(DOLL_AT[kind][0] / PORTRAIT.w) * 100}%`;
       el.style.top = `${(DOLL_AT[kind][1] / PORTRAIT.h) * 100}%`;
@@ -469,6 +493,8 @@ function dollUnder(el: HTMLElement, kind: Slot, x: number, y: number): HTMLEleme
 
 // 보관함 창: 격자에 놓인 장비를 누르면 고르고, 끌면 옮기고(인형 칸에 놓으면 입는다), 우클릭하면 입는다. 고친 뒤에는 다시 불러 갱신한다
 export function showBag(w: World, h: { equip(i: number): boolean; discard(i: number): void; move(i: number, x: number, y: number): void; auto(on: boolean): void }) {
+  learned = w.ranks;
+  setNow = setCount(w);
   const mark = (it: GearItem) => {
     const d = gearDiff(w, it);
     return d > 1e-9 ? ' ▲' : d < -1e-9 ? ' ▼' : '';
@@ -491,7 +517,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
     ...w.bag.map((it, i) => {
       const size = gearSize(it);
       const el = Object.assign(document.createElement('div'), { className: i === selected ? 'bag-item sel' : 'bag-item', title: `${nameOf(it.kind, it.tier, it.affixes)}${mark(it)}\n${gearLines(it).join('\n')}` });
-      el.dataset.q = String(it.affixes.length);
+      el.dataset.q = String(quality(it));
       el.style.gridArea = area(it.x, it.y, size);
       const icon = document.createElement('i');
       icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
@@ -554,12 +580,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
 // 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, '다음 층으로'는 onLeave, '이 층에 남기'·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다
 export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void) {
   cls = c.cls;
-  const next = (t: number) => (t < 4 ? `(${t + 1}단계)` : '(최고 단계)');
-  const label = (item: ShopItem) => {
-    if (item === 'potion') return `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`;
-    const [t, names] = [c.gear[item], gearTable(cls)[item]];
-    return `${SLOT_NAME[item]} 강화: ${names[t - 1].name}${t < 4 ? ` → ${names[t].name}` : ''} <small>${next(t)}</small>`;
-  };
+  const label = (_item: ShopItem) => `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`;
   shopGold.textContent = String(c.gold);
   shopItems.replaceChildren(
     ...offers(c).map((o) => {
@@ -575,7 +596,7 @@ export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem)
     ...c.bag.map((it, i) => {
       const b = document.createElement('button');
       b.append(
-        Object.assign(document.createElement('span'), { className: `q${it.affixes.length}`, textContent: nameOf(it.kind, it.tier, it.affixes) }),
+        Object.assign(document.createElement('span'), { className: `q${quality(it)}`, textContent: nameOf(it.kind, it.tier, it.affixes) }),
         ` — 금화 ${sellPrice(it)}`,
         Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }),
       );
@@ -622,6 +643,16 @@ function showAllies(w: World) {
   }
 }
 
+// 정예 사냥꾼 4부위로 얻은 특성: 이름·남은 초(특성 색). 바뀔 때만 다시 쓴다
+let shownTrophies = '';
+function showTrophies(w: World) {
+  const list = (Object.keys(w.trophies) as (keyof World['trophies'])[]).map((k) => [k, Math.ceil(w.trophies[k]!)] as const);
+  const key = JSON.stringify(list);
+  if (key === shownTrophies) return;
+  shownTrophies = key;
+  $('#trophies').replaceChildren(...list.map(([k, t]) => Object.assign(document.createElement('span'), { textContent: `${ELITE_KINDS[k].name} ${t}`, title: ELITE_KINDS[k].desc, style: `color: ${ELITE_KINDS[k].color}` })));
+}
+
 export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats, lostGold = 0) {
   const hero = world.entities[0];
   if (world !== shownWorld) {
@@ -635,6 +666,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownGatesOpen = 0;
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
+  showTrophies(world);
   danger.style.opacity = String(hero.state === 'dead' ? 0 : Math.min(1, Math.max(0, 1 - hero.hp / hero.maxHp / DANGER) * 1.5)); // 약 12% 아래에서 가장 짙다
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
   resFill.style.width = `${(world.res / resMax(world)) * 100}%`;
@@ -673,7 +705,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     }
     shownGear = key;
     showGear(world);
-    void setHeroGear(world.gear, world.cls);
+    void setHeroGear(world.gear, world.cls, looksOf(world));
   }
   // 장착 알림이 없을 때만 줍기 알림(자동 장착은 벗은 장비가 보관함으로 들어온다)
   const got = world.bag.at(-1);

@@ -17,6 +17,11 @@ export function impact(n: number) {
   rumble(f.shake);
 }
 
+// 전설·세트 장비가 떨어진 순간: 잠깐 멈춤
+export function pause(s: number) {
+  hitstop = Math.max(hitstop, s);
+}
+
 export function rumble(m: number) {
   if (!calm) shake = Math.max(shake, m);
 }

@@ -12,10 +12,10 @@ import snowWallUrl from '../assets/tiles/wall_snow.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
-import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncGates, syncItems, syncShots, updateProps } from './props';
+import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
-import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -156,7 +156,7 @@ export async function initRender(world: World, theme: Theme) {
   scene.add(zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
-  const [f, w, cf, cw, ff, fw, sf, sw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls)]);
+  const [f, w, cf, cw, ff, fw, sf, sw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
   tex.dungeon = { floor: f, wall: w };
   tex.cave = { floor: cf, wall: cw };
   tex.field = { floor: ff, wall: fw };
@@ -252,6 +252,7 @@ export function draw(world: World, dt: number) {
   cutaway(hero.x, hero.z);
   syncItems(world);
   syncShots(world);
+  syncComets(world);
   syncEffects(world);
   syncZones(world);
   syncFires(world, time);

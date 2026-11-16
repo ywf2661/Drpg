@@ -1,6 +1,6 @@
 // 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급(일반·마법·희귀), 지금보다 좋으면 ▲.
 import * as THREE from 'three';
-import { AFFIXES, gearTable, isBetter, type Affix, type HeroClass, type Item, type Slot, type World } from '../sim/world';
+import { AFFIXES, gearTable, isBetter, quality, UNIQUES, uniqueOf, type Affix, type HeroClass, type Item, type Slot, type World } from '../sim/world';
 
 const SHOW = 9; // 주인공에서 이 거리(m) 안의 장비만
 const LIFT = 0.6; // 이름표 높이(m)
@@ -8,18 +8,20 @@ const pool: HTMLDivElement[] = [];
 const v = new THREE.Vector3();
 let layer: HTMLElement;
 
-// 장비 이름: 옵션 접두어들 + 기본 이름(예: '날카로운 신속한 롱소드')
+// 장비 이름: 옵션 접두어들 + 기본 이름(예: '날카로운 신속한 롱소드'). 고유 장비는 고유 이름(%는 기본 이름), 스킬 옵션은 접두어가 없다
 export function gearName(kind: Slot, tier: number, affixes: Affix[], cls: HeroClass = 'knight'): string {
   const base = gearTable(cls)[kind][tier - 1].name;
-  return [...affixes.map((a) => AFFIXES[a.kind].name), base].join(' ');
+  const u = uniqueOf({ affixes });
+  if (u) return UNIQUES[u].name.replace('%', base);
+  return [...affixes.map((a) => AFFIXES[a.kind].name).filter(Boolean), base].join(' ');
 }
 
-// 바닥 이름표. quality = 옵션 수(0 일반·1 마법·2 희귀), better = 지금 장착한 것보다 나은가
+// 바닥 이름표. quality = 등급(0 일반·1 마법·2 희귀·3 전설·4 세트), better = 지금 장착한 것보다 나은가
 export function itemLabel(it: Item, w: World): { text: string; better: boolean; quality: number } | null {
   if (it.kind === 'potion') return null;
   if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false, quality: 0 };
   const affixes = it.affixes ?? [];
-  return { text: gearName(it.kind, it.tier, affixes, w.cls), better: isBetter(w, it), quality: affixes.length };
+  return { text: gearName(it.kind, it.tier, affixes, w.cls), better: isBetter(w, it), quality: quality({ affixes }) };
 }
 
 export function initLabels(el: HTMLElement) {

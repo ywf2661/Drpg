@@ -1,7 +1,7 @@
 // 소품·계단·바닥 물약·화로 불빛. 모두 캐릭터와 같은 세로 판자(발 아래는 바닥에 눕힘), 화로마다 점광원 1개.
-import { rumble } from './feel';
+import { pause, rumble } from './feel';
 import * as THREE from 'three';
-import type { HeroClass, Item, Prop, World } from '../sim/world';
+import { COMET, quality, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
 import lootUrl from '../assets/sprites/loot.png';
 import arrowInfo from '../assets/sprites/arrow.json';
@@ -77,6 +77,16 @@ const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃
 let cards: Card[] = [];
 let group = new THREE.Group();
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
+// 전설·세트 장비의 빛기둥(바닥 아이템 id → 기둥). 위로 갈수록 옅은 원기둥, 가산 혼합
+const pillars = new Map<number, THREE.Mesh>();
+const PILLAR = { h: 5, stop: 0.3, shake: 0.25 };
+const PILLAR_GEO = new THREE.CylinderGeometry(0.1, 0.28, PILLAR.h, 12, 1, true).translate(0, PILLAR.h / 2, 0);
+{
+  // 아래가 진하고 위가 옅도록 꼭짓점 색으로 바랜다
+  const pos = PILLAR_GEO.attributes.position;
+  const fade = new Float32Array(pos.count * 3).map((_, i) => 1 - pos.getY(Math.floor(i / 3)) / PILLAR.h);
+  PILLAR_GEO.setAttribute('color', new THREE.BufferAttribute(fade, 3));
+}
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
 let chestCards: { card: Card; name: string }[] = []; // 상자 판자(world.chests 순서)와 닫힌 그림 이름
 const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
@@ -497,6 +507,55 @@ function syncTraps(world: World) {
   }
 }
 
+// 운석(마법사): 떨어지기까지 하늘에서 거의 곧장(조금 화면 왼쪽 위 -x에서) 내려오는 큰 화염구 + 떨어질 자리의 주황 원(차오르면 떨어진다).
+// sim의 world.volleys 중 blast 'fire'(운석뿐)를 읽기만 한다. 볼리에 id가 없어 순서대로 판자를 돌려 쓴다
+export const COMET_FALL = { h: 4.2, back: 1.2, size: 2.4 }; // 높이·옆으로 비껴 오는 거리(m): PC 화면(주인공 위 약 5m가 화면 끝)에서도 시작부터 보이게
+// 떨어지는 화염구 위치 [x, y, z]와 진행도(0 시전 → 1 떨어짐). 떨어질수록 빨라진다
+export function cometAt(v: { x: number; z: number; t: number }): [number, number, number, number] {
+  const p = Math.min(1, Math.max(0, 1 - v.t / COMET.delay));
+  const left = 1 - p * p;
+  return [v.x - COMET_FALL.back * left, COMET_FALL.h * left, v.z, p];
+}
+const flatMat = (color: number, opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false });
+const COMET_RING = new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2);
+const COMET_DISC = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
+const COMET_MATS = { ring: flatMat(0xffa030, 0.9), area: flatMat(0xff8a20, 0.12), fill: flatMat(0xffb040, 0.3) };
+let comets: { c: Card; mark: THREE.Group; fill: THREE.Mesh }[] = [];
+let cometsFalling = 0; // 지난 프레임에 떨어지는 중이던 운석 수(줄면 떨어진 것)
+const COMET_HIT = { shake: 0.35, stop: 0.07 }; // 떨어진 순간: 살짝 쿵(함성 흔들림 0.3, 스킬 타격 최대 0.45)
+
+export function syncComets(world: World) {
+  const list = world.volleys.filter((v) => v.blast === 'fire');
+  if (list.length < cometsFalling) {
+    rumble(COMET_HIT.shake);
+    pause(COMET_HIT.stop);
+  }
+  cometsFalling = list.length;
+  list.forEach((v, i) => {
+    let m = comets[i];
+    if (!m) {
+      const c = card(fireballFx, 'fireball', v.x, v.z, false);
+      c.dir = dirIndex(Math.atan2(1, 1)); // 화면 아래(카메라 쪽)로 머리를 둔 그림: 꼬리가 위로 끌린다
+      c.glow = 1;
+      c.mesh.scale.setScalar(COMET_FALL.size);
+      c.mesh.renderOrder = 2;
+      const fill = new THREE.Mesh(COMET_DISC, COMET_MATS.fill);
+      const mark = new THREE.Group().add(new THREE.Mesh(COMET_DISC, COMET_MATS.area), fill, new THREE.Mesh(COMET_RING, COMET_MATS.ring));
+      mark.traverse((o) => (o.renderOrder = 1)); // 바닥 다음, 캐릭터 전에
+      cards.push(c);
+      group.add(c.mesh, mark);
+      comets[i] = m = { c, mark, fill };
+    }
+    const [x, y, z, p] = cometAt(v);
+    m.c.mesh.position.set(x, y, z);
+    m.mark.position.set(v.x, 0.04, v.z);
+    m.mark.scale.setScalar(v.r);
+    m.fill.scale.setScalar(Math.max(0.001, p));
+    m.c.mesh.visible = m.mark.visible = true;
+  });
+  for (const m of comets.slice(list.length)) m.c.mesh.visible = m.mark.visible = false;
+}
+
 // 날아가는 화살 판자를 world.shots에 맞춘다(위치는 매 프레임)
 export function syncShots(world: World) {
   const live = new Set(world.shots.map((s) => s.id));
@@ -527,6 +586,12 @@ export function syncShots(world: World) {
 // 바닥 아이템 판자를 world.items에 맞춘다. 새 아이템은 떨어지는 애니메이션부터
 export function syncItems(world: World) {
   const live = new Set(world.items.map((it) => it.id));
+  for (const [id, p] of pillars) {
+    if (live.has(id)) continue;
+    p.removeFromParent();
+    (p.material as THREE.Material).dispose();
+    pillars.delete(id);
+  }
   for (const [id, c] of items) {
     if (live.has(id)) continue;
     c.mesh.removeFromParent();
@@ -543,6 +608,16 @@ export function syncItems(world: World) {
     items.set(it.id, c);
     cards.push(c);
     group.add(c.mesh);
+    const q = it.kind === 'potion' || it.kind === 'gold' ? 0 : quality({ affixes: it.affixes ?? [] });
+    if (q < 3) continue;
+    const mat = new THREE.MeshBasicMaterial({ color: q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+    const p = new THREE.Mesh(PILLAR_GEO, mat);
+    p.position.set(it.x, 0, it.z);
+    p.renderOrder = 3;
+    pillars.set(it.id, p);
+    group.add(p);
+    pause(PILLAR.stop); // 떨어진 순간 잠깐 멈춘다
+    rumble(PILLAR.shake);
   }
 }
 
@@ -550,6 +625,10 @@ export function syncItems(world: World) {
 export function buildProps(world: World): THREE.Group {
   cards.forEach(free);
   items.clear();
+  comets = []; // 판자는 위에서 풀렸다
+  cometsFalling = 0;
+  for (const p of pillars.values()) (p.material as THREE.Material).dispose();
+  pillars.clear();
   shots.clear();
   effects = [];
   resetWard();

@@ -2,8 +2,8 @@
 // 뼈(뼈 창·뼈 갑옷·생명 흡수·뼈 감옥). 스페이스는 기사 구르기. 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다.
 // 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
-import { BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
-import { clearLine, dist, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
+import { LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
+import { hasUnique, clearLine, dist, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
 import { burst, openGate } from './abilities';
 import { aimDir, blast, foes, spot, stun } from './wizard';
 
@@ -11,7 +11,7 @@ type BoneKind = keyof typeof BONE_KINDS;
 export function bonesStat(w: World) {
   const r = w.ranks.bones ?? 1;
   const m = rank(w, 'boneMastery'); // 해골 숙련
-  const count = BONES.count + (r >= 3 ? 1 : 0) + (mastered(w, 'bones') ? 1 : 0) + (m >= BONE_MASTERY.at ? 1 : 0);
+  const count = BONES.count + (r >= 3 ? 1 : 0) + (mastered(w, 'bones') ? 1 : 0) + (m >= BONE_MASTERY.at ? 1 : 0) + (hasUnique(w, 'boneShroud') ? LEGEND_FX.bones : 0); // 뼈 왕의 수의
   // 검사 → 궁수 → 법사 순서로 되풀이. 궁수·법사는 단계가 올라야 섞인다
   const kinds = Array.from({ length: count }, (_, k): BoneKind => (k % 3 === 1 && r >= BONES.archerAt ? 'archer' : k % 3 === 2 && r >= BONES.mageAt ? 'mage' : 'minion'));
   return {
@@ -165,6 +165,11 @@ export function tickAllies(w: World, hero: Entity) {
   for (const a of w.allies) {
     if (!gone(a)) continue;
     blast(w, 'blink', a.x, a.z);
+    if (isBone(a) && hasUnique(w, 'boneShroud')) {
+      // 뼈 왕의 수의: 해골이 쓰러지면 그 자리가 터진다
+      blast(w, 'fire', a.x, a.z);
+      for (const e of foes(w, hero)) if (dist(e, a) <= LEGEND_FX.boneBlastR) hurt(w, e, Math.round(roll(w, hero) * a.mult * LEGEND_FX.boneBlast), hero);
+    }
     if (a.kind !== 'warrior' || !mastered(w, 'giant')) continue;
     // 시체 거인 5단계: 쓰러지며 터진다
     blast(w, 'fire', a.x, a.z);

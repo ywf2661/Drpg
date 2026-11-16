@@ -1,6 +1,6 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
 import * as THREE from 'three';
-import { ELITE_KINDS, STATS, type Entity, type Gear, type HeroClass, type Kind, type Skin, type Slot } from '../sim/world';
+import { ELITE_KINDS, SLOTS, STATS, UNIQUES, uniqueOf, type Entity, type Gear, type HeroClass, type Kind, type Skin, type Slot, type World } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
 import heroOrder from '../assets/sprites/hero_layers.json';
 import minionInfo from '../assets/sprites/minion.json';
@@ -134,17 +134,52 @@ function pixelated<T extends THREE.Texture>(tex: T): T {
   return tex;
 }
 
-// 장비 조합의 주인공 시트: 레이어 그림을 행(동작 × 방향)마다 그 방향의 순서로 겹친다.
+// 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색
+export type Looks = Partial<Record<Slot, string>>;
+export function looksOf(w: Pick<World, 'mods'>): Looks {
+  const out: Looks = {};
+  for (const s of SLOTS) {
+    const u = uniqueOf({ affixes: w.mods[s] });
+    if (u && UNIQUES[u].look) out[s] = UNIQUES[u].look;
+  }
+  return out;
+}
+export const heroKey = (g: Gear, cls: HeroClass, looks: Looks) => JSON.stringify([g, cls, looks]);
+
+// 레이어 그림을 원색으로: 'color' 합성(명암은 그대로, 색상·채도만 바꿈) 뒤 원래 그림의 투명도로 잘라낸다. url + 색마다 한 번
+const tintedLayers = new Map<string, Promise<HTMLCanvasElement>>();
+function tinted(url: string, color: string): Promise<HTMLCanvasElement> {
+  const key = `${url}|${color}`;
+  if (!tintedLayers.has(key))
+    tintedLayers.set(
+      key,
+      layerImages.get(url)!.then((img) => {
+        const c = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+        const x = c.getContext('2d')!;
+        x.drawImage(img, 0, 0);
+        x.globalCompositeOperation = 'color';
+        x.fillStyle = color;
+        x.fillRect(0, 0, c.width, c.height);
+        x.globalCompositeOperation = 'destination-in';
+        x.drawImage(img, 0, 0);
+        return c;
+      }),
+    );
+  return tintedLayers.get(key)!;
+}
+
+// 장비 조합의 주인공 시트: 레이어 그림을 행(동작 × 방향)마다 그 방향의 순서로 겹친다. 원색 전설을 입은 부위의 레이어는 물들인다.
 // ponytail: 조합은 캐시하지 않는다(256가지 × 15MB). 갈아입을 때마다 수 ms 다시 그린다
-async function heroSheet(g: Gear, cls: HeroClass): Promise<THREE.Texture> {
+async function heroSheet(g: Gear, cls: HeroClass, looks: Looks): Promise<THREE.Texture> {
   const info = SHEETS.hero.info;
-  const imgs: Record<string, HTMLImageElement> = {};
+  const imgs: Record<string, CanvasImageSource> = {};
   await Promise.all(
     Object.keys(HERO_LAYERS).map(async (l) => {
       const url = layerUrl(l, g, cls);
       if (!url) return; // 그 직업에 없는 레이어
       if (!layerImages.has(url)) layerImages.set(url, new THREE.ImageLoader().loadAsync(url));
-      imgs[l] = await layerImages.get(url)!;
+      const color = looks[HERO_LAYERS[l]];
+      imgs[l] = color ? await tinted(url, color) : await layerImages.get(url)!;
     }),
   );
   const [w, ch] = [info.cols * info.cell[0], info.cell[1]];
@@ -159,17 +194,17 @@ export async function loadSprites() {
 }
 
 // 장비 조합의 주인공 시트로 바꾼다. 불러오는 동안은 이전 외형, 여러 번 바뀌면 마지막 요청만 적용
-export function setHeroGear(g: Gear, cls: HeroClass = 'knight'): Promise<void> {
-  const key = JSON.stringify([g, cls]);
+export function setHeroGear(g: Gear, cls: HeroClass = 'knight', looks: Looks = {}): Promise<void> {
+  const key = heroKey(g, cls, looks);
   if (key !== heroWanted) {
     heroWanted = key;
-    heroReady = applyHeroGear({ ...g }, cls, key);
+    heroReady = applyHeroGear({ ...g }, cls, { ...looks }, key);
   }
   return heroReady;
 }
 
-async function applyHeroGear(g: Gear, cls: HeroClass, key: string) {
-  const tex = await heroSheet(g, cls);
+async function applyHeroGear(g: Gear, cls: HeroClass, looks: Looks, key: string) {
+  const tex = await heroSheet(g, cls, looks);
   if (heroWanted !== key) return tex.dispose();
   textures.get('hero')?.dispose();
   textures.set('hero', tex);

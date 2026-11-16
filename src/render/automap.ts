@@ -1,5 +1,5 @@
 // 자동 지도: 횃불 반경 안에 들어온 칸을 층마다 기록해 오른쪽 위에 화면과 같은 방향(마름모)으로 그린다.
-import type { World } from '../sim/world';
+import { quality, UNIQUE_COLOR, type World } from '../sim/world';
 
 const SEE = 7; // 기록 반경(m). ponytail: 시야선 없이 원으로 판정해 벽 너머도 기록된다. 거슬리면 Bresenham 시야선
 const CELL = 3; // 칸 하나의 지도 가로 반폭(CSS px). 마름모 가로 6px·세로 3px
@@ -71,5 +71,10 @@ export function drawAutomap(world: World) {
   const s = world.stairs;
   if (s && seen[s[1] * w + s[0]]) mark(s[0], s[1], COLORS.stairs, 1.6);
   for (const p of world.props) if (p.kind === 'brazier' && seen[p.z * w + p.x]) mark(p.x, p.z, COLORS.brazier, 0.8);
+  // 전설·세트 장비(본 칸에 있는 것)
+  for (const it of world.items) {
+    const q = it.kind === 'potion' || it.kind === 'gold' ? 0 : quality({ affixes: it.affixes ?? [] });
+    if (q >= 3 && seen[Math.floor(it.z) * w + Math.floor(it.x)]) mark(it.x - 0.5, it.z - 0.5, q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, 1.2);
+  }
   mark(hero.x - 0.5, hero.z - 0.5, COLORS.hero, 0.9);
 }

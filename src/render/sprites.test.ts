@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
 import { createWorld } from '../sim/world';
-import { CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf } from './sprites';
+import { heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf } from './sprites';
 
 // 카메라는 +x+z 쪽에서 -x-z를 내려다본다. facing = atan2(dx, dz)
 // FLARE 방향 번호(화면 기준): 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW
@@ -104,4 +104,13 @@ test('스킬 시전: 시전 시간 동안 공격(시전) 동작 프레임이 차
   expect(new Set(frames).size).toBeGreaterThan(2);
   updateSprite(s, e, 0.05, 1);
   expect(s.anim).toBe('stance');
+});
+
+test('원색 외형: 특출난 전설을 입으면 그 부위 레이어 색, 아니면 없음. 조합 키에 색이 들어간다', () => {
+  const w = createWorld(1, ['H....']);
+  expect(looksOf(w)).toEqual({});
+  w.mods.armor = [{ kind: 'unique', value: 0, u: 'crownless' }];
+  w.mods.weapon = [{ kind: 'unique', value: 0, u: 'boomerang' }]; // 원색이 없는 전설
+  expect(looksOf(w)).toEqual({ armor: '#f5c400' });
+  expect(heroKey(w.gear, 'knight', looksOf(w))).not.toBe(heroKey(w.gear, 'knight', {}));
 });

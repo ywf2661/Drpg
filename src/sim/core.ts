@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -22,8 +22,16 @@ export function skillCost(cls: HeroClass, id: SkillId): number {
 export const canAfford = (w: World, id: SkillId) => w.res >= skillCost(w.cls, id);
 export const pay = (w: World, id: SkillId) => void (w.res -= skillCost(w.cls, id));
 
-// 스킬 단계(0 = 안 배움), 1단계에서 더 올린 단계 수(수치 표의 기본값 = 1단계), 5단계 완성 효과
-export const rank = (w: World, id: SkillId) => w.ranks[id] ?? 0;
+// 스킬 단계(0 = 안 배움) = 포인트로 찍은 기본 단계 + 장비 보너스(배운 스킬만, 초월 상한 RANK_MAX + RANK_OVER).
+// 1단계에서 더 올린 단계 수(수치 표의 기본값 = 1단계), 5단계 완성 효과
+export const baseRank = (w: World, id: SkillId) => w.ranks[id] ?? 0;
+// 한 옵션이 그 스킬에 주는 단계 보너스
+const bonusOf = (a: Affix, id: SkillId) => (a.kind === 'skill' ? (a.skill === id ? a.value : 0) : a.kind === 'tab' ? (a.tab === SKILLS[id].tab ? a.value : 0) : a.kind === 'allSkills' ? a.value : 0);
+export const gearBonus = (w: World, id: SkillId) => SLOTS.reduce((s, sl) => s + w.mods[sl].reduce((t, a) => t + bonusOf(a, id), 0), 0);
+export function rank(w: World, id: SkillId) {
+  const base = baseRank(w, id);
+  return base ? Math.min(base + gearBonus(w, id), RANK_MAX + RANK_OVER) : 0;
+}
 export const ext = (w: World, id: SkillId) => Math.max(0, rank(w, id) - 1);
 export const mastered = (w: World, id: SkillId) => rank(w, id) >= RANK_MAX;
 // 시너지: 같은 탭의 다른 스킬에 찍은 포인트마다 피해 +SYNERGY
@@ -61,14 +69,26 @@ export const axeStormStat = (w: World) => ({ cd: (AXE_STORM.cd - 0.5 * ext(w, 'a
 export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));
 
 // 스킬 피해(가르기·돌진·도끼). 연계: 예고 중인 적은 받아치기 ×2, 기절한 적은 약점 ×1.5, 공포로 도망치는 적은 등 뒤 ×2(기록을 남겨 화면에 글자가 뜬다)
+// 광전사의 손잡이: 스킬 피해 × (1 + 분노). 결투자의 투구: 받아치기면 모든 칸 재사용 대기 −1초, 자원 +15
 export function skillHit(w: World, e: Entity, raw: number) {
   const kind = winding(e) ? 'counter' : e.stunT > 0 ? 'stunned' : e.fearT > 0 ? 'back' : null;
   if (kind) w.combos.push({ id: w.nextItem++, x: e.x, z: e.z, kind, age: 0 });
-  hurt(w, e, kind ? Math.round(raw * COMBO[kind]) : raw, w.entities[0]);
+  const r = 1 + rage(w);
+  hurt(w, e, kind ? Math.round(raw * r * COMBO[kind]) : r === 1 ? raw : Math.round(raw * r), w.entities[0]);
+  if (kind === 'counter' && hasUnique(w, 'duelist')) {
+    for (const k of KEYS) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - LEGEND_FX.duelCd);
+    w.res = Math.min(resMax(w), w.res + LEGEND_FX.duelRes);
+  }
+}
+// 광전사의 손잡이의 분노: 잃은 체력 비율 × LEGEND_FX.rage
+export function rage(w: World) {
+  const hero = w.entities[0];
+  return hasUnique(w, 'berserker') && hero.maxHp > 0 ? LEGEND_FX.rage * Math.max(0, 1 - hero.hp / hero.maxHp) : 0;
 }
 
 // 주인공 최대 체력 = 직업·레벨 + 투구 + 모든 부위의 '튼튼한' 옵션
-export const heroMax = (w: World) => heroMaxHp(w.level, w.cls) + CLASSES[w.cls].helms[w.gear.helm - 1].hp + worn(w, 'life');
+// 왕관 없는 왕의 망토: × LEGEND_FX.cloakHp
+export const heroMax = (w: World) => Math.round((heroMaxHp(w.level, w.cls) + CLASSES[w.cls].helms[w.gear.helm - 1].hp + worn(w, 'life')) * (hasUnique(w, 'crownless') ? LEGEND_FX.cloakHp : 1));
 
 // 옵션 목록에서 한 종류의 값 합
 export const mod = (list: Affix[], kind: AffixKind) => list.reduce((s, a) => s + (a.kind === kind ? a.value : 0), 0);
@@ -79,7 +99,7 @@ const total = (m: World['mods'], kind: AffixKind) => SLOTS.reduce((s, sl) => s +
 export const worn = (w: World, kind: AffixKind) => total(w.mods, kind);
 
 // 이동 속도(m/s). 주인공은 신발 + '날랜' 옵션
-export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1) * (e.skin ? SKINS[e.skin].speed : 1));
+export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) * (w.trophies.swift ? ELITE_FX.swiftMove : 1) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1) * (e.skin ? SKINS[e.skin].speed : 1));
 
 // 장비 점수(자동 장착 비교). 무기 = 옵션을 반영한 초당 데미지(흡혈은 가산), 방어구(갑옷·투구·신발) = 세 부위를 합쳐 버티는 체력(재생·가시·이동 속도 가산)
 export function weaponScore(tier: number, aff: Affix[], cls: HeroClass = 'knight'): number {
@@ -97,15 +117,22 @@ export function defenseScore(g: Gear, m: World['mods'], cls: HeroClass = 'knight
   return ((100 + c.helms[g.helm - 1].hp + total(m, 'life')) / (1 - reduce)) * (1 + p('regen')) * (1 + 0.3 * p('thorns')) * (1 + 0.5 * move);
 }
 
+// 스킬 보너스의 점수 배율: 배운 스킬에 붙는 보너스 단계마다 +SKILL_SCORE
+const SKILL_SCORE = 0.08;
+const skillFactor = (w: World, list: Affix[]) => 1 + SKILL_SCORE * Object.keys(w.ranks).reduce((s, id) => s + (baseRank(w, id as SkillId) ? list.reduce((t, a) => t + bonusOf(a, id as SkillId), 0) : 0), 0);
+const armorMods = (m: World['mods']) => [...m.armor, ...m.helm, ...m.boots];
+
 // 장비 점수 − 입은 장비의 점수(양수면 더 좋다)
 export function gearDiff(w: World, it: GearItem): number {
-  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes, w.cls) - weaponScore(w.gear.weapon, w.mods.weapon, w.cls);
-  return defenseScore({ ...w.gear, [it.kind]: it.tier }, { ...w.mods, [it.kind]: it.affixes }, w.cls) - defenseScore(w.gear, w.mods, w.cls);
+  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes, w.cls) * skillFactor(w, it.affixes) - weaponScore(w.gear.weapon, w.mods.weapon, w.cls) * skillFactor(w, w.mods.weapon);
+  const m = { ...w.mods, [it.kind]: it.affixes };
+  return defenseScore({ ...w.gear, [it.kind]: it.tier }, m, w.cls) * skillFactor(w, armorMods(m)) - defenseScore(w.gear, w.mods, w.cls) * skillFactor(w, armorMods(w.mods));
 }
 
 // 장비가 지금 장착한 것보다 나은가
 export function isBetter(w: World, it: Item | GearItem): boolean {
   if (it.kind === 'potion' || it.kind === 'gold') return false;
+  if (uniqueOf({ affixes: it.affixes ?? [] }) || uniqueOf({ affixes: w.mods[it.kind] })) return false; // 고유 장비는 자동 장착이 입히지도 벗기지도 않는다(빌드는 플레이어가 고른다)
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
 
@@ -176,14 +203,78 @@ export function rollGear(w: World, x: number, z: number, kind: Slot, tier: numbe
   const odds = boosted ? QUALITY.boosted : QUALITY.normal;
   const r = rand(w);
   const n = r < odds[0] ? 0 : r < odds[0] + odds[1] ? 1 : 2;
-  const pool = (Object.keys(AFFIXES) as AffixKind[]).filter((k) => AFFIXES[k].slots.includes(kind));
+  return { id: w.nextItem++, x, z, kind, tier, affixes: rollAffixes(w, kind, n) };
+}
+
+// 부위에 맞는 서로 다른 무작위 옵션 n개. 희귀(2개)는 SKILL_AFFIX.tab 확률로 마지막 하나가 탭 +1
+export function rollAffixes(w: World, kind: Slot, n: number, skip: AffixKind[] = []): Affix[] {
+  const pool = (Object.keys(AFFIXES) as AffixKind[]).filter((k) => AFFIXES[k].slots.includes(kind) && !AFFIXES[k].special && !skip.includes(k));
   const affixes: Affix[] = [];
   for (let i = 0; i < n; i++) {
     const k = pool.splice(Math.floor(rand(w) * pool.length), 1)[0];
     const { lo, hi } = AFFIXES[k];
-    affixes.push({ kind: k, value: lo + Math.floor(rand(w) * (hi - lo + 1)) });
+    affixes.push(k === 'skill' ? rollSkillAffix(w, n >= 2) : { kind: k, value: lo + Math.floor(rand(w) * (hi - lo + 1)) });
   }
-  return { id: w.nextItem++, x, z, kind, tier, affixes };
+  if (n >= 2 && !skip.includes('tab') && rand(w) < SKILL_AFFIX.tab) affixes[n - 1] = { kind: 'tab', value: 1, tab: Math.floor(rand(w) * 3) };
+  return affixes;
+}
+
+// 지금 직업의 스킬 하나 +1(희귀면 SKILL_AFFIX.two 확률로 +2)
+export function rollSkillAffix(w: World, rare: boolean): Affix {
+  const ids = TREES[w.cls].flatMap((t) => t.skills);
+  const id = ids[Math.floor(rand(w) * ids.length)];
+  return { kind: 'skill', value: rare && rand(w) < SKILL_AFFIX.two ? 2 : 1, skill: id };
+}
+
+// 고유 장비(전설·세트): 옵션 목록 맨 앞의 표식으로 알아본다
+export const uniqueOf = (it: { affixes: Affix[] }): UniqueId | undefined => (it.affixes[0]?.kind === 'unique' ? it.affixes[0].u : undefined);
+export const hasUnique = (w: World, id: UniqueId) => SLOTS.some((s) => uniqueOf({ affixes: w.mods[s] }) === id);
+// 입은 세트 조각 수
+export function setCount(w: World) {
+  return SLOTS.filter((s) => {
+    const u = uniqueOf({ affixes: w.mods[s] });
+    return !!u && !!UNIQUES[u].set;
+  }).length;
+}
+// 등급: 0 일반, 1 마법, 2 희귀, 3 전설, 4 세트
+export function quality(it: { affixes: Affix[] }): number {
+  const u = uniqueOf(it);
+  return u ? (UNIQUES[u].set ? 4 : 3) : Math.min(2, it.affixes.length);
+}
+
+// 고유 장비 굴림: 세트 조각(LEGEND_DROP.set, 입지도 갖지도 않은 부위를 missing 확률로) 또는 전설(지금 직업 것 + 공용).
+// 옵션 = 표식 + 고정(탭·1단계 스킬은 여기서 굴림) + 무작위 1~2(고정과 다른 종류)
+export function rollUnique(w: World, x: number, z: number, tier: number): Item {
+  const pick = <T>(list: T[]) => list[Math.floor(rand(w) * list.length)];
+  let u: UniqueId;
+  if (rand(w) < LEGEND_DROP.set) {
+    const sets = UNIQUE_LIST.filter((id) => UNIQUES[id].set);
+    const owned = new Set([...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] })), ...w.bag.map((it) => uniqueOf(it))]);
+    const missing = sets.filter((id) => !owned.has(id));
+    u = pick(missing.length && rand(w) < LEGEND_DROP.missing ? missing : sets);
+  } else u = pick(UNIQUE_LIST.filter((id) => !UNIQUES[id].set && (!UNIQUES[id].cls || UNIQUES[id].cls === w.cls)));
+  const def = UNIQUES[u];
+  const fixed = def.fixed.map((f): Affix => (f === 'tab' ? { kind: 'tab', value: 1, tab: Math.floor(rand(w) * 3) } : f === 'tier1' ? { kind: 'skill', value: 1, skill: pick(TREES[w.cls]).skills[0] } : { ...f }));
+  const n = rand(w) < 0.5 ? 1 : 2;
+  const affixes: Affix[] = [{ kind: 'unique', value: 0, u }, ...fixed, ...rollAffixes(w, def.slot, n, fixed.map((a) => a.kind))];
+  return { id: w.nextItem++, x, z, kind: def.slot, tier, affixes };
+}
+
+// 고유 장비 판정(확률 p). 성공하면 바닥에(toBag면 보관함 먼저 — 층이 끝나 바닥 것을 못 줍는 보스)
+function dropUnique(w: World, t: Entity, p: number, toBag = false): boolean {
+  if (rand(w) >= p) return false;
+  const it = rollUnique(w, t.x, t.z, w.maxTier);
+  const at = toBag && bagSpot(w.bag, it as GearItem);
+  if (at) w.bag.push({ kind: it.kind as Slot, tier: it.tier, affixes: it.affixes!, x: at[0], y: at[1] });
+  else w.items.push(it);
+  return true;
+}
+
+// 불꽃 걸음(전설): (x, z)에서 시작하는 불길을 놓고 id를 돌려준다(없으면 -1). 구르기는 따라 늘이고, 순간이동은 끝점을 바로 정한다
+export function emberLine(w: World, x: number, z: number): number {
+  if (!hasUnique(w, 'emberStep')) return -1;
+  w.fires.push({ id: w.nextItem, x0: x, z0: z, x1: x, z1: z, t: LEGEND_FX.emberTime, acc: 0, r: TRAIL.width, mult: TRAIL.mult });
+  return w.nextItem++;
 }
 
 // 떨어뜨릴 장비 부위(고르게)
@@ -212,7 +303,7 @@ export function dress(e: Entity, skins: World['skins']): Entity {
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
-  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : 1); // 궁수 집중 중엔 빠르게
+  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : 1); // 궁수 집중 중엔 빠르게
 }
 
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)
@@ -220,7 +311,7 @@ export function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
   const crit = a.kind === 'hero' ? mod(w.mods.weapon, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale) * twice;
@@ -250,6 +341,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   // 강령술사의 표식: 구역 안의 적은 모든 피해를 더 받는다(겹치면 가장 센 것. 역병 구역은 0)
   const amp = t.kind !== 'hero' && t.id >= 0 ? Math.max(0, ...w.curses.filter((c) => Math.hypot(t.x - c.x, t.z - c.z) <= c.r).map((c) => c.amp)) : 0;
   if (amp) dmg = Math.round(dmg * (1 + amp));
+  if (from?.kind === 'hero' && (t.elite || t.kind === 'boss' || t.kind === 'king') && setCount(w) >= 2) dmg = Math.round(dmg * SET_HUNTER.dmg); // 정예 사냥꾼 2부위
   // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패·뼈 갑옷이 먼저 흡수(마나 방패는 공격자에게 일부 되돌림)
   if (t.kind === 'hero') {
     dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST_ARMOR.reduce + FROST_ARMOR.per * ext(w, 'frostArmor') : shoutStat(w).reduce) : 1)));
@@ -264,7 +356,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
   const hero = w.entities[0];
-  const leech = from?.kind === 'hero' ? Math.round((dealt * mod(w.mods.weapon, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
+  const leech = from?.kind === 'hero' ? Math.round((dealt * mod(w.mods.weapon, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) + (w.trophies.vampiric ? Math.round(dealt * SET_HUNTER.leech) : 0) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
   if (leech > 0 && hero.state !== 'dead') hero.hp = Math.min(hero.maxHp, hero.hp + leech);
   const thorns = t.kind === 'hero' && from && from.state !== 'dead' ? Math.round((dealt * worn(w, 'thorns')) / 100) : 0;
   if (thorns > 0) hurt(w, from!, thorns);
@@ -275,14 +367,17 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   t.target = null;
   if (t.kind === 'hero' || t.id < 0) return dealt; // 해골 병사는 경험치도 드롭도 없다(tickAllies가 치운다)
   if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'focus')) cutCd(w, 'focus', FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
+  if (from?.kind === 'hero') trophyKill(w, t);
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
     gainXp(w, Math.round(XP.king * t.power));
-    w.items.push(rollGear(w, t.x, t.z, randSlot(w), w.maxTier, true));
+    w.items.push(rollGear(w, t.x, t.z, randSlot(w), Math.min(4, w.maxTier + 1), true));
+    dropUnique(w, t, LEGEND_DROP.boss);
     w.items.push({ id: w.nextItem++, x: t.x - 0.3, z: t.z, kind: 'potion', tier: 0 });
     dropGold(w, t.x + 0.3, t.z, KING.gold[0], KING.gold[1], t.power);
     return dealt;
   }
+  if (t.kind === 'boss') dropUnique(w, t, LEGEND_DROP.boss, true);
   gainXp(w, Math.round(XP[t.kind] * t.power * (t.elite ? ELITE.xp : 1)));
   // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)
   if (t.eliteKind === 'volatile') w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: ELITE_FX.blastDelay, total: ELITE_FX.blastDelay, dmg: Math.round(roll(w, t) * ELITE_FX.blastMult), owner: -1 });
@@ -292,9 +387,33 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (rand(w) < POTION.drop[t.kind]) drop('potion', 0);
   const g = t.elite ? { chance: 1, ...GOLD_ELITE } : GOLD[t.kind];
   if (g.chance > 0 && rand(w) < g.chance) dropGold(w, t.x + 0.3, t.z, g.lo, g.hi, t.power);
-  if (t.elite) w.items.push(rollGear(w, t.x, t.z, randSlot(w), w.maxTier, true)); // 정예: 최고 단계·마법 이상 확정
+  if (t.elite) {
+    if (from?.kind === 'hero' && setCount(w) >= 2) w.res = Math.min(resMax(w), w.res + SET_HUNTER.res); // 정예 사냥꾼 2부위
+    if (from?.kind === 'hero' && setCount(w) >= 4 && t.eliteKind) w.trophies[t.eliteKind] = SET_HUNTER.time; // 4부위: 그 특성을 얻는다
+    w.items.push(rollGear(w, t.x, t.z, randSlot(w), Math.min(4, w.maxTier + 1), true)); // 정예: 최고 단계보다 하나 위(상점 강화가 없어 장비는 정예가 올린다)·마법 이상 확정
+    w.pity = dropUnique(w, t, LEGEND_DROP.elite + w.pity) ? 0 : w.pity + LEGEND_DROP.pity; // 운 보정
+  }
   else if (rand(w) < GEAR_DROP[t.kind]) w.items.push(rollGear(w, t.x, t.z, randSlot(w), 1 + Math.floor(rand(w) * w.maxTier)));
   return dealt;
+}
+
+// 정예 사냥꾼 4부위로 얻은 특성의 처치 효과. 폭발: 잡은 적 자리가 바로 터진다(그 폭발로 죽은 적도 — 연쇄).
+// 분열: 잡은 적 자리에 잠깐 서는 해골 병사(강령술사의 해골과 같은 장치, 최대 SET_HUNTER.allyMax)
+function trophyKill(w: World, t: Entity) {
+  const hero = w.entities[0];
+  if (w.trophies.volatile) {
+    w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'fire' });
+    const dmg = Math.round(roll(w, hero) * SET_HUNTER.blastMult);
+    for (const e of w.entities) if (e !== hero && e.state !== 'dead' && dist(e, t) <= SET_HUNTER.blastR) hurt(w, e, dmg, hero);
+  }
+  if (w.trophies.splitting) {
+    const b = BONE_KINDS.minion;
+    const hp = Math.round(heroMax(w) * BONES.hp);
+    w.allies.push({ ...makeEntity(-(w.nextItem++) - 1, 'minion', t.x, t.z, 1), life: SET_HUNTER.allyLife, lifeMax: SET_HUNTER.allyLife, mult: BONES.mult * b.mult, reach: b.reach, interval: b.interval, hp, maxHp: hp });
+    const temp = w.allies.filter((a) => a.lifeMax === SET_HUNTER.allyLife);
+    const over = temp.slice(0, -SET_HUNTER.allyMax);
+    w.allies = w.allies.filter((a) => !over.includes(a));
+  }
 }
 
 // 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동·예고가 끊긴다.

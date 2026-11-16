@@ -717,14 +717,14 @@ test('가르기 재사용 대기 4초, 죽으면 못 쓴다, 대상 없이도 �
   expect(dead.skillCd).toBe(0);
 });
 
-test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 층 최고 단계 장비를 반드시 떨어뜨린다', () => {
+test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 층 최고 단계보다 하나 위 장비를 반드시 떨어뜨린다(상점 강화가 없다)', () => {
   const w = createWorld(1, ['HW'], 1.3);
   const e = w.entities[1];
   expect([e.kind, e.elite, e.maxHp]).toEqual(['warrior', true, Math.round(90 * 3 * 1.3)]);
   w.maxTier = 3;
   slay(w);
   expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
-  expect(w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion').map((i) => i.tier)).toEqual([3]);
+  expect(w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion').map((i) => i.tier)).toEqual([4]);
   // 데미지: 전사 6–9 × 층 배율(데미지 몫) × 정예 배율 (천옷 감소 0)
   const s = (1 + 0.3 * DMG_SCALE) * MONSTER_DMG * ELITE.dmg;
   const hitter = createWorld(2, ['HW'], 1.3);
@@ -986,7 +986,7 @@ test('해골 왕(K): 체력 260 × 배율, 8초마다 0.8초 시전 후 졸개 2
   expect(w.entities.filter((e) => e.kind === 'minion' && e.state !== 'dead').length).toBeLessThanOrEqual(6);
 });
 
-test('해골 왕을 잡으면 최고 단계 장비·금화·물약을 반드시 떨어뜨린다', () => {
+test('해골 왕을 잡으면 최고 단계보다 하나 위 장비·금화·물약을 반드시 떨어뜨린다', () => {
   const w = createWorld(1, ['HK']);
   w.maxTier = 3;
   w.gear = { weapon: 4, armor: 4, helm: 4, boots: 4 };
@@ -995,5 +995,5 @@ test('해골 왕을 잡으면 최고 단계 장비·금화·물약을 반드시 
   const kinds = w.items.map((i) => i.kind).sort();
   const gear = w.items.find((i) => i.kind !== 'gold' && i.kind !== 'potion')!;
   expect(kinds).toEqual(['gold', 'potion', gear.kind].sort());
-  expect(gear.tier).toBe(3);
+  expect(gear.tier).toBe(4);
 });

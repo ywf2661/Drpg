@@ -2,10 +2,10 @@
 import { FLOORS, floorPower } from './dungeon';
 import { makeMap } from './wilds';
 import { buy, deathGold, sell } from '../shop';
-import { BASIC, canAfford, copyMods, createWorld, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
+import { uniqueOf, BASIC, canAfford, copyMods, createWorld, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
-type Carry = { cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
-const START = (cls: HeroClass): Carry => ({ cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
+type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
+const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
 // 봇이 포인트를 넣는 스킬: 예전 스킬 넷(BASIC)과, 그중 궁극기에 이르는 같은 탭의 아래 단계들. 칸은 BASIC 순서 그대로
 const LEARN = (cls: HeroClass): SkillId[] => BASIC[cls].flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
@@ -21,6 +21,7 @@ function makeFloor(seed: number, n: number, c: Carry, land: Land): World {
   w.keys = { ...c.keys };
   w.points = c.points;
   w.bag = [...c.bag];
+  w.pity = c.pity;
   w.maxTier = Math.min(4, n + 1);
   setLevel(w, c.level, c.xp);
   return w;
@@ -136,18 +137,18 @@ function reachable(w: World, x: number, z: number): Uint8Array {
   return seen;
 }
 
-// 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 5개까지 채우고, 남으면 무기·갑옷·투구·신발 강화, 그래도 남으면 물약
+// 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 8개까지 채운다
 function shopping(c: Carry): Carry {
   while (c.bag.length) c = sell(c, 0);
-  while (c.potions < 5 && buy(c, 'potion') !== c) c = buy(c, 'potion');
-  for (const item of ['weapon', 'armor', 'helm', 'boots', 'potion', 'potion', 'potion'] as const) c = buy(c, item);
+  while (buy(c, 'potion') !== c) c = buy(c, 'potion');
   return c;
 }
 
-// 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨
+// 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨, 주운 고유 장비 수(봇은 입지 않고 판다)
 export function playthrough(seed: number, skills = true, dodge = true, cls: HeroClass = 'knight', land: Land = 'dungeon') {
   let carry = START(cls);
   let deaths = 0;
+  let uniques = 0;
   for (let n = 1; n <= FLOORS; n++) {
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
@@ -157,7 +158,8 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {
-          carry = shopping({ cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, keys: { ...w.keys }, points: w.points, bag: w.bag });
+          uniques += w.bag.filter((it) => uniqueOf(it)).length;
+          carry = shopping({ pity: w.pity, cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, keys: { ...w.keys }, points: w.points, bag: w.bag });
           done = true;
           break;
         }
@@ -167,7 +169,7 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
         carry = { ...carry, gold: deathGold(carry.gold) };
       }
     }
-    if (!done) return { cleared: false, deaths, level: carry.level, floor: n };
+    if (!done) return { cleared: false, deaths, level: carry.level, floor: n, uniques };
   }
-  return { cleared: true, deaths, level: carry.level, floor: FLOORS };
+  return { cleared: true, deaths, level: carry.level, floor: FLOORS, uniques };
 }

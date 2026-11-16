@@ -1,18 +1,18 @@
 // 게임 규칙(sim) 진입점: 맵 읽기(createWorld), 한 틱(step), 명령, 기본 AI·공격·충돌·줍기. three.js를 import하지 않는다.
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
-import { canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
+import { rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
 import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
-import { AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
+import { LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
 export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
 export { boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
-export { canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, cleaveStat, dashStat, discardFromBag, equipFromBag, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, cleaveStat, dashStat, discardFromBag, equipFromBag, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 직업마다 예전 스킬 넷(트리 이전의 Q W E R). 테스트·봇의 기본 장비이고, createWorld가 기사 것을 넣는다
 export const BASIC: Record<HeroClass, [SkillId, SkillId, SkillId, SkillId]> = {
@@ -66,7 +66,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
   for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 // 봉인 문의 문지기: 문을 닫은 채로 주인공 칸에서 걸어서 닿는 몬스터(문 너머의 방에 있는 몬스터는 빼고) 중 가까운 것들
@@ -100,6 +100,7 @@ export function step(w: World, cmds: Command[]): void {
   w.shoutCd = Math.max(0, w.shoutCd - DT);
   w.shoutT = Math.max(0, w.shoutT - DT);
   w.focusT = Math.max(0, w.focusT - DT);
+  for (const k of Object.keys(w.trophies) as (keyof World['trophies'])[]) if ((w.trophies[k]! -= DT) <= 0) delete w.trophies[k]; // 정예 사냥꾼 특성 시간
   w.throwCd = Math.max(0, w.throwCd - DT);
   w.rollCd = Math.max(0, w.rollCd - DT);
   if (hero.state !== 'dead') w.res = Math.min(resMax(w), w.res + resRegen(w) * DT);
@@ -198,7 +199,7 @@ function pickup(w: World, hero: Entity) {
 export function learnBlock(w: World, id: SkillId): string | null {
   const { cls, tab, tier } = SKILLS[id];
   if (cls !== w.cls) return '다른 직업의 스킬';
-  if (rank(w, id) >= RANK_MAX) return '최고 단계';
+  if (baseRank(w, id) >= RANK_MAX) return '최고 단계';
   if (w.level < TIER_LEVEL[tier]) return `레벨 ${TIER_LEVEL[tier]}부터 배울 수 있음`;
   const below = tier ? TREES[cls][tab].skills[tier - 1] : null;
   if (below && !rank(w, below)) return '바로 아래 단계 스킬을 먼저 배워야 함';
@@ -210,7 +211,7 @@ export function learnBlock(w: World, id: SkillId): string | null {
 // 창이 열린 동안 sim이 멈추므로 HUD는 명령 큐를 거치지 않고 learn·bind·respec을 바로 부른다(보관함과 같다)
 export function learn(w: World, id: SkillId) {
   if (learnBlock(w, id)) return;
-  w.ranks[id] = rank(w, id) + 1;
+  w.ranks[id] = baseRank(w, id) + 1;
   w.points--;
   const free = KEYS.find((k) => !w.keys[k]);
   if (w.ranks[id] === 1 && !isPassive(id) && free) w.keys[free] = id;
@@ -387,6 +388,7 @@ function reachChest(w: World, hero: Entity) {
   const [x, z] = [cx + ((hero.x - cx) / d) * CHEST.drop, cz + ((hero.z - cz) / d) * CHEST.drop];
   const kind = rand(w) < CHEST.potion ? 'potion' : randSlot(w);
   if (kind === 'potion') w.items.push({ id: w.nextItem++, x, z, kind, tier: 0 });
+  else if (rand(w) < LEGEND_DROP.chest) w.items.push({ ...rollUnique(w, x, z, w.maxTier) });
   else w.items.push(rollGear(w, x, z, kind, 1 + Math.floor(rand(w) * w.maxTier)));
   dropGold(w, x + (hero.z - cz) / d * 0.4, z - (hero.x - cx) / d * 0.4, GOLD_CHEST.lo, GOLD_CHEST.hi, w.power); // 옆에 금화
 
