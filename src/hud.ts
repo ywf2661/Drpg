@@ -578,8 +578,9 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
 }
 
 // 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, '다음 층으로'는 onLeave, '이 층에 남기'·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다
-export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void) {
+export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void, dest = '다음 층') {
   cls = c.cls;
+  $('#shop-leave').textContent = `${dest}으로 ▶`; // 층·구역 모두 받침으로 끝난다
   const label = (_item: ShopItem) => `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`;
   shopGold.textContent = String(c.gold);
   shopItems.replaceChildren(

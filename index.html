@@ -228,6 +228,7 @@
       #labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
       .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
+      .label.sign { font-size: 14px; color: var(--gold); letter-spacing: 1px; padding: 2px 8px; background: #000a; border: 1px solid var(--gold-lo); border-radius: 3px; } /* 출구 이름표 */
       .label.q3 { color: var(--legend); font-weight: bold; } .label.q4 { color: var(--set); font-weight: bold; } /* 전설·세트 */
       .pop { position: fixed; z-index: 2; pointer-events: none; font-weight: 800; font-size: 16px; font-family: var(--serif); color: #f4ead6; text-shadow: 0 2px 0 #000, 0 0 4px #000, 1px 0 0 #000, -1px 0 0 #000; } /* 떠오르는 데미지 숫자(명조, 검은 테로 읽히게) */
       .pop.skill { font-size: 30px; color: var(--gold-hi); text-shadow: 0 2px 0 #000, 0 0 4px #000, 0 0 12px #c9a14a; }
@@ -300,7 +301,7 @@
     <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="next-cycle" hidden>다음 회차 ▶ (레벨·장비 유지, 몬스터 강화)</button><button id="restart" hidden>다시 시작 (R)</button></div>
     <div id="title" hidden>
       <h1>DRPG</h1>
-      <p class="sub">지하 5층, 미노타우르스가 기다린다</p>
+      <p class="sub">들판을 지나 다섯 구역 끝, 우두머리가 기다린다</p>
       <div id="title-save" hidden><button id="continue">이어하기</button><small id="title-save-info"></small></div>
       <h2 id="title-pick">직업을 고르세요</h2>
       <div id="classes">
@@ -345,10 +346,10 @@
       <form method="dialog"><button>시작</button></form>
     </dialog>
     <dialog id="shop">
-      <p><b>상인</b> — 다음 층으로 내려가기 전에 준비하세요. 금화 <b id="shop-gold">0</b></p>
+      <p><b>모닥불 옆 상인</b> — 길을 떠나기 전에 준비하세요. 금화 <b id="shop-gold">0</b></p>
       <div id="shop-items"></div>
       <button id="shop-leave">다음 층으로 ▶</button>
-      <button id="shop-stay" title="Esc">◀ 이 층에 남기</button>
+      <button id="shop-stay" title="Esc">◀ 여기 남기</button>
       <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
     </dialog>
     <dialog id="tree">

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 } };
+const run = { pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -94,4 +94,11 @@ test('궁수 저장도 직업을 그대로 되읽고, 다른 직업의 스킬이
   const ranger = { ...run, cls: 'ranger' as const, ranks: { pierce: 2, trap: 1 }, keys: { cleave: 'pierce' as const, dash: 'trap' as const, shout: null, throw: null } };
   expect(decodeSave(encodeSave(ranger))?.cls).toBe('ranger');
   expect(decodeSave(encodeSave({ ...run, cls: 'ranger' }))).toBeNull(); // 마법사 스킬
+});
+
+test('지역·들어온 가장자리: 없으면(지역이 생기기 전 저장) 미궁·서쪽, 이상하면 무시', () => {
+  const { land: _l, from: _f, ...old } = run;
+  expect(decodeSave(JSON.stringify({ v: 1, ...old }))).toMatchObject({ land: 'dungeon', from: 'w' });
+  expect(decodeSave(JSON.stringify({ v: 1, ...run, land: 'moon' }))).toBeNull();
+  expect(decodeSave(JSON.stringify({ v: 1, ...run, from: 'x' }))).toBeNull();
 });

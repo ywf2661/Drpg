@@ -203,6 +203,7 @@ export type World = {
   stairs: Cell | null;
   toStairs: boolean;
   exits: Exit[]; // 바깥 지역 가장자리의 출구 칸(들어서면 다음 구역)
+  roads: Cell[]; // 바깥 지역의 길 칸(그림만 다르다)
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
   queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
   castT: number; // 스킬 시전으로 발이 묶인 남은 시간(초)

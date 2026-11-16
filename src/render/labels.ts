@@ -28,7 +28,11 @@ export function initLabels(el: HTMLElement) {
   layer = el;
 }
 
-export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanvasElement) {
+// 출구 이름표(바깥 지역): 길 끝의 "▶ 설원 3구역", 동굴 입구의 "▼ 지하 3층". 멀리서도 보이게 SIGN 안이면
+export type Sign = { x: number; z: number; text: string };
+const SIGN = 16;
+
+export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanvasElement, signs: Sign[] = []) {
   const hero = world.entities[0];
   const r = canvas.getBoundingClientRect();
   let n = 0;
@@ -40,6 +44,16 @@ export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanva
     pool[n++] = div;
     div.textContent = label.text + (label.better ? ' ▲' : '');
     div.className = `label q${label.quality}` + (label.better ? ' better' : '');
+    div.style.transform = `translate(${r.left + ((v.x + 1) / 2) * r.width}px, ${r.top + ((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
+    div.hidden = false;
+  }
+  for (const s of signs) {
+    if (Math.hypot(s.x - hero.x, s.z - hero.z) > SIGN) continue;
+    v.set(s.x, LIFT * 2, s.z).project(camera);
+    const div = pool[n] ?? layer.appendChild(Object.assign(document.createElement('div'), { className: 'label' }));
+    pool[n++] = div;
+    div.textContent = s.text;
+    div.className = 'label sign';
     div.style.transform = `translate(${r.left + ((v.x + 1) / 2) * r.width}px, ${r.top + ((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
     div.hidden = false;
   }

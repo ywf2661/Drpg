@@ -5,14 +5,14 @@ import { $, initHud, sayLocked, sayShort, showBag, showTitle, showTree, showFloo
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
-import { drawLabels, initLabels } from './render/labels';
+import { drawLabels, initLabels, type Sign } from './render/labels';
 import { camera, draw, initRender, renderer, setAim, setWorld } from './render/render';
 import { walkable } from './sim/path';
 import { clearRun, loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
-import { makeMap, themeOf } from './sim/wilds';
-import { canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, DASH, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
+import { canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -28,7 +28,9 @@ const saved = loadRun(); // 지난번 진행(있으면 시작 화면에 이어�
 let choosing = true; // 시작 화면(이어하기·직업 선택)을 보는 중. 뒤에는 기사 1층이 미리 그려져 있다
 let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터)
 let floor = 1;
-let land: Land = 'dungeon'; // 지역(미궁·초원·설원). ponytail: 지금은 테스터 모드에서만 바꾸고 저장하지 않는다 — 맵 이동을 넣을 때 저장에 포함
+let land: Land = 'field'; // 지역(미궁·초원·설원). 한 판은 초원 1구역에서 시작하고, 구역 끝의 출구로 다음 지역을 고른다
+let from: Side = 'w'; // 바깥 지역에서 들어온 가장자리(나간 출구의 맞은편)
+let next: { land: Land; from: Side } = { land, from }; // 상점을 떠나면 갈 곳(출구를 지날 때 정한다)
 let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 1씩
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
@@ -36,11 +38,25 @@ let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 
 let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(다음 층으로 가져갈 상태)
 let stayed = false; // 상점에서 '이 층에 남기'를 골랐다: 계단에서 벗어났다가 다시 와야 상점이 열린다
 const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그림(3×3칸)의 바깥
+let signs: Sign[] = []; // 이 구역의 출구 이름표
+// 출구마다(같은 지역 칸끼리 묶어 가운데) "▶ 설원 3구역", 바깥 지역의 계단은 동굴 입구 "▼ 지하 3층"
+function signsOf(w: World, n: number): Sign[] {
+  const out: Sign[] = [];
+  for (const to of ['field', 'snow'] as const) {
+    const cells = w.exits.filter((e) => e.to === to);
+    if (cells.length) out.push({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5, text: `▶ ${LANDS[to].name} ${n + 1}${LANDS[to].unit}` });
+  }
+  if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${n + 1}${LANDS.dungeon.unit}` });
+  return out;
+}
+const progress = () => ({ floor, ...entry, cycle, stats, land, from }); // 저장할 진행
+// 새 판·새 회차: 초원 1구역 서쪽에서
+const fresh = () => ([land, from] = ['field', 'w']);
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
-  const w = createWorld(seed, makeMap(seed, n, land), floorPower(n, cycle), cyclePower(cycle), LANDS[land].skins);
+  const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n, cycle), cyclePower(cycle), LANDS[land].skins);
   w.cls = carry.cls;
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
@@ -62,8 +78,9 @@ function enterFloor(n: number, carry: Carry) {
   lostGold = null;
   stayed = false;
   entry = carryOf(carry);
-  saveRun({ floor: n, ...entry, cycle, stats }); // 층에 들어갈 때마다 자동 저장
+  saveRun(progress()); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
+  signs = signsOf(world, n);
   setWorld(world, themeOf(n, land));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
@@ -74,6 +91,9 @@ function enterFloor(n: number, carry: Carry) {
 // 계단을 내려가면 다음 층을 만들기 전에 상점. 떠나면 산 것을 가지고 다음 층으로
 function openShop() {
   shopping = carryOf(world);
+  // 바깥 출구면 그 지역(맞은편 가장자리에서), 계단(미궁·동굴 입구)이면 미궁
+  const ex = exitAt(world);
+  next = ex ? { land: ex.to, from: opposite[sideOf(world, ex)] } : { land: 'dungeon', from: 'w' };
   const coin = () => sound.play([{ name: 'gold', x: world.entities[0].x, z: world.entities[0].z }], world.entities[0].x, world.entities[0].z);
   const render = () =>
     showShop(
@@ -93,6 +113,7 @@ function openShop() {
       () => {
         const c = shopping!;
         shopping = null;
+        ({ land, from } = next);
         enterFloor(floor + 1, c);
       },
       () => {
@@ -102,6 +123,7 @@ function openShop() {
         stayed = true;
         Object.assign(world, { potions: c.potions, gear: { ...c.gear }, gold: c.gold, bag: [...c.bag], toStairs: false });
       },
+      `${LANDS[next.land].name} ${floor + 1}${LANDS[next.land].unit}`,
     );
   render();
 }
@@ -120,6 +142,7 @@ function restart() {
   } else if (o === 'clear') {
     stats = newStats();
     cycle = 0;
+    fresh();
     enterFloor(1, startOf(world.cls));
   }
 }
@@ -128,6 +151,7 @@ function restart() {
 function nextCycle() {
   if (outcome(world) !== 'clear') return;
   cycle++;
+  fresh();
   enterFloor(1, carryOf(world));
 }
 
@@ -150,7 +174,7 @@ function renderBag() {
     auto: (on) => {
       // 설정은 진행이 아니므로 바로 저장한다(사망·새로고침에도 유지)
       world.autoEquip = entry.autoEquip = on;
-      saveRun({ floor, ...entry, cycle, stats });
+      saveRun(progress());
     },
   });
 }
@@ -287,6 +311,7 @@ try {
 const pickClass = (cls: HeroClass) => {
   stats = newStats();
   cycle = 0;
+  fresh();
   begin(1, startOf(cls));
   if (!saved) help.showModal();
 };
@@ -313,6 +338,7 @@ initHud({
     if (!saved) return;
     stats = { ...saved.stats };
     cycle = saved.cycle;
+    ({ land, from } = saved);
     begin(saved.floor, saved);
   },
   pick: pickClass,
@@ -400,11 +426,11 @@ requestAnimationFrame(function frame(now) {
     // 죽는 순간 금화 절반을 잃고 바로 저장(새로고침으로 피할 수 없게). 다시 시작하면 줄어든 금화로 같은 층
     lostGold = entry.gold - deathGold(entry.gold);
     entry = { ...entry, gold: deathGold(entry.gold) };
-    saveRun({ floor, ...entry, cycle, stats });
+    saveRun(progress());
   }
   if (o === 'clear') clearRun(); // 다 깼으면 이어할 것이 없다
   const [hero, st] = [world.entities[0], world.stairs];
-  if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY)) stayed = false;
+  if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY) && !exitAt(world)) stayed = false; // 계단·출구에서 벗어나야 상점이 다시 열린다
   if (o === 'descend' && !shopping) {
     if (stayed) world.toStairs = false; // 계단 위에서 다시 눌러도 열리지 않는다
     else openShop();
@@ -412,7 +438,7 @@ requestAnimationFrame(function frame(now) {
   heard = snapshot(world);
   draw(world, dt);
   drawAutomap(world);
-  drawLabels(world, camera, renderer.domElement);
+  drawLabels(world, camera, renderer.domElement, signs);
   updateHud(world, hovered, choosing, stats, lostGold ?? 0);
   requestAnimationFrame(frame);
 });

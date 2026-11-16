@@ -70,6 +70,7 @@ export function drawAutomap(world: World) {
   };
   const s = world.stairs;
   if (s && seen[s[1] * w + s[0]]) mark(s[0], s[1], COLORS.stairs, 1.6);
+  for (const e of world.exits) if (seen[e.z * w + e.x]) mark(e.x, e.z, e.to === 'field' ? '#7ec850' : '#cfe6ff', 1.4); // 바깥 출구(갈 지역 색)
   for (const p of world.props) if (p.kind === 'brazier' && seen[p.z * w + p.x]) mark(p.x, p.z, COLORS.brazier, 0.8);
   // 전설·세트 장비(본 칸에 있는 것)
   for (const it of world.items) {

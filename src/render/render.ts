@@ -336,18 +336,21 @@ function buildMap(world: World) {
   // 바닥은 걸을 수 있는 칸과 소품 칸에, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
   const prop = new Set([...world.props, ...world.gates, ...world.chests].map((p) => p.z * w + p.x)); // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
-  const floorCells: [number, number][][] = Array.from({ length: FLOOR_VARIANTS }, () => []);
+  const road = new Set(world.roads.map(([x, z]) => z * w + x));
+  const floorCells: [number, number][][] = Array.from({ length: 2 * FLOOR_VARIANTS }, () => []); // 뒤쪽 절반은 길(같은 바닥을 흙빛으로)
   const wallCells: [number, number][] = [];
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
-      if (open(x, z) || prop.has(z * w + x)) floorCells[floorVariant(x, z)].push([x, z]);
+      if (open(x, z) || prop.has(z * w + x)) floorCells[floorVariant(x, z) + (road.has(z * w + x) ? FLOOR_VARIANTS : 0)].push([x, z]);
       else if ([-1, 0, 1].some((dz) => [-1, 0, 1].some((dx) => open(x + dx, z + dz)))) wallCells.push([x, z]);
     }
   }
   const m = new THREE.Matrix4();
   const floorGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2); // 질감 열 = +x, 행 = +z
   floorCells.forEach((cells, i) => {
-    const floor = new THREE.InstancedMesh(floorGeo.clone(), stone(floorTex, i, FLOOR_VARIANTS), cells.length);
+    const mat = stone(floorTex, i % FLOOR_VARIANTS, FLOOR_VARIANTS);
+    if (i >= FLOOR_VARIANTS) mat.color.setRGB(0.78, 0.62, 0.44); // 길: 밟아 다진 흙
+    const floor = new THREE.InstancedMesh(floorGeo.clone(), mat, cells.length);
     cells.forEach(([x, z], k) => floor.setMatrixAt(k, m.makeTranslation(x + 0.5, 0, z + 0.5)));
     floor.receiveShadow = true;
     mapGroup.add(floor);
