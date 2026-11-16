@@ -1033,3 +1033,30 @@ test('해골 왕을 잡으면 최고 단계보다 하나 위 장비·금화·물
   expect(kinds).toEqual(['gold', 'potion', gear.kind].sort());
   expect(gear.tier).toBe(4);
 });
+
+test('모닥불(초원): 싸우지 않은 지 3초 지나고 근처에 적이 없으면 화로 옆에서 체력이 조금씩 찬다', () => {
+  const w = createWorld(1, ['.....', '.HB..', '.....']);
+  w.rest = true;
+  const hero = w.entities[0];
+  hero.hp = 50;
+  run(w, Math.round(2 / DT));
+  expect(hero.hp).toBe(50); // 아직 3초가 안 됐다
+  run(w, Math.round(4 / DT));
+  expect(hero.hp).toBeGreaterThan(50);
+  expect(hero.hp).toBeLessThan(80); // 조금씩(초당 최대 체력의 3%)
+  // 화로가 없는 지역(rest 꺼짐)·화로에서 먼 곳·근처에 적이 있으면 안 찬다
+  const off = createWorld(1, ['.HB..']);
+  off.entities[0].hp = 50;
+  run(off, Math.round(6 / DT));
+  expect(off.entities[0].hp).toBe(50);
+  const far = createWorld(1, ['H.......B']);
+  far.rest = true;
+  far.entities[0].hp = 50;
+  run(far, Math.round(6 / DT));
+  expect(far.entities[0].hp).toBe(50);
+  const foe = createWorld(1, ['.HB....#m']);
+  foe.rest = true;
+  foe.entities[0].hp = 50;
+  run(foe, Math.round(6 / DT));
+  expect(foe.entities[0].hp).toBeLessThanOrEqual(50);
+});

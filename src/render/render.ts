@@ -140,7 +140,9 @@ let fx: { flashT: number; kx: number; kz: number; lx: number; lz: number }[] = [
 let impactsSeen = 0;
 let shoutsSeen = 0;
 let castsSeen = 0;
-let comboSeen = -1; // 글자를 띄운 마지막 연계 기록 id(id는 늘 커진다)
+let comboSeen = -1;
+let restShown = 0; // 모닥불 회복 중 이미 +숫자로 띄운 양
+let restPopT = 0; // 다음 +숫자까지(초): 1초마다 모아서 // 글자를 띄운 마지막 연계 기록 id(id는 늘 커진다)
 const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', back: '등 뒤!', reset: '가르기 준비!', dodge: '회피!' };
 const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸은 것이 아니라 밀려난 것(가장 빠른 걸음도 0.15m)
 const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
@@ -205,6 +207,8 @@ export function setWorld(world: World, theme: Theme) {
   shoutsSeen = world.shouts;
   castsSeen = world.casts;
   comboSeen = -1;
+  restShown = world.rested;
+  restPopT = 0;
   focus.set(world.entities[0].x, 0, world.entities[0].z);
 }
 
@@ -229,6 +233,13 @@ export function draw(world: World, dt: number) {
   };
   // 게임 중에 생긴 엔티티(해골 왕의 소환)도 판자를 만든다
   for (let i = sprites.length; i < world.entities.length; i++) scene.add((sprites[i] = makeSprite(world.entities[i])).mesh);
+  // 모닥불 휴식: 1초마다 그동안 찬 체력을 주인공 머리 위에 +숫자로
+  if ((restPopT -= dt) <= 0) {
+    const gain = Math.floor(world.rested) - Math.floor(restShown);
+    if (gain > 0) popNumber(camera, renderer.domElement, hero.x, hero.z, `+${gain}`, 'heal');
+    restShown = world.rested;
+    restPopT = 1;
+  }
   const hits = world.impacts - impactsSeen; // 이번 프레임에 스킬이 맞힌 적 수
   impactsSeen = world.impacts;
   if (world.shouts > shoutsSeen) rumble(0.3);

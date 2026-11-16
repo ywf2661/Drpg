@@ -36,7 +36,7 @@ export function updateFeel(dt: number, camera: THREE.Camera) {
 }
 
 // 떠오르는 숫자·글자. 월드 (x, z) 머리 위에서 시작해 위로 사라진다. combo = 연계 이름(숫자보다 위에서)
-export function popNumber(camera: THREE.Camera, canvas: HTMLCanvasElement, x: number, z: number, n: number | string, kind: 'skill' | 'hit' | 'hurt' | 'combo') {
+export function popNumber(camera: THREE.Camera, canvas: HTMLCanvasElement, x: number, z: number, n: number | string, kind: 'skill' | 'hit' | 'hurt' | 'combo' | 'heal') {
   const r = canvas.getBoundingClientRect();
   v.set(x, kind === 'combo' ? 2.1 : 1.4, z).project(camera);
   const div = Object.assign(document.createElement('div'), { className: `pop ${kind}`, textContent: String(n) });

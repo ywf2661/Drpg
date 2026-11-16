@@ -60,6 +60,7 @@ function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n, cycle), cyclePower(cycle), LANDS[land].skins);
   w.cls = carry.cls;
+  w.rest = land === 'field'; // 초원 모닥불에서 쉴 수 있다
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
   w.mods = copyMods(carry.mods);

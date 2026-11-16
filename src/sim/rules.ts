@@ -228,6 +228,10 @@ export type World = {
   bag: BagItem[]; // 보관함(BAG 격자, 서로 겹치지 않는다)
   autoEquip: boolean; // 밟은 장비가 더 좋으면 바로 입는다
   regenAcc: number; // 재생 옵션의 소수점 회복 누적
+  rest: boolean; // 모닥불에서 쉴 수 있는 지역(초원). main이 정한다
+  calmT: number; // 주인공이 마지막으로 다친 뒤 흐른 시간(초)
+  lastHp: number; // 직전 틱의 주인공 체력(다쳤는지 비교)
+  rested: number; // 모닥불에서 회복한 양의 누적(소수점 포함, 렌더가 +숫자로 띄운다)
   maxTier: number;
   level: number;
   xp: number;
@@ -355,6 +359,8 @@ export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8
 
 // 초원 야영지: 상자 둘레 radius(m) 안의 몬스터가 지킨다. 상자는 늘 장비, 금화는 gold배
 export const CAMP = { radius: 6, gold: 2 };
+// 모닥불 휴식(초원): 화로 range(m) 안, 다친 지 calm초가 지나고 AGGRO 안에 적이 없으면 초당 최대 체력의 rate
+export const REST = { range: 2.5, calm: 3, rate: 0.03 };
 export const CHEST = { reach: 1.5, potion: 0.6, drop: 0.7 }; // 여는 거리, 물약 확률(나머지 장비), 떨어지는 거리(주인공 쪽)
 
 export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: 재사용 대기, 범위, 데미지 배율, 자동 조준 거리
