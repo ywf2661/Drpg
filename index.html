@@ -226,6 +226,12 @@
       #automap { position: fixed; right: 12px; top: 40px; z-index: 2; background: #000b; border: 1px solid var(--gold-lo); box-shadow: inset 0 0 0 1px #000, 0 4px 12px #000a; pointer-events: none; }
       @media (max-width: 600px) { #boss, #target { top: 148px; } #target.below { top: 194px; } } /* 좁은 화면: 위쪽 버튼·지도 아래로 */
       #labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+      /* 설원 눈보라: 주인공 둘레 밖을 덮는 흰 안개 + 비스듬히 날리는 눈(세기는 opacity) */
+      #blizzard { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+        background: radial-gradient(circle, #fff 1px, transparent 2px) 0 0 / 37px 41px, radial-gradient(circle, #fffc 1.5px, transparent 2.5px) 11px 7px / 59px 53px, radial-gradient(ellipse 34% 40% at 50% 48%, transparent 40%, #e9eef5ee 100%);
+        animation: snowfall 0.9s linear infinite; }
+      @keyframes snowfall { to { background-position: -37px 41px, -48px 60px, 0 0; } }
+      #blizzard-warn { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; color: #e3ecf7; font-family: var(--serif); font-size: 20px; letter-spacing: 4px; text-shadow: 0 2px 4px #000; }
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
       .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
       .label.sign { font-size: 14px; color: var(--gold); letter-spacing: 1px; padding: 2px 8px; background: #000a; border: 1px solid var(--gold-lo); border-radius: 3px; } /* 출구 이름표 */
@@ -285,6 +291,8 @@
     <div id="danger"></div>
     <div id="toast"></div>
     <div id="labels"></div>
+    <div id="blizzard"></div>
+    <div id="blizzard-warn" hidden>눈보라가 몰려온다</div>
     <button id="sound-btn">설정</button>
     <button id="map-btn" title="지도 (M)">지도</button>
     <div id="sound-panel" hidden>

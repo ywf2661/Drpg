@@ -15,7 +15,7 @@ import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
-import { fadeOf, SIGHT, view } from './sight';
+import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -147,6 +147,9 @@ let floorTex: THREE.Texture;
 let wallTex: THREE.Texture;
 const FLOOR_VARIANTS = 8; // floor.png 가로 칸 수
 let cutaway = (_hx: number, _hz: number) => {}; // 현재 층의 앞쪽 벽 낮추기
+// 설원 눈보라: 구역에 들어온 뒤의 시간과 시간표 시드. 눈보라 동안 시야가 BLIZZARD_SIGHT까지 좁아진다
+let weather = { on: false, t: 0, seed: 0 };
+const BLIZZARD_SIGHT = 8;
 
 export async function initRender(world: World, theme: Theme) {
   renderer.shadowMap.enabled = true;
@@ -183,6 +186,7 @@ export function setWorld(world: World, theme: Theme) {
   sky.intensity = mood.sky;
   view.day = mood.sun > 0;
   view.sight = SIGHT;
+  weather = { on: theme === 'snow', t: 0, seed: world.rng };
   sun.intensity = mood.sun;
   sky.color.set(view.day ? 0xdfe8ff : 0x3a4a66);
   sky.groundColor.set(view.day ? mood.bg : 0x000000);
@@ -208,6 +212,11 @@ export function draw(world: World, dt: number) {
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;
+  weather.t += dt;
+  const storm = weather.on ? blizzard(weather.t, weather.seed) : 0;
+  view.sight = SIGHT - (SIGHT - BLIZZARD_SIGHT) * storm;
+  document.getElementById('blizzard')!.style.opacity = String(storm);
+  document.getElementById('blizzard-warn')!.hidden = !(weather.on && warnBlizzard(weather.t, weather.seed));
   sun.position.set(hero.x, 0, hero.z).add(SUN_AT);
   sun.target.position.set(hero.x, 0, hero.z);
   // 세로 판자는 머리 위 불빛을 거의 못 받으므로 횃불(주인공)·화로와의 거리로 밝기를 직접 정한다. 낮엔 어디나 밝다
@@ -349,7 +358,7 @@ function buildMap(world: World) {
   const floorGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2); // 질감 열 = +x, 행 = +z
   floorCells.forEach((cells, i) => {
     const mat = stone(floorTex, i % FLOOR_VARIANTS, FLOOR_VARIANTS);
-    if (i >= FLOOR_VARIANTS) mat.color.setRGB(0.78, 0.62, 0.44); // 길: 밟아 다진 흙
+    if (i >= FLOOR_VARIANTS) mat.color.setRGB(...(weather.on ? [0.78, 0.8, 0.84] : [0.78, 0.62, 0.44]) as [number, number, number]); // 길: 밟아 다진 흙(설원은 다져진 회색 눈)
     const floor = new THREE.InstancedMesh(floorGeo.clone(), mat, cells.length);
     cells.forEach(([x, z], k) => floor.setMatrixAt(k, m.makeTranslation(x + 0.5, 0, z + 0.5)));
     floor.receiveShadow = true;
