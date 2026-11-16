@@ -114,6 +114,8 @@
       /* 배너(사망·클리어·이어하기) */
       #banner { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px; font-size: 30px; letter-spacing: 3px; color: var(--gold-hi); text-shadow: 0 2px 4px #000, 0 0 18px #000; background: radial-gradient(ellipse at center, #000a, #000d); pointer-events: none; }
       #banner p { margin: 0; }
+      #banner.clear { inset: 70px 0 auto; gap: 10px; font-size: 24px; background: none; } /* 클리어: 위쪽에, 어둡게 덮지 않음 */
+      #banner.clear button { font-size: 16px; padding: 8px 22px; }
       #summary { font-size: 16px; letter-spacing: 0; color: var(--ink-dim); }
       #banner button { pointer-events: auto; font-size: 20px; letter-spacing: 1px; padding: 10px 30px; border-color: var(--blood); border-top-color: var(--blood-hi); }
       html { cursor: url(sprites/cursor_normal.png) 0 0, auto; }

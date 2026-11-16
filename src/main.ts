@@ -35,6 +35,8 @@ let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
+let clearT = 0; // 보스를 쓰러뜨린 뒤 흐른 초. LOOT_TIME 전에는 결과 버튼이 없다(공격하던 연타가 버튼을 누르지 않게)
+const LOOT_TIME = 2.5;
 let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(다음 층으로 가져갈 상태)
 let stayed = false; // 상점에서 '이 층에 남기'를 골랐다: 계단에서 벗어났다가 다시 와야 상점이 열린다
 const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그림(3×3칸)의 바깥
@@ -79,6 +81,7 @@ function makeFloor(n: number, carry: Carry): World {
 function enterFloor(n: number, carry: Carry) {
   floor = n;
   lostGold = null;
+  clearT = 0;
   stayed = false;
   entry = carryOf(carry);
   saveRun(progress()); // 층에 들어갈 때마다 자동 저장
@@ -143,7 +146,7 @@ function restart() {
   if (o === 'dead') {
     stats.deaths++;
     enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
-  } else if (o === 'clear') {
+  } else if (o === 'clear' && clearT >= LOOT_TIME) {
     stats = newStats();
     cycle = 0;
     fresh();
@@ -153,7 +156,7 @@ function restart() {
 
 // 보스를 잡은 뒤: 레벨·장비·물약·금화를 가지고 더 강한 1층부터
 function nextCycle() {
-  if (outcome(world) !== 'clear') return;
+  if (outcome(world) !== 'clear' || clearT < LOOT_TIME) return;
   cycle++;
   fresh();
   enterFloor(1, carryOf(world));
@@ -367,9 +370,9 @@ sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 
 showSound(sound.settings);
 resetAutomap(world);
 showFloor(floor, cycle);
-// 스킬 Q W E R(하단 버튼 순서), 물약 1. R은 사망·클리어 화면에서는 다시 시작.
+// 스킬 Q W E R(하단 버튼 순서), 물약 1. R은 사망 화면에서는 다시 시작(클리어 화면은 버튼으로만).
 // e.code: 한글 입력 상태에서도 물리 키
-const ended = () => ['dead', 'clear'].includes(outcome(world) ?? '');
+const ended = () => outcome(world) === 'dead'; // 클리어 뒤 R(도끼 키 연타)로 '처음부터'가 눌리지 않게 — 클리어는 버튼으로만
 const SKILL_KEYS: Record<string, SkillName> = { KeyQ: 'cleave', KeyW: 'dash', KeyE: 'shout', KeyR: 'throw' };
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyI') {
@@ -432,7 +435,7 @@ requestAnimationFrame(function frame(now) {
     entry = { ...entry, gold: deathGold(entry.gold) };
     saveRun(progress());
   }
-  if (o === 'clear') clearRun(); // 다 깼으면 이어할 것이 없다
+  if (o === 'clear') (clearRun(), (clearT += dt)); // 다 깼으면 이어할 것이 없다
   const [hero, st] = [world.entities[0], world.stairs];
   if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY) && !exitAt(world)) stayed = false; // 계단·출구에서 벗어나야 상점이 다시 열린다
   if (o === 'descend' && !shopping) {
@@ -443,6 +446,6 @@ requestAnimationFrame(function frame(now) {
   draw(world, dt);
   drawAutomap(world);
   drawLabels(world, camera, renderer.domElement, signs);
-  updateHud(world, hovered, choosing, stats, lostGold ?? 0);
+  updateHud(world, hovered, choosing, stats, lostGold ?? 0, clearT >= LOOT_TIME);
   requestAnimationFrame(frame);
 });

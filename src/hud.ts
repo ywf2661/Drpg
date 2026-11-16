@@ -654,7 +654,7 @@ function showTrophies(w: World) {
   $('#trophies').replaceChildren(...list.map(([k, t]) => Object.assign(document.createElement('span'), { textContent: `${ELITE_KINDS[k].name} ${t}`, title: ELITE_KINDS[k].desc, style: `color: ${ELITE_KINDS[k].color}` })));
 }
 
-export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats, lostGold = 0) {
+export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats, lostGold = 0, clearReady = true) {
   const hero = world.entities[0];
   if (world !== shownWorld) {
     shownWorld = world;
@@ -745,13 +745,16 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   renderer.domElement.classList.toggle('attack', hovered !== null); // 몬스터 위에서는 공격 커서
   if (choosing) return;
   const o = outcome(world);
-  banner.hidden = restartBtn.hidden = o !== 'dead' && o !== 'clear';
+  banner.hidden = o !== 'dead' && o !== 'clear';
+  banner.classList.toggle('clear', o === 'clear'); // 클리어는 화면을 덮지 않고 위에 — 떨어진 전리품을 보고 주울 수 있게
+  restartBtn.hidden = o !== 'dead' && !(o === 'clear' && clearReady);
   if (o === 'dead') bannerText.textContent = '사망했습니다' + (lostGold ? ` — 금화 ${lostGold}을 잃었습니다` : '');
   if (o === 'clear') {
     const name = bossName(world.skins);
     bannerText.textContent = `${name}${(name.charCodeAt(name.length - 1) - 0xac00) % 28 ? '을' : '를'} 쓰러뜨렸습니다! 클리어!`;
     summary.textContent = `플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;
   }
-  summary.hidden = nextCycleBtn.hidden = o !== 'clear';
-  restartBtn.textContent = o === 'clear' ? '처음부터 (R)' : '다시 시작 (R)';
+  summary.hidden = o !== 'clear';
+  nextCycleBtn.hidden = !(o === 'clear' && clearReady);
+  restartBtn.textContent = o === 'clear' ? '처음부터' : '다시 시작 (R)';
 }
