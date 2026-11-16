@@ -218,6 +218,18 @@
       #toast { position: fixed; left: 0; right: 0; bottom: 84px; z-index: 2; text-align: center; font-size: 19px; letter-spacing: 1px; color: var(--gold-hi); text-shadow: 0 1px 3px #000, 0 0 10px #000; pointer-events: none; opacity: 0; }
       #toast.show { animation: floor-title 2s ease-out; }
       @media (max-width: 600px) { #toast { bottom: 150px; } #hud > .slot { display: none; } } /* 좁은 화면: 장비 칸은 가방(인형)에서만 → HUD 두 줄, 알림은 그 위로 */
+      /* 터치 화면: 스킬·구르기·물약을 오른쪽 아래 엄지 자리에 크게. 모서리에 구르기, 그 둘레 반지름 120px 부채꼴에 Q W E R, 바깥에 물약
+         (스킬 그림 크기는 hud.ts의 SKILL_PX와 맞출 것) */
+      @media (pointer: coarse) {
+        #skill, #dash, #shout, #throw, #roll, #potion { position: fixed; width: 56px; height: 56px; }
+        #roll { right: 18px; bottom: 18px; font-size: 13px; }
+        #skill { right: 138px; bottom: 18px; }
+        #dash { right: 122px; bottom: 78px; }
+        #shout { right: 78px; bottom: 122px; }
+        #throw { right: 18px; bottom: 138px; }
+        #potion { right: 148px; bottom: 148px; }
+        #hud { max-width: calc(100vw - 250px); } /* 버튼 무리와 겹치지 않게 */
+      }
       /* 체력이 낮을 때: 화면 가장자리만 붉게(가운데는 그대로 보인다). 세기는 hud.ts가 opacity로, 맥박은 천천히·약하게 */
       #danger { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
       #danger::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, #b3261e99 100%); animation: danger 1.6s ease-in-out infinite alternate; }

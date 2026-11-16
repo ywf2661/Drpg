@@ -261,6 +261,7 @@ function skillLines(w: World, id: SkillId): string[] {
 }
 
 // 스킬 버튼: 끼운 스킬의 그림·단계·[+]·툴팁(칸·단계·포인트가 바뀔 때만 다시 씀)
+const SKILL_PX = matchMedia('(pointer: coarse)').matches ? 56 : 40; // 터치 화면은 버튼이 크다(index.html의 @media (pointer: coarse))
 let shownKeys = '';
 function showKeys(w: World) {
   const key = JSON.stringify([w.ranks, w.points, w.keys, w.level]);
@@ -269,7 +270,7 @@ function showKeys(w: World) {
   for (const [btn, k] of SKILL_BUTTONS()) {
     const id = w.keys[k];
     const r = id ? (w.ranks[id] ?? 0) : 0;
-    paintIcon(btn, id, 40);
+    paintIcon(btn, id, SKILL_PX);
     btn.querySelector('.rank')!.textContent = r ? String(r) : '';
     btn.classList.toggle('locked', !id);
     const up = !!id && !learnBlock(w, id);
