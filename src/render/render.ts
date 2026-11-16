@@ -15,21 +15,27 @@ import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
+import { fadeOf, SIGHT, view } from './sight';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
 let TORCH_RANGE = 9; // 시야 반경(m). 이 밖은 거의 칠흑(테마가 정한다)
 const TORCH_TINT = new THREE.Color(1, 0.82, 0.62); // 스프라이트에 입히는 횃불 색(테마가 정한다)
-// 테마의 빛: 지하는 주황 횃불과 칠흑, 초원은 달빛 아래 밤 들판, 설원은 눈에 반사된 푸르스름한 빛. [횃불 색, 시야 반경, 스프라이트 색, 하늘빛 세기]
-const DARK = { torch: 0xff9a4d, range: 9, tint: [1, 0.82, 0.62], sky: 0.1 };
+// 테마의 빛: 지하는 주황 횃불과 칠흑. 초원·설원은 낮(디아블로2의 바깥처럼) — 횃불 대신 해, 맵 밖은 검정 대신 땅 색.
+// [횃불 색, 시야 반경, 스프라이트 색, 하늘빛 세기, 낮(해 세기·배경색)]
+const DARK = { torch: 0xff9a4d, range: 9, tint: [1, 0.82, 0.62], sky: 0.1, sun: 0, bg: 0x000000 };
 const MOOD: Record<Theme, typeof DARK> = {
   dungeon: DARK,
   cave: DARK,
-  field: { torch: 0xe8e0b0, range: 12, tint: [0.95, 0.95, 0.8], sky: 0.6 },
-  snow: { torch: 0xcfe2ff, range: 12, tint: [0.85, 0.92, 1], sky: 0.9 },
+  field: { torch: 0xe8e0b0, range: 12, tint: [1, 0.97, 0.88], sky: 2.2, sun: 3.2, bg: 0x2a3d1e },
+  snow: { torch: 0xcfe2ff, range: 12, tint: [0.9, 0.95, 1], sky: 2.2, sun: 2.8, bg: 0xb9c4cf },
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
+// 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
+const sun = new THREE.DirectionalLight(0xfff2d8, 0);
+const SUN_AT = new THREE.Vector3(-6, 14, -3); // 주인공에서 해 쪽
+const SUN_BOX = 20; // 그림자를 그리는 범위(m, 화면보다 넉넉히)
 const WINDUP = new THREE.Color(2.2, 0.2, 0.12); // 공격 준비(평타·내려찍기·돌진 예고) 색
 const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
 const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
@@ -153,6 +159,10 @@ export async function initRender(world: World, theme: Theme) {
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.002;
   scene.add(torch);
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.bias = -0.002;
+  Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
+  scene.add(sun, sun.target);
   scene.add(zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
@@ -171,6 +181,14 @@ export function setWorld(world: World, theme: Theme) {
   torch.distance = TORCH_RANGE = mood.range;
   TORCH_TINT.fromArray(mood.tint);
   sky.intensity = mood.sky;
+  view.day = mood.sun > 0;
+  view.sight = SIGHT;
+  sun.intensity = mood.sun;
+  sky.color.set(view.day ? 0xdfe8ff : 0x3a4a66);
+  sky.groundColor.set(view.day ? mood.bg : 0x000000);
+  (scene.background as THREE.Color).set(mood.bg);
+  torch.castShadow = !view.day; // 그림자는 낮엔 해가, 밤엔 횃불이
+  sun.castShadow = view.day;
   buildMap(world);
   for (const s of sprites) s.mesh.removeFromParent();
   dropAllies(new Set());
@@ -189,10 +207,12 @@ export function draw(world: World, dt: number) {
   time += dt;
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
-  torch.intensity = TORCH * flicker;
-  // 세로 판자는 머리 위 불빛을 거의 못 받으므로 횃불(주인공)·화로와의 거리로 밝기를 직접 정한다
+  torch.intensity = view.day ? 0 : TORCH * flicker;
+  sun.position.set(hero.x, 0, hero.z).add(SUN_AT);
+  sun.target.position.set(hero.x, 0, hero.z);
+  // 세로 판자는 머리 위 불빛을 거의 못 받으므로 횃불(주인공)·화로와의 거리로 밝기를 직접 정한다. 낮엔 어디나 밝다
   const light = (x: number, z: number) => {
-    let b = (Math.max(0, 1 - Math.hypot(x - hero.x, z - hero.z) / TORCH_RANGE) ** 1.4 * 1.1 + 0.04) * flicker;
+    let b = view.day ? 1 : (Math.max(0, 1 - Math.hypot(x - hero.x, z - hero.z) / TORCH_RANGE) ** 1.4 * 1.1 + 0.04) * flicker;
     for (const f of braziers) b = Math.max(b, Math.max(0, 1 - Math.hypot(x - f.x, z - f.z) / BRAZIER_RANGE) ** 1.4);
     return b;
   };
@@ -226,7 +246,13 @@ export function draw(world: World, dt: number) {
     if (e === hero) s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1; // 구르기: 몸을 낮춘다
     s.mesh.position.x += f.kx;
     s.mesh.position.z += f.kz;
-    s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? 1.15 * flicker : light(e.x, e.z));
+    s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
+    // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
+    const seen = e === hero ? 1 : fadeOf(hero, e);
+    s.mesh.visible = seen > 0;
+    s.mat.transparent = seen < 1;
+    s.mat.opacity = seen;
+    s.mat.alphaTest = Math.max(0.01, 0.5 * seen); // 투명도까지 곱한 알파로 자르므로 같이 낮춘다
     if (f.flashT > 0) s.mat.color.setScalar(10); // 맞은 순간 하얗게
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0) s.mat.color.lerp(STUNNED, 0.5);
@@ -335,7 +361,7 @@ function buildMap(world: World) {
     const cells = wallCells.filter(([x, z]) => wallVariant(x, z, variants) === v);
     const side = [stone(wallTex, 2 * v, 2 * variants), stone(wallTex, 2 * v + 1, 2 * variants)];
     const top = stone(floorTex, 3, FLOOR_VARIANTS);
-    top.color.setScalar(0.35); // 벽 윗면은 어둡게
+    top.color.setScalar(view.day ? 0.7 : 0.35); // 벽 윗면은 어둡게(낮엔 덜)
     const walls = new THREE.InstancedMesh(v ? boxGeo.clone() : boxGeo, [side[0], side[0], top, top, side[1], side[1]], cells.length);
     cells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
     walls.castShadow = walls.receiveShadow = true;

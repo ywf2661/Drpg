@@ -1,6 +1,7 @@
 // 마우스 입력 → sim 명령. 몬스터 위 클릭은 attack, 땅 클릭·누르고 있기는 move.
 import * as THREE from 'three';
 import { camera, markMove, renderer } from './render/render';
+import { isSeen } from './render/sight';
 import { walkable } from './sim/path';
 import type { Command, World } from './sim/world';
 
@@ -193,7 +194,7 @@ function pick(world: World): number | null {
   let best: number | null = null;
   let bestD = pickRadius ** 2;
   for (const e of world.entities) {
-    if (e.kind === 'hero' || e.state === 'dead') continue;
+    if (e.kind === 'hero' || e.state === 'dead' || !isSeen(world.entities[0], e)) continue; // 시야 밖(낮)은 고를 수 없다
     const d = ray.ray.distanceSqToSegment(a.set(e.x, 0.2, e.z), b.set(e.x, 1.5, e.z));
     if (d < bestD) {
       bestD = d;
