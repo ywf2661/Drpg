@@ -1,4 +1,5 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
+import { EDGE_COLOR } from './edge';
 import * as THREE from 'three';
 import { ELITE_KINDS, SLOTS, STATS, UNIQUES, uniqueOf, type Entity, type Gear, type HeroClass, type Kind, type Skin, type Slot, type World } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
@@ -160,12 +161,14 @@ function pixelated<T extends THREE.Texture>(tex: T): T {
 
 // 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색
 export type Looks = Partial<Record<Slot, string>>;
-export function looksOf(w: Pick<World, 'mods'>): Looks {
+// 벼림으로 칼을 강화한 동안은 무기 색이 강화 색(전설 원색보다 먼저)
+export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge'>>): Looks {
   const out: Looks = {};
   for (const s of SLOTS) {
     const u = uniqueOf({ affixes: w.mods[s] });
     if (u && UNIQUES[u].look) out[s] = UNIQUES[u].look;
   }
+  if (w.edge?.kind) out.weapon = EDGE_COLOR[w.edge.kind];
   return out;
 }
 export const heroKey = (g: Gear, cls: HeroClass, looks: Looks) => JSON.stringify([g, cls, looks]);

@@ -179,3 +179,16 @@ test('갑옷을 바꿔 체력이 줄어도 맞은 소리는 나지 않는다', (
   hero.maxHp = hero.hp = 100;
   expect(names(soundEvents(prev, w))).toEqual([]);
 });
+
+test('벼림: 해방 참격은 가르기 소리, 서리 폭발은 얼음 소리', () => {
+  const w = createWorld(1, ['H..']);
+  let prev = snapshot(w);
+  w.edgeSlashes = 1;
+  expect(names(soundEvents(prev, w))).toEqual(['cleave']);
+  prev = snapshot(w);
+  w.blasts.push({ id: 98, x: 1, z: 1, age: 0, kind: 'ice', r: 2.5 });
+  expect(names(soundEvents(prev, w))).toEqual(['shout']);
+  prev = snapshot(w);
+  w.blasts.push({ id: 97, x: 1, z: 1, age: 0, kind: 'ice' }); // 얼어붙은 적 하나는 소리 없음(예전대로)
+  expect(names(soundEvents(prev, w))).toEqual([]);
+});

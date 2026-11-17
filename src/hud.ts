@@ -15,6 +15,7 @@ import wizardPortrait from './assets/sprites/portrait_wizard.png';
 import rangerPortrait from './assets/sprites/portrait_ranger.png';
 import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
+import { edgeLeft } from './render/edge';
 import { drawHeroPortrait, looksOf, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
@@ -93,6 +94,7 @@ export function initHud(h: Handlers) {
   // 스킬 버튼마다 단계 숫자와 [+](포인트가 있을 때). [+]를 누르면 쓰지 않고 단계만 올린다
   for (const [btn, s] of SKILL_BUTTONS()) {
     const rank = Object.assign(document.createElement('b'), { className: 'rank' });
+    btn.append(Object.assign(document.createElement('em'), { className: 'charges' })); // 벼림: 남은 충전
     const up = Object.assign(document.createElement('span'), { className: 'up', textContent: '+', hidden: true });
     up.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -821,7 +823,9 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   // 재사용 대기 남은 비율(칸마다 마지막으로 건 대기 기준)
   for (const [btn, k] of SKILL_BUTTONS()) {
     (btn.querySelector('i') as HTMLElement).style.height = `${Math.min(1, world[KEY_CD[k]] / world.cdFull[k]) * 100}%`;
-    btn.classList.toggle('short', !!world.keys[k] && !canAfford(world, world.keys[k]!)); // 기력·마나 부족(파랗게 어둡게)
+    const id = world.keys[k];
+    btn.classList.toggle('short', !!id && (!canAfford(world, id) || (world.edge.kind === 'both' && (id === 'flameEdge' || id === 'frostEdge')))); // 기력·마나 부족, 해방 중의 벼림(어둡게)
+    btn.querySelector<HTMLElement>('.charges')!.textContent = String(edgeLeft(world, k) ?? '');
   }
   $('#roll i').style.height = `${(world.rollCd / (world.cls === 'wizard' ? BLINK.cd : ROLL.cd)) * 100}%`;
   showKeys(world);

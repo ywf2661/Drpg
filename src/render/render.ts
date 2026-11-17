@@ -21,6 +21,8 @@ import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
 import { leapFx, rollFx, rollGroup } from './roll';
 import { flashFx, iaidoGroup, markFx, resetIaido, sheatheFx } from './iaido';
+import { resetTemper, temperFx, temperGroup } from './temper';
+import { edgeColor, mixColor } from './edge';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -49,6 +51,7 @@ const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
 export const camera = new THREE.OrthographicCamera();
 const scene = new THREE.Scene();
+let torchBase = 0xff9a4d; // 지역의 횃불 색(벼림 중엔 강화 색 쪽으로 30% 섞는다)
 const torch = new THREE.PointLight(0xff9a4d, TORCH, TORCH_RANGE, 1.5); // 주인공이 든 횃불
 const focus = new THREE.Vector3();
 const tmp = new THREE.Vector3();
@@ -174,7 +177,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -190,6 +193,7 @@ export function setWorld(world: World, theme: Theme) {
   ({ floor: floorTex, wall: wallTex } = tex[theme]);
   const mood = MOOD[theme];
   torch.color.set(mood.torch);
+  torchBase = mood.torch;
   torch.distance = TORCH_RANGE = mood.range;
   TORCH_TINT.fromArray(mood.tint);
   sky.intensity = mood.sky;
@@ -210,6 +214,7 @@ export function setWorld(world: World, theme: Theme) {
   for (const s of sprites) scene.add(s.mesh);
   fx = [];
   resetIaido();
+  resetTemper(world);
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
   castsSeen = world.casts;
@@ -232,6 +237,9 @@ export function draw(world: World, dt: number) {
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;
+  const edge = edgeColor(world);
+  torch.color.setHex(edge ? mixColor(torchBase, parseInt(edge.slice(1), 16), 0.3) : torchBase);
+  void setHeroGear(world.gear, world.cls, looksOf(world)); // 벼림: 무기 색(같으면 아무것도 안 함, 다 그린 뒤에야 바뀐다)
   weather.t += dt;
   const storm = weather.on ? blizzard(weather.t, weather.seed) : 0;
   view.sight = SIGHT - (SIGHT - BLIZZARD_SIGHT) * storm;
@@ -322,6 +330,7 @@ export function draw(world: World, dt: number) {
   syncZones(world);
   syncFires(world, time);
   syncFlames(world);
+  temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt);
   syncChests(world);
   syncSpikes(world);
   syncGates(world);

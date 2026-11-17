@@ -21,6 +21,7 @@ export type Snapshot = {
   zones: Set<number>;
   level: number;
   cleaves: number;
+  edgeSlashes: number; // 벼림 해방 참격
   dashes: number;
   shouts: number;
   opened: number; // 열린 상자 수
@@ -42,6 +43,7 @@ export function snapshot(w: World): Snapshot {
     zones: new Set(w.zones.map((z) => z.id)),
     level: w.level,
     cleaves: w.cleaves,
+    edgeSlashes: w.edgeSlashes,
     dashes: w.dashes,
     shouts: w.shouts,
     opened: w.chests.filter((c) => c.open).length,
@@ -73,7 +75,8 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' || s.kind === 'fireball' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
   // 내려찍기가 떨어짐 / 서리 고리 / 폭발·벼락 / 덫이 닫힘 / 화살비. 얼음·번개 튐·순간이동(구르기 소리)·치유는 따로 소리가 없다
   const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'shout', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', slash: 'blast', rain: 'shoot', curse: 'shout' };
-  for (const b of w.blasts) if (!prev.blasts.has(b.id) && BLAST_SOUND[b.kind]) at(BLAST_SOUND[b.kind]!, b.x, b.z);
+  const blastSound = (b: Blast) => BLAST_SOUND[b.kind] ?? (b.kind === 'ice' && b.r ? 'shout' : undefined); // 얼음은 덧벼림 폭발(반경 있음)만 — 얼어붙은 적마다 울리지 않게
+  for (const b of w.blasts) if (!prev.blasts.has(b.id) && blastSound(b)) at(blastSound(b)!, b.x, b.z);
   for (const z of w.zones) if (z.owner < 0 && !prev.zones.has(z.id)) at('fireball', z.x, z.z); // 불기둥 예고
   if (w.allies.length > prev.allies) at('summon'); // 해골 병사
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
@@ -90,7 +93,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (changed('weapon')) at('equip_weapon');
   if (changed('armor') || changed('helm') || changed('boots')) at('equip_armor'); // 방어구는 한 번만
   if (w.level > prev.level) at('level_up');
-  if (w.cleaves > prev.cleaves) at('cleave');
+  if (w.cleaves > prev.cleaves || w.edgeSlashes > prev.edgeSlashes) at('cleave');
   if (w.dashes > prev.dashes) at('dash');
   if (w.shouts > prev.shouts) at('shout');
   if (w.chests.filter((c) => c.open).length > prev.opened) at('chest');
