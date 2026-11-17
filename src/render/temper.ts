@@ -2,6 +2,7 @@
 // 무기 물들이기는 sprites.ts의 looksOf가, 횃불 색 섞기는 render.ts가 맡는다. sim은 바꾸지 않는다.
 import * as THREE from 'three';
 import type { World } from '../sim/world';
+import type { EdgeHit } from '../sim/rules';
 import { edgeBlink, edgeColor } from './edge';
 
 const HAND = 0.7; // 빛 점 높이(m)
@@ -36,16 +37,25 @@ const sparks: Spark[] = [];
 let slash: { mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>; age: number } | null = null;
 let swingsSeen = 0;
 let slashesSeen = 0;
+let hitSeen = -1; // 꺼내 간 강화 기록의 마지막 id(id는 늘 커진다)
+
+// 지난 호출 뒤 새로 생긴 강화 기록(프레임마다 한 번, render가 부른다)
+export function freshEdgeHits(w: World): EdgeHit[] {
+  const out = w.edgeHits.filter((h) => h.id > hitSeen);
+  for (const h of out) hitSeen = Math.max(hitSeen, h.id);
+  return out;
+}
 
 export function resetTemper(world: World) {
   swingsSeen = world.edgeSwings;
   slashesSeen = world.edgeSlashes;
+  hitSeen = Math.max(-1, ...world.edgeHits.map((h) => h.id));
   for (const p of sparks) p.age = SPARK.life;
   if (slash) slash.age = SLASH.life;
 }
 
 // at = 주인공 판자 자리(발밑), time = 실제 흐른 시간(깜빡임), dt = 이번 프레임
-export function temperFx(world: World, at: THREE.Vector3, time: number, dt: number) {
+export function temperFx(world: World, at: THREE.Vector3, time: number, dt: number, _fresh: EdgeHit[]) {
   const hero = world.entities[0];
   const color = edgeColor(world);
   const [fx, fz] = [Math.sin(hero.facing), Math.cos(hero.facing)];

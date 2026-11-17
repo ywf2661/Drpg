@@ -21,7 +21,9 @@ import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
 import { leapFx, rollFx, rollGroup } from './roll';
 import { flashFx, iaidoGroup, markFx, resetIaido, sheatheFx } from './iaido';
-import { resetTemper, temperFx, temperGroup } from './temper';
+import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
+import { EDGE_COLOR, splitLost } from './edge';
+import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
@@ -144,7 +146,7 @@ let mapGroup = new THREE.Group(); // 현재 층의 바닥·벽·계단
 let bufH = 1; // 렌더 버퍼 세로 픽셀 수
 let time = 0;
 // 타격감용 캐릭터별 상태: 번쩍임 남은 시간, 밀려난 뒤 판자가 따라가는 중인 차이(kx, kz), 직전 프레임 sim 위치
-let fx: { flashT: number; kx: number; kz: number; lx: number; lz: number }[] = [];
+let fx: { flashT: number; flashHex: string | null; kx: number; kz: number; lx: number; lz: number }[] = []; // flashHex: 벼림 강화 타격이면 번쩍임 색
 let impactsSeen = 0;
 let shoutsSeen = 0;
 let castsSeen = 0;
@@ -270,17 +272,23 @@ export function draw(world: World, dt: number) {
   castsSeen = world.casts;
   for (const c of world.combos) if (c.id > comboSeen) popNumber(camera, renderer.domElement, c.x, c.z, COMBO_TEXT[c.kind], 'combo');
   comboSeen = Math.max(comboSeen, ...world.combos.map((c) => c.id));
+  const fresh = freshEdgeHits(world); // 이번 프레임에 벼림 강화 효과를 받은 적: 적마다 추가 피해 합과 종류
+  const edgeBy = new Map<number, { dmg: number; kind: EdgeHit['kind'] }>();
+  for (const h of fresh) edgeBy.set(h.ent, { dmg: (edgeBy.get(h.ent)?.dmg ?? 0) + h.dmg, kind: h.kind });
   const frozen = hitstop > 0; // 멈춤 동안은 번쩍임·미끄러짐도 멈춘다 → 풀리면서 날아간다
   for (const e of world.entities) {
     const s = sprites[e.id];
-    const f = (fx[e.id] ??= { flashT: 0, kx: 0, kz: 0, lx: e.x, lz: e.z });
+    const f = (fx[e.id] ??= { flashT: 0, flashHex: null, kx: 0, kz: 0, lx: e.x, lz: e.z });
     const lost = e.maxHp === s.maxHp ? Math.round(s.hp - e.hp) : 0; // 갑옷 교체로 줄어든 것은 맞은 것이 아니다
     if (e !== hero && Math.hypot(e.x - f.lx, e.z - f.lz) > SLIDE_MIN) [f.kx, f.kz] = [f.kx + f.lx - e.x, f.kz + f.lz - e.z];
     [f.lx, f.lz] = [e.x, e.z];
     updateSprite(s, e, dt, attackInterval(world, e));
     if (lost > 0) {
-      popNumber(camera, renderer.domElement, e.x, e.z, lost, e === hero ? 'hurt' : hits > 0 ? 'skill' : 'hit');
-      if (e !== hero) f.flashT = hits > 0 ? 0.09 : 0.05;
+      const eh = e === hero ? undefined : edgeBy.get(e.id);
+      const [main, extra] = splitLost(lost, eh?.dmg ?? 0); // 벼림 추가 피해는 색을 달리해 따로
+      if (main > 0) popNumber(camera, renderer.domElement, e.x, e.z, main, e === hero ? 'hurt' : hits > 0 ? 'skill' : 'hit');
+      if (extra > 0) popNumber(camera, renderer.domElement, e.x, e.z, extra, eh!.kind === 'both' ? 'unleash' : 'flame');
+      if (e !== hero) [f.flashT, f.flashHex] = [hits > 0 ? 0.09 : 0.05, eh ? EDGE_COLOR[eh.kind] : null];
     }
     if (!frozen) {
       f.flashT -= dt;
@@ -300,7 +308,7 @@ export function draw(world: World, dt: number) {
     s.mat.transparent = seen < 1;
     s.mat.opacity = seen;
     s.mat.alphaTest = Math.max(0.01, 0.5 * seen); // 투명도까지 곱한 알파로 자르므로 같이 낮춘다
-    if (f.flashT > 0) s.mat.color.setScalar(10); // 맞은 순간 하얗게
+    if (f.flashT > 0) f.flashHex ? s.mat.color.set(f.flashHex).multiplyScalar(4) : s.mat.color.setScalar(10); // 맞은 순간 하얗게(벼림이면 강화 색으로)
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0 || e.asleep) s.mat.color.lerp(STUNNED, 0.5); // 잠든(얼어붙은) 몬스터도 푸르게
     if (e.fearT > 0 && e.skin !== 'treasure') s.mat.color.lerp(SCARED, 0.5); // 보물 고블린은 도망쳐도 금빛
@@ -330,7 +338,7 @@ export function draw(world: World, dt: number) {
   syncZones(world);
   syncFires(world, time);
   syncFlames(world);
-  temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt);
+  temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt, fresh);
   syncChests(world);
   syncSpikes(world);
   syncGates(world);

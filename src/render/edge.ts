@@ -21,3 +21,9 @@ export function mixColor(a: number, b: number, k: number): number {
   for (const s of [16, 8, 0]) out |= Math.round(((a >> s) & 255) * (1 - k) + ((b >> s) & 255) * k) << s;
   return out;
 }
+
+// 맞은 적의 잃은 체력을 [원래 숫자, 벼림 추가 피해 숫자]로 나눈다. 죽는 타격에선 추가 몫이 잃은 체력을 넘지 않는다
+export function splitLost(lost: number, extra: number): [number, number] {
+  const e = Math.min(extra, lost);
+  return [lost - e, e];
+}

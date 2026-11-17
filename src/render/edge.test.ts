@@ -1,6 +1,6 @@
 // 벼림 화면의 순수 판단(색·깜빡임·칸 충전 수)
 import { expect, test } from 'vitest';
-import { edgeBlink, edgeColor, edgeLeft, mixColor } from './edge';
+import { edgeBlink, edgeColor, edgeLeft, mixColor, splitLost } from './edge';
 import { looksOf } from './sprites';
 import type { World } from '../sim/world';
 
@@ -32,4 +32,9 @@ test('looksOf: 강화 중이면 무기 색이 강화 색, 빈 칼은 그대로',
 test('횃불 색 섞기 30%', () => {
   expect(mixColor(0x000000, 0xffffff, 0.3)).toBe(0x4d4d4d);
   expect(mixColor(0xff9a4d, 0xff9a4d, 0.3)).toBe(0xff9a4d);
+});
+test('숫자 나누기: 추가 피해는 따로, 합은 잃은 체력', () => {
+  expect(splitLost(30, 8)).toEqual([22, 8]);
+  expect(splitLost(5, 8)).toEqual([0, 5]); // 죽는 타격: 넘치지 않는다
+  expect(splitLost(30, 0)).toEqual([30, 0]);
 });
