@@ -149,3 +149,41 @@ test('폭발은 충전을 쓰지 않는다', () => {
   expect(w.entities.filter((e) => e.state === 'dead').length).toBe(2);
   expect(w.edge).toEqual({ kind: 'frost', left: 6, t: 0 }); expect(w.edgeSwings).toBe(0);
 });
+
+const both = (t = 6) => ({ kind: 'both' as const, left: 0, t });
+test('해방: 6초 동안 불과 서리가 함께, 충전이 줄지 않고, 끝나면 칼이 빈다', () => {
+  const w = arena(['Hm...'], { flameEdge: 1, frostEdge: 1, reforge: 1, unleash: 1 }, { throw: 'unleash' });
+  w.res = 100; step(w, [{ type: 'throw' }]);
+  expect(w.edge).toEqual(both(6)); expect(w.throwCd).toBe(15);
+  const e = w.entities[1]; e.stunT = 0;
+  for (let i = 0; i < 3; i++) temper(w, w.entities[0], [e]);
+  expect(e.stunT).toBeGreaterThan(0); expect(e.hp).toBeLessThan(1e5); expect(w.edge.kind).toBe('both');
+  runFor(w, 5.9); expect(w.edge.kind).toBe('both'); runFor(w, 0.2); expect(w.edge.kind).toBeNull();
+});
+test('해방도 덧벼림을 터뜨린다', () => {
+  const w = ring({ flameEdge: 1, reforge: 1, unleash: 1 }); w.keys.throw = 'unleash'; w.edge = flame(3);
+  w.res = 100; step(w, [{ type: 'throw' }]);
+  expect(w.edge.kind).toBe('both'); expect(w.blasts.some((b) => b.kind === 'fire' && b.r === 2.5)).toBe(true);
+});
+test('해방 참격: 앞쪽 3m·폭 0.8m 안의 적만, 벽 너머는 안 맞는다', () => {
+  const slash = (map: string[]) => { const w = arena(map, { unleash: 1 }); w.edge = both(); w.entities[0].facing = Math.PI / 2; temper(w, w.entities[0], []); return w; };
+  const a = slash(['H..m.m']);
+  expect(a.edgeSlashes).toBe(1); expect(a.entities[1].hp).toBeLessThan(1e5); expect(a.entities[2].hp).toBe(1e5);
+  expect(slash(['H.#m']).entities[1].hp).toBe(1e5);
+  expect(slash(['H...', '..m.']).entities[1].hp).toBe(1e5); // 옆으로 1m
+  const back = arena(['m.H..'], { unleash: 1 }); back.edge = both(); back.entities[0].facing = Math.PI / 2; temper(back, back.entities[0], []);
+  expect(back.entities[1].hp).toBe(1e5); // 뒤쪽
+});
+test('해방 참격은 칼로 벤 휘두름마다 한 번, 충전을 쓰지 않는 효과에선 나가지 않는다', () => {
+  const w = arena(['Hm...'], { unleash: 1 }); w.edge = both();
+  temper(w, w.entities[0], [w.entities[1]], false); expect(w.edgeSlashes).toBe(0);
+  temper(w, w.entities[0], [w.entities[1]]); expect(w.edgeSlashes).toBe(1);
+});
+test('해방 중엔 불·서리 벼림이 나가지 않는다(비용·대기 없음)', () => {
+  const w = arena(['H....'], { flameEdge: 1, unleash: 1 }); w.edge = both(); w.res = 50;
+  step(w, [{ type: 'dash' }]); expect(w.dashCd).toBe(0); expect(w.res).toBeGreaterThanOrEqual(50); expect(w.edge.kind).toBe('both');
+});
+test('끝나는 틱의 휘두름엔 참격이 없다', () => {
+  const w = arena(['H..m.'], { unleash: 1 }); w.edge = both(DT / 2);
+  step(w, []); expect(w.edge.kind).toBeNull(); temper(w, w.entities[0], []); expect(w.edgeSlashes).toBe(0);
+});
