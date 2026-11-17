@@ -193,3 +193,26 @@ test('같은 벼림을 다시 쓰면 터지지 않고 충전만 새로 찬다', 
   expect(w.edge).toEqual(flame(6)); expect(w.blasts.some((b) => b.r === 2.5)).toBe(false);
   for (const e of w.entities.slice(1)) expect(e.hp).toBe(1e5);
 });
+test('강화 기록: 효과를 준 적마다 하나, 못 맞히면 없음', () => {
+  const w = arena(['Hm...'], { flameEdge: 1 }); w.edge = flame();
+  const foe = w.entities[1];
+  const before = foe.hp;
+  temper(w, w.entities[0], [foe]);
+  expect(w.edgeHits).toHaveLength(1);
+  expect(w.edgeHits[0]).toMatchObject({ ent: foe.id, kind: 'flame', freeze: false, dmg: before - foe.hp });
+  expect(w.edgeHits[0].dmg).toBeGreaterThan(0);
+  temper(w, w.entities[0], []);
+  expect(w.edgeHits).toHaveLength(1);
+});
+test('강화 기록: 서리는 피해 0, 언 타수에 freeze', () => {
+  const w = arena(['Hm...'], { frostEdge: 1 }); w.edge = { kind: 'frost', left: 6, t: 0 };
+  const foe = w.entities[1];
+  for (let i = 0; i < 3; i++) temper(w, w.entities[0], [foe]);
+  expect(w.edgeHits.map((h) => [h.dmg, h.freeze])).toEqual([[0, false], [0, false], [0, true]]);
+});
+test('강화 기록은 hitAge 뒤 사라진다', () => {
+  const w = arena(['Hm...'], { flameEdge: 1 }); w.edge = flame();
+  temper(w, w.entities[0], [w.entities[1]]);
+  runFor(w, 0.6);
+  expect(w.edgeHits).toHaveLength(0);
+});

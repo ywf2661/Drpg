@@ -216,6 +216,8 @@ export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number;
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
+// 벼림 강화 효과를 받은 적 하나(연출용, 저장하지 않는다). dmg = 불로 실제 줄어든 체력, freeze = 이번에 얼었는지
+export type EdgeHit = { id: number; ent: number; x: number; z: number; kind: 'flame' | 'frost' | 'both'; dmg: number; freeze: boolean; age: number };
 export type Blast = { id: number; x: number; z: number; r?: number; age: number; n?: number; kind: 'slash' | 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' };
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
@@ -317,6 +319,7 @@ export type World = {
   slash: 'cleave' | 'mark'; // 지금 휘두르는 베기 종류(가르기·그어두기)
   edgeSwings: number; // 충전을 쓴 휘두름 수(렌더용: 불티)
   edgeSlashes: number; // 해방 참격 수(렌더·소리용)
+  edgeHits: EdgeHit[]; // 강화 효과를 받은 적(렌더·소리용, TEMPER.hitAge초)
   edge: { kind: 'flame' | 'frost' | 'both' | null; left: number; t: number }; // 칼 강화(벼림): 종류, 남은 충전, 해방 남은 시간(초)
   spinT: number; // 회오리 남은 시간(초)
   spinAcc: number; // 회오리 다음 타격까지 쌓인 시간
@@ -442,7 +445,7 @@ export const FLASH = { cd: 14, range: 6, max: 5, hit: 0.5, marks: 2, speed: 30, 
 // 벼림(기사 다섯째 탭): 칼에 불·서리를 입혀 휘두를 때마다 충전을 쓴다
 // charges 충전, flame 불 배율, flameCd 불 대기, burstR·burst 5단계 화염 폭발, hits·freeze 서리 빙결 타수·시간, frostCd 서리 대기,
 // reforgeR·reforge·reforgeFreeze 덧벼림 반경·배율·빙결, time·cd 해방 시간·대기, len·width·slash 해방 참격 길이·폭·배율
-export const TEMPER = { charges: 6, flame: 0.4, flameCd: 4, burstR: 1.5, burst: 0.6, hits: 3, freeze: 1, frostCd: 6, reforgeR: 2.5, reforge: 0.3, reforgeFreeze: 0.8, time: 6, cd: 15, len: 3, width: 0.8, slash: 0.5 };
+export const TEMPER = { charges: 6, flame: 0.4, flameCd: 4, burstR: 1.5, burst: 0.6, hits: 3, freeze: 1, frostCd: 6, reforgeR: 2.5, reforge: 0.3, reforgeFreeze: 0.8, time: 6, cd: 15, len: 3, width: 0.8, slash: 0.5, hitAge: 0.5 };
 export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1, air: 0.45, height: 1.6 }; // 대지 강타(돌격 궁극): 재사용, 뛰는 거리, 착지 반경, 배율, 기절, 체공(초), 높이(m, 그림)
 
 export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율

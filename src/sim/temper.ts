@@ -26,11 +26,15 @@ export function temper(w: World, hero: Entity, hit: Entity[], use = true): void 
   const ice = kind !== 'flame';
   for (const e of hit) {
     if (e.state === 'dead') continue;
+    const before = e.hp;
     if (fire) skillHit(w, e, Math.round(roll(w, hero) * flameEdgeStat(w).mult));
+    const rec = { id: w.nextItem++, ent: e.id, x: e.x, z: e.z, kind, dmg: Math.max(0, before - e.hp), freeze: false, age: 0 };
+    w.edgeHits.push(rec);
     if (!ice || e.hp <= 0) continue;
     const st = frostEdgeStat(w);
     if ((e.frost = (e.frost ?? 0) + 1) < st.hits) continue;
     e.frost = 0;
+    rec.freeze = true;
     stun(e, st.freeze);
     w.blasts.push({ id: w.nextItem++, x: e.x, z: e.z, age: 0, kind: 'ice' });
   }
