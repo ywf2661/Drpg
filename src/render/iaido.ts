@@ -33,8 +33,8 @@ export const iaidoGroup = new THREE.Group();
 
 // 칼선 모양(판자 평면 x = 길이 0..1, y = 폭): 꼬리가 뾰족하고 앞이 굵은 칼날, 가운데가 굵은 초승달
 const shape = (pts: [number, number][]) => new THREE.ShapeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))));
-const BLADE = shape([[0, 0], [0.8, 0.5], [1, 0], [0.8, -0.5]]);
-const LENS = shape([[0, 0], [0.5, 0.5], [1, 0], [0.5, -0.5]]);
+export const BLADE = shape([[0, 0], [0.8, 0.5], [1, 0], [0.8, -0.5]]);
+export const LENS = shape([[0, 0], [0.5, 0.5], [1, 0], [0.5, -0.5]]);
 
 type Line = { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; a: THREE.Vector3; b: THREE.Vector3; width: number; life: number; grow: number; age: number; live: boolean };
 const lines: Line[] = [];
@@ -45,7 +45,7 @@ const az = new THREE.Vector3();
 
 // a → b 칼선 하나. live면 지울 때까지(끝점을 옮기며) 그대로 두고, 아니면 life초 동안 가늘어지며 사라진다
 // over: 벽·캐릭터에 가리지 않고 맨 위에(적 몸 위의 칼선). 아니면 벽 뒤로 지나간 칼선은 가린다
-function line(a: THREE.Vector3, b: THREE.Vector3, o: { geo: THREE.BufferGeometry; color: number; width: number; life: number; grow?: number; live?: boolean; over?: boolean }): Line {
+export function line(a: THREE.Vector3, b: THREE.Vector3, o: { geo: THREE.BufferGeometry; color: number; width: number; life: number; grow?: number; live?: boolean; over?: boolean }): Line {
   let l = lines.find((l) => !l.live && l.age >= l.life);
   if (!l) {
     const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
