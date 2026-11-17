@@ -10,8 +10,12 @@ const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { we
 // 칸 이름은 옛 이름 그대로다: dash=납도, shout=일섬, throw=함성
 const IAIDO: SkillId[] = ['mark', 'sheathe', 'flash', 'shout']; // 발도 빌드의 칸 순서(Q W E R)
 const IAIDO_LEARN: SkillId[] = [...IAIDO, 'memory'];
-export type Build = 'basic' | 'iaido';
-const LEARN = (cls: HeroClass, build: Build = 'basic'): SkillId[] => (build === 'iaido' ? IAIDO_LEARN : BASIC[cls]).flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
+// 회오리 빌드(dash=회오리)와, 거기에 불 벼림 1점만 얹은 벼림 빌드(throw=불 벼림). 벼림 밸런스 측정용
+const WHIRL: SkillId[] = ['cleave', 'whirl', 'shout', 'throw'];
+const TEMPER: SkillId[] = ['cleave', 'whirl', 'shout', 'flameEdge'];
+export type Build = 'basic' | 'iaido' | 'whirl' | 'temper';
+const SLOTS: Record<Build, SkillId[] | null> = { basic: null, iaido: IAIDO, whirl: WHIRL, temper: TEMPER };
+const LEARN = (cls: HeroClass, build: Build = 'basic'): SkillId[] => (build === 'iaido' ? IAIDO_LEARN : SLOTS[build] ?? BASIC[cls]).flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): World {
@@ -51,11 +55,11 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
   const nec = w.cls === 'necromancer';
   if (skills && w.points > 0) {
     // 포인트는 배울 수 있는 것 중 가장 낮은 단계부터(같으면 LEARN 순서)
-    const can = LEARN(w.cls, build).filter((id) => !learnBlock(w, id));
+    const can = LEARN(w.cls, build).filter((id) => !learnBlock(w, id) && !(id === 'flameEdge' && w.ranks.flameEdge)); // 불 벼림은 1점만
     if (can.length) cmds.push({ type: 'learn', skill: can.reduce((a, b) => ((w.ranks[b] ?? 0) < (w.ranks[a] ?? 0) ? b : a)) });
   }
   // 예전 스킬 넷은 예전 칸에(봇의 판단이 칸 이름을 스킬로 본다)
-  const slots = build === 'iaido' ? IAIDO : BASIC[w.cls];
+  const slots = SLOTS[build] ?? BASIC[w.cls];
   if (skills) KEYS.forEach((k, i) => w.ranks[slots[i]] && w.keys[k] !== slots[i] && cmds.push({ type: 'bind', key: k, skill: slots[i] }));
   // 예고된 위험 구역 안이면 다른 일은 접고 바깥으로 걸어 나간다
   const zone = dodge && w.zones.find((z) => d(z.x, z.z) < z.r + 0.3);
@@ -108,6 +112,16 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
     else if (near(6) >= 3 && ready('shout')) cmds.push({ type: 'shout' });
     else if (foes[0] && d(foes[0].x, foes[0].z) < 2 && ready('cleave')) cmds.push({ type: 'skill', x: foes[0].x, z: foes[0].z });
     if (ready('throw') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'throw' });
+  } else if (skills && w.cls === 'knight' && (build === 'whirl' || build === 'temper')) {
+    // 회오리: 붙은 적이 둘 넘으면 돈다. 벼림 빌드는 칼이 비었으면 그 직전에 불 벼림
+    const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
+    if (ready('shout') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
+    if (ready('dash') && (near(2) >= 2 || (big && d(big.x, big.z) < 2))) {
+      if (build === 'temper' && !w.edge.kind && ready('throw')) cmds.push({ type: 'throw' });
+      cmds.push({ type: 'dash' });
+    }
+    const shooter = foes.find((e) => (e.kind === 'archer' || e.kind === 'mage') && d(e.x, e.z) > 2.5 && d(e.x, e.z) < 8);
+    if (build === 'whirl' && shooter && ready('throw')) cmds.push({ type: 'throw', x: shooter.x, z: shooter.z });
   } else if (skills && w.cls === 'knight') {
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
     if (ready('shout') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
