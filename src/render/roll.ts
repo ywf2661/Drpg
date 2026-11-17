@@ -1,7 +1,7 @@
 // 구르기 연출(그림에 구르기 동작이 없어 판자를 움직여 만든다): 몸 가운데를 축으로 한 바퀴, 지나간 자리에 잔상, 출발·착지에 흙먼지.
 // sim은 바꾸지 않는다(무적·이동은 그대로).
 import * as THREE from 'three';
-import { ROLL, type Entity } from '../sim/world';
+import { LEAP, ROLL, type Entity } from '../sim/world';
 import type { Sprite } from './sprites';
 import { puff } from './rain';
 
@@ -75,5 +75,34 @@ export function rollFx(s: Sprite, e: Entity, dt: number) {
     g.age += dt;
     g.mesh.visible = g.age < GHOST_LIFE;
     g.mesh.material.opacity = 0.5 * Math.max(0, 1 - g.age / GHOST_LIFE);
+  }
+}
+
+// 대지 강타 체공(sim phase 'leap'): 포물선으로 떠올랐다 내린다. 바닥엔 그림자, 뒤엔 잔상, 뛰고 내릴 때 흙먼지
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.45, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false }));
+shadow.rotation.x = -Math.PI / 2;
+shadow.visible = false;
+rollGroup.add(shadow);
+let leaping = false;
+
+// rollFx 다음에 매 프레임
+export function leapFx(s: Sprite, e: Entity, dt: number) {
+  const on = e.phase === 'leap' && e.state !== 'dead';
+  if (on !== leaping) {
+    for (let k = 0; k < (on ? 3 : 6); k++) puff(e.x + (Math.random() - 0.5) * 1.2, e.z + (Math.random() - 0.5) * 1.2);
+    leaping = on;
+    ghostT = 0;
+  }
+  shadow.visible = on;
+  if (!on) return;
+  const p = Math.min(1, Math.max(0, 1 - e.phaseT / LEAP.air)); // 날아간 비율
+  const h = 4 * LEAP.height * p * (1 - p);
+  s.mesh.position.y += h;
+  s.mesh.scale.y = p < 0.5 ? 1.1 : 0.95; // 오를 땐 늘어나고 내려찍을 땐 웅크린다
+  shadow.position.set(e.x, 0.02, e.z);
+  shadow.scale.setScalar(1 - (0.5 * h) / LEAP.height); // 높이 뜰수록 작게
+  if ((ghostT -= dt) <= 0) {
+    ghost(s);
+    ghostT = GHOST_EVERY;
   }
 }

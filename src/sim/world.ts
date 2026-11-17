@@ -6,7 +6,7 @@ import { rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval,
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
 import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
-import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
+import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
 import { BLOCKS } from './dungeon';
 import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
 import { GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
@@ -457,6 +457,7 @@ function act(w: World, e: Entity) {
   if (e.kind === 'boss' && charge(w, e, t)) return;
   if (e.kind === 'hero' && e.phase === 'charge') return dashStep(w, e);
   if (e.kind === 'hero' && e.phase === 'roll') return rollStep(w, e);
+  if (e.kind === 'hero' && e.phase === 'leap') return leapStep(w, e);
   if (e.kind === 'king' && summon(w, e, t)) return;
   if (e.kind === 'warrior' && slam(w, e, t)) return;
   if (e.kind === 'mage' && t) meteor(w, e, t);
@@ -533,7 +534,7 @@ function swing(w: World, e: Entity, t: Entity | null) {
 // 살아 있는 엔티티끼리 반경 RADIUS 원이 겹치지 않게 반씩 밀어낸다. 벽 칸으로는 밀리지 않는다.
 // ponytail: O(n²) 쌍 검사. 엔티티 수백 개부터는 공간 해시로 교체
 function separate(w: World) {
-  const alive = w.entities.filter((e) => e.state !== 'dead' && e.phase !== 'charge' && e.phase !== 'roll'); // 돌진·구르기 중에는 뚫고 지나간다
+  const alive = w.entities.filter((e) => e.state !== 'dead' && e.phase !== 'charge' && e.phase !== 'roll' && e.phase !== 'leap'); // 돌진·구르기·도약 중에는 뚫고 지나간다
   for (let i = 0; i < alive.length; i++) {
     for (let j = i + 1; j < alive.length; j++) {
       const a = alive[i];

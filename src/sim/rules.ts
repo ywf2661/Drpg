@@ -90,7 +90,7 @@ export type Entity = {
   eliteKind?: EliteKind; // 정예의 특성(createWorld가 정한다)
   skin?: Skin; // 초원·설원의 몬스터: 원형(kind)은 그대로, 그림·이름·수치가 다르다
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
-  phase: 'none' | 'windup' | 'charge' | 'roll'; // roll = 주인공 구르기(phaseT 남은 거리)
+  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
   phaseT: number;
   cd: number;
   dx: number;
@@ -332,7 +332,7 @@ export const ELITE_KINDS: Record<EliteKind, { name: string; desc: string; color:
 export const ELITE_KIND_LIST = Object.keys(ELITE_KINDS) as EliteKind[];
 // 지역(맵의 종류)과 그곳의 몬스터. 스킨 = 전투 원형(졸개·전사·마법사)에 그림·이름을 바꾸고 체력·이동 속도에 배율을 곱한 것
 export type Land = 'dungeon' | 'field' | 'snow' | 'ruins';
-export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight';
+export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon';
 export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = {
   goblin: { name: '고블린', hp: 0.8, speed: 1.25 }, // 약하지만 빠르고 떼로 온다
   goblin_elite: { name: '고블린 전사', hp: 0.9, speed: 1.15 },
@@ -347,13 +347,14 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   zombie_dark: { name: '어둠 좀비', hp: 1.3, speed: 0.85 }, // 폐허 졸개
   hobgoblin: { name: '홉고블린', hp: 1.1, speed: 1.05 }, // 폐허 전사
   hobgoblin_archer: { name: '홉고블린 궁수', hp: 1, speed: 1 }, // 폐허 궁수
-  bone_knight: { name: '해골 기사 왕', hp: 1.2, speed: 1 }, // 폐허의 보스: 체력 절반에 무덤을 일으킨다
+  bone_knight: { name: '해골 기사 왕', hp: 1.2, speed: 1 }, // 지금은 안 쓴다(폐허 보스가 악마로 바뀜)
+  demon: { name: '심연의 악마', hp: 1.2, speed: 1 }, // 폐허의 보스: 체력 절반에 무덤을 일으킨다
 };
 export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Record<Kind, Skin>> }> = {
   dungeon: { name: '지하', unit: '층', skins: {} },
   field: { name: '초원', unit: '구역', skins: { minion: 'goblin', warrior: 'goblin_elite', mage: 'fire_ant', boss: 'antlion' } },
   snow: { name: '설원', unit: '구역', skins: { minion: 'ice_ant', warrior: 'zombie', boss: 'wyvern' } },
-  ruins: { name: '폐허', unit: '구역', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'bone_knight' } },
+  ruins: { name: '폐허', unit: '구역', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'demon' } },
 };
 // 그림을 그리지 않는(모래 속에 숨은) 몬스터
 export const hidden = (e: Entity) => e.skin === 'antlion_small' && !!e.asleep;
@@ -419,7 +420,7 @@ export const WHIRL = { cd: 6, time: 2, extra: 1, tick: 0.25, mult: 0.4 }; // 회
 export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·회오리·처형으로 죽은 적
 export const EXECUTE = { cd: 8, reach: 2.5, below: 0.3, mult: 2.5, fear: 3, fearR: 4 }; // 처형(검술 궁극): 재사용, 닿는 거리, 즉사 체력 비율(단계마다 +0.03), 아니면 배율, 처치 시 주변 공포(시간·반경)
 export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
-export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1 }; // 대지 강타(돌격 궁극): 재사용, 뛰는 거리, 착지 반경, 배율, 기절
+export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1, air: 0.45, height: 1.6 }; // 대지 강타(돌격 궁극): 재사용, 뛰는 거리, 착지 반경, 배율, 기절, 체공(초), 높이(m, 그림)
 
 export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율
 export const AXES = { cd: 0.06, dmg: 0.1 }; // 도끼 숙련(투척 패시브): 단계마다 도끼 스킬 재사용 대기 −6%, 피해 +10%

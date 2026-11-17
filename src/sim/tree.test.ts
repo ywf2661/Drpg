@@ -1,7 +1,7 @@
 // 스킬 트리: 배우기 규칙(레벨·아래 단계·포인트), 칸 끼우기, 되돌리기, 시너지, 그리고 트리의 새 스킬·패시브
 import { expect, test } from 'vitest';
 import { shaft } from './ranger';
-import { axeStat, BASIC, BOUNCE, bind, bonesStat, cleaveStat, createWorld, critStat, DT, EXECUTE, HUNT, isPassive, KEY_CD, KEYS, learn, learnBlock, newSkills, RESPEC, respec, setLevel, SPREAD, step, TIER_LEVEL, TRAP, TREES, useClass, type Command, type HeroClass, type SkillId, type World } from './world';
+import { axeStat, BASIC, BOUNCE, bind, bonesStat, cleaveStat, createWorld, critStat, DT, EXECUTE, HUNT, isPassive, KEY_CD, KEYS, LEAP, learn, learnBlock, newSkills, RESPEC, respec, setLevel, SPREAD, step, TIER_LEVEL, TRAP, TREES, useClass, type Command, type HeroClass, type SkillId, type World } from './world';
 
 const run = (w: World, sec: number, cmds: Command[] = []) => {
   step(w, cmds);
@@ -161,10 +161,13 @@ test('대지 강타: 커서 쪽으로 뛰어 내려찍고, 둘레의 적이 다�
   const w = make(['H.....m..'], 'knight', { leap: 1 }, 'leap');
   w.entities[1].stunT = 0;
   step(w, [{ type: 'skill', x: 6.5, z: 0.5 }]);
+  expect(w.entities[0].phase).toBe('leap'); // 날아가는 중: 무적, 아직 안 내려찍었다
+  expect(lost(w)).toBe(0);
+  run(w, LEAP.air);
+  expect(w.entities[0].phase).toBe('none');
   expect(w.entities[0].x).toBeGreaterThan(5);
   expect(lost(w)).toBeGreaterThan(0);
   expect(w.entities[1].stunT).toBeGreaterThan(0);
-  expect(w.entities[0].phase).toBe('roll'); // 잠깐 무적
 });
 
 test('튕기는 도끼는 세 번(5단계 여섯 번) 튀고, 도끼 숙련은 도끼를 더 자주·세게, 도끼 폭풍은 사방으로', () => {

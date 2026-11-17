@@ -39,6 +39,8 @@ import hobgoblinArcherInfo from '../assets/sprites/hobgoblin_archer.json';
 import hobgoblinArcherUrl from '../assets/sprites/hobgoblin_archer.png';
 import boneKnightInfo from '../assets/sprites/bone_knight.json';
 import boneKnightUrl from '../assets/sprites/bone_knight.png';
+import demonInfo from '../assets/sprites/demon.json';
+import demonUrl from '../assets/sprites/demon.png';
 
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
@@ -86,6 +88,7 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   hobgoblin: { info: hobgoblinInfo as SheetInfo, url: hobgoblinUrl },
   hobgoblin_archer: { info: hobgoblinArcherInfo as SheetInfo, url: hobgoblinArcherUrl },
   bone_knight: { info: boneKnightInfo as SheetInfo, url: boneKnightUrl },
+  demon: { info: demonInfo as SheetInfo, url: demonUrl },
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때

@@ -188,6 +188,25 @@
       .bag-item[data-q='2'] { border-color: var(--rare); }
       .bag-item[data-q='3'] { border-color: var(--legend); box-shadow: inset 0 0 8px var(--legend); }
       .bag-item[data-q='4'] { border-color: var(--set); box-shadow: inset 0 0 8px var(--set); }
+      /* 장비 칸의 그림 색(아이템마다, hud.ts tint): 같은 그림을 ::before에 다시 그려 필터를 건다 — 테두리(등급 색)는 물들지 않는다 */
+      .slot[data-q], .bag-item { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } /* iOS: 꾹 누르면 툴팁(hud.ts tipOn), 시스템 메뉴·글자 고르기는 끈다 */
+      .slot[data-q]::before { content: ''; position: absolute; inset: 0; background: inherit; border-radius: inherit; box-shadow: inset 0 0 6px #000; filter: var(--tint, none); pointer-events: none; }
+
+      /* 장비 툴팁(디아블로식): 등급 색 테두리·이름, 흰 기본 수치, 파란 옵션, 주황 고유 효과, 초록 세트 */
+      #tip { position: fixed; inset: auto; margin: 0; padding: 0; width: max-content; max-width: 300px; overflow: visible; color: var(--ink); font: 13px/1.5 var(--serif); text-align: center; background: linear-gradient(#100c09f4, #070504f4); border: 1px solid var(--q); box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000, 0 0 16px color-mix(in srgb, var(--q) 35%, transparent), 0 8px 28px #000e; pointer-events: none; }
+      #tip header { padding: 9px 16px 7px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--q) 30%, transparent), transparent 75%); border-bottom: 1px solid color-mix(in srgb, var(--q) 50%, #000); }
+      #tip header b { display: block; font-size: 15px; letter-spacing: 1px; color: var(--q); text-shadow: 0 1px 2px #000, 0 0 8px color-mix(in srgb, var(--q) 40%, transparent); }
+      #tip header small { font-size: 11px; letter-spacing: 1px; color: var(--ink-faint); }
+      #tip section { padding: 6px 16px; }
+      #tip section + section { border-top: 1px solid #ffffff12; }
+      #tip .base { color: #f4efe6; }
+      #tip .uniq { color: #ffb05a; font-style: italic; }
+      #tip .aff { color: #8fa8ff; }
+      #tip .set { color: var(--set); }
+      #tip .set-name { font-weight: bold; letter-spacing: 1px; }
+      #tip .set .off { color: #6d675c; }
+      #tip .up { color: #7fe08a; } #tip .down { color: #ff7a66; } #tip .worn { color: var(--gold); }
+      #tip footer { padding: 5px 16px 7px; font-size: 11px; color: var(--ink-faint); border-top: 1px solid #ffffff12; background: #0006; }
       .bag-item.sel { background: linear-gradient(#4a3618, #2a1e0e); }
       .bag-item.drag { z-index: 3; opacity: 0.85; cursor: grabbing; }
       .bag-item i { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px; background-size: 640px 40px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; mix-blend-mode: screen; } /* 아이콘의 검은 바탕을 칸 색에 녹인다 */
@@ -270,6 +289,8 @@
     </style>
   </head>
   <body>
+    <svg id="tints" width="0" height="0" style="position: absolute" aria-hidden="true"></svg><!-- 장비 그림 색 필터(hud.ts tint가 색마다 만든다) -->
+    <div id="tip" popover="manual"></div><!-- 장비 툴팁 -->
     <div id="boss" hidden><span>미노타우르스</span><div class="bar"><i></i></div></div>
     <div id="target" hidden><span></span><div class="bar"><i></i></div><small></small></div>
     <div id="hud">

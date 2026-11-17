@@ -382,8 +382,8 @@ const SET_LINES: [number, string][] = [
   [4, `정예를 잡으면 ${SET_HUNTER.time}초 동안 그 정예의 특성을 얻는다`],
 ];
 
-// 장비의 수치·옵션 설명 줄들
-function gearLines(it: GearItem): string[] {
+// 장비 설명의 조각: 기본 수치, 고유 효과, 옵션 줄들, 세트 효과([줄, 켜짐] — 세트 조각만)
+function gearParts(it: GearItem) {
   const t = it.tier - 1;
   const c = CLASSES[cls];
   const wpn = c.weapons[t];
@@ -394,8 +394,120 @@ function gearLines(it: GearItem): string[] {
     boots: `이동 속도 +${Math.round(c.boots[t].move * 100)}%`,
   }[it.kind];
   const u = uniqueOf(it);
-  const set = u && UNIQUES[u].set ? [`정예 사냥꾼 (${setNow}/4)`, ...SET_LINES.map(([n, t]) => `${setNow >= n ? '●' : '○'} ${n}부위: ${t}`)] : [];
-  return [base, ...(u && UNIQUES[u].desc ? [`★ ${UNIQUES[u].desc}`] : []), ...it.affixes.map((a) => AFFIX_TEXT[a.kind](a.value, a)), ...set].filter(Boolean);
+  return {
+    base,
+    desc: u ? UNIQUES[u].desc : '',
+    affixes: it.affixes.map((a) => AFFIX_TEXT[a.kind](a.value, a)).filter(Boolean),
+    set: u && UNIQUES[u].set ? SET_LINES.map(([n, t]): [string, boolean] => [`${n}부위: ${t}`, setNow >= n]) : null,
+  };
+}
+
+// 장비의 수치·옵션 설명 줄들(한 줄 요약용)
+function gearLines(it: GearItem): string[] {
+  const p = gearParts(it);
+  const set = p.set ? [`정예 사냥꾼 (${setNow}/4)`, ...p.set.map(([t, on]) => `${on ? '●' : '○'} ${t}`)] : [];
+  return [p.base, ...(p.desc ? [`★ ${p.desc}`] : []), ...p.affixes, ...set];
+}
+
+// 장비 그림 색: 아이템마다 다르다(등급은 테두리로만). 고유 장비는 입었을 때와 같은 원색(look), 아니면 첫 옵션의 색, 일반은 원래 색
+const AFFIX_COLOR: Partial<Record<Affix['kind'], string>> = { dmg: '#e8321e', speed: '#f5d020', leech: '#c0103c', crit: '#ff7a10', life: '#2ccf48', guard: '#3d7fe0', regen: '#18d0b4', thorns: '#a33fe0', move: '#30c8ff', skill: '#e04ad8', tab: '#e04ad8', allSkills: '#e04ad8' };
+const iconColor = (it: GearItem) => {
+  const u = uniqueOf(it);
+  return (u && UNIQUES[u].look) || it.affixes.map((a) => AFFIX_COLOR[a.kind]).find(Boolean);
+};
+// 색 하나 = svg 색 필터 하나(처음 쓸 때 #tints에 만든다): 밝기 × 색 × 1.5를 90% + 원래 색 10%. 어두운 아이콘 바탕은 어두운 채로 남는다
+function tint(color?: string): string {
+  if (!color) return 'none';
+  const id = `tint-${color.slice(1)}`;
+  if (!document.getElementById(id)) {
+    const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
+    const lum = [0.3, 0.59, 0.11];
+    const rows = rgb.map((c, i) => [...lum.map((l, j) => (i === j ? 0.1 : 0) + 0.9 * 1.5 * c * l), 0, 0].map((v) => v.toFixed(3)).join(' '));
+    const ns = 'http://www.w3.org/2000/svg';
+    const f = document.createElementNS(ns, 'filter');
+    const m = document.createElementNS(ns, 'feColorMatrix');
+    f.id = id;
+    f.setAttribute('color-interpolation-filters', 'sRGB');
+    m.setAttribute('values', `${rows.join(' ')} 0 0 0 1 0`);
+    f.append(m);
+    document.querySelector('#tints')!.append(f);
+  }
+  return `url(#${id})`;
+}
+// 아이콘 칸(.slot)에 그 장비의 그림 색: 칸의 ::before가 같은 그림을 이 필터로 다시 그린다(테두리는 물들지 않는다)
+const paintSlot = (el: HTMLElement, it: GearItem) => el.style.setProperty('--tint', tint(iconColor(it)));
+
+// 장비 툴팁(디아블로식): 마우스를 올리면 커서 옆에. 터치는 누르면 아래에 설명이 나오므로 띄우지 않는다
+const tip = $('#tip');
+const Q_NAME = ['일반', '마법', '희귀', '전설', '세트'];
+const Q_COLOR = ['#e8e0d0', 'var(--magic)', 'var(--rare)', 'var(--legend)', 'var(--set)'];
+const mk = (tag: string, className: string, text = '') => Object.assign(document.createElement(tag), { className, textContent: text });
+function fillTip(it: GearItem, note: string, foot: string) {
+  const q = quality(it);
+  const p = gearParts(it);
+  tip.style.setProperty('--q', Q_COLOR[q]);
+  const head = mk('header', '');
+  head.append(mk('b', '', nameOf(it.kind, it.tier, it.affixes)), mk('small', '', `${Q_NAME[q]} ${SLOT_NAME[it.kind]} · ${it.tier}단계`));
+  const parts = [head, mk('section', 'base', p.base)];
+  if (p.desc) parts.push(mk('section', 'uniq', p.desc));
+  if (p.affixes.length) {
+    const s = mk('section', 'aff');
+    s.append(...p.affixes.map((a) => mk('div', '', a)));
+    parts.push(s);
+  }
+  if (p.set) {
+    const s = mk('section', 'set');
+    s.append(mk('div', 'set-name', `정예 사냥꾼 (${setNow}/4)`), ...p.set.map(([t, on]) => mk('div', on ? '' : 'off', `${on ? '●' : '○'} ${t}`)));
+    parts.push(s);
+  }
+  if (note) parts.push(mk('section', note.startsWith('▲') ? 'up' : note.startsWith('▼') ? 'down' : 'worn', note));
+  if (foot) parts.push(mk('footer', '', foot));
+  tip.replaceChildren(...parts);
+}
+// 마우스: 커서 오른쪽 아래(넘치면 왼쪽). 손가락(touch): 가리지 않게 손가락 위, 가로는 가운데
+function placeTip(x: number, y: number, touch: boolean) {
+  const r = tip.getBoundingClientRect();
+  const left = touch ? x - r.width / 2 : x + 18 + r.width > innerWidth - 8 ? x - 18 - r.width : x + 18;
+  const top = touch ? y - r.height - 36 : y + 18;
+  tip.style.left = `${Math.max(8, Math.min(left, innerWidth - r.width - 8))}px`;
+  tip.style.top = `${Math.max(8, Math.min(top, innerHeight - r.height - 8))}px`;
+}
+export const hideTip = () => tip.matches(':popover-open') && tip.hidePopover();
+const HOLD = { ms: 450, slop: 10 }; // 휴대폰: 이만큼 꾹 누르면(움직임이 slop px 안) 툴팁
+// get: [장비, 비교 한 줄, 맨 아래 도움말]. 같은 칸을 다시 그려도 이벤트가 쌓이지 않게 칸마다 한 번만 달고 get만 바꾼다
+const tipGet = new WeakMap<HTMLElement, () => [GearItem, string, string]>();
+function tipOn(target: HTMLElement, get: () => [GearItem, string, string]) {
+  if (!tipGet.has(target)) {
+    let hold = 0;
+    let held = false; // 꾹 눌러 띄웠다 — 손을 뗄 때의 click(HUD 칸 = 보관함 열기)은 삼킨다
+    let at = [0, 0];
+    const open = (x: number, y: number, touch: boolean) => {
+      fillTip(...tipGet.get(target)!());
+      hideTip();
+      tip.showPopover(); // 맨 위 층(열린 창 위)에 띄운다
+      placeTip(x, y, touch);
+    };
+    const stop = () => {
+      clearTimeout(hold);
+      hold = 0;
+      hideTip();
+    };
+    target.addEventListener('pointerenter', (e) => e.pointerType !== 'touch' && open(e.clientX, e.clientY, false));
+    target.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      at = [e.clientX, e.clientY];
+      held = false;
+      hold = setTimeout(() => ((hold = 0), (held = true), open(at[0], at[1], true)), HOLD.ms);
+    });
+    target.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'touch') return void (tip.matches(':popover-open') && placeTip(e.clientX, e.clientY, false));
+      if (hold && Math.hypot(e.clientX - at[0], e.clientY - at[1]) > HOLD.slop) stop(); // 끌기로 넘어간다
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) target.addEventListener(ev, stop);
+    target.addEventListener('contextmenu', (e) => e.preventDefault()); // 안드로이드: 꾹 누르면 뜨는 메뉴
+    target.addEventListener('click', (e) => held && ((held = false), e.stopImmediatePropagation()), true);
+  }
+  tipGet.set(target, get);
 }
 
 // 장비 아이콘 위치(gear_icons.png = 무기 4 + 갑옷 4 + 투구 4 + 신발 4)
@@ -409,8 +521,9 @@ function showGear(w: World) {
     const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
     const slot = gearSlots[kind];
     slot.style.backgroundPositionX = iconX(it);
-    slot.title = `${nameOf(it.kind, it.tier, it.affixes)}\n${gearLines(it).join('\n')}\n눌러서 보관함 열기`;
     slot.dataset.q = String(quality(it));
+    paintSlot(slot, it);
+    tipOn(slot, () => [it, '입은 장비', '눌러서 보관함 열기']);
   }
 }
 
@@ -441,6 +554,7 @@ function gearRow(it: GearItem, mark: string, buttons: [string, () => void][]) {
   icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
   icon.style.backgroundPositionX = iconX(it);
   icon.dataset.q = String(quality(it));
+  paintSlot(icon, it);
   const info = document.createElement('div');
   const name = Object.assign(document.createElement('b'), { className: `q${quality(it)}`, textContent: nameOf(it.kind, it.tier, it.affixes) + mark });
   info.append(name, Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }));
@@ -462,7 +576,7 @@ const DOLL_AT: Record<Slot, [number, number]> = { helm: [32, 11], weapon: [15, 2
 const DOLL_SCALE = 5;
 
 // 인형: 지금 장비를 입은 주인공 위에 부위별 칸. 칸을 누르면 고르고, 보관함 장비를 끌어다 놓으면 입는다
-function showDoll(w: World, mark: (it: GearItem) => string, onPick: (s: Slot) => void) {
+function showDoll(w: World, onPick: (s: Slot) => void) {
   const doll = $('#doll');
   const hero = doll.querySelector('canvas')!;
   void setHeroGear(w.gear, w.cls, looksOf(w)).then(() => drawHeroPortrait(hero, DOLL_SCALE));
@@ -470,9 +584,11 @@ function showDoll(w: World, mark: (it: GearItem) => string, onPick: (s: Slot) =>
     hero,
     ...SLOTS.map((kind) => {
       const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
-      const el = Object.assign(document.createElement('div'), { className: `slot doll-slot${selected === kind ? ' sel' : ''}`, title: `${SLOT_NAME[kind]}: ${nameOf(kind, it.tier, it.affixes)}${mark(it)}\n${gearLines(it).join('\n')}` });
+      const el = Object.assign(document.createElement('div'), { className: `slot doll-slot${selected === kind ? ' sel' : ''}` });
       el.dataset.slot = kind;
       el.dataset.q = String(quality(it));
+      paintSlot(el, it);
+      tipOn(el, () => [it, '입은 장비', '보관함 장비를 여기로 끌어다 놓으면 갈아입기']);
       el.dataset.name = SLOT_NAME[kind];
       el.style.left = `${(DOLL_AT[kind][0] / PORTRAIT.w) * 100}%`;
       el.style.top = `${(DOLL_AT[kind][1] / PORTRAIT.h) * 100}%`;
@@ -500,6 +616,12 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
     const d = gearDiff(w, it);
     return d > 1e-9 ? ' ▲' : d < -1e-9 ? ' ▼' : '';
   };
+  const compare = (it: GearItem) => {
+    const d = gearDiff(w, it);
+    return d > 1e-9 ? '▲ 지금 입은 장비보다 좋다' : d < -1e-9 ? '▼ 지금 입은 장비보다 약하다' : '';
+  };
+  hideTip(); // 다시 그리면 올려 둔 칸이 사라진다(떠날 때 이벤트가 오지 않는다)
+  bagDlg.onclose = () => !bagDlg.open && hideTip(); // 닫고 바로 다시 열면 늦게 온 close가 열린 창의 툴팁을 끄지 않게
   if (!bagDlg.open) {
     selected = -1;
     bagDlg.showModal(); // 먼저 열어야 칸 크기를 잴 수 있다
@@ -517,15 +639,18 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
     shadow,
     ...w.bag.map((it, i) => {
       const size = gearSize(it);
-      const el = Object.assign(document.createElement('div'), { className: i === selected ? 'bag-item sel' : 'bag-item', title: `${nameOf(it.kind, it.tier, it.affixes)}${mark(it)}\n${gearLines(it).join('\n')}` });
+      const el = Object.assign(document.createElement('div'), { className: i === selected ? 'bag-item sel' : 'bag-item' });
       el.dataset.q = String(quality(it));
       el.style.gridArea = area(it.x, it.y, size);
       const icon = document.createElement('i');
       icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
       icon.style.backgroundPositionX = iconX(it);
       icon.style.scale = String((Math.min(...size) * cell - 4) / 40);
+      icon.style.filter = tint(iconColor(it));
       el.append(icon);
+      tipOn(el, () => [it, compare(it), '우클릭: 장착 · 끌어서 옮기기']);
       el.onpointerdown = (e) => {
+        hideTip();
         if (e.button === 2) return equip(i);
         if (e.button) return;
         el.setPointerCapture(e.pointerId);
@@ -553,7 +678,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
       return el;
     }),
   );
-  showDoll(w, mark, (s) => {
+  showDoll(w, (s) => {
     selected = s;
     showBag(w, h);
   });

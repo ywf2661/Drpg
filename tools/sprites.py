@@ -46,10 +46,16 @@ KINDS = {  # 몬스터: 레이어 1장
     'antlion_small': {'body': 'enemies/antlion_small'}, 'grave': {'body': 'enemies/cursed_grave'},
     'zombie_dark': {'body': 'ec:enemies/zombie_dark'}, 'hobgoblin': {'body': 'ec:enemies/hobgoblin'},
     'hobgoblin_archer': {'body': 'ec:enemies/hobgoblin_archer'}, 'bone_knight': {'body': 'ec:enemies/skeleton_knight_boss'},
+    'demon': {'body': 'demon'},  # 폐허의 보스(악마): Flare 밖 그림 — GRIDS
 }
-KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}, 'fire_ant': {**ANIMS, 'attack': 'cast'}, 'hobgoblin_archer': {**ANIMS, 'attack': 'shoot'},
+# Flare 저장소 밖 그림: 256px 칸 격자 한 장(가로 = 프레임, 세로 = 방향), 정의 파일이 없다. 자동으로 못 받는다 — url에서 받아 tools/.cache/local/<이름>.png에 둔다.
+# rows: FLARE 방향 번호 → 격자 줄, foot: 칸 안의 발, anims: FLARE 동작 → (첫 프레임, 수, ms, loop), sat·bright: 기존 그림에 맞춘 채도·밝기
+GRIDS = {'demon': {'url': 'https://opengameart.org/content/demon-flare-sprite-sheets', 'rows': [7, 0, 1, 2, 3, 4, 5, 6], 'foot': (105, 188), 'sat': 0.75, 'bright': 0.8,
+                   'anims': {'stance': (0, 4, 533, 'back_forth'), 'run': (4, 9, 600, 'looped'), 'swing': (13, 5, 500, 'play_once'),
+                             'hit': (30, 2, 133, 'back_forth'), 'die': (32, 10, 1000, 'play_once')}}}
+KIND_ANIMS = {'archer':{**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}, 'fire_ant': {**ANIMS, 'attack': 'cast'}, 'hobgoblin_archer': {**ANIMS, 'attack': 'shoot'},
               'grave': {**ANIMS, 'move': 'stance', 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전, 무덤은 걷지 않는다
-KIND_SCALE = {'boss': 0.28, 'wyvern': 0.28, 'antlion': 0.36, 'bone_knight': 0.3, 'grave': 0.26, 'hobgoblin': 0.45, 'hobgoblin_archer': 0.45}  # 홉고블린은 원본이 고블린만 하다 — 고블린보다 크게  # 0.32면 시트 세로가 4560px(> 4096)
+KIND_SCALE = {'demon': 0.64, 'boss': 0.28,'wyvern': 0.28, 'antlion': 0.36, 'bone_knight': 0.3, 'grave': 0.26, 'hobgoblin': 0.45, 'hobgoblin_archer': 0.45}  # 홉고블린은 원본이 고블린만 하다 — 고블린보다 크게  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 부위별 레이어 시트(hero_<레이어>_<단계>.png). 게임이 장비에 맞춰 방향마다 LAYER_ORDER대로 겹친다.
 # 모든 레이어가 같은 칸 크기·기준점이라 hero.json 하나를 공유한다. 단계 1~4 순
 # 레이어 → FLARE 원본들. lower = 다리+손(모든 방향에서 그리는 순서가 붙어 있어 한 장으로)
@@ -171,6 +177,18 @@ class Sheet:
     def __init__(self, name):
         self.anims, self.images, self.src = {}, {}, {}  # src: (동작, 프레임, 방향) → 이미지 이름
         name, _, tint = name.partition('@')
+        if g := GRIDS.get(name):
+            path = CACHE / 'local' / f'{name}.png'
+            assert path.exists(), f'{path} 없음 — {g["url"]}에서 받아 둔다'
+            im = Image.open(path).convert('RGBA')
+            self.img = ImageEnhance.Brightness(ImageEnhance.Color(im.convert('RGB')).enhance(g['sat'])).enhance(g['bright'])
+            self.img.putalpha(im.getchannel('A'))
+            self.images[None] = self.img
+            fx, fy = g['foot']
+            for anim, (first, n, ms, loop) in g['anims'].items():
+                rects = {(i, d): ((first + i) * 256, row * 256, 256, 256, fx, fy) for i in range(n) for d, row in enumerate(g['rows'])}
+                self.anims[anim] = {'frames': n, 'duration': f'{ms}ms', 'type': loop, 'rects': rects}
+            return
         mod, name = name.split(':') if ':' in name else ('fantasycore', name)
         mod = MODS.get(mod, mod)
         cur = None
@@ -541,6 +559,9 @@ alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces fl
 from isometric into square textures, wall brightened; props and stairs scaled by {TILE_SCALE:.3f}.
 Sound effects and music: copied unchanged (Ogg Vorbis).
 Items: drop animations scaled by {SCALE} (potion by 0.5), item icons cropped from the icon atlas.
+
+Demon (ruins boss): "Demon - Flare sprite sheets", OpenGameArt, CC0 - {GRIDS['demon']['url']}
+Modifications: selected frames, saturation and brightness lowered, scaled by {KIND_SCALE['demon']}, alpha thresholded, reduced to 256 colors.
 
 Files used:
 {files}

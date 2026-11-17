@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BLINK, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
@@ -187,8 +187,8 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number): numbe
   return dashStat(w).cd;
 }
 
-// 대지 강타: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 쪽)으로 LEAP.range까지 뛰어 내려찍는다(벽 앞에서 멈춤).
-// 내린 자리 둘레의 적에게 피해·기절·밀어냄. 뛰는 동안은 순간이동처럼 잠깐 무적
+// 대지 강타: 조준점(없으면 가까운 적, 그것도 없으면 바라보는 쪽)으로 LEAP.range까지 뛰어오른다(벽 앞에서 멈춤).
+// LEAP.air초 동안 날아가며(무적, 적을 넘는다) 내린 자리에서 leapLand
 export function leap(w: World, hero: Entity, x?: number, z?: number): number {
   const near = nearest(w, hero, LEAP.range);
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + Math.sin(hero.facing) * LEAP.range, hero.z + Math.cos(hero.facing) * LEAP.range];
@@ -196,8 +196,20 @@ export function leap(w: World, hero: Entity, x?: number, z?: number): number {
   const [dx, dz] = d > 1e-6 ? [(tx - hero.x) / d, (tz - hero.z) / d] : [Math.sin(hero.facing), Math.cos(hero.facing)];
   let k = 0;
   while (k + 0.1 <= Math.min(LEAP.range, d) && walkable(w.grid, Math.floor(hero.x + dx * (k + 0.1)), Math.floor(hero.z + dz * (k + 0.1)))) k += 0.1;
-  Object.assign(hero, { x: hero.x + dx * k, z: hero.z + dz * k, phase: 'roll', phaseT: BLINK.guard * ROLL.speed, dx: 0, dz: 0, state: 'idle', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
+  // dx, dz = 초당 이동량(뛰는 거리와 상관없이 LEAP.air초에 내린다), phaseT = 남은 체공 시간
+  Object.assign(hero, { phase: 'leap', phaseT: LEAP.air, dx: (dx * k) / LEAP.air, dz: (dz * k) / LEAP.air, state: 'idle', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   Object.assign(w, { opening: null, toStairs: false });
+  w.dashes++;
+  return leapStat(w).cd;
+}
+
+// 대지 강타 체공 한 틱. 다 날았으면 내린 자리 둘레의 적에게 피해·기절·밀어냄
+export function leapStep(w: World, hero: Entity) {
+  const t = Math.min(DT, hero.phaseT); // 마지막 틱은 남은 만큼만(조준한 자리를 넘어 벽에 박히지 않게)
+  [hero.x, hero.z] = [hero.x + hero.dx * t, hero.z + hero.dz * t];
+  if ((hero.phaseT -= DT) > 1e-9) return;
+  const to = hero.path[0];
+  Object.assign(hero, { phase: 'none', dx: 0, dz: 0, path: (to && pathTo(w, hero, to[0], to[1])) ?? [] });
   const st = leapStat(w);
   w.blasts.push({ id: w.nextItem++, x: hero.x, z: hero.z, age: 0, kind: 'slam' });
   for (const e of w.entities) {
@@ -208,9 +220,7 @@ export function leap(w: World, hero: Entity, x?: number, z?: number): number {
     stun(e, LEAP.stun);
     knock(w, e, r > 1e-6 ? (e.x - hero.x) / r : 1, r > 1e-6 ? (e.z - hero.z) / r : 0, KNOCK.shout);
   }
-  w.dashes++;
   w.shouts++; // 땅 울림 그림·소리
-  return st.cd;
 }
 
 // 구르기 시작: 조준점(없으면 가까운 적의 반대쪽, 적도 없으면 바라보는 쪽)으로. 휘두르기는 끊기고 공격 대상·가던 목적지는 유지한다
