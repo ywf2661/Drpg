@@ -2,7 +2,7 @@
 import type { Cell, Grid } from './path';
 
 export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'king' | 'boss';
-// 주인공 직업. 직업마다 스킬 트리(탭 3~4개 × 4단계, TREES)가 있고, 배운 액티브 스킬을 스킬 칸 Q W E R(SkillName)에 끼워 쓴다.
+// 주인공 직업. 직업마다 스킬 트리(탭 3~5개 × 4단계, TREES)가 있고, 배운 액티브 스킬을 스킬 칸 Q W E R(SkillName)에 끼워 쓴다.
 // 스페이스는 구르기(마법사는 순간이동)
 export type HeroClass = 'knight' | 'wizard' | 'ranger' | 'necromancer';
 
@@ -12,7 +12,8 @@ export type SkillId =
   | 'fireball' | 'firefield' | 'embers' | 'comet' | 'frost' | 'ward' | 'frostArmor' | 'blizzard' | 'lightning' | 'chain' | 'static' | 'tempest'
   | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
   | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
-  | 'mark' | 'sheathe' | 'memory' | 'flash';
+  | 'mark' | 'sheathe' | 'memory' | 'flash'
+  | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash';
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
@@ -20,6 +21,7 @@ export const TREES: Record<HeroClass, Tab[]> = {
     { name: '돌격', skills: ['dash', 'shout', 'trail', 'leap'] },
     { name: '투척', skills: ['throw', 'bounce', 'axes', 'axeStorm'] },
     { name: '발도', skills: ['mark', 'sheathe', 'memory', 'flash'] },
+    { name: '벼림', skills: ['flameEdge', 'frostEdge', 'reforge', 'unleash'] },
   ],
   wizard: [
     { name: '화염', skills: ['fireball', 'firefield', 'embers', 'comet'] },
@@ -99,6 +101,7 @@ export type Entity = {
   dz: number;
   marks?: number; // 검흔 개수(없으면 0)
   markT?: number; // 검흔 남은 시간(초)
+  frost?: number; // 서리 칼에 맞은 횟수(벼림, 없으면 0)
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
   fearT: number; // 공포 남은 시간(초). 주인공 반대쪽으로 도망친다
@@ -118,7 +121,7 @@ export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // amount: 금화 양(금화만)
 export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | Slot; tier: number; amount?: number; affixes?: Affix[] };
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
-// skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~3), unique = 고유 장비(전설·세트) 표식(u)
+// skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~4), unique = 고유 장비(전설·세트) 표식(u)
 export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique';
 export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId };
 
@@ -312,6 +315,7 @@ export type World = {
   auraT: number; // 눈보라 남은 시간(초)
   auraAcc: number; // 눈보라 다음 타격까지 쌓인 시간
   slash: 'cleave' | 'mark'; // 지금 휘두르는 베기 종류(가르기·그어두기)
+  edge: { kind: 'flame' | 'frost' | 'both' | null; left: number; t: number }; // 칼 강화(벼림): 종류, 남은 충전, 해방 남은 시간(초)
   spinT: number; // 회오리 남은 시간(초)
   spinAcc: number; // 회오리 다음 타격까지 쌓인 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
@@ -433,6 +437,10 @@ export const MARK = { mult: 1.0, time: 4, cap: 3, hit: 0.5, cd: 1.5 }; // 검흔
 export const SHEATHE = { mult: 1.5, cd: 5, range: 8, delay: 0.25, spread: 2 }; // 납도: 배율, 재사용, 범위, 터지기까지, 옮겨붙는 거리
 export const MEMORY = { cap: 4, capHigh: 5, highAt: 4, time: 1, timePer: 0.5 }; // 검의 기억: 한계, 4단계 한계, 지속 늘림, 단계마다 더
 export const FLASH = { cd: 14, range: 6, max: 5, hit: 0.5, marks: 2, speed: 30, past: 1, near: 0.8 }; // 일섬(궁극): 재사용, 거리, 최대 대상, 한 번 피해, 새기는 검흔, 속도, 지나가는 거리, 가까이 서는 거리
+// 벼림(기사 다섯째 탭): 칼에 불·서리를 입혀 휘두를 때마다 충전을 쓴다
+// charges 충전, flame 불 배율, flameCd 불 대기, burstR·burst 5단계 화염 폭발, hits·freeze 서리 빙결 타수·시간, frostCd 서리 대기,
+// reforgeR·reforge·reforgeFreeze 덧벼림 반경·배율·빙결, time·cd 해방 시간·대기, len·width·slash 해방 참격 길이·폭·배율
+export const TEMPER = { charges: 6, flame: 0.4, flameCd: 4, burstR: 1.5, burst: 0.6, hits: 3, freeze: 1, frostCd: 6, reforgeR: 2.5, reforge: 0.3, reforgeFreeze: 0.8, time: 6, cd: 15, len: 3, width: 0.8, slash: 0.5 };
 export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1, air: 0.45, height: 1.6 }; // 대지 강타(돌격 궁극): 재사용, 뛰는 거리, 착지 반경, 배율, 기절, 체공(초), 높이(m, 그림)
 
 export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율

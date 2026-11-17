@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, MARK, SHEATHE, MEMORY, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, SHEATHE, MEMORY, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -68,6 +68,12 @@ export const axeStormStat = (w: World) => ({ cd: (AXE_STORM.cd - 0.5 * ext(w, 'a
 export const markStat = (w: World) => ({ cd: MARK.cd - 0.1 * ext(w, 'mark'), mult: (MARK.hit + 0.05 * ext(w, 'mark')) * syn(w, 'mark'), per: mastered(w, 'mark') ? 2 : 1, pop: MARK.mult * syn(w, 'mark') });
 export const memoryStat = (w: World) => (rank(w, 'memory') ? { cap: rank(w, 'memory') >= MEMORY.highAt ? MEMORY.capHigh : MEMORY.cap, time: MARK.time + MEMORY.time + MEMORY.timePer * ext(w, 'memory') } : { cap: MARK.cap, time: MARK.time });
 export const sheatheStat = (w: World) => ({ cd: SHEATHE.cd - 0.3 * ext(w, 'sheathe'), mult: (SHEATHE.mult + 0.15 * ext(w, 'sheathe')) * syn(w, 'sheathe') });
+// 벼림 탭. 덧벼림 단계마다 충전 +1
+const edgeCharges = (w: World) => TEMPER.charges + ext(w, 'reforge');
+export const flameEdgeStat = (w: World) => ({ cd: TEMPER.flameCd, mult: (TEMPER.flame + 0.1 * ext(w, 'flameEdge')) * syn(w, 'flameEdge'), charges: edgeCharges(w) });
+export const frostEdgeStat = (w: World) => ({ cd: TEMPER.frostCd, hits: mastered(w, 'frostEdge') ? 2 : TEMPER.hits, freeze: TEMPER.freeze + 0.15 * ext(w, 'frostEdge'), charges: edgeCharges(w) });
+export const reforgeStat = (w: World) => ({ radius: TEMPER.reforgeR, mult: (TEMPER.reforge + 0.05 * ext(w, 'reforge')) * syn(w, 'reforge') });
+export const unleashStat = (w: World) => ({ cd: TEMPER.cd - 0.5 * ext(w, 'unleash'), time: TEMPER.time + 0.5 * ext(w, 'unleash'), mult: TEMPER.slash * syn(w, 'unleash') });
 export const flashStat = (w: World) => ({ cd: FLASH.cd - 0.5 * ext(w, 'flash'), max: FLASH.max + ext(w, 'flash'), mult: FLASH.hit * syn(w, 'flash') });
 
 // 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
