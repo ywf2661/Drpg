@@ -315,6 +315,7 @@ export type World = {
   auraT: number; // 눈보라 남은 시간(초)
   auraAcc: number; // 눈보라 다음 타격까지 쌓인 시간
   slash: 'cleave' | 'mark'; // 지금 휘두르는 베기 종류(가르기·그어두기)
+  edgeSwings: number; // 충전을 쓴 휘두름 수(렌더용: 불티)
   edge: { kind: 'flame' | 'frost' | 'both' | null; left: number; t: number }; // 칼 강화(벼림): 종류, 남은 충전, 해방 남은 시간(초)
   spinT: number; // 회오리 남은 시간(초)
   spinAcc: number; // 회오리 다음 타격까지 쌓인 시간

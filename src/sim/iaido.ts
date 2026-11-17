@@ -2,6 +2,7 @@
 import { cleaveStart } from './abilities';
 import { clearLine, dist, mastered, markStat, memoryStat, pathTo, roll, sheatheStat, flashStat, skillHit, syn, winding } from './core';
 import { walkable } from './path';
+import { temper } from './temper';
 import { DT, FLASH, MARK, SHEATHE, SKILL, type Entity, type World } from './rules';
 export const markDmg = (w: World, n: number, mult: number) => Math.round(roll(w, w.entities[0]) * MARK.mult * n * mult);
 
@@ -42,6 +43,7 @@ export function markSlash(w: World, hero: Entity): void {
   const fx = Math.sin(hero.facing);
   const fz = Math.cos(hero.facing);
   const st = markStat(w);
+  const hit: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead') continue;
     const dx = e.x - hero.x;
@@ -49,8 +51,10 @@ export function markSlash(w: World, hero: Entity): void {
     if (Math.hypot(dx, dz) > SKILL.radius || dx * fx + dz * fz < 0 || !clearLine(w, hero, e)) continue;
     const per = winding(e) ? 2 : st.per;
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    hit.push(e);
     if (e.hp > 0) addMarks(w, e, per);
   }
+  temper(w, hero, hit);
   w.cleaves++;
   w.markSlashes++;
 }
@@ -129,6 +133,7 @@ export function flashStep(w: World, hero: Entity): void {
     w.flashHit = t.id;
     skillHit(w, t, Math.round(roll(w, hero) * flashStat(w).mult));
     if (t.hp > 0) addMarks(w, t, FLASH.marks);
+    temper(w, hero, [t]);
   }
   if ((hero.phaseT -= step) > 0) return;
   w.flashQ.shift();

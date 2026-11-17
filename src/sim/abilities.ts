@@ -3,6 +3,7 @@ import { findPath, walkable, type Cell } from './path';
 import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
+import { temper } from './temper';
 import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
@@ -46,6 +47,7 @@ export function execute(w: World, hero: Entity, x?: number, z?: number): number 
   knock(w, t, (t.x - hero.x) / d, (t.z - hero.z) / d, KNOCK.cleave);
   w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'slam' });
   w.cleaves++;
+  temper(w, hero, [t]);
   if (t.hp <= 0) {
     if (rank(w, 'burst')) burst(w, hero, [t]);
     for (const e of w.entities)
@@ -59,6 +61,7 @@ export function cleave(w: World, hero: Entity) {
   const fx = Math.sin(hero.facing);
   const fz = Math.cos(hero.facing);
   const killed: Entity[] = [];
+  const hit: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead') continue;
     const dx = e.x - hero.x;
@@ -66,11 +69,13 @@ export function cleave(w: World, hero: Entity) {
     const st = cleaveStat(w);
     if (Math.hypot(dx, dz) > st.radius || (!mastered(w, 'cleave') && dx * fx + dz * fz < 0) || !clearLine(w, hero, e)) continue; // 5단계는 한 바퀴
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    hit.push(e);
     const d = Math.hypot(dx, dz);
     knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
     if (e.hp <= 0) killed.push(e);
   }
   if (rank(w, 'burst')) burst(w, hero, killed);
+  temper(w, hero, hit);
   w.cleaves++;
 }
 
@@ -81,12 +86,15 @@ export function spin(w: World, hero: Entity) {
   w.spinAcc = 0;
   const st = whirlStat(w);
   const killed: Entity[] = [];
+  const hit: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius || !clearLine(w, hero, e)) continue;
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    hit.push(e);
     if (e.hp <= 0) killed.push(e);
   }
   if (rank(w, 'burst')) burst(w, hero, killed);
+  temper(w, hero, hit);
   w.cleaves++;
 }
 
@@ -213,14 +221,17 @@ export function leapStep(w: World, hero: Entity) {
   Object.assign(hero, { phase: 'none', dx: 0, dz: 0, path: (to && pathTo(w, hero, to[0], to[1])) ?? [] });
   const st = leapStat(w);
   w.blasts.push({ id: w.nextItem++, x: hero.x, z: hero.z, age: 0, kind: 'slam' });
+  const hit: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead') continue;
     const r = dist(e, hero);
     if (r > st.radius) continue;
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    hit.push(e);
     stun(e, LEAP.stun);
     knock(w, e, r > 1e-6 ? (e.x - hero.x) / r : 1, r > 1e-6 ? (e.z - hero.z) / r : 0, KNOCK.shout);
   }
+  temper(w, hero, hit);
   w.shouts++; // 땅 울림 그림·소리
 }
 
@@ -257,6 +268,8 @@ export function dashStep(w: World, hero: Entity) {
   if (!rush(w, hero, DASH.speed)) return;
   const trail = w.fires.find((f) => f.id === w.trail);
   if (trail) [trail.x1, trail.z1] = [hero.x, hero.z];
+  const first = !w.dashHit.length; // 돌진 하나 = 휘두름 하나: 처음 맞힌 틱에만 충전을 쓴다
+  const hit: Entity[] = [];
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || w.dashHit.includes(e.id) || dist(e, hero) > DASH.hit) continue;
     const q = keyOf(w, 'cleave');
@@ -266,11 +279,13 @@ export function dashStep(w: World, hero: Entity) {
       w.combos.push({ id: w.nextItem++, x: hero.x, z: hero.z, kind: 'reset', age: 0 });
     }
     w.dashHit.push(e.id);
+    hit.push(e);
     skillHit(w, e, Math.round(roll(w, hero) * dashStat(w).mult));
     if (e.hp <= 0 && mastered(w, 'dash')) cutCd(w, 'dash', Infinity); // 5단계: 처치하면 다시 돌진
     const side = (e.x - hero.x) * -hero.dz + (e.z - hero.z) * hero.dx < 0 ? -1 : 1; // 돌진 길의 어느 쪽에 있는가
     knock(w, e, -hero.dz * side, hero.dx * side, KNOCK.dash);
   }
+  if (hit.length) temper(w, hero, hit, first);
 }
 
 // 마법사: 대상이 MAGE.flee 안이면 반대쪽으로 물러난다. 물러날 곳이 없으면(구석) false → 평소처럼 시전
