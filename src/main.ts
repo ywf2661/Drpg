@@ -46,7 +46,7 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 const nextFloor = (to: Land) => (to === land ? floor + 1 : 1);
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
-  for (const to of ['field', 'snow'] as const) {
+  for (const to of ['field', 'snow', 'ruins'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
     if (cells.length) out.push({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5, text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
   }
@@ -63,6 +63,7 @@ function makeFloor(n: number, carry: Carry): World {
   const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n, cycle), cyclePower(cycle), LANDS[land].skins);
   w.cls = carry.cls;
   w.rest = land === 'field'; // 초원 모닥불에서 쉴 수 있다
+  w.land = land;
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
   w.mods = copyMods(carry.mods);

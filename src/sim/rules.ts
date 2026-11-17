@@ -98,6 +98,7 @@ export type Entity = {
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
   fearT: number; // 공포 남은 시간(초). 주인공 반대쪽으로 도망친다
+  asleep?: boolean; // 잠들어 있다(SLEEP): 생각도 행동도 하지 않는다
 };
 
 // 강령술사의 소환수(해골 검사·궁수·법사, 시체 거인, 해골 왕): life초 뒤 사라진다
@@ -165,7 +166,34 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[] }; // guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice'; wave?: number }; // guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+// kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
+
+// 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
+export type Buff = 'fury' | 'guard' | 'haste' | 'wisdom';
+export const SHRINE = { time: 30, fury: 0.5, guard: 0.4, haste: 0.3, wisdom: 0.5 };
+export const BUFFS: Record<Buff, { name: string; desc: string }> = {
+  fury: { name: '분노의 성소', desc: '30초 동안 공격 +50%' },
+  guard: { name: '수호의 성소', desc: '30초 동안 받는 피해 −40%' },
+  haste: { name: '신속의 성소', desc: '30초 동안 이동·공격 속도 +30%' },
+  wisdom: { name: '지혜의 성소', desc: '30초 동안 경험치 +50%' },
+};
+export const BUFF_LIST = Object.keys(BUFFS) as Buff[];
+// 시련의 제단(미궁): 물결마다 나오는 몬스터(글자는 맵 글자: m 졸개, w 전사, a 궁수, g 마법사), 제단에서 떨어진 거리(m), 보상 금화 배수
+export const TRIAL = { waves: ['mmm', 'mmwa', 'wwmmg'], radius: 4, gold: 3 };
+// 잠든 몬스터(얼음 속 개미 'Z', 모래 속 개미귀신 'U', Entity.asleep): 주인공이 wake m 안에 오거나 맞으면 깬다. 하나가 깨면 chain m 안의 잠든 몬스터도 같이
+export const SLEEP = { wake: 2.5, chain: 4 };
+// 설원 고드름: every초마다 주인공이 얼음 벽 near칸 안이면 chance로 머리 위에 예고 원 → delay초 뒤 떨어진다. 피해 = dmg × 몬스터 피해 배율
+export const ICICLE = { every: 4, near: 2, chance: 0.6, delay: 1, dmg: 6 };
+// 초원 개미지옥: 가운데에서 r m 안이면 주인공 이동 × slow, 초당 pull m씩 가운데로 끌려간다
+export const PIT = { r: 1.6, slow: 0.6, pull: 0.7 };
+// 보물 고블린(초원): 주인공을 보면 run초 동안 speed m/s로 도망치고 못 잡으면 사라진다. 잡으면 금화 더미 gold개, 장비 gear개
+export const TREASURE = { run: 12, speed: 3.6, gold: 5, gear: 2 };
+// 폐허의 저주받은 무덤: 주인공이 near m 안이면 every초마다 졸개 하나(최대 max마리 살아 있게). 보스는 체력 절반에 무덤 boss개를 일으킨다
+export const GRAVE = { near: 9, every: 6, first: 2, max: 3, boss: 2 };
+// 폐허의 가시 바닥: period초마다 warn초 반짝인 뒤 솟아 up초 동안. 솟는 순간 위에 있으면 피해 dmg × 몬스터 피해 배율(구르는 중이면 무적)
+export const SPIKE = { period: 3, warn: 1, up: 0.8, dmg: 5 };
+// 폐허의 푸른 마법진: 밟으면 짝 마법진으로(내려서 다시 밟아야 또)
 
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
@@ -185,13 +213,13 @@ export type Blast = { id: number; x: number; z: number; r?: number; age: number;
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
-export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number };
+export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number; kind?: 'ice' }; // ice = 고드름(떨어지면 얼음 그림)
 
 // 장착 장비 단계(1~4). WEAPONS·ARMORS·HELMS·BOOTS[단계 − 1]
 export type Gear = Record<Slot, number>;
 
 // 바깥 지역 출구 한 칸: 맨 바깥 줄에 있고, to 지역의 다음 구역으로 이어진다
-export type Exit = { x: number; z: number; to: 'field' | 'snow' };
+export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' };
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
 // potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
 // level·xp: 주인공 레벨과 현재 레벨에서 쌓인 경험치
@@ -229,6 +257,16 @@ export type World = {
   autoEquip: boolean; // 밟은 장비가 더 좋으면 바로 입는다
   regenAcc: number; // 재생 옵션의 소수점 회복 누적
   rest: boolean; // 모닥불에서 쉴 수 있는 지역(초원). main이 정한다
+  land: Land; // 이 맵의 지역(고드름·무덤 소환처럼 지역마다 다른 규칙). main·봇이 정한다
+  buff: { kind: Buff; t: number } | null; // 성소 버프와 남은 초
+  sand: Cell[]; // 개미지옥 모래 칸(그림), pits: 그 가운데
+  pits: Point[];
+  spikes: Cell[]; // 가시 바닥 칸
+  spikeT: number; // 가시 주기 안의 시간(초)
+  portals: Point[]; // 푸른 마법진(둘이 짝), portalLock: 순간이동한 뒤 아직 마법진 위
+  portalLock: boolean;
+  icicleT: number; // 다음 고드름 굴림까지(초)
+  bossRaised: boolean; // 폐허 보스가 무덤을 일으켰다
   calmT: number; // 주인공이 마지막으로 다친 뒤 흐른 시간(초)
   lastHp: number; // 직전 틱의 주인공 체력(다쳤는지 비교)
   rested: number; // 모닥불에서 회복한 양의 누적(소수점 포함, 렌더가 +숫자로 띄운다)
@@ -293,8 +331,8 @@ export const ELITE_KINDS: Record<EliteKind, { name: string; desc: string; color:
 };
 export const ELITE_KIND_LIST = Object.keys(ELITE_KINDS) as EliteKind[];
 // 지역(맵의 종류)과 그곳의 몬스터. 스킨 = 전투 원형(졸개·전사·마법사)에 그림·이름을 바꾸고 체력·이동 속도에 배율을 곱한 것
-export type Land = 'dungeon' | 'field' | 'snow';
-export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern';
+export type Land = 'dungeon' | 'field' | 'snow' | 'ruins';
+export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight';
 export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = {
   goblin: { name: '고블린', hp: 0.8, speed: 1.25 }, // 약하지만 빠르고 떼로 온다
   goblin_elite: { name: '고블린 전사', hp: 0.9, speed: 1.15 },
@@ -303,12 +341,22 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   zombie: { name: '얼어붙은 시체', hp: 1.5, speed: 0.75 }, // 느리지만 질기다
   antlion: { name: '개미귀신', hp: 1.1, speed: 1 }, // 초원의 보스
   wyvern: { name: '서리 와이번', hp: 0.9, speed: 1.15 }, // 설원의 보스: 날래다
+  treasure: { name: '보물 고블린', hp: 2.5, speed: 1 }, // 졸개 원형, 싸우지 않고 도망친다(TREASURE)
+  antlion_small: { name: '새끼 개미귀신', hp: 0.9, speed: 1.1 }, // 전사 원형, 개미지옥 가운데 모래 속에 숨어 있다
+  grave: { name: '저주받은 무덤', hp: 3, speed: 0 }, // 졸개 원형, 움직이지도 때리지도 않고 졸개를 일으킨다(GRAVE)
+  zombie_dark: { name: '어둠 좀비', hp: 1.3, speed: 0.85 }, // 폐허 졸개
+  hobgoblin: { name: '홉고블린', hp: 1.1, speed: 1.05 }, // 폐허 전사
+  hobgoblin_archer: { name: '홉고블린 궁수', hp: 1, speed: 1 }, // 폐허 궁수
+  bone_knight: { name: '해골 기사 왕', hp: 1.2, speed: 1 }, // 폐허의 보스: 체력 절반에 무덤을 일으킨다
 };
 export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Record<Kind, Skin>> }> = {
   dungeon: { name: '지하', unit: '층', skins: {} },
   field: { name: '초원', unit: '구역', skins: { minion: 'goblin', warrior: 'goblin_elite', mage: 'fire_ant', boss: 'antlion' } },
   snow: { name: '설원', unit: '구역', skins: { minion: 'ice_ant', warrior: 'zombie', boss: 'wyvern' } },
+  ruins: { name: '폐허', unit: '구역', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'bone_knight' } },
 };
+// 그림을 그리지 않는(모래 속에 숨은) 몬스터
+export const hidden = (e: Entity) => e.skin === 'antlion_small' && !!e.asleep;
 export const LAND_LIST = Object.keys(LANDS) as Land[];
 export const bossName = (skins: World['skins']) => (skins?.boss ? SKINS[skins.boss].name : STATS.boss.name);
 export const monsterName = (e: Entity) => (e.skin ? SKINS[e.skin].name : STATS[e.kind].name);

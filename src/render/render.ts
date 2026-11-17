@@ -1,6 +1,6 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, winding, type World } from '../sim/world';
+import { attackInterval, hidden, winding, type World } from '../sim/world';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
 import caveFloorUrl from '../assets/tiles/floor_cave.png';
@@ -9,10 +9,12 @@ import fieldFloorUrl from '../assets/tiles/floor_field.png';
 import fieldWallUrl from '../assets/tiles/wall_field.png';
 import snowFloorUrl from '../assets/tiles/floor_snow.png';
 import snowWallUrl from '../assets/tiles/wall_snow.png';
+import ruinsFloorUrl from '../assets/tiles/floor_ruins.png';
+import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
-import { BRAZIER_RANGE, braziers, buildProps, floorVariant, stickArrow, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, updateProps } from './props';
+import { BRAZIER_RANGE, braziers, buildProps, floorVariant, stickArrow, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, syncSpikes, updateProps } from './props';
 import { syncFires, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
@@ -32,6 +34,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   cave: DARK,
   field: { torch: 0xe8e0b0, range: 12, tint: [1, 0.97, 0.88], sky: 2.2, sun: 3.2, bg: 0x2a3d1e },
   snow: { torch: 0xcfe2ff, range: 12, tint: [0.9, 0.95, 1], sky: 2.2, sun: 2.8, bg: 0xb9c4cf },
+  ruins: { torch: 0xffb070, range: 12, tint: [1, 0.86, 0.72], sky: 1.6, sun: 2.4, bg: 0x2b2a24 }, // 해 질 녘
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -173,11 +176,12 @@ export async function initRender(world: World, theme: Theme) {
   scene.add(rainGroup, rollGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
-  const [f, w, cf, cw, ff, fw, sf, sw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
+  const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
   tex.dungeon = { floor: f, wall: w };
   tex.cave = { floor: cf, wall: cw };
   tex.field = { floor: ff, wall: fw };
   tex.snow = { floor: sf, wall: sw };
+  tex.ruins = { floor: rf, wall: rw };
   setWorld(world, theme);
 }
 
@@ -274,14 +278,14 @@ export function draw(world: World, dt: number) {
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
-    s.mesh.visible = seen > 0;
+    s.mesh.visible = seen > 0 && !hidden(e); // 모래 속 개미귀신은 깨기 전엔 안 보인다
     s.mat.transparent = seen < 1;
     s.mat.opacity = seen;
     s.mat.alphaTest = Math.max(0.01, 0.5 * seen); // 투명도까지 곱한 알파로 자르므로 같이 낮춘다
     if (f.flashT > 0) s.mat.color.setScalar(10); // 맞은 순간 하얗게
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
-    if (e.stunT > 0) s.mat.color.lerp(STUNNED, 0.5);
-    if (e.fearT > 0) s.mat.color.lerp(SCARED, 0.5);
+    if (e.stunT > 0 || e.asleep) s.mat.color.lerp(STUNNED, 0.5); // 잠든(얼어붙은) 몬스터도 푸르게
+    if (e.fearT > 0 && e.skin !== 'treasure') s.mat.color.lerp(SCARED, 0.5); // 보물 고블린은 도망쳐도 금빛
   }
   // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
   dropAllies(new Set(world.allies.map((a) => a.id)));
@@ -309,6 +313,7 @@ export function draw(world: World, dt: number) {
   syncFires(world, time);
   syncFlames(world);
   syncChests(world);
+  syncSpikes(world);
   syncGates(world);
   syncRain(world, frozen ? 0 : dt, stickArrow);
   updateProps(dt, light);
@@ -363,11 +368,12 @@ function buildMap(world: World) {
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
   const prop = new Set([...world.props, ...world.gates, ...world.chests].map((p) => p.z * w + p.x)); // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
   const road = new Set(world.roads.map(([x, z]) => z * w + x));
-  const floorCells: [number, number][][] = Array.from({ length: 2 * FLOOR_VARIANTS }, () => []); // 뒤쪽 절반은 길(같은 바닥을 흙빛으로)
+  const sand = new Set(world.sand.map(([x, z]) => z * w + x));
+  const floorCells: [number, number][][] = Array.from({ length: 3 * FLOOR_VARIANTS }, () => []); // 변형 × [바닥, 길(흙빛), 개미지옥 모래]
   const wallCells: [number, number][] = [];
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
-      if (open(x, z) || prop.has(z * w + x)) floorCells[floorVariant(x, z) + (road.has(z * w + x) ? FLOOR_VARIANTS : 0)].push([x, z]);
+      if (open(x, z) || prop.has(z * w + x)) floorCells[floorVariant(x, z) + (sand.has(z * w + x) ? 2 * FLOOR_VARIANTS : road.has(z * w + x) ? FLOOR_VARIANTS : 0)].push([x, z]);
       else if ([-1, 0, 1].some((dz) => [-1, 0, 1].some((dx) => open(x + dx, z + dz)))) wallCells.push([x, z]);
     }
   }
@@ -375,7 +381,8 @@ function buildMap(world: World) {
   const floorGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2); // 질감 열 = +x, 행 = +z
   floorCells.forEach((cells, i) => {
     const mat = stone(floorTex, i % FLOOR_VARIANTS, FLOOR_VARIANTS);
-    if (i >= FLOOR_VARIANTS) mat.color.setRGB(...(weather.on ? [0.78, 0.8, 0.84] : [0.78, 0.62, 0.44]) as [number, number, number]); // 길: 밟아 다진 흙(설원은 다져진 회색 눈)
+    if (i >= 2 * FLOOR_VARIANTS) mat.color.setRGB(1.25, 1, 0.55); // 모래: 누렇게
+    else if (i >= FLOOR_VARIANTS) mat.color.setRGB(...(weather.on ? [0.78, 0.8, 0.84] : [0.78, 0.62, 0.44]) as [number, number, number]); // 길: 밟아 다진 흙(설원은 다져진 회색 눈)
     const floor = new THREE.InstancedMesh(floorGeo.clone(), mat, cells.length);
     cells.forEach(([x, z], k) => floor.setMatrixAt(k, m.makeTranslation(x + 0.5, 0, z + 0.5)));
     floor.receiveShadow = true;

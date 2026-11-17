@@ -27,6 +27,18 @@ import antlionInfo from '../assets/sprites/antlion.json';
 import antlionUrl from '../assets/sprites/antlion.png';
 import wyvernInfo from '../assets/sprites/wyvern.json';
 import wyvernUrl from '../assets/sprites/wyvern.png';
+import antlionSmallInfo from '../assets/sprites/antlion_small.json';
+import antlionSmallUrl from '../assets/sprites/antlion_small.png';
+import graveInfo from '../assets/sprites/grave.json';
+import graveUrl from '../assets/sprites/grave.png';
+import zombieDarkInfo from '../assets/sprites/zombie_dark.json';
+import zombieDarkUrl from '../assets/sprites/zombie_dark.png';
+import hobgoblinInfo from '../assets/sprites/hobgoblin.json';
+import hobgoblinUrl from '../assets/sprites/hobgoblin.png';
+import hobgoblinArcherInfo from '../assets/sprites/hobgoblin_archer.json';
+import hobgoblinArcherUrl from '../assets/sprites/hobgoblin_archer.png';
+import boneKnightInfo from '../assets/sprites/bone_knight.json';
+import boneKnightUrl from '../assets/sprites/bone_knight.png';
 
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
@@ -39,6 +51,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 const ELITE_SIZE = 1.25;
 const KING_TINT = new THREE.Color(0.95, 0.6, 1.35);
 const KING_SIZE = 1.5;
+const GOLD_TINT = new THREE.Color(1.6, 1.25, 0.35); // 보물 고블린
 export const ALLY_TINT = new THREE.Color(0.6, 1.3, 0.75); // 강령술사의 해골 병사: 초록빛
 
 // 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…, 궁수 ranger_…, 강령술사 necromancer_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
@@ -65,6 +78,14 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   zombie: { info: zombieInfo as SheetInfo, url: zombieUrl },
   antlion: { info: antlionInfo as SheetInfo, url: antlionUrl },
   wyvern: { info: wyvernInfo as SheetInfo, url: wyvernUrl },
+  treasure: { info: goblinInfo as SheetInfo, url: goblinUrl }, // 보물 고블린 = 고블린 그림을 금빛으로
+  // 기믹·폐허
+  antlion_small: { info: antlionSmallInfo as SheetInfo, url: antlionSmallUrl },
+  grave: { info: graveInfo as SheetInfo, url: graveUrl },
+  zombie_dark: { info: zombieDarkInfo as SheetInfo, url: zombieDarkUrl },
+  hobgoblin: { info: hobgoblinInfo as SheetInfo, url: hobgoblinUrl },
+  hobgoblin_archer: { info: hobgoblinArcherInfo as SheetInfo, url: hobgoblinArcherUrl },
+  bone_knight: { info: boneKnightInfo as SheetInfo, url: boneKnightUrl },
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
@@ -249,7 +270,8 @@ export function makeSprite(e: Entity): Sprite {
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
   if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
   if (e.skin === 'wyvern') mesh.scale.setScalar(KING_SIZE); // 원본 그림이 작다 — 보스답게
-  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : WHITE };
+  if (e.skin === 'treasure') mesh.scale.setScalar(ELITE_SIZE);
+  const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : e.skin === 'treasure' ? GOLD_TINT : WHITE };
   if (e.eliteKind) {
     // 정예: 특성 색으로 물들이고, 어두운 곳에서도 보이게 발밑에 빛나는 고리(불빛을 받지 않는다)
     const c = new THREE.Color(ELITE_KINDS[e.eliteKind].color);

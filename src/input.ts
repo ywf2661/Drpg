@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { camera, markMove, renderer } from './render/render';
 import { isSeen } from './render/sight';
 import { walkable } from './sim/path';
-import type { Command, World } from './sim/world';
+import { hidden, type Command, type World } from './sim/world';
 
 const REPEAT = 0.15; // 누르고 있을 때 move 재발행 간격(초)
 const PICK_RADIUS = 0.5; // 몬스터·상자 선택 판정 반경(m)
@@ -194,7 +194,7 @@ function pick(world: World): number | null {
   let best: number | null = null;
   let bestD = pickRadius ** 2;
   for (const e of world.entities) {
-    if (e.kind === 'hero' || e.state === 'dead' || !isSeen(world.entities[0], e)) continue; // 시야 밖(낮)은 고를 수 없다
+    if (e.kind === 'hero' || e.state === 'dead' || hidden(e) || !isSeen(world.entities[0], e)) continue; // 시야 밖(낮)은 고를 수 없다
     const d = ray.ray.distanceSqToSegment(a.set(e.x, 0.2, e.z), b.set(e.x, 1.5, e.z));
     if (d < bestD) {
       bestD = d;

@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BLINK, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, BLINK, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
@@ -312,7 +312,7 @@ export function shout(w: World, hero: Entity): number {
 export function scare(w: World, e: Entity, hero: Entity) {
   const d = dist(e, hero) || 1;
   const [ux, uz] = [(e.x - hero.x) / d, (e.z - hero.z) / d];
-  const s = STATS[e.kind].speed * DT;
+  const s = (e.skin === 'treasure' ? TREASURE.speed : STATS[e.kind].speed) * DT; // 보물 고블린은 빨리 도망친다
   e.state = 'idle';
   for (const [dx, dz] of [[ux, uz], [-uz, ux], [uz, -ux]]) {
     if (!walkable(w.grid, Math.floor(e.x + dx * 0.5), Math.floor(e.z + dz * 0.5))) continue;
@@ -456,8 +456,8 @@ export function fly(w: World, hero: Entity) {
 const boomerang = (w: World, s: Shot) => s.bounce === undefined && hasUnique(w, 'boomerang');
 
 // 화염구 폭발: 반경 안의 살아 있는 주인공·해골 병사에게 피해(직격과 겹쳐도 한 번), 기록을 남긴다
-export function explode(w: World, x: number, z: number, dmg: number) {
-  w.blasts.push({ id: w.nextItem++, x, z, age: 0, kind: 'fire' });
+export function explode(w: World, x: number, z: number, dmg: number, kind: 'fire' | 'ice' = 'fire') {
+  w.blasts.push({ id: w.nextItem++, x, z, age: 0, kind });
   for (const e of friends(w)) if (Math.hypot(e.x - x, e.z - z) <= MAGE.blast) hurt(w, e, dmg);
 }
 
@@ -489,7 +489,7 @@ export function tickZones(w: World) {
     const owner = z.owner < 0 ? null : w.entities[z.owner];
     if (owner && (owner.state === 'dead' || owner.phase !== 'windup')) return false;
     if ((z.t -= DT) > 0) return true;
-    if (!owner) explode(w, z.x, z.z, z.dmg);
+    if (!owner) explode(w, z.x, z.z, z.dmg, z.kind);
     else {
       owner.phase = 'none';
       w.blasts.push({ id: w.nextItem++, x: z.x, z: z.z, age: 0, kind: 'slam' });

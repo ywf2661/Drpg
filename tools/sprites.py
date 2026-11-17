@@ -42,9 +42,14 @@ KINDS = {  # 몬스터: 레이어 1장
     'ice_ant': {'body': 'enemies/ice_ant'}, 'zombie': {'body': 'enemies/zombie'},
     # 지역의 보스(미노타우르스와 같은 전투 원형): 초원 개미귀신, 설원 서리 와이번
     'antlion': {'body': 'enemies/antlion'}, 'wyvern': {'body': 'enemies/wyvern_water'},
+    # 기믹: 개미지옥의 새끼 개미귀신, 폐허의 저주받은 무덤. 폐허(Empyrean Campaign 모드 'ec:'): 어둠 좀비·홉고블린·홉고블린 궁수, 보스 해골 기사 왕
+    'antlion_small': {'body': 'enemies/antlion_small'}, 'grave': {'body': 'enemies/cursed_grave'},
+    'zombie_dark': {'body': 'ec:enemies/zombie_dark'}, 'hobgoblin': {'body': 'ec:enemies/hobgoblin'},
+    'hobgoblin_archer': {'body': 'ec:enemies/hobgoblin_archer'}, 'bone_knight': {'body': 'ec:enemies/skeleton_knight_boss'},
 }
-KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}, 'fire_ant': {**ANIMS, 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전
-KIND_SCALE = {'boss': 0.28, 'wyvern': 0.28, 'antlion': 0.36}  # 0.32면 시트 세로가 4560px(> 4096)
+KIND_ANIMS = {'archer': {**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}, 'fire_ant': {**ANIMS, 'attack': 'cast'}, 'hobgoblin_archer': {**ANIMS, 'attack': 'shoot'},
+              'grave': {**ANIMS, 'move': 'stance', 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전, 무덤은 걷지 않는다
+KIND_SCALE = {'boss': 0.28, 'wyvern': 0.28, 'antlion': 0.36, 'bone_knight': 0.3, 'grave': 0.26, 'hobgoblin': 0.45, 'hobgoblin_archer': 0.45}  # 홉고블린은 원본이 고블린만 하다 — 고블린보다 크게  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 부위별 레이어 시트(hero_<레이어>_<단계>.png). 게임이 장비에 맞춰 방향마다 LAYER_ORDER대로 겹친다.
 # 모든 레이어가 같은 칸 크기·기준점이라 hero.json 하나를 공유한다. 단계 1~4 순
 # 레이어 → FLARE 원본들. lower = 다리+손(모든 방향에서 그리는 순서가 붙어 있어 한 장으로)
@@ -138,6 +143,7 @@ POTION_ICON = 64  # icons.png(64px 아이콘, 가로 8개)의 체력 물약
 
 
 FETCHED = []  # 실제로 쓴 원본 파일(CREDITS 목록)
+MODS = {'ec': 'empyrean_campaign'}  # 이름 앞의 'ec:' = 그 모드의 파일
 
 
 def fetch(rel):
@@ -165,12 +171,14 @@ class Sheet:
     def __init__(self, name):
         self.anims, self.images, self.src = {}, {}, {}  # src: (동작, 프레임, 방향) → 이미지 이름
         name, _, tint = name.partition('@')
+        mod, name = name.split(':') if ':' in name else ('fantasycore', name)
+        mod = MODS.get(mod, mod)
         cur = None
-        for line in fetch(f'mods/fantasycore/animations/{name}.txt').read_text(encoding='utf-8').splitlines():
+        for line in fetch(f'mods/{mod}/animations/{name}.txt').read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if line.startswith('image=') and ',' in line:
                 path, key = line[6:].split(',')
-                self.images[key] = Image.open(fetch(f'mods/fantasycore/{path}')).convert('RGBA')
+                self.images[key] = Image.open(fetch(f'mods/{mod}/{path}')).convert('RGBA')
             elif m := re.match(r'^\[(\w+)\]$', line):
                 section = m.group(1)
                 cur = self.anims.setdefault(section, {'rects': {}})
@@ -183,7 +191,7 @@ class Sheet:
                 k, v = line.split('=', 1)
                 cur[k] = v
         if not self.images:
-            self.images[None] = Image.open(fetch(f'mods/fantasycore/images/{name}.png')).convert('RGBA')
+            self.images[None] = Image.open(fetch(f'mods/{mod}/images/{name}.png')).convert('RGBA')
         if tint:
             self.images = {k: necro_tint(im, name.rsplit('/', 1)[-1]) for k, im in self.images.items()}
         self.img = next(iter(self.images.values()))
@@ -294,9 +302,11 @@ class Tileset:
     """FLARE 타일셋 정의(tile=번호,x,y,w,h,기준x,기준y / animation=번호;x,y,ms;…)."""
 
     def __init__(self, name=TILESET):
-        self.img = Image.open(fetch(f'mods/fantasycore/images/tilesets/{name}.png')).convert('RGBA')
+        mod, name = name.split(':') if ':' in name else ('fantasycore', name)
+        mod = MODS.get(mod, mod)
+        self.img = Image.open(fetch(f'mods/{mod}/images/tilesets/{name}.png')).convert('RGBA')
         self.tiles, self.anims = {}, {}
-        for line in fetch(f'mods/fantasycore/tilesetdefs/{name}.txt').read_text(encoding='utf-8').splitlines():
+        for line in fetch(f'mods/{mod}/tilesetdefs/{name}.txt').read_text(encoding='utf-8').splitlines():
             if line.startswith('tile='):
                 i, *rect = map(int, line[5:].split(','))
                 self.tiles[i] = rect
@@ -367,6 +377,40 @@ def tiles():
     # 계단: 기준점을 마름모 위 꼭짓점(가로 중앙, 맨 위)으로 → 그림 전체가 바닥에 눕는다
     (im,), _, _ = ts.frames(STAIRS)
     pack('stairs', {('stairs', 0, 0): (im, (FOOT[0] - im.width // 2, FOOT[1]))}, {'stairs': (1, 1000, 'play_once')}, TILE_SCALE, 1)
+
+
+# 폐허(Empyrean Campaign tileset_ruins): 돌바닥 4 + 흙 섞인 바닥 4, 벽은 이끼 낀 돌 기둥의 왼쪽 면(+x)·오른쪽 면(+z)을 잘라 쓴다.
+# 변형 = (왼쪽 아래 면이 보이는 기둥, 오른쪽 아래 면이 보이는 기둥, 바닥에서 위로 띄울 px — 받침돌을 피해 무늬를 다르게)
+RUINS_TILESET = 'ec:tileset_ruins'
+RUINS_FLOOR = [24, 25, 26, 27, 32, 33, 64, 65]
+RUINS_WALLS = [(137, 136, 20), (171, 170, 20), (137, 136, 60), (171, 170, 60)]
+RUINS_WALL_GAIN = 1.3
+# 기믹 소품(같은 시트): 세운 것(성소 구슬 기둥, 시련의 해골 상자)은 발 기준점, 눕힌 것(가시 바닥, 푸른 마법진)은 마름모 위 꼭짓점이 기준점
+RUIN_STAND = {'shrine': 293, 'shrine_off': 294, 'trial': 384, 'trial_open': 385}
+RUIN_FLAT = {'spikes': 120, 'spikes_up': 121, 'portal': 381, 'portal_off': 380}
+
+
+def ruins():
+    ts = Tileset(RUINS_TILESET)
+    floor_strip(ts, RUINS_FLOOR, 'floor_ruins.png')
+    wall = Image.new('RGB', (64 * len(RUINS_WALLS), 38))
+    W, H = 128, 152
+    for v, (left, right, lift) in enumerate(RUINS_WALLS):
+        # 기둥의 바닥 마름모(가로 192, 세로 96)는 기준점이 가운데. 왼쪽 아래 면: 왼 꼭짓점 → 아래 꼭짓점, 오른쪽 아래 면: 아래 → 오른 꼭짓점. 위로 1.2m(WALL_PX)
+        for k, i in enumerate([left, right]):
+            (im,), (ox, oy), _ = ts.frames(i)
+            y0 = oy - WALL_PX - lift
+            coeffs = (80 / W, 0, ox - 88, 40 / W, WALL_PX / H, y0 + 4) if k == 0 else (80 / W, 0, ox + 8, -40 / W, WALL_PX / H, y0 + 44)  # 모서리 8px씩 안쪽(바깥은 검은 틈)
+            face = ImageEnhance.Brightness(flatten(im, (W, H), coeffs).convert('RGB')).enhance(RUINS_WALL_GAIN)
+            wall.paste(face.resize((32, 38), Image.LANCZOS), (64 * v + 32 * k, 0))
+    wall.save(TILES / 'wall_ruins.png', optimize=True)
+    frames, meta = {}, {}
+    for name, i in {**RUIN_STAND, **RUIN_FLAT}.items():
+        ims, (ox, oy), ms = ts.frames(i)
+        meta[name] = (len(ims), ms, 'looped' if len(ims) > 1 else 'play_once')
+        for k, f in enumerate(ims):
+            frames[(name, 0, k)] = (f, (FOOT[0] - ox, FOOT[1] - oy) if name in RUIN_STAND else (FOOT[0] - f.width // 2, FOOT[1]))
+    pack('ruin_props', frames, meta, TILE_SCALE, 1)
 
 
 def gate():
@@ -535,6 +579,7 @@ if __name__ == '__main__':
     cave()
     for name, args in WILDS.items():
         cave(name, *args)
+    ruins()
     loot()
     SOUNDS.mkdir(parents=True, exist_ok=True)
     for f in SOUND_FILES:

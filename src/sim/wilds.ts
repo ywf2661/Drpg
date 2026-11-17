@@ -11,13 +11,13 @@ export const WILD = 72; // 바깥 맵 크기(미궁은 SIZE 48)
 export type Side = 'n' | 'e' | 's' | 'w'; // 가장자리: n = z 0, s = z 끝, w = x 0, e = x 끝
 export const opposite: Record<Side, Side> = { n: 's', s: 'n', e: 'w', w: 'e' };
 const SIDES: Side[] = ['n', 'e', 's', 'w'];
-type Wild = 'field' | 'snow';
+type Wild = 'field' | 'snow' | 'ruins';
 
 export const makeMap = (seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w') => (land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from));
 export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land);
-export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 16) + 4 * (floor - 1); // 몬스터 수
-// 이 구역의 출구가 이끄는 곳. 초원 1구역만 갈림길(초원 2·설원 1·미궁 1, 미궁은 동굴 입구), 지역을 고른 뒤로는 그 지역의 다음 구역뿐. 마지막 구역은 없음
-export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : land === 'field' && floor === 1 ? ['field', 'snow', 'dungeon'] : [land]);
+export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 16) + 4 * (floor - 1); // 몬스터 수(잠든 몬스터·무덤·보물 고블린은 따로)
+// 이 구역의 출구가 이끄는 곳. 초원 1구역만 갈림길(초원 2·설원 1·폐허 1·미궁 1, 미궁은 동굴 입구), 지역을 고른 뒤로는 그 지역의 다음 구역뿐. 마지막 구역은 없음
+export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : land === 'field' && floor === 1 ? ['field', 'snow', 'ruins', 'dungeon'] : [land]);
 const MIN_OPEN = 1500; // 걸어 다닐 칸이 이보다 적으면 다시 만든다
 const N = WILD;
 // 가장자리 side에서 가장자리를 따라 t번째, 안쪽으로 k칸
@@ -37,6 +37,23 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
       const [cx, cz, r] = [int(2, N - 3), int(2, N - 3), 0.8 + rand() * 2];
       for (let z = Math.floor(cz - r); z <= cz + r; z++) for (let x = Math.floor(cx - r); x <= cx + r; x++) if (Math.hypot(x - cx, z - cz) <= r) set([x, z], '#');
     }
+  } else if (land === 'ruins') {
+    // 무너진 돌집: 13칸 격자마다 6~10칸 네모 벽(한 겹), 벽을 따라 2~3칸짜리 틈 3~5군데. 가운데는 광장, 몇 곳은 다 무너진 터
+    for (let bz = 4; bz < N - 12; bz += 13)
+      for (let bx = 4; bx < N - 12; bx += 13) {
+        if (Math.abs(bx + 6 - N / 2) < 8 && Math.abs(bz + 6 - N / 2) < 8) continue;
+        if (rand() < 0.15) continue;
+        const [w, h] = [int(6, 10), int(6, 10)];
+        const [x0, z0] = [bx + int(0, 12 - w), bz + int(0, 12 - h)];
+        const ring: Cell[] = []; // 테두리를 한 바퀴 순서대로
+        for (let x = x0; x < x0 + w; x++) ring.push([x, z0]);
+        for (let z = z0 + 1; z < z0 + h; z++) ring.push([x0 + w - 1, z]);
+        for (let x = x0 + w - 2; x >= x0; x--) ring.push([x, z0 + h - 1]);
+        for (let z = z0 + h - 2; z > z0; z--) ring.push([x0, z]);
+        for (const c of ring) set(c, '#');
+        for (let k = int(3, 5); k > 0; k--) for (let i = int(0, ring.length - 1), j = int(2, 3); j > 0; j--, i++) set(ring[i % ring.length], '.');
+      }
+    for (let k = int(25, 35); k > 0; k--) set([int(2, N - 3), int(2, N - 3)], '#'); // 쓰러진 기둥
   } else {
     // 눈밭: 얼음 바위 지대 몇 곳(맵의 1/3쯤)에만 45%를 벽으로 뿌리고, 둘레 9칸 중 벽이 5칸 이상이면 벽 — 네 번
     const zone = new Uint8Array(N * N);
@@ -98,7 +115,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     for (let s = -1; s <= 1; s++) {
       for (let k = 1; k <= 2; k++) set(at(e.side, e.t + s, k), '=');
       const [x, z] = at(e.side, e.t + s, 0);
-      cells[z][x] = e.to === 'field' ? 'F' : 'S';
+      cells[z][x] = e.to === 'field' ? 'F' : e.to === 'snow' ? 'S' : 'R';
     }
   }
   const bossAt = at(opposite[from], int(N / 2 - 10, N / 2 + 10), 10);
@@ -157,7 +174,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     cells[p[1]][p[0]] = c;
     if (!connected()) cells[p[1]][p[0]] = '.';
   };
-  for (let k = land === 'field' ? 3 : 8; k > 0; k--) block('B'); // 초원은 야영지 모닥불이 더 생긴다
+  for (let k = land === 'field' ? 3 : land === 'ruins' ? 4 : 8; k > 0; k--) block('B'); // 초원은 야영지 모닥불이 더 생긴다
   for (let k = land === 'field' ? int(1, 2) : int(3, 4); k > 0; k--) block('c');
   for (let k = 0; k < 30; k++) {
     const p = pick();
@@ -167,8 +184,9 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   // 몬스터: 초원은 고블린 떼(전사가 이끌고 2구역부터 불개미), 설원은 얼음 개미·시체(2구역부터 해골 궁수).
   // 주인공에게서 먼 곳에 무리 지어 — 초원은 3~5마리 야영지, 설원은 3~4마리(궁수가 섞인다). 무리의 절반은 길가(길에서 6칸 안)
   const count = wildCount(floor, land);
-  const warriors = Math.round(count * (land === 'field' ? 0.2 : 0.3));
-  const ranged = floor === 1 ? 0 : Math.round(count * (land === 'field' ? 0.15 : 0.25)); // 설원은 궁수가 많다(트인 눈밭에서 숨을 곳이 얼음 바위뿐)
+  const warriors = Math.round(count * (land === 'field' ? 0.2 : land === 'ruins' ? 0.25 : 0.3));
+  // 설원은 궁수가 많다(트인 눈밭에서 숨을 곳이 얼음 바위뿐). 폐허는 1구역부터 골목의 홉고블린 궁수(초원 1구역을 지나 온 곳이라)
+  const ranged = land === 'ruins' ? Math.round(count * 0.2) : floor === 1 ? 0 : Math.round(count * (land === 'field' ? 0.15 : 0.25));
   const monsters: string[] = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : i < warriors + ranged ? (land === 'field' ? 'g' : 'a') : 'm'));
   for (let i = monsters.length - 1; i > 0; i--) {
     const j = int(0, i);
@@ -205,5 +223,59 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     if (campsLeft > 0 && placed >= 3 && makeCamp(camp)) campsLeft--;
   }
   if (campsLeft > 0) return generateWild(seed + 1, floor, land, from); // 야영지가 모자라면 다음 시드로
+  gimmicks(cells, mulberry(seed ^ 0x9e37), floor, land, all, keep, (p) => dist(p) >= 0 && OPEN(cells[p[1]][p[0]]), connected, (p) => dist(p));
   return finish(cells, rand);
+}
+
+// 지역 기믹을 놓는다. 앞의 난수열(땅·몬스터·야영지)을 바꾸지 않게 따로 굴린다.
+// 모두: 성소(Y) 하나. 초원: 개미지옥(가운데 U, 둘레 모래 ~) 2~3, 30%로 보물 고블린(T). 설원: 얼어붙은 보물(I) 1~2와 둘레에 잠든 개미(Z) 2~3.
+// 폐허: 저주받은 무덤(X) 3~5, 가시 바닥(^ 2×2) 4~6, 푸른 마법진(@) 한 쌍
+function gimmicks(cells: string[][], r2: () => number, floor: number, land: Wild, all: Cell[], keep: Cell[], reach: (p: Cell) => boolean, connected: () => boolean, dist: (p: Cell) => number) {
+  const int = (lo: number, hi: number) => lo + Math.floor(r2() * (hi - lo + 1));
+  const near = ([x, z]: Cell, [cx, cz]: Cell, r: number) => Math.max(Math.abs(x - cx), Math.abs(z - cz)) < r;
+  const used: Cell[] = [];
+  const spot = (ok: (p: Cell) => boolean = () => true): Cell | null => {
+    for (let tries = 0; tries < 150; tries++) {
+      const p = all[int(0, all.length - 1)];
+      if (cells[p[1]][p[0]] === '.' && reach(p) && ![...keep, ...used].some((k) => near(p, k, 5)) && ok(p)) return p;
+    }
+    return null;
+  };
+  const put = (c: string, ok?: (p: Cell) => boolean): Cell | null => {
+    const p = spot(ok);
+    if (!p) return null;
+    cells[p[1]][p[0]] = c;
+    if ('YI'.includes(c) && !connected()) return void (cells[p[1]][p[0]] = '.'), null; // 막는 것은 길을 끊지 않게
+    used.push(p);
+    return p;
+  };
+  const far = (k: number) => (p: Cell) => dist(p) >= k;
+  put('Y', far(10));
+  if (land === 'field') {
+    for (let k = int(2, 3); k > 0; k--) {
+      const camp = (p: Cell) => cells.slice(p[1] - 6, p[1] + 7).some((row) => row.slice(p[0] - 6, p[0] + 7).includes('C')); // 야영지 가까이는 피한다
+      const c = put('U', (p) => far(12)(p) && !camp(p));
+      if (c) for (let z = c[1] - 2; z <= c[1] + 2; z++) for (let x = c[0] - 2; x <= c[0] + 2; x++) if (Math.hypot(x - c[0], z - c[1]) <= 1.6 && '.='.includes(cells[z][x])) cells[z][x] = '~';
+    }
+    if (floor < FLOORS && r2() < 0.3) put('T', far(15));
+  }
+  if (land === 'snow')
+    for (let k = int(1, 2); k > 0; k--) {
+      const c = put('I', far(12));
+      for (let n = c ? int(2, 3) : 0, tries = 0; n > 0 && tries < 40; tries++) {
+        const [x, z] = [c![0] + int(-3, 3), c![1] + int(-3, 3)];
+        if (Math.max(Math.abs(x - c![0]), Math.abs(z - c![1])) >= 2 && cells[z][x] === '.') (cells[z][x] = 'Z'), n--;
+      }
+    }
+  if (land === 'ruins') {
+    for (let k = int(3, 5); k > 0; k--) put('X', far(12));
+    for (let k = int(4, 6); k > 0; k--) {
+      const p = spot(far(8));
+      if (p) for (const [dx, dz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) if ('.='.includes(cells[p[1] + dz][p[0] + dx])) cells[p[1] + dz][p[0] + dx] = '^';
+      if (p) used.push(p);
+    }
+    const top = Math.max(...all.map(dist));
+    const a = put('@', (p) => dist(p) >= 0.15 * top && dist(p) <= 0.45 * top);
+    if (a && !put('@', (p) => dist(p) >= 0.65 * top && Math.hypot(p[0] - a[0], p[1] - a[1]) >= 25)) cells[a[1]][a[0]] = '.'; // 짝이 없으면 하나도 두지 않는다
+  }
 }

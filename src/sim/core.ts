@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -99,7 +99,7 @@ const total = (m: World['mods'], kind: AffixKind) => SLOTS.reduce((s, sl) => s +
 export const worn = (w: World, kind: AffixKind) => total(w.mods, kind);
 
 // 이동 속도(m/s). 주인공은 신발 + '날랜' 옵션
-export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) * (w.trophies.swift ? ELITE_FX.swiftMove : 1) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1) * (e.skin ? SKINS[e.skin].speed : 1));
+export const moveSpeed = (w: World, e: Entity) => (e.kind === 'hero' ? STATS.hero.speed * (1 + CLASSES[w.cls].boots[w.gear.boots - 1].move + worn(w, 'move') / 100) * (w.trophies.swift ? ELITE_FX.swiftMove : 1) * (w.buff?.kind === 'haste' ? 1 + SHRINE.haste : 1) * (w.pits.some(([x, z]) => Math.hypot(e.x - x, e.z - z) <= PIT.r) ? PIT.slow : 1) : w.allies.includes(e as Ally) ? BONES.speed : STATS[e.kind].speed * (e.eliteKind === 'swift' ? ELITE_FX.swiftMove : 1) * (e.skin ? SKINS[e.skin].speed : 1));
 
 // 장비 점수(자동 장착 비교). 무기 = 옵션을 반영한 초당 데미지(흡혈은 가산), 방어구(갑옷·투구·신발) = 세 부위를 합쳐 버티는 체력(재생·가시·이동 속도 가산)
 export function weaponScore(tier: number, aff: Affix[], cls: HeroClass = 'knight'): number {
@@ -282,7 +282,7 @@ export const randSlot = (w: World): Slot => SLOTS[Math.floor(rand(w) * SLOTS.len
 
 // 경험치를 얻고, 다음 레벨 몫을 넘을 때마다 레벨업(남는 양은 이월). 레벨업하면 체력 완전 회복
 export function gainXp(w: World, n: number) {
-  w.xp += n;
+  w.xp += w.buff?.kind === 'wisdom' ? Math.round(n * (1 + SHRINE.wisdom)) : n; // 지혜의 성소
   const before = w.level;
   while (w.xp >= xpToNext(w.level)) w.xp -= xpToNext(w.level++);
   w.points += w.level - before; // 레벨마다 스킬 포인트 1
@@ -303,7 +303,7 @@ export function dress(e: Entity, skins: World['skins']): Entity {
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
-  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : 1); // 궁수 집중 중엔 빠르게
+  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) / (w.buff?.kind === 'haste' ? 1 + SHRINE.haste : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : 1); // 궁수 집중 중엔 빠르게
 }
 
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)
@@ -311,7 +311,7 @@ export function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1)) * (1 + mod(w.mods.weapon, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
   const crit = a.kind === 'hero' ? mod(w.mods.weapon, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale) * twice;
@@ -343,7 +343,10 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (amp) dmg = Math.round(dmg * (1 + amp));
   if (from?.kind === 'hero' && (t.elite || t.kind === 'boss' || t.kind === 'king') && setCount(w) >= 2) dmg = Math.round(dmg * SET_HUNTER.dmg); // 정예 사냥꾼 2부위
   // 주인공: 갑옷(+단단한) 감소, 함성·서리 갑옷 중이면 추가 감소, 마나 방패·뼈 갑옷이 먼저 흡수(마나 방패는 공격자에게 일부 되돌림)
+  if (t.kind !== 'hero' && asleep(t)) wake(w, t); // 잠든 몬스터는 맞으면 깬다
+  if (t.skin === 'treasure' && !t.cd) Object.assign(t, { cd: 1, fearT: TREASURE.run }); // 보물 고블린: 멀리서 맞아도 도망
   if (t.kind === 'hero') {
+    if (w.buff?.kind === 'guard') dmg = Math.round(dmg * (1 - SHRINE.guard)); // 수호의 성소
     dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST_ARMOR.reduce + FROST_ARMOR.per * ext(w, 'frostArmor') : shoutStat(w).reduce) : 1)));
     const absorbed = Math.min(w.wardHp, dmg);
     if (absorbed > 0) {
@@ -378,6 +381,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     return dealt;
   }
   if (t.kind === 'boss') dropUnique(w, t, LEGEND_DROP.boss, true);
+  if (t.skin === 'treasure') treasureDrop(w, t);
   gainXp(w, Math.round(XP[t.kind] * t.power * (t.elite ? ELITE.xp : 1)));
   // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)
   if (t.eliteKind === 'volatile') w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: ELITE_FX.blastDelay, total: ELITE_FX.blastDelay, dmg: Math.round(roll(w, t) * ELITE_FX.blastMult), owner: -1 });
@@ -420,7 +424,7 @@ function trophyKill(w: World, t: Entity) {
 // 보스·해골 왕은 밀리지도 끊기지도 않는다. 죽은 적도 밀린다(시체가 날아간다). 난수를 쓰지 않는다
 export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
   w.impacts++;
-  if (e.kind === 'boss' || e.kind === 'king') return;
+  if (e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave') return;
   for (let i = Math.round(d / 0.1); i > 0 && walkable(w.grid, Math.floor(e.x + dx * 0.1), Math.floor(e.z + dz * 0.1)); i--) {
     e.x += dx * 0.1;
     e.z += dz * 0.1;
@@ -529,4 +533,24 @@ export function walk(w: World, e: Entity) {
     e.z = nz;
     budget = 0;
   }
+}
+
+export const asleep = (e: Entity) => !!e.asleep; // 잠든 몬스터(얼음 속 개미·모래 속 개미귀신)
+// 잠든 몬스터를 깨운다(둘레 SLEEP.chain m 안의 잠든 몬스터도)
+export function wake(w: World, e: Entity) {
+  const queue = [e];
+  for (const m of queue) {
+    if (!asleep(m)) continue;
+    Object.assign(m, { asleep: false, target: 0, repathT: 0 });
+    queue.push(...w.entities.filter((o) => o.state !== 'dead' && asleep(o) && dist(o, m) <= SLEEP.chain));
+  }
+}
+
+// 보물 고블린을 잡았다: 둘레에 금화 더미 여럿과 장비(마법 이상)
+function treasureDrop(w: World, t: Entity) {
+  for (let i = 0; i < TREASURE.gold; i++) {
+    const a = (i / TREASURE.gold) * Math.PI * 2;
+    dropGold(w, t.x + Math.sin(a) * 0.8, t.z + Math.cos(a) * 0.8, GOLD_CHEST.lo, GOLD_CHEST.hi, t.power);
+  }
+  for (let i = 0; i < TREASURE.gear; i++) w.items.push(rollGear(w, t.x + (i ? 0.4 : -0.4), t.z, randSlot(w), 1 + Math.floor(rand(w) * w.maxTier), true));
 }

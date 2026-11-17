@@ -1,0 +1,63 @@
+{
+  "cell": [
+    85,
+    74
+  ],
+  "anchor": [
+    42,
+    32
+  ],
+  "ppm": 30,
+  "cols": 4,
+  "rows": 8,
+  "anims": {
+    "shrine": {
+      "row": 0,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "shrine_off": {
+      "row": 1,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "trial": {
+      "row": 2,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "trial_open": {
+      "row": 3,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "spikes": {
+      "row": 4,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "spikes_up": {
+      "row": 5,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "portal": {
+      "row": 6,
+      "frames": 4,
+      "ms": 264,
+      "loop": "looped"
+    },
+    "portal_off": {
+      "row": 7,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    }
+  }
+}

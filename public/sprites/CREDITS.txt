@@ -49,6 +49,18 @@ Files used:
   mods/fantasycore/images/enemies/wyvern_water/wyvern_water_dash_attack.png
   mods/fantasycore/images/enemies/wyvern_water/wyvern_water_hit.png
   mods/fantasycore/images/enemies/wyvern_water/wyvern_water_die.png
+  mods/fantasycore/animations/enemies/antlion_small.txt
+  mods/fantasycore/images/enemies/antlion_small.png
+  mods/fantasycore/animations/enemies/cursed_grave.txt
+  mods/fantasycore/images/enemies/cursed_grave.png
+  mods/empyrean_campaign/animations/enemies/zombie_dark.txt
+  mods/empyrean_campaign/images/enemies/zombie_dark.png
+  mods/empyrean_campaign/animations/enemies/hobgoblin.txt
+  mods/empyrean_campaign/images/enemies/hobgoblin.png
+  mods/empyrean_campaign/animations/enemies/hobgoblin_archer.txt
+  mods/empyrean_campaign/images/enemies/hobgoblin_archer.png
+  mods/empyrean_campaign/animations/enemies/skeleton_knight_boss.txt
+  mods/empyrean_campaign/images/enemies/skeleton_knight_boss.png
   mods/fantasycore/animations/powers/arrows.txt
   mods/fantasycore/images/powers/arrows.png
   mods/fantasycore/animations/powers/cleave.txt
@@ -191,6 +203,8 @@ Files used:
   mods/fantasycore/tilesetdefs/tileset_grassland.txt
   mods/fantasycore/images/tilesets/tileset_snowplains.png
   mods/fantasycore/tilesetdefs/tileset_snowplains.txt
+  mods/empyrean_campaign/images/tilesets/tileset_ruins.png
+  mods/empyrean_campaign/tilesetdefs/tileset_ruins.txt
   mods/fantasycore/animations/loot/hp_potion.txt
   mods/fantasycore/images/loot/hp_potion.png
   mods/fantasycore/animations/loot/dagger.txt

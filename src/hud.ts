@@ -21,7 +21,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -76,6 +76,7 @@ let shownBlocked = false; // '가득 찼습니다'는 밟은 순간 한 번만
 let shownLevel = 0;
 let shownGateHint = false; // 사슬 문 안내는 층마다 한 번
 let shownGatesOpen = 0; // 열린 사슬 문 수(늘면 알림)
+let shownGimmick = ''; // 기믹 알림(성소 버프·시련 물결·보물 고블린)을 띄운 상태
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
 type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; tree(): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; pick(cls: HeroClass): void; smart(on: boolean): void; smartOn(): boolean };
@@ -648,10 +649,14 @@ function showAllies(w: World) {
 let shownTrophies = '';
 function showTrophies(w: World) {
   const list = (Object.keys(w.trophies) as (keyof World['trophies'])[]).map((k) => [k, Math.ceil(w.trophies[k]!)] as const);
-  const key = JSON.stringify(list);
+  const buff = w.buff && ([w.buff.kind, Math.ceil(w.buff.t)] as const); // 성소 버프도 같은 줄에
+  const key = JSON.stringify([list, buff]);
   if (key === shownTrophies) return;
   shownTrophies = key;
-  $('#trophies').replaceChildren(...list.map(([k, t]) => Object.assign(document.createElement('span'), { textContent: `${ELITE_KINDS[k].name} ${t}`, title: ELITE_KINDS[k].desc, style: `color: ${ELITE_KINDS[k].color}` })));
+  $('#trophies').replaceChildren(
+    ...list.map(([k, t]) => Object.assign(document.createElement('span'), { textContent: `${ELITE_KINDS[k].name} ${t}`, title: ELITE_KINDS[k].desc, style: `color: ${ELITE_KINDS[k].color}` })),
+    ...(buff ? [Object.assign(document.createElement('span'), { textContent: `${BUFFS[buff[0]].name.replace(' 성소', '')} ${buff[1]}`, title: BUFFS[buff[0]].desc, style: 'color: #9cff6a' })] : []),
+  );
 }
 
 export function updateHud(world: World, hovered: number | null, choosing: boolean, stats: Stats, lostGold = 0, clearReady = true) {
@@ -665,6 +670,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
     shownBlocked = false;
     shownGateHint = false;
     shownGatesOpen = 0;
+    shownGimmick = '';
   }
   heroFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
   showTrophies(world);
@@ -723,6 +729,16 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   const gatesOpen = world.gates.filter((g) => g.open).length;
   if (gatesOpen > shownGatesOpen) say('사슬이 풀려 문이 열렸습니다');
   shownGatesOpen = gatesOpen;
+  // 기믹 알림: 상태가 바뀐 것만
+  const trial = world.chests.find((c) => c.kind === 'trial' && c.wave && !c.open);
+  const trialDone = trial && trial.wave === TRIAL.waves.length && trial.guards!.every((id) => world.entities[id].state === 'dead');
+  const goblin = world.entities.some((e) => e.skin === 'treasure' && e.cd && e.state !== 'dead');
+  const gimmick = [world.buff?.kind ?? '', trial ? `${trial.wave}${trialDone ? '!' : ''}` : '', goblin ? 'g' : ''];
+  const before = shownGimmick.split('|');
+  if (gimmick[0] && gimmick[0] !== before[0]) say(`${BUFFS[world.buff!.kind].name} — ${BUFFS[world.buff!.kind].desc}`);
+  if (gimmick[1] && gimmick[1] !== before[1]) say(trialDone ? '시련을 이겨냈습니다 — 제단의 상자를 여세요' : `시련 ${trial!.wave}/${TRIAL.waves.length} — 몬스터가 몰려옵니다`);
+  if (gimmick[2] && !before[2]) say(`보물 고블린이 도망칩니다! ${TREASURE.run}초 안에 잡으세요`);
+  shownGimmick = gimmick.join('|');
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
   const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
   bossBar.hidden = !boss;

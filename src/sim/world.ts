@@ -7,7 +7,9 @@ import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, sprea
 import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
-import { CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { BLOCKS } from './dungeon';
+import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
+import { GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
@@ -32,8 +34,12 @@ export function useClass(w: World, cls: HeroClass) {
 export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ ranks: { [startSkill(cls)]: 1 }, keys: { cleave: startSkill(cls), dash: null, shout: null, throw: null } });
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
-// 'D' 사슬 문(닫힌 동안 막음)
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss' };
+// 'D' 사슬 문(닫힌 동안 막음). 기믹: 'Y' 성소, 'Q' 시련의 제단, 'I' 얼어붙은 보물(모두 상자처럼 막고 누른다), 'Z' 잠든 졸개, 'U' 모래 속 새끼 개미귀신(개미지옥 가운데), '~' 개미지옥 모래,
+// 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허)
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
+const SPAWN_SKIN: Record<string, Skin | undefined> = { U: 'antlion_small', T: 'treasure', X: 'grave' }; // 지역 스킨 대신
+const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice' };
+const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins' };
 
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
@@ -41,38 +47,51 @@ const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop
 export function createWorld(seed: number, map: string[], power = 1, bossPower = 1, skins: World['skins'] = {}): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
-  const spawns: { kind: Kind; x: number; z: number; elite: boolean }[] = [];
+  const spawns: { kind: Kind; x: number; z: number; elite: boolean; c: string }[] = [];
   let stairs: Cell | null = null;
   const props: Prop[] = [];
   const chests: Chest[] = [];
   const gateCells: Cell[] = [];
   const exits: Exit[] = [];
   const roads: Cell[] = [];
+  const sand: Cell[] = [];
+  const pits: Point[] = [];
+  const spikes: Cell[] = [];
+  const portals: Point[] = [];
   map.forEach((row, z) =>
     [...row].forEach((c, x) => {
       const kind = SPAWN[c];
       const prop = PROPS[c];
       if (prop) props.push({ kind: prop, x, z });
-      if (c === 'c' || c === 'C') chests.push({ id: chests.length, x, z, open: false, ...(c === 'C' && { guards: [] }) });
+      if (c === 'c' || c === 'C' || CHEST_KIND[c]) chests.push({ id: chests.length, x, z, open: false, ...(c === 'C' && { guards: [] }), ...(CHEST_KIND[c] && { kind: CHEST_KIND[c] }) });
       if (c === 'D') gateCells.push([x, z]);
       if (c === '=') roads.push([x, z]);
-      if (c === 'F' || c === 'S') exits.push({ x, z, to: c === 'F' ? 'field' : 'snow' });
-      if (c === '#' || c === 'B' || c === 'o' || c === 'c' || c === 'C' || c === 'D') grid.blocked[z * w + x] = 1;
+      if (c === '~' || c === 'U') sand.push([x, z]);
+      if (c === 'U') pits.push([x + 0.5, z + 0.5]);
+      if (c === '^') spikes.push([x, z]);
+      if (c === '@') portals.push([x + 0.5, z + 0.5]);
+      if (EXIT_TO[c]) exits.push({ x, z, to: EXIT_TO[c]! });
+      if (BLOCKS.includes(c)) grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
-      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c) });
+      else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c), c });
     }),
   );
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   // 문이 막는 통로의 방향: 양옆(x±1)이 뚫려 있으면 x 방향 통로
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false, guards: [] }));
-  const entities = spawns.map((s, id) => dress(makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite), skins));
+  const entities = spawns.map((s, id) => {
+    const e = dress(makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite), SPAWN_SKIN[s.c] ? { [s.kind]: SPAWN_SKIN[s.c] } : skins);
+    if (s.c === 'Z' || s.c === 'U') e.asleep = true;
+    if (s.c === 'X') e.cd = GRAVE.first;
+    return e;
+  });
   guardGates(grid, gates, entities);
   for (const ch of chests) if (ch.guards) ch.guards = entities.filter((e) => e.kind !== 'hero' && Math.hypot(e.x - ch.x - 0.5, e.z - ch.z - 0.5) <= CAMP.radius).map((e) => e.id);
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
   for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, rest: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, impacts: 0 };
 }
 
 // 봉인 문의 문지기: 문을 닫은 채로 주인공 칸에서 걸어서 닿는 몬스터(문 너머의 방에 있는 몬스터는 빼고) 중 가까운 것들
@@ -130,6 +149,7 @@ export function step(w: World, cmds: Command[]): void {
   if (w.spinT > 0) spin(w, hero);
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
+    if (e !== hero && special(w, e, hero)) continue; // 잠든 몬스터·무덤·보물 고블린
     if (e.stunT > 0) {
       e.stunT = Math.max(0, e.stunT - DT); // 기절: 생각도 행동도 하지 않는다
       continue;
@@ -150,6 +170,7 @@ export function step(w: World, cmds: Command[]): void {
   reachChest(w, hero);
   pickup(w, hero);
   unseal(w);
+  tickGimmicks(w, hero);
 }
 
 // '재생의'(모든 부위 합): 초당 value/10. 소수점은 쌓아 두었다가 1씩
@@ -413,9 +434,11 @@ function reachChest(w: World, hero: Entity) {
     return;
   }
   w.opening = null;
-  if (ch.guards?.some((id) => w.entities[id].state !== 'dead')) return; // 야영지 무리가 살아 있으면 잠겨 있다
+  if (touchChest(w, ch)) return; // 성소·시련의 제단(시작)
+  if (ch.guards?.some((id) => w.entities[id].state !== 'dead')) return; // 야영지 무리·시련의 물결이 살아 있으면 잠겨 있다
   ch.open = true;
   const [x, z] = [cx + ((hero.x - cx) / d) * CHEST.drop, cz + ((hero.z - cz) / d) * CHEST.drop];
+  if (specialLoot(w, ch, x, z, x + ((hero.z - cz) / d) * 0.4, z - ((hero.x - cx) / d) * 0.4)) return; // 시련·얼음 상자
   const kind = !ch.guards && rand(w) < CHEST.potion ? 'potion' : randSlot(w); // 야영지 상자는 늘 장비
   if (kind === 'potion') w.items.push({ id: w.nextItem++, x, z, kind, tier: 0 });
   else if (rand(w) < LEGEND_DROP.chest) w.items.push({ ...rollUnique(w, x, z, w.maxTier) });
@@ -526,6 +549,7 @@ function separate(w: World) {
 }
 
 function nudge(w: World, e: Entity, dx: number, dz: number) {
+  if (e.skin === 'grave') return; // 무덤은 밀리지 않는다
   if (!walkable(w.grid, Math.floor(e.x + dx), Math.floor(e.z + dz))) return;
   e.x += dx;
   e.z += dz;

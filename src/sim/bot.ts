@@ -13,6 +13,7 @@ const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): World {
   const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n), 1, LANDS[land].skins);
   w.cls = c.cls;
+  w.land = land;
   w.potions = c.potions;
   w.gear = { ...c.gear };
   w.mods = copyMods(c.mods);

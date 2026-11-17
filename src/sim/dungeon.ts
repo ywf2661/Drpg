@@ -10,11 +10,12 @@ export const FLOORS = 5;
 export const floorPower = (n: number, cycle = 0) => (1 + 0.15 * (n - 1)) * cyclePower(cycle);
 export const cyclePower = (cycle: number) => 1 + 0.5 * cycle;
 // 층의 모습(렌더용): 깊은 층은 동굴
-export type Theme = 'dungeon' | 'cave' | 'field' | 'snow';
+export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-export const OPEN = (c: string) => c !== '#' && c !== 'B' && c !== 'o' && c !== 'c' && c !== 'C' && c !== 'D'; // 지나갈 수 있는 글자
+export const BLOCKS = '#BocCDYQI'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물
+export const OPEN = (c: string) => !BLOCKS.includes(c); // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 
 export function generateFloor(seed: number, floor: number): string[] {
@@ -135,6 +136,22 @@ export function generateFloor(seed: number, floor: number): string[] {
       }
     }
   }
+  // 성소 1~2개(Y)와 시련의 제단(Q, 보스 층 빼고 60%): 앞의 난수열을 바꾸지 않게 따로 굴린다(방·몬스터 배치가 그대로). 문·보물 방보다 먼저(문 뒤는 닫혀 있어 길 검사가 실패한다)
+  const r2 = mulberry(seed ^ 0x51ed);
+  const goalRoom0 = rooms.find((r) => inRoom(r, goal[0], goal[1]));
+  const spots = rooms.slice(1).filter((r) => r !== goalRoom0);
+  const altar = (c: string) => {
+    for (let tries = 0; tries < 60 && spots.length; tries++) {
+      const r = spots[Math.floor(r2() * spots.length)];
+      const p: Cell = [r.x + Math.floor(r2() * r.w), r.z + Math.floor(r2() * r.h)];
+      if (!free(p) || !edge(r, p)) continue;
+      cells[p[1]][p[0]] = c;
+      if (connected()) return;
+      cells[p[1]][p[0]] = '.';
+    }
+  };
+  for (let k = r2() < 0.5 ? 2 : 1; k > 0; k--) altar('Y');
+  if (floor < FLOORS && r2() < 0.6) altar('Q');
   // 사슬 문은 맨 끝에 놓는다(앞의 난수열을 바꾸지 않아 방·몬스터 배치가 문이 없던 때와 같다)
   // 계단 방(2층~보스 전 층): 방을 둘러싼 한 겹에서 뚫린 칸(복도 입구)을 모두 문으로
   const goalRoom = rooms.find((r) => inRoom(r, goal[0], goal[1]))!;

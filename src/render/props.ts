@@ -1,7 +1,7 @@
 // 소품·계단·바닥 물약·화로 불빛. 모두 캐릭터와 같은 세로 판자(발 아래는 바닥에 눕힘), 화로마다 점광원 1개.
 import { pause, rumble } from './feel';
 import * as THREE from 'three';
-import { COMET, quality, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
+import { COMET, quality, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
 import lootUrl from '../assets/sprites/loot.png';
 import arrowInfo from '../assets/sprites/arrow.json';
@@ -28,6 +28,8 @@ import trapInfo from '../assets/sprites/trap.json';
 import trapUrl from '../assets/sprites/trap.png';
 import stuckInfo from '../assets/sprites/stuck.json';
 import stuckUrl from '../assets/sprites/stuck.png';
+import ruinInfo from '../assets/sprites/ruin_props.json';
+import ruinUrl from '../assets/sprites/ruin_props.png';
 import { walkable } from '../sim/path';
 import { resetWard, syncWard, updateWard, wardFx } from './ward';
 import { cardGeometry, dirIndex, frameAt, loadSheet, type Clip, type SheetInfo } from './sprites';
@@ -56,7 +58,7 @@ const VARIANTS: Record<Prop['kind'], string[]> = {
   debris: Array.from({ length: 8 }, (_, k) => `bones${k + 1}`),
 };
 type Sheet = { info: SheetInfo; url: string; tex?: THREE.Texture; geo?: THREE.BufferGeometry };
-type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number; dim?: number }; // dir: 방향 행(화살), dim: 밝기 배수(잠긴 야영지 상자)
+type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number; dim?: number; tint?: THREE.Color }; // dir: 방향 행(화살), dim: 밝기 배수(잠긴 야영지 상자), tint: 색(얼어붙은 보물·가시 예고)
 const props: Sheet = { info: propsInfo as SheetInfo, url: propsUrl };
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
@@ -70,6 +72,7 @@ const gateFx: Sheet = { info: gateInfo as SheetInfo, url: gateUrl };
 const flameFx: Sheet = { info: flameInfo as SheetInfo, url: flameUrl };
 const trapFx: Sheet = { info: trapInfo as SheetInfo, url: trapUrl };
 const stuckFx: Sheet = { info: stuckInfo as SheetInfo, url: stuckUrl };
+const ruin: Sheet = { info: ruinInfo as SheetInfo, url: ruinUrl }; // 성소·시련 상자(세움), 가시 바닥·푸른 마법진(눕힘: 기준점 = 마름모 위 꼭짓점)
 const wiz = { ember: fx('ember'), thunder: fx('thunder'), spark: fx('spark'), ice: fx('ice'), frost: fx('frost'), blink: fx('blink'), heal: fx('heal') };
 const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
 const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
@@ -87,7 +90,10 @@ const PILLAR_GEO = new THREE.CylinderGeometry(0.1, 0.28, PILLAR.h, 12, 1, true).
   PILLAR_GEO.setAttribute('color', new THREE.BufferAttribute(fade, 3));
 }
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
-let chestCards: { card: Card; name: string }[] = []; // 상자 판자(world.chests 순서)와 닫힌 그림 이름
+let chestCards: { card: Card; open: Clip }[] = []; // 상자 판자(world.chests 순서)와 열린 그림
+let spikeCards: Card[] = [];
+const ICE_CHEST = new THREE.Color(1.2, 2.2, 5.5); // 얼음에 갇힌 상자: 푸르게 빛난다
+const SPIKE_WARN = new THREE.Color(2.2, 0.5, 0.4);
 const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
 const trapCards = new Map<number, Card>(); // 놓인 덫 id → 판자(벌린 그림으로 멈춰 있다)
 let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
@@ -339,7 +345,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
+  for (const s of [ruin, props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -375,9 +381,19 @@ export function stickArrow(x: number, z: number, dir: number) {
 export function syncChests(world: World) {
   world.chests.forEach((ch, i) => {
     const c = chestCards[i];
-    if (ch.open && c) c.card.clip = props.info.anims[`${c.name}_open`];
+    if (ch.open && c) c.card.clip = c.open;
     if (c) c.card.dim = ch.guards?.some((id) => world.entities[id].state !== 'dead') ? 0.4 : 1; // 야영지 무리가 살아 있으면 어둡게(잠김)
   });
+}
+
+// 가시 바닥: 솟기 전 SPIKE.warn초는 붉게 깜빡이고, 솟은 동안은 솟은 그림
+export function syncSpikes(world: World) {
+  const t = world.spikeT;
+  const up = t >= SPIKE.warn && t < SPIKE.warn + SPIKE.up;
+  for (const c of spikeCards) {
+    c.clip = ruin.info.anims[up ? 'spikes_up' : 'spikes'];
+    c.tint = t < SPIKE.warn && Math.sin(t * 25) > 0 ? SPIKE_WARN : undefined;
+  }
 }
 
 // 불길: 길이 늘어나는 만큼 불꽃을 줄지어 세우고(조금씩 어긋나게), 넓은 불은 원 안에 흩어 세우고, 꺼지면 치운다
@@ -645,10 +661,18 @@ export function buildProps(world: World): THREE.Group {
     return card(props, names[cellHash(p.x, p.z) % names.length], p.x + 0.5, p.z + 0.5, p.kind === 'debris');
   });
   chestCards = world.chests.map((ch) => {
-    const name = cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest';
-    return { card: card(props, ch.open ? `${name}_open` : name, ch.x + 0.5, ch.z + 0.5, false), name };
+    const [sheet, name] = ch.kind === 'shrine' ? [ruin, 'shrine'] : ch.kind === 'trial' ? [ruin, 'trial'] : [props, cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest'];
+    const open = sheet.info.anims[name === 'shrine' ? 'shrine_off' : `${name}_open`];
+    const c = card(sheet, name, ch.x + 0.5, ch.z + 0.5, false);
+    if (ch.open) c.clip = open;
+    if (ch.kind === 'ice') c.tint = ICE_CHEST;
+    if (ch.kind === 'shrine') c.glow = 0.9; // 구슬이 빛난다
+    return { card: c, open };
   });
   cards.push(...chestCards.map((c) => c.card));
+  // 눕힌 판자: 가시 바닥(칸의 위 꼭짓점), 푸른 마법진(2×2칸, 가운데가 마법진 칸)
+  spikeCards = world.spikes.map(([x, z]) => card(ruin, 'spikes', x, z, true));
+  cards.push(...spikeCards, ...world.portals.map(([x, z]) => Object.assign(card(ruin, 'portal', x - 1, z - 1, true), { glow: 1 })));
   gateCards.clear();
   trapCards.clear();
   flames.clear();
@@ -680,5 +704,6 @@ export function updateProps(dt: number, light: (x: number, z: number) => number)
     const f = frameAt(c.clip, c.t);
     c.mat.map!.offset.set(f / c.info.cols, 1 - (c.clip.row + c.dir + 1) / c.info.rows);
     c.mat.color.copy(TINT).multiplyScalar(Math.max(c.glow, light(c.mesh.position.x, c.mesh.position.z)) * (c.dim ?? 1));
+    if (c.tint) c.mat.color.multiply(c.tint);
   }
 }
