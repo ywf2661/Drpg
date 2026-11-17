@@ -187,3 +187,9 @@ test('끝나는 틱의 휘두름엔 참격이 없다', () => {
   const w = arena(['H..m.'], { unleash: 1 }); w.edge = both(DT / 2);
   step(w, []); expect(w.edge.kind).toBeNull(); temper(w, w.entities[0], []); expect(w.edgeSlashes).toBe(0);
 });
+test('같은 벼림을 다시 쓰면 터지지 않고 충전만 새로 찬다', () => {
+  const w = ring({ flameEdge: 1, reforge: 1 }); w.edge = flame(2);
+  w.res = 100; step(w, [{ type: 'dash' }]);
+  expect(w.edge).toEqual(flame(6)); expect(w.blasts.some((b) => b.r === 2.5)).toBe(false);
+  for (const e of w.entities.slice(1)) expect(e.hp).toBe(1e5);
+});

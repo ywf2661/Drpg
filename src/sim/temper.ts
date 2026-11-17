@@ -42,10 +42,11 @@ export function temper(w: World, hero: Entity, hit: Entity[], use = true): void 
   clearEdge(w);
 }
 
-// 덧벼림(패시브): 충전이 남은 불·서리 칼을 갈아입으면 남은 충전이 주인공 둘레로 한꺼번에 터진다(충전을 쓰지 않는다)
-export function reforge(w: World, hero: Entity): void {
+// 덧벼림(패시브): 충전이 남은 불·서리 칼을 다른 강화(next)로 갈아입으면 남은 충전이 주인공 둘레로 한꺼번에 터진다(충전을 쓰지 않는다).
+// 같은 벼림을 다시 쓰면 터지지 않고 충전만 새로 찬다
+export function reforge(w: World, hero: Entity, next: 'flame' | 'frost' | 'both'): void {
   const { kind, left } = w.edge;
-  if (!rank(w, 'reforge') || (kind !== 'flame' && kind !== 'frost') || left <= 0) return;
+  if (!rank(w, 'reforge') || (kind !== 'flame' && kind !== 'frost') || kind === next || left <= 0) return;
   const st = reforgeStat(w);
   w.blasts.push({ id: w.nextItem++, x: hero.x, z: hero.z, age: 0, kind: kind === 'flame' ? 'fire' : 'ice', r: st.radius });
   for (const e of w.entities) {
@@ -59,7 +60,7 @@ export function reforge(w: World, hero: Entity): void {
 function edgeCast(w: World, kind: 'flame' | 'frost'): number {
   if (w.edge.kind === 'both') return 0;
   const st = kind === 'flame' ? flameEdgeStat(w) : frostEdgeStat(w);
-  reforge(w, w.entities[0]);
+  reforge(w, w.entities[0], kind);
   clearEdge(w);
   w.edge = { kind, left: st.charges, t: 0 };
   return st.cd;
@@ -71,7 +72,7 @@ export const frostEdge = (w: World, _hero: Entity) => edgeCast(w, 'frost');
 export function unleash(w: World, hero: Entity): number {
   if (w.edge.kind === 'both') return 0;
   const st = unleashStat(w);
-  reforge(w, hero);
+  reforge(w, hero, 'both');
   clearEdge(w);
   w.edge = { kind: 'both', left: 0, t: st.time };
   return st.cd;
