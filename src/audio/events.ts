@@ -22,6 +22,7 @@ export type Snapshot = {
   level: number;
   cleaves: number;
   edgeSlashes: number; // 벼림 해방 참격
+  edgeHits: Set<number>; // 벼림 강화 타격
   dashes: number;
   shouts: number;
   opened: number; // 열린 상자 수
@@ -44,6 +45,7 @@ export function snapshot(w: World): Snapshot {
     level: w.level,
     cleaves: w.cleaves,
     edgeSlashes: w.edgeSlashes,
+    edgeHits: new Set(w.edgeHits.map((h) => h.id)),
     dashes: w.dashes,
     shouts: w.shouts,
     opened: w.chests.filter((c) => c.open).length,
@@ -77,6 +79,8 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'shout', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', slash: 'blast', rain: 'shoot', curse: 'shout' };
   const blastSound = (b: Blast) => BLAST_SOUND[b.kind] ?? (b.kind === 'ice' && b.r ? 'shout' : undefined); // 얼음은 덧벼림 폭발(반경 있음)만 — 얼어붙은 적마다 울리지 않게
   for (const b of w.blasts) if (!prev.blasts.has(b.id) && blastSound(b)) at(blastSound(b)!, b.x, b.z);
+  const edgeHit = w.edgeHits.find((h) => !prev.edgeHits.has(h.id)); // 벼림: 여러 적이 맞아도 프레임에 하나
+  if (edgeHit) at(edgeHit.kind === 'frost' ? 'shout' : 'fireball', edgeHit.x, edgeHit.z);
   for (const z of w.zones) if (z.owner < 0 && !prev.zones.has(z.id)) at('fireball', z.x, z.z); // 불기둥 예고
   if (w.allies.length > prev.allies) at('summon'); // 해골 병사
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
