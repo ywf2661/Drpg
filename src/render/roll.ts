@@ -11,18 +11,25 @@ const SQUASH = 0.8; // 도는 동안 몸을 조금 웅크린다
 const GHOST_EVERY = 0.04; // 잔상 간격(초)
 const GHOST_LIFE = 0.22; // 잔상이 사라지는 시간(초)
 const GHOST_TINT = new THREE.Color(0.75, 0.85, 1);
+const BEHIND = new THREE.Vector3(-1, 0, -1).normalize().multiplyScalar(0.05); // 잔상을 판자 조금 뒤에: 막 뜬 잔상이 주인공을 덮어 깜빡이지 않게
 
-type Ghost = { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; age: number };
+type Ghost = { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; age: number; fill: { value: number } }; // fill: 그림 색을 tint로 덮는 정도(1 = 그 색 실루엣)
 const ghosts: Ghost[] = [];
 export const rollGroup = new THREE.Group();
 let rolling = false;
 let ghostT = 0;
 
-function ghost(s: Sprite) {
+// 지금 판자 모습 그대로 잔상 하나(GHOST_LIFE초 동안 흐려진다). tint: 색(기본은 푸른빛), fill: 그림을 그 색으로 덮는 정도(어두운 그림도 흰 잔상이 되게)
+export function ghost(s: Sprite, tint = GHOST_TINT, fill = 0) {
   let g = ghosts.find((g) => g.age >= GHOST_LIFE);
   if (!g) {
     const mat = new THREE.MeshBasicMaterial({ map: s.mat.map!.clone(), transparent: true, depthWrite: false, toneMapped: false, color: GHOST_TINT });
-    g = { mesh: new THREE.Mesh(s.mesh.geometry, mat), age: GHOST_LIFE };
+    const u = { value: 0 };
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.fill = u;
+      sh.fragmentShader = 'uniform float fill;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuse, fill);');
+    };
+    g = { mesh: new THREE.Mesh(s.mesh.geometry, mat), age: GHOST_LIFE, fill: u };
     g.mesh.renderOrder = 2;
     rollGroup.add(g.mesh);
     ghosts.push(g);
@@ -36,9 +43,11 @@ function ghost(s: Sprite) {
   g.mesh.geometry = s.mesh.geometry;
   g.mesh.material.map!.offset.copy(map.offset);
   g.mesh.material.map!.repeat.copy(map.repeat);
-  g.mesh.position.copy(s.mesh.position);
+  g.mesh.position.copy(s.mesh.position).add(BEHIND);
   g.mesh.rotation.copy(s.mesh.rotation);
   g.mesh.scale.copy(s.mesh.scale);
+  g.mesh.material.color.copy(tint);
+  g.fill.value = fill;
   g.age = 0;
 }
 

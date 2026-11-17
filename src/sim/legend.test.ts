@@ -80,7 +80,7 @@ test('스킬 옵션 굴림: 대상은 지금 직업의 스킬, 값 1~2, 희귀�
       if (a.kind === 'tab') {
         tabs++;
         expect(it.affixes).toHaveLength(2);
-        expect([0, 1, 2]).toContain(a.tab);
+        expect(a.tab).toBeLessThan(TREES.wizard.length);
       }
       expect(a.kind).not.toBe('allSkills'); // 모든 스킬 +1은 전설만
     }

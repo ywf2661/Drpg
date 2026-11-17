@@ -16,6 +16,7 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number): num
       .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
     if (near) face(hero, near);
   }
+  w.slash = 'cleave';
   Object.assign(hero, { state: 'attack', attackT: 0, repathT: 0, skill: true }); // 공격 대상은 유지: 끝나면 이어서 친다
   return cleaveStat(w).cd;
 }

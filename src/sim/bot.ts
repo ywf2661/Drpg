@@ -7,7 +7,11 @@ import { uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
 const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
 // 봇이 포인트를 넣는 스킬: 예전 스킬 넷(BASIC)과, 그중 궁극기에 이르는 같은 탭의 아래 단계들. 칸은 BASIC 순서 그대로
-const LEARN = (cls: HeroClass): SkillId[] => BASIC[cls].flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
+// 칸 이름은 옛 이름 그대로다: dash=납도, shout=일섬, throw=함성
+const IAIDO: SkillId[] = ['mark', 'sheathe', 'flash', 'shout']; // 발도 빌드의 칸 순서(Q W E R)
+const IAIDO_LEARN: SkillId[] = [...IAIDO, 'memory'];
+export type Build = 'basic' | 'iaido';
+const LEARN = (cls: HeroClass, build: Build = 'basic'): SkillId[] => (build === 'iaido' ? IAIDO_LEARN : BASIC[cls]).flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): World {
@@ -30,7 +34,7 @@ function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): W
 
 // 간단한 플레이어: 체력이 낮으면 물약, 가까운 적부터 공격, 스킬은 뻔한 상황에만(무리면 가르기, 둘러싸이거나 보스 예고면 함성,
 // 멀리서 쏘는 적에겐 도끼·돌진), 좋은 아이템 줍기, 다 잡으면 계단(바깥 지역은 같은 지역 출구). dodge면 바닥의 예고 구역은 걸어 나가고 평타·화살·화염구는 굴러서 피한다
-function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'): Command[] {
+function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon', build: Build = 'basic'): Command[] {
   const hero = w.entities[0];
   const cmds: Command[] = [];
   if (hero.hp < hero.maxHp * 0.6 && w.potions > 0) cmds.push({ type: 'drink' }); // 서서히 차므로 미리 마신다
@@ -47,11 +51,12 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
   const nec = w.cls === 'necromancer';
   if (skills && w.points > 0) {
     // 포인트는 배울 수 있는 것 중 가장 낮은 단계부터(같으면 LEARN 순서)
-    const can = LEARN(w.cls).filter((id) => !learnBlock(w, id));
+    const can = LEARN(w.cls, build).filter((id) => !learnBlock(w, id));
     if (can.length) cmds.push({ type: 'learn', skill: can.reduce((a, b) => ((w.ranks[b] ?? 0) < (w.ranks[a] ?? 0) ? b : a)) });
   }
   // 예전 스킬 넷은 예전 칸에(봇의 판단이 칸 이름을 스킬로 본다)
-  if (skills) KEYS.forEach((k, i) => w.ranks[BASIC[w.cls][i]] && w.keys[k] !== BASIC[w.cls][i] && cmds.push({ type: 'bind', key: k, skill: BASIC[w.cls][i] }));
+  const slots = build === 'iaido' ? IAIDO : BASIC[w.cls];
+  if (skills) KEYS.forEach((k, i) => w.ranks[slots[i]] && w.keys[k] !== slots[i] && cmds.push({ type: 'bind', key: k, skill: slots[i] }));
   // 예고된 위험 구역 안이면 다른 일은 접고 바깥으로 걸어 나간다
   const zone = dodge && w.zones.find((z) => d(z.x, z.z) < z.r + 0.3);
   if (zone) {
@@ -94,8 +99,16 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
     if (skills && (big ?? t) && ready('shout')) cmds.push({ type: 'shout', x: (big ?? t)!.x, z: (big ?? t)!.z });
     if (skills && t && ready('dash')) cmds.push({ type: 'dash' });
     if (skills && ready('throw') && (big || near(6) >= 3)) cmds.push({ type: 'throw' });
-  } else if (near(2) >= 2) cmds.push({ type: 'skill' });
-  if (skills && w.cls === 'knight') {
+  } else if (build !== 'iaido' && near(2) >= 2) cmds.push({ type: 'skill' });
+  if (skills && w.cls === 'knight' && build === 'iaido') {
+    // 발도: 검흔 낀 적이 둘 넘으면 납도, 무리면 일섬, 가까운 적엔 그어두기, 함성은 기본 빌드와 같은 때
+    const marked = foes.filter((e) => e.marks && d(e.x, e.z) < 8).length;
+    const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
+    if (marked >= 2 && ready('dash')) cmds.push({ type: 'dash' });
+    else if (near(6) >= 3 && ready('shout')) cmds.push({ type: 'shout' });
+    else if (foes[0] && d(foes[0].x, foes[0].z) < 2 && ready('cleave')) cmds.push({ type: 'skill', x: foes[0].x, z: foes[0].z });
+    if (ready('throw') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'throw' });
+  } else if (skills && w.cls === 'knight') {
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
     if (ready('shout') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
     const shooter = foes.find((e) => (e.kind === 'archer' || e.kind === 'mage') && d(e.x, e.z) > 2.5 && d(e.x, e.z) < 8);
@@ -150,7 +163,7 @@ function shopping(c: Carry): Carry {
 }
 
 // 한 판: 층마다 최대 3번 다시 시도(사망 시 그 층 진입 상태로). 결과: 깼는지, 총 사망 수, 최종 레벨, 주운 고유 장비 수(봇은 입지 않고 판다)
-export function playthrough(seed: number, skills = true, dodge = true, cls: HeroClass = 'knight', land: Land = 'dungeon') {
+export function playthrough(seed: number, skills = true, dodge = true, cls: HeroClass = 'knight', land: Land = 'dungeon', build: Build = 'basic') {
   let carry = START(cls);
   let deaths = 0;
   let uniques = 0;
@@ -161,7 +174,7 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
       const w = makeFloor(seed * 100 + n * 10 + attempt, n, carry, land, from);
       for (let t = 0; t < 600 / DT; t++) {
-        step(w, t % THINK === 0 ? think(w, skills, dodge, land) : []);
+        step(w, t % THINK === 0 ? think(w, skills, dodge, land, build) : []);
         const o = outcome(w);
         if (o === 'dead') break;
         if (o === 'descend' || o === 'clear') {

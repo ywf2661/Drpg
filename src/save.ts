@@ -2,7 +2,7 @@
 import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
 import type { Side } from './sim/wilds';
-import { LAND_LIST, type Land, UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
+import { LAND_LIST, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
@@ -30,7 +30,7 @@ function affixes(v: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
     const def = a && AFFIXES[a.kind as AffixKind];
     if (!def || !def.slots.includes(slot) || !int(a.value, def.lo, def.hi) || out.some((o) => o.kind === a.kind)) return null;
     if (a.kind === 'skill' && SKILLS[a.skill as SkillId]?.cls !== cls) return null;
-    if (a.kind === 'tab' && !int(a.tab, 0, 2)) return null;
+    if (a.kind === 'tab' && !int(a.tab, 0, TREES[cls].length - 1)) return null;
     if (a.kind === 'unique') return null;
     out.push({ kind: a.kind, value: a.value, ...(a.kind === 'skill' && { skill: a.skill }), ...(a.kind === 'tab' && { tab: a.tab }) });
   }

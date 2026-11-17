@@ -2,7 +2,7 @@
 import type { Cell, Grid } from './path';
 
 export type Kind = 'hero' | 'minion' | 'warrior' | 'archer' | 'mage' | 'king' | 'boss';
-// 주인공 직업. 직업마다 스킬 트리(탭 3개 × 4단계, TREES)가 있고, 배운 액티브 스킬을 스킬 칸 Q W E R(SkillName)에 끼워 쓴다.
+// 주인공 직업. 직업마다 스킬 트리(탭 3~4개 × 4단계, TREES)가 있고, 배운 액티브 스킬을 스킬 칸 Q W E R(SkillName)에 끼워 쓴다.
 // 스페이스는 구르기(마법사는 순간이동)
 export type HeroClass = 'knight' | 'wizard' | 'ranger' | 'necromancer';
 
@@ -11,13 +11,15 @@ export type SkillId =
   | 'cleave' | 'whirl' | 'burst' | 'execute' | 'dash' | 'shout' | 'trail' | 'leap' | 'throw' | 'bounce' | 'axes' | 'axeStorm'
   | 'fireball' | 'firefield' | 'embers' | 'comet' | 'frost' | 'ward' | 'frostArmor' | 'blizzard' | 'lightning' | 'chain' | 'static' | 'tempest'
   | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
-  | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison';
-type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
-export const TREES: Record<HeroClass, [Tab, Tab, Tab]> = {
+  | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
+  | 'mark' | 'sheathe' | 'memory' | 'flash';
+export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
+export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
     { name: '검술', skills: ['cleave', 'whirl', 'burst', 'execute'] },
     { name: '돌격', skills: ['dash', 'shout', 'trail', 'leap'] },
     { name: '투척', skills: ['throw', 'bounce', 'axes', 'axeStorm'] },
+    { name: '발도', skills: ['mark', 'sheathe', 'memory', 'flash'] },
   ],
   wizard: [
     { name: '화염', skills: ['fireball', 'firefield', 'embers', 'comet'] },
@@ -90,11 +92,13 @@ export type Entity = {
   eliteKind?: EliteKind; // 정예의 특성(createWorld가 정한다)
   skin?: Skin; // 초원·설원의 몬스터: 원형(kind)은 그대로, 그림·이름·수치가 다르다
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
-  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
+  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'sheathe' | 'flash'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
   phaseT: number;
   cd: number;
   dx: number;
   dz: number;
+  marks?: number; // 검흔 개수(없으면 0)
+  markT?: number; // 검흔 남은 시간(초)
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
   fearT: number; // 공포 남은 시간(초). 주인공 반대쪽으로 도망친다
@@ -114,7 +118,7 @@ export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // amount: 금화 양(금화만)
 export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | Slot; tier: number; amount?: number; affixes?: Affix[] };
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
-// skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~2), unique = 고유 장비(전설·세트) 표식(u)
+// skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~3), unique = 고유 장비(전설·세트) 표식(u)
 export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique';
 export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId };
 
@@ -209,7 +213,7 @@ export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number;
 
 // 화염구 폭발 기록(렌더·소리용). age초 뒤 지운다
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
-export type Blast = { id: number; x: number; z: number; r?: number; age: number; kind: 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' };
+export type Blast = { id: number; x: number; z: number; r?: number; age: number; n?: number; kind: 'slash' | 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' };
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
@@ -235,6 +239,8 @@ export type World = {
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
   queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
   castT: number; // 스킬 시전으로 발이 묶인 남은 시간(초)
+  flashQ: number[]; // 일섬이 차례로 꿰뚫을 적 id
+  flashHit: number; // 이번 도약에서 이미 벤 대상 id(-1 = 아직)
   props: Prop[];
   chests: Chest[];
   gates: Gate[];
@@ -278,6 +284,7 @@ export type World = {
   dashHit: number[]; // 이번 돌진에서 이미 맞은 적 id
   dashes: number; // 돌진 횟수(렌더·소리용)
   cleaves: number; // 가르기 타격 횟수(렌더·소리용)
+  markSlashes: number; // 그어두기 타격 횟수(렌더용)
   shoutCd: number; // 전투의 함성 재사용까지(초)
   shoutT: number; // 받는 피해 감소가 남은 시간(초): 기사 함성, 마법사 서리 갑옷
   wardHp: number; // 마나 방패가 흡수할 남은 피해(0 = 없음)
@@ -304,6 +311,7 @@ export type World = {
   trail: number; // 지금 돌진이 늘이는 불길(fires의 id, -1 = 없음)
   auraT: number; // 눈보라 남은 시간(초)
   auraAcc: number; // 눈보라 다음 타격까지 쌓인 시간
+  slash: 'cleave' | 'mark'; // 지금 휘두르는 베기 종류(가르기·그어두기)
   spinT: number; // 회오리 남은 시간(초)
   spinAcc: number; // 회오리 다음 타격까지 쌓인 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
@@ -420,6 +428,11 @@ export const WHIRL = { cd: 6, time: 2, extra: 1, tick: 0.25, mult: 0.4 }; // 회
 export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·회오리·처형으로 죽은 적
 export const EXECUTE = { cd: 8, reach: 2.5, below: 0.3, mult: 2.5, fear: 3, fearR: 4 }; // 처형(검술 궁극): 재사용, 닿는 거리, 즉사 체력 비율(단계마다 +0.03), 아니면 배율, 처치 시 주변 공포(시간·반경)
 export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
+// 발도(기사 넷째 탭): 그어두기가 적에게 검흔을 새기고, 납도가 한꺼번에 터뜨린다
+export const MARK = { mult: 1.0, time: 4, cap: 3, hit: 0.5, cd: 1.5 }; // 검흔 한 개 피해 배율, 지속(초), 한 적의 한계, 그어두기 피해, 재사용
+export const SHEATHE = { mult: 1.5, cd: 5, range: 8, delay: 0.25, spread: 2 }; // 납도: 배율, 재사용, 범위, 터지기까지, 옮겨붙는 거리
+export const MEMORY = { cap: 4, capHigh: 5, highAt: 4, time: 1, timePer: 0.5 }; // 검의 기억: 한계, 4단계 한계, 지속 늘림, 단계마다 더
+export const FLASH = { cd: 14, range: 6, max: 5, hit: 0.5, marks: 2, speed: 30, past: 1, near: 0.8 }; // 일섬(궁극): 재사용, 거리, 최대 대상, 한 번 피해, 새기는 검흔, 속도, 지나가는 거리, 가까이 서는 거리
 export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1, air: 0.45, height: 1.6 }; // 대지 강타(돌격 궁극): 재사용, 뛰는 거리, 착지 반경, 배율, 기절, 체공(초), 높이(m, 그림)
 
 export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율
@@ -444,7 +457,7 @@ export const TIER_COST: Record<ResourceKind, { tier1: number; tier2: number; ult
   energy: { tier1: 16, tier2: 24, ultimate: 36 }, // 봇 30판: 시작값(20·30·45 / 25·40·70)이면 마법사 클리어 21 → 2, ×0.8로 11
   mana: { tier1: 20, tier2: 32, ultimate: 56 },
 };
-export const COST_OVERRIDE: Partial<Record<SkillId, number>> = {};
+export const COST_OVERRIDE: Partial<Record<SkillId, number>> = { mark: 12 };
 // 근접 평타의 준비 시간(초): 휘두르기 시작 후 이만큼 지나야 맞는다. 남은 휘두르기 시간이 빈틈. 없는 종류는 간격 × HIT_AT
 export const TELL: Partial<Record<Kind, number>> = { minion: 0.5, warrior: 0.8, king: 0.9, boss: 0.9 };
 

@@ -20,6 +20,7 @@ import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
 import { leapFx, rollFx, rollGroup } from './roll';
+import { flashFx, iaidoGroup, markFx, resetIaido, sheatheFx } from './iaido';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -173,7 +174,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -208,6 +209,7 @@ export function setWorld(world: World, theme: Theme) {
   sprites = world.entities.map(makeSprite);
   for (const s of sprites) scene.add(s.mesh);
   fx = [];
+  resetIaido();
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
   castsSeen = world.casts;
@@ -215,6 +217,13 @@ export function setWorld(world: World, theme: Theme) {
   restShown = world.rested;
   restPopT = 0;
   focus.set(world.entities[0].x, 0, world.entities[0].z);
+}
+
+// 그 엔티티의 머리 위 월드 좌표(검흔 표시용). 판자가 없거나 안 보이면 null
+export function headOf(id: number): THREE.Vector3 | null {
+  const s = sprites[id];
+  if (!s || !s.mesh.visible) return null;
+  return s.mesh.position.clone().add(new THREE.Vector3(0, s.info.cell[1] / s.info.ppm + 0.1, 0));
 }
 
 export function draw(world: World, dt: number) {
@@ -274,11 +283,12 @@ export function draw(world: World, dt: number) {
     s.mesh.position.z += f.kz;
     // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts). 마법사의 순간이동도 sim에선 'roll'(잠깐 무적)이지만 예전처럼 몸만 낮춘다
     if (e === hero && world.cls === 'wizard') s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
-    else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt));
+    else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt), sheatheFx(s, e, dt)); // 발도: 일섬 질주·납도(iaido.ts, 멈춤은 안에서 따진다)
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
     s.mesh.visible = seen > 0 && !hidden(e); // 모래 속 개미귀신은 깨기 전엔 안 보인다
+    if (e !== hero) markFx(s, e); // 검흔이 새겨진 순간 붉은 사선(보이는 적만)
     s.mat.transparent = seen < 1;
     s.mat.opacity = seen;
     s.mat.alphaTest = Math.max(0.01, 0.5 * seen); // 투명도까지 곱한 알파로 자르므로 같이 낮춘다

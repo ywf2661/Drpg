@@ -6,7 +6,8 @@ import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGa
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
-import { camera, draw, initRender, renderer, setAim, setWorld } from './render/render';
+import { drawMarks, initMarks } from './render/marks';
+import { camera, draw, headOf, initRender, renderer, setAim, setWorld } from './render/render';
 import { walkable } from './sim/path';
 import { clearRun, loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
@@ -267,7 +268,7 @@ function aimShape(cmd: AimCmd): AimShape | null {
 // 터치로 버튼을 끌어 조준할 때의 궤적: 키보드 조준 스킬 + 방향이 있는 구르기·순간이동·기사 가르기(키보드로는 바로 쓴다)
 function dragShape(cmd: AimCmd): AimShape | null {
   if (cmd === 'roll') return !ROLL.on ? null : world.cls === 'wizard' ? { kind: 'circle', range: BLINK.dist, r: 0.5 } : { kind: 'line', len: ROLL.dist, width: 0.8 };
-  if (world.keys[CMD_SKILL[cmd]] === 'cleave') return { kind: 'line', len: SKILL.radius, width: SKILL.radius * 2 };
+  if (world.keys[CMD_SKILL[cmd]] === 'cleave' || world.keys[CMD_SKILL[cmd]] === 'mark') return { kind: 'line', len: SKILL.radius, width: SKILL.radius * 2 };
   return aimShape(cmd);
 }
 const COOLDOWN: Record<AimCmd, 'skillCd' | 'dashCd' | 'shoutCd' | 'throwCd' | 'rollCd'> = { skill: KEY_CD.cleave, dash: KEY_CD.dash, shout: KEY_CD.shout, throw: KEY_CD.throw, roll: 'rollCd' };
@@ -366,6 +367,7 @@ setSkillGate((cmd) => cmd === 'roll' || !short(cmd)); // 우클릭·조준 발�
 for (const [sel, cmd] of [['#skill', 'skill'], ['#dash', 'dash'], ['#shout', 'shout'], ['#throw', 'throw'], ['#roll', 'roll']] as const) dragAim($(sel), cmd, () => canDrag(cmd));
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 initLabels($('#labels'));
+initMarks($('#labels'));
 sound.initSound();
 sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
 showSound(sound.settings);
@@ -447,6 +449,7 @@ requestAnimationFrame(function frame(now) {
   draw(world, dt);
   drawAutomap(world);
   drawLabels(world, camera, renderer.domElement, signs);
+  drawMarks(world, camera, renderer.domElement, headOf);
   updateHud(world, hovered, choosing, stats, lostGold ?? 0, clearT >= LOOT_TIME);
   requestAnimationFrame(frame);
 });

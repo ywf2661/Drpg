@@ -1,5 +1,6 @@
 // 소품·계단·바닥 물약·화로 불빛. 모두 캐릭터와 같은 세로 판자(발 아래는 바닥에 눕힘), 화로마다 점광원 1개.
-import { pause, rumble } from './feel';
+import { impact, pause, rumble } from './feel';
+import { slashBurst } from './iaido';
 import * as THREE from 'three';
 import { COMET, quality, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
@@ -92,12 +93,16 @@ const PILLAR_GEO = new THREE.CylinderGeometry(0.1, 0.28, PILLAR.h, 12, 1, true).
 const shots = new Map<number, Card>(); // 날아가는 화살 id → 판자
 let chestCards: { card: Card; open: Clip }[] = []; // 상자 판자(world.chests 순서)와 열린 그림
 let spikeCards: Card[] = [];
+const MARK_FX = new THREE.Color(1.3 / TINT.r, 1.3 / TINT.g, 1.3 / TINT.b); // 그어두기 칼선: 불빛 색을 지워 하얗게
+const SLASH_RED = new THREE.Color(1.5, 0.16, 0.14); // 검흔 터짐: 폭발 그림을 붉게
+const SLASH_STAGGER = 0.03; // 한꺼번에 터진 검흔은 순서대로 이만큼씩 늦게(연쇄처럼)
 const ICE_CHEST = new THREE.Color(1.2, 2.2, 5.5); // 얼음에 갇힌 상자: 푸르게 빛난다
 const SPIKE_WARN = new THREE.Color(2.2, 0.5, 0.4);
 const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
 const trapCards = new Map<number, Card>(); // 놓인 덫 id → 판자(벌린 그림으로 멈춰 있다)
 let effects: Card[] = []; // 한 번 재생하고 사라지는 효과(가르기)
 let cleavesSeen = 0;
+let markSeen = 0;
 let shoutsSeen = 0;
 const blastsSeen = new Set<number>();
 let lights: THREE.PointLight[] = [];
@@ -447,11 +452,17 @@ export function syncEffects(world: World) {
     const c = card(cleaveFx, 'cleave', hero.x, hero.z, false);
     Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing + (world.spinT > 0 ? (world.cleaves * Math.PI) / 2 : 0)) }); // 회오리: 벨 때마다 90°씩 돌아간다
     c.mesh.renderOrder = 2;
+    if (world.markSlashes > markSeen) {
+      // 그어두기: 가늘고 흰 초승달, 빠르게(0.12초)
+      Object.assign(c, { tint: MARK_FX, clip: { ...c.clip, ms: 120 } });
+      c.mesh.scale.y = 0.6;
+    }
     effects.push(c);
     cards.push(c);
     group.add(c.mesh);
   }
   cleavesSeen = world.cleaves;
+  markSeen = world.markSlashes;
   if (world.shouts > shoutsSeen) {
     const hero = world.entities[0];
     const c = card(quakeFx, 'quake', hero.x, hero.z, true); // 땅에 눕힌 울림
@@ -461,9 +472,22 @@ export function syncEffects(world: World) {
     group.add(c.mesh);
   }
   shoutsSeen = world.shouts;
+  let slashes = 0; // 이번에 새로 터진 검흔 자리 수
   for (const b of world.blasts) {
     if (blastsSeen.has(b.id)) continue;
     blastsSeen.add(b.id);
+    if (b.kind === 'slash') {
+      // 검흔 터짐: 흰 칼선 n개(iaido.ts) + 붉은 폭발, 목록 순서대로 엇갈려
+      slashBurst(b.x, b.z, b.n ?? 1, slashes++ * SLASH_STAGGER, () => {
+        const c = card(blastFx, 'blast', b.x, b.z, false);
+        Object.assign(c, { t: 0, glow: 1, tint: SLASH_RED });
+        c.mesh.renderOrder = 2;
+        effects.push(c);
+        cards.push(c);
+        group.add(c.mesh);
+      });
+      continue;
+    }
     // 내려찍기 = 땅 울림(눕힌 그림), 서리 고리 = 얼음 장판, 불꽃·방패 폭발 = 폭발, 나머지는 마법사 효과(그림 이름 = 종류)
     if (b.kind === 'frost' || b.kind === 'curse') {
       iceField(b.x, b.z, b.r ?? 3, b.kind === 'curse');
@@ -491,6 +515,7 @@ export function syncEffects(world: World) {
     cards.push(c);
     group.add(c.mesh);
   }
+  impact(slashes); // 터진 적 수만큼 멈춤·흔들림
   syncTraps(world);
   syncWard(world); // 마나 방패(ward.ts)
   effects = effects.filter((c) => {
@@ -649,6 +674,7 @@ export function buildProps(world: World): THREE.Group {
   effects = [];
   resetWard();
   cleavesSeen = world.cleaves;
+  markSeen = world.markSlashes;
   shoutsSeen = world.shouts;
   blastsSeen.clear();
   fields.forEach(dropField);

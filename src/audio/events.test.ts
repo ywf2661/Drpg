@@ -91,6 +91,16 @@ test('가르기 타격', () => {
   expect(names(soundEvents(prev, w))).toEqual(['cleave']);
 });
 
+test('일섬·납도·그어두기 터짐 소리', () => {
+  const w = createWorld(1, ['H..']);
+  let prev = snapshot(w);
+  w.entities[0].phase = 'flash';
+  expect(names(soundEvents(prev, w))).toEqual(['dash']);
+  prev = snapshot(w);
+  w.blasts.push({ id: 99, x: 1, z: 1, age: 0, kind: 'slash', n: 1 });
+  expect(names(soundEvents(prev, w))).toEqual(['blast']);
+});
+
 test('상자가 열림', () => {
   const w = createWorld(1, ['Hc']);
   const prev = snapshot(w);
