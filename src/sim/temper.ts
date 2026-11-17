@@ -1,5 +1,5 @@
 // 벼림 탭(기사 다섯째): 칼에 불·서리를 입혀 두고, 칼로 벨 때마다 충전을 쓴다. 설계: docs/superpowers/specs/2026-11-17-temper-tab-design.md
-import { flameEdgeStat, frostEdgeStat, mastered, roll, skillHit } from './core';
+import { dist, flameEdgeStat, frostEdgeStat, mastered, rank, reforgeStat, roll, skillHit } from './core';
 import { TEMPER, type Entity, type World } from './rules';
 import { stun } from './wizard';
 
@@ -41,10 +41,24 @@ export function temper(w: World, hero: Entity, hit: Entity[], use = true): void 
   clearEdge(w);
 }
 
-// 벼림 시전: 해방 중엔 나가지 않는다(0). 쓰던 칼을 비우고 새로 입힌다
+// 덧벼림(패시브): 충전이 남은 불·서리 칼을 갈아입으면 남은 충전이 주인공 둘레로 한꺼번에 터진다(충전을 쓰지 않는다)
+export function reforge(w: World, hero: Entity): void {
+  const { kind, left } = w.edge;
+  if (!rank(w, 'reforge') || (kind !== 'flame' && kind !== 'frost') || left <= 0) return;
+  const st = reforgeStat(w);
+  w.blasts.push({ id: w.nextItem++, x: hero.x, z: hero.z, age: 0, kind: kind === 'flame' ? 'fire' : 'ice', r: st.radius });
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius) continue;
+    skillHit(w, e, Math.round(left * roll(w, hero) * st.mult));
+    if (kind === 'frost') stun(e, TEMPER.reforgeFreeze);
+  }
+}
+
+// 벼림 시전: 해방 중엔 나가지 않는다(0). 쓰던 칼은 (덧벼림이면 터뜨리고) 비우고 새로 입힌다
 function edgeCast(w: World, kind: 'flame' | 'frost'): number {
   if (w.edge.kind === 'both') return 0;
   const st = kind === 'flame' ? flameEdgeStat(w) : frostEdgeStat(w);
+  reforge(w, w.entities[0]);
   clearEdge(w);
   w.edge = { kind, left: st.charges, t: 0 };
   return st.cd;

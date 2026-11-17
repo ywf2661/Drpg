@@ -1,7 +1,7 @@
 // 벼림 탭(기사 다섯째). 설계: docs/superpowers/specs/2026-11-17-temper-tab-design.md
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave } from '../save';
-import { flameEdgeStat, frostEdgeStat, syn, unleashStat } from './core';
+import { flameEdgeStat, frostEdgeStat, reforgeStat, syn, unleashStat } from './core';
 import { clearEdge, temper } from './temper';
 import { DT, type Command, type SkillId, type World } from './rules';
 import { createWorld, isPassive, respec, SKILLS, skillCost, step, TREES, useClass } from './world';
@@ -108,4 +108,44 @@ test('충전을 쓰는 타격과 쓰지 않는 타격', () => {
 test('respec하면 칼이 빈다', () => {
   const w = arena(['Hm...'], { flameEdge: 1 }); w.gold = 1e4; w.edge = flame(3);
   respec(w); expect(w.edge.kind).toBeNull();
+});
+
+// 2.5m 안 둘(위·왼쪽 아래), 바깥 하나(x=4.5)
+const ring = (ranks: Partial<Record<SkillId, number>>) => arena(['.m...', 'mH..m'], ranks);
+test('덧벼림: 남은 충전이 있으면 다른 벼림을 쓸 때 터진다(남은 충전 × 굴림 × 배율)', () => {
+  const w = ring({ flameEdge: 1, frostEdge: 1, reforge: 1 }); w.edge = flame(4);
+  w.res = 100; step(w, [{ type: 'shout' }]);
+  expect(w.edge).toEqual({ kind: 'frost', left: 6, t: 0 });
+  expect(w.blasts.some((b) => b.kind === 'fire' && b.r === 2.5)).toBe(true);
+  const [a, b, out] = w.entities.slice(1).sort((p, q) => p.x - q.x || p.z - q.z).map((e) => 1e5 - e.hp);
+  expect(a).toBeGreaterThan(0); expect(b).toBeGreaterThan(0); expect(out).toBe(0);
+  // 굴림(무기 3단계, 레벨 1) × 4 × 0.3 × 기절 약점 1.5 범위
+  const one = arena(['.m...', 'mH..m'], { flameEdge: 1, frostEdge: 1, reforge: 1 }); one.edge = flame(1); one.res = 100; step(one, [{ type: 'shout' }]);
+  expect(a).toBeGreaterThan(1e5 - one.entities[1].hp); // 충전 4가 1보다 세다
+});
+test('덧벼림 서리: 피해와 0.8초 빙결', () => {
+  const w = ring({ flameEdge: 1, frostEdge: 1, reforge: 1 }); w.edge = { kind: 'frost', left: 3, t: 0 };
+  for (const e of w.entities.slice(1)) e.stunT = 0;
+  w.res = 100; step(w, [{ type: 'dash' }]);
+  expect(w.edge.kind).toBe('flame');
+  expect(w.blasts.some((b) => b.kind === 'ice' && b.r === 2.5)).toBe(true);
+  const near = w.entities.slice(1).filter((e) => e.x < 3);
+  for (const e of near) { expect(e.hp).toBeLessThan(1e5); expect(e.stunT).toBeCloseTo(0.8 - DT); } // 같은 틱에 한 번 줄어든다
+});
+test('덧벼림을 배우기 전에는 그냥 덮어쓴다', () => {
+  const w = ring({ flameEdge: 1, frostEdge: 1 }); w.edge = flame(4);
+  w.res = 100; step(w, [{ type: 'shout' }]);
+  expect(w.edge.kind).toBe('frost'); expect(w.blasts.some((b) => b.r === 2.5)).toBe(false);
+  for (const e of w.entities.slice(1)) expect(e.hp).toBe(1e5);
+});
+test('덧벼림 단계마다 충전 +1, 폭발 배율 +0.05', () => {
+  const w = arena(['H....'], { flameEdge: 1, reforge: 3 });
+  expect(flameEdgeStat(w).charges).toBe(8); expect(reforgeStat(w).mult).toBeCloseTo((0.3 + 0.1) * syn(w, 'reforge'));
+});
+test('폭발은 충전을 쓰지 않는다', () => {
+  const w = ring({ flameEdge: 1, frostEdge: 1, reforge: 1 }); w.edge = flame(4);
+  for (const e of w.entities.slice(1)) Object.assign(e, { hp: 1, maxHp: 1 });
+  w.res = 100; step(w, [{ type: 'shout' }]);
+  expect(w.entities.filter((e) => e.state === 'dead').length).toBe(2);
+  expect(w.edge).toEqual({ kind: 'frost', left: 6, t: 0 }); expect(w.edgeSwings).toBe(0);
 });
