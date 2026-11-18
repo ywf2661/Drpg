@@ -8,7 +8,7 @@ Modifications: selected frames, equipment layers (weapon, armor, helm, boots; le
 necromancer layers recolored,
 alpha thresholded, reduced to 256 colors. Dungeon tiles: floor and wall faces flattened
 from isometric into square textures, wall brightened; props and stairs scaled by 0.221.
-Sound effects and music: copied unchanged (Ogg Vorbis).
+Sound effects and music: copied unchanged (Ogg Vorbis). freeze.ogg: mods/fantasycore/soundfx/powers/freeze.ogg.
 Items: drop animations scaled by 0.32 (potion by 0.5), item icons cropped from the icon atlas.
 
 Demon (ruins boss): "Demon - Flare sprite sheets", OpenGameArt, CC0 - https://opengameart.org/content/demon-flare-sprite-sheets

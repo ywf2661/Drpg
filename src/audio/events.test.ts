@@ -187,7 +187,7 @@ test('벼림: 해방 참격은 가르기 소리, 서리 폭발은 얼음 소리'
   expect(names(soundEvents(prev, w))).toEqual(['cleave']);
   prev = snapshot(w);
   w.blasts.push({ id: 98, x: 1, z: 1, age: 0, kind: 'ice', r: 2.5 });
-  expect(names(soundEvents(prev, w))).toEqual(['shout']);
+  expect(names(soundEvents(prev, w))).toEqual(['freeze']);
   prev = snapshot(w);
   w.blasts.push({ id: 97, x: 1, z: 1, age: 0, kind: 'ice' }); // 얼어붙은 적 하나는 소리 없음(예전대로)
   expect(names(soundEvents(prev, w))).toEqual([]);
@@ -201,7 +201,7 @@ test('벼림: 강화 타격은 프레임에 소리 하나(불·해방 = 불 소�
   expect(names(soundEvents(prev, w))).toEqual(['fireball']);
   prev = snapshot(w);
   w.edgeHits.push(hit(92, 'frost'));
-  expect(names(soundEvents(prev, w))).toEqual(['shout']);
+  expect(names(soundEvents(prev, w))).toEqual(['freeze']);
   prev = snapshot(w);
   w.edgeHits.push(hit(93, 'both'));
   expect(names(soundEvents(prev, w))).toEqual(['fireball']);

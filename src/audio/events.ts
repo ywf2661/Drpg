@@ -5,7 +5,7 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'gold' | 'summon' | 'dash' | 'shout' | 'throw' | 'shoot' | 'fireball' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'gold' | 'summon' | 'dash' | 'shout' | 'throw' | 'shoot' | 'fireball' | 'freeze' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;
@@ -76,11 +76,11 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   });
   for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' || s.kind === 'fireball' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
   // 내려찍기가 떨어짐 / 서리 고리 / 폭발·벼락 / 덫이 닫힘 / 화살비. 얼음·번개 튐·순간이동(구르기 소리)·치유는 따로 소리가 없다
-  const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'shout', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', slash: 'blast', rain: 'shoot', curse: 'shout' };
-  const blastSound = (b: Blast) => BLAST_SOUND[b.kind] ?? (b.kind === 'ice' && b.r ? 'shout' : undefined); // 얼음은 덧벼림 폭발(반경 있음)만 — 얼어붙은 적마다 울리지 않게
+  const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'freeze', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', slash: 'blast', rain: 'shoot', curse: 'shout' };
+  const blastSound = (b: Blast) => BLAST_SOUND[b.kind] ?? (b.kind === 'ice' && b.r ? 'freeze' : undefined); // 얼음은 덧벼림 폭발(반경 있음)만 — 얼어붙은 적마다 울리지 않게
   for (const b of w.blasts) if (!prev.blasts.has(b.id) && blastSound(b)) at(blastSound(b)!, b.x, b.z);
   const edgeHit = w.edgeHits.find((h) => !prev.edgeHits.has(h.id)); // 벼림: 여러 적이 맞아도 프레임에 하나
-  if (edgeHit) at(edgeHit.kind === 'frost' ? 'shout' : 'fireball', edgeHit.x, edgeHit.z);
+  if (edgeHit) at(edgeHit.kind === 'frost' ? 'freeze' : 'fireball', edgeHit.x, edgeHit.z);
   for (const z of w.zones) if (z.owner < 0 && !prev.zones.has(z.id)) at('fireball', z.x, z.z); // 불기둥 예고
   if (w.allies.length > prev.allies) at('summon'); // 해골 병사
   if (w.entities.length > prev.ents.length) at('summon', w.entities[w.entities.length - 1].x, w.entities[w.entities.length - 1].z);
