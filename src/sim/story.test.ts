@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { afterClear, bossHpScale, depthOf, markBit, markCount, openLands, STORY } from './rules';
+import { afterClear, bossHpScale, captainNews, depthOf, markBit, markCount, markGold, OPENING, openLands, questOn, STORY } from './rules';
 import { bossScale, floorPower } from './dungeon';
 import { createWorld, toughenBoss } from './world';
 
@@ -42,4 +42,13 @@ test('보스 깊이 배율: 초원 5구역 보스가 기준(1), 깊은 지역 �
   const [hp, power] = [boss.maxHp, boss.power];
   toughenBoss(w, 2);
   expect([boss.maxHp, boss.hp, boss.power]).toEqual([hp * 2, hp * 2, power * 2]);
+});
+
+test('야영지 의뢰: 대장이 할 새 이야기, 부탁을 받아야 켜지는 의뢰, 의뢰 보상', () => {
+  expect(captainNews(0, 0)).toBe(OPENING);
+  expect(captainNews(1, 0)).toBe(STORY[0].done);
+  expect(captainNews(0, 1)).toBe(STORY[3].done);
+  expect(STORY.map((s) => [!!s.quest.ask, s.quest.reward])).toEqual([[true, 'gold'], [true, 'gold'], [false, 'weaken'], [false, 'weaken']]);
+  expect([questOn(0, false), questOn(0, true), questOn(2, false)]).toEqual([false, true, true]);
+  expect(markGold('snow', 3)).toBe(80);
 });

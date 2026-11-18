@@ -96,14 +96,16 @@ const reachable = (map: string[], [hx, hz]: [number, number]) => {
   return ([x, z]: [number, number]) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => d[(z + dz) * W + x + dx] >= 0 && x + dx >= 0 && x + dx < W);
 };
 
-test('야영지: 48칸, 늘 같은 맵, 모닥불·순찰대장·상인 하나씩·주민 둘, 출구는 맨 바깥 줄의 초원(F 3칸)뿐, 몬스터·상자 없음, 모두 걸어서 닿는다', { timeout: 120_000 }, () => {
+test('야영지: 48칸, 늘 같은 맵, 모닥불·순찰대장·상인·의뢰인·주민 하나씩(모닥불에서도 서로도 4칸 이상), 출구는 맨 바깥 줄의 초원(F 3칸)뿐, 몬스터·상자 없음, 모두 걸어서 닿는다', { timeout: 120_000 }, () => {
   const map = generateCamp();
   expect(map.length).toBe(SIZE);
   expect(map.every((r) => r.length === SIZE)).toBe(true);
   expect(map).toEqual(generateCamp());
   expect(makeMap(123, 3, 'camp')).toEqual(map); // 시드·구역과 상관없이
-  for (const ch of 'HEV') expect(count(map, ch)).toBe(1);
-  expect(count(map, 'P')).toBe(2);
+  for (const ch of 'HEVqP') expect(count(map, ch)).toBe(1);
+  const npcs = [...find(map, 'E'), ...find(map, 'V'), ...find(map, 'q'), ...find(map, 'P')];
+  const fire = find(map, 'B')[0];
+  for (const [i, a] of npcs.entries()) for (const b of [fire, ...npcs.slice(i + 1)]) expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThanOrEqual(4);
   expect(count(map, 'B')).toBeGreaterThanOrEqual(1);
   const exits = find(map, 'F');
   expect(exits.length).toBe(3);
@@ -112,9 +114,9 @@ test('야영지: 48칸, 늘 같은 맵, 모닥불·순찰대장·상인 하나�
   expect(count(map, 'SRsr>')).toBe(0);
   expect(count(map, 'mwagNWAGKMZUTXcCYQIL')).toBe(0);
   const ok = reachable(map, find(map, 'H')[0]);
-  for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'P'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
+  for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'q'), ...find(map, 'P'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
   const w = createWorld(1, map);
-  expect(w.chests.map((c) => c.kind).sort()).toEqual(['elder', 'merchant', 'villager', 'villager']);
+  expect(w.chests.map((c) => c.kind).sort()).toEqual(['asker', 'elder', 'merchant', 'villager']);
   expect(w.exits.every((e) => e.to === 'field')).toBe(true);
   expect(w.entities).toHaveLength(1);
 });

@@ -100,10 +100,12 @@ export function generateCamp(): string[] {
   for (let z = c - 1; z <= c + 1; z++) cells[z][M - 1] = 'F';
   cells[c][c] = 'B';
   cells[c + 2][c] = 'H';
-  cells[c][c - 3] = 'E';
-  cells[c - 3][c] = 'V';
-  for (const [x, z] of [[c + 2, c + 1], [c - 2, c + 2]]) cells[z][x] = 'P'; // 모닥불 곁의 주민 둘(배경)
-  for (const [x, z] of [[c - 4, c - 3], [c + 3, c - 4], [c - 4, c + 3], [c + 2, c + 4]]) cells[z][x] = 'o';
+  // NPC는 모닥불 둘레 마당 가장자리에 서로 띄워서: 순찰대장(서), 상인(북), 의뢰인 주민(남동, 주인공 곁), 주민(남서)
+  cells[c][c - 5] = 'E';
+  cells[c - 5][c] = 'V';
+  cells[c + 2][c + 4] = 'q';
+  cells[c + 4][c - 3] = 'P';
+  for (const [x, z] of [[c - 4, c - 4], [c + 4, c - 4], [c + 1, c + 5], [c + 5, c + 5]]) cells[z][x] = 'o';
   for (let k = 0; k < 20; k++) {
     const [x, z] = [int(4, M - 5), int(4, M - 5)];
     if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 6) cells[z][x] = ',';

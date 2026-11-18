@@ -29,7 +29,7 @@ export function initLabels(el: HTMLElement) {
 }
 
 // 출구 이름표(바깥 지역): 길 끝의 "▶ 설원 3구역", 동굴 입구의 "▼ 지하 3층". 멀리서도 보이게 SIGN 안이면
-export type Sign = { x: number; z: number; text: string };
+export type Sign = { x: number; z: number; text: string; alert?: boolean }; // alert = 할 말이 있는 NPC(머리 위 !)
 const SIGN = 16;
 
 export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanvasElement, signs: Sign[] = []) {
@@ -53,7 +53,7 @@ export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanva
     const div = pool[n] ?? layer.appendChild(Object.assign(document.createElement('div'), { className: 'label' }));
     pool[n++] = div;
     div.textContent = s.text;
-    div.className = 'label sign';
+    div.className = s.alert ? 'label sign alert' : 'label sign';
     div.style.transform = `translate(${r.left + ((v.x + 1) / 2) * r.width}px, ${r.top + ((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
     div.hidden = false;
   }

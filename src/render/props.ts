@@ -701,8 +701,8 @@ export function buildProps(world: World): THREE.Group {
     const names = VARIANTS[p.kind];
     return card(props, names[cellHash(p.x, p.z) % names.length], p.x + 0.5, p.z + 0.5, p.kind === 'debris');
   });
-  chestCards = world.chests.map((ch, i) => {
-    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' ? npcs.merchant : ch.kind === 'villager' ? (i % 2 ? npcs.villager2 : npcs.villager1) : null;
+  chestCards = world.chests.map((ch) => {
+    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' ? npcs.merchant : ch.kind === 'asker' ? npcs.villager1 : ch.kind === 'villager' ? npcs.villager2 : null;
     if (npc) {
       const c = Object.assign(card(npc, 'stance', ch.x + 0.5, ch.z + 0.5, false), { dir: NPC_DIR });
       return { card: c, open: c.clip };

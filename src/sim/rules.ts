@@ -173,7 +173,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'clue' | 'beacon' | 'keeper' | 'seal'; wave?: number }; // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal'; wave?: number }; // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -241,7 +241,7 @@ export type World = {
   toStairs: boolean;
   exits: Exit[]; // 바깥 지역 가장자리의 출구 칸(들어서면 다음 구역)
   locked: Exit[]; // 아직 안 열린 지역으로 가는 출구 칸(막혀 있다, 이름표만)
-  talk: 'elder' | 'merchant' | 'villager' | 'clue' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
+  talk: 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
   roads: Cell[]; // 바깥 지역의 길 칸(그림만 다르다)
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
   queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
@@ -401,7 +401,8 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
 // goal = HUD 임무 줄, again = 순찰대장에게 다시 말을 걸면, quest = 그 지역 의뢰(2·3·4구역에 대상 하나씩, 선택), done = 보스를 깨고 야영지에 왔을 때(다음 단계의 시작 대사)
 // 의뢰 대상: note 흔적(읽기), beacon 봉화(물결 버티기), keeper 잠긴 궤(지킴이 사냥), seal 봉인 제단(깨면 무덤). marks = 찾은 순서대로 나오는 이야기 조각(셋째가 다음 지역을 가리킨다)
 export type QuestKind = 'note' | 'beacon' | 'keeper' | 'seal';
-export type Quest = { kind: QuestKind; name: string; sign: string; marks: { name: string; text: string }[] };
+// ask = 야영지 의뢰인(주민)의 부탁. 있으면 부탁을 들어야 시작(없으면 처음부터 켜져 있다). reward = 조각마다 금화(gold) 또는 이 지역 보스 약화(weaken, 셋이면 전설 확정)
+export type Quest = { kind: QuestKind; name: string; sign: string; ask?: string; reward: 'gold' | 'weaken'; marks: { name: string; text: string }[] };
 export type Story = { land: Land; goal: string; again: string; quest: Quest; done: string };
 export const OPENING = "왔군. 요즘 초원이 수상하네. 고블린 떼가 부쩍 늘더니, 동쪽으로 정찰 나간 아이들이 돌아오질 않아. 마지막으로 들어온 전갈에는 '초원 가장 깊은 곳, 모래가 꺼진 자리'라는 말뿐이었지. 거기 무엇이 있는지 알아봐 주게.";
 export const STORY: Story[] = [
@@ -411,6 +412,8 @@ export const STORY: Story[] = [
     again: '초원 가장 깊은 곳, 모래가 꺼진 자리라 했네. 거기부터 가 보게.',
     quest: {
       kind: 'note',
+      ask: '오라버니가 정찰을 나간 뒤로 돌아오지 않았어요. 초원 2·3·4구역 어딘가에 흔적이라도 남아 있을 거예요. 찾아 주시면 모아 둔 돈을 드릴게요.',
+      reward: 'gold',
       name: '실종된 정찰병',
       sign: '정찰병의 흔적',
       marks: [
@@ -427,6 +430,8 @@ export const STORY: Story[] = [
     again: '북쪽 설원이네. 그 찬 바람이 어디서 불어오는지 찾아 주게.',
     quest: {
       kind: 'beacon',
+      ask: '설원 길목마다 봉화가 있었는데 하나둘 꺼졌대요. 설원 2·3·4구역의 봉화에 다시 불을 붙여 주세요. 불 하나마다 사례할게요.',
+      reward: 'gold',
       name: '꺼진 봉화',
       sign: '꺼진 봉화',
       marks: [
@@ -443,6 +448,7 @@ export const STORY: Story[] = [
     again: '초원 어귀의 동굴 입구는 열어 두었네. 미궁 맨 밑까지 내려가 보게.',
     quest: {
       kind: 'keeper',
+      reward: 'weaken',
       name: '열쇠지기',
       sign: '잠긴 궤',
       marks: [
@@ -459,6 +465,7 @@ export const STORY: Story[] = [
     again: '옛 성채로 가게. 모든 일의 시작이 거기 있을 걸세.',
     quest: {
       kind: 'seal',
+      reward: 'weaken',
       name: '봉인 제단',
       sign: '봉인 제단',
       marks: [
@@ -476,6 +483,10 @@ export const MARK_LETTER: Record<QuestKind, string> = { note: 'L', beacon: 'J', 
 export const markBit = (floor: number) => (floor >= 2 && floor <= 4 ? 1 << (floor - 2) : 0);
 export const markCount = (marks: number) => [1, 2, 4].filter((b) => marks & b).length;
 export const bossHpScale = (count: number) => 1 - QUEST.weaken * count;
+// 지금 단계의 의뢰가 켜져 있나: 부탁이 없는 의뢰는 늘, 있으면 받은 뒤(took)
+export const questOn = (stage: number, took: boolean) => !STORY[stage].quest.ask || took;
+// 순찰대장이 아직 안 한 이야기: 새 게임이면 OPENING, 아니면 지난 단계를 끝냈을 때의 말(마지막 단계 다음은 회차가 넘어간 것)
+export const captainNews = (stage: number, cycle: number) => (stage === 0 && cycle === 0 ? OPENING : STORY[(stage + STORY.length - 1) % STORY.length].done);
 // 열린 지역: 지금 단계까지
 export const openLands = (stage: number): Land[] => STORY.slice(0, stage + 1).map((s) => s.land);
 // 보스를 깬 뒤: 지금 단계의 지역이면 다음 단계(마지막이면 회차 + 1, 이야기는 처음부터). 지난 지역이면 그대로
@@ -485,6 +496,7 @@ export function afterClear(stage: number, cycle: number, land: Land): { stage: n
   return { stage: stage + 1, cycle, advanced: true, newCycle: false };
 }
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
+export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
 export const depthOf = (land: Land, n: number) => (land === 'camp' ? 0 : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n);
 
 // 그림을 그리지 않는(모래 속에 숨은) 몬스터

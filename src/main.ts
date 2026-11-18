@@ -13,7 +13,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, depthOf, OPENING, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 
@@ -38,11 +38,13 @@ let next: { land: Land; from: Side; floor: number } = { land, from, floor: 1 }; 
 let cycle = 0; // 회차(0 = 첫 판). 마지막 이야기(폐허) 보스를 잡으면 1씩
 let stage = 0; // 이야기 단계(STORY). 지금 단계 지역의 보스를 잡으면 다음 단계
 let marks = 0; // 지금 단계 지역 의뢰의 진행(비트: 2·3·4구역). 죽어도 남고, 단계가 넘어가면 0
+let news = false; // 순찰대장에게 아직 안 들은 이야기(야영지에 오자마자 말을 걸지 않고 머리 위 !)
+let took = false; // 지금 단계 의뢰의 부탁을 주민에게 받았다(부탁이 있는 의뢰만 의미). 단계가 넘어가면 false
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 // 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
 const questHere = () => STORY[stage].land === land;
-const markLetter = () => (questHere() && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
-const goalLine = () => `${STORY[stage].goal} · ${STORY[stage].quest.name} ${markCount(marks)}/3`;
+const markLetter = () => (questHere() && questOn(stage, took) && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
+const goalLine = () => STORY[stage].goal + (questOn(stage, took) ? ` · ${STORY[stage].quest.name} ${markCount(marks)}/3` : '');
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let clearT = 0; // 보스를 쓰러뜨린 뒤 흐른 초. LOOT_TIME 전에는 결과 버튼이 없다(공격하던 연타가 버튼을 누르지 않게)
@@ -55,7 +57,9 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인' };
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민' };
+// 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
+const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
@@ -67,12 +71,12 @@ function signsOf(w: World): Sign[] {
   }
   for (const c of w.chests) {
     const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
-    if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text });
+    if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text, alert: alertOf(c.kind) });
   }
   if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
@@ -95,8 +99,8 @@ function makeFloor(n: number, carry: Carry): World {
   w.maxTier = Math.min(4, Math.max(1, depth) + 1);
   setLevel(w, carry.level, carry.xp);
   toughenBoss(w, bossScale(depth)); // 깊은 지역 보스는 그 구역 몬스터만큼 세다
-  // 의뢰를 끝낸 만큼 이 지역 보스가 약하다. 셋 다 끝냈으면 전설 확정
-  if (questHere() && n === FLOORS) {
+  // 보스 약화 의뢰: 끝낸 만큼 이 지역 보스가 약하다. 셋 다 끝냈으면 전설 확정
+  if (questHere() && n === FLOORS && STORY[stage].quest.reward === 'weaken') {
     const k = markCount(marks);
     for (const e of w.entities) if (e.kind === 'boss') e.hp = e.maxHp = Math.round(e.maxHp * bossHpScale(k));
     w.sureLegend = k === 3;
@@ -120,11 +124,11 @@ function enterFloor(n: number, carry: Carry) {
   sound.playMusic(sound.musicFor(n));
 }
 
-// 야영지로(죽었을 때·보스를 깼을 때). words = 순찰대장이 바로 하는 말
-function toCamp(carry: Carry, words: string | null = null) {
+// 야영지로(죽었을 때·보스를 깼을 때). fresh = 순찰대장에게 새 이야기가 생겼다(바로 말을 걸지 않고 머리 위 !, 누르면 한다)
+function toCamp(carry: Carry, fresh = false) {
   [land, from] = ['camp', 'w'];
+  if (fresh) news = true;
   enterFloor(0, carry);
-  if (words) showTalk('순찰대장', words);
 }
 
 // 출구·계단에 들어서면: 야영지 출구는 바로 초원 1구역, 그 밖은 떠돌이 상인을 거쳐 다음 구역
@@ -145,8 +149,32 @@ let chatter = 0;
 function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'merchant') return openShop(true);
   if (t === 'villager') return say(VILLAGER[chatter++ % VILLAGER.length]);
-  if (t === 'elder') return showTalk('순찰대장', STORY[stage].again);
+  if (t === 'asker') return askerTalk();
+  if (t === 'elder') {
+    if (!news) return showTalk('순찰대장', STORY[stage].again);
+    news = false;
+    showTalk('순찰대장', captainNews(stage, cycle));
+    return changed();
+  }
   // 흔적의 글은 의뢰 대상을 끝낼 때(markDone) 나온다
+}
+
+// 의뢰인 주민: 부탁이 있는 의뢰면 맡기고(들으면 수락), 맡긴 뒤엔 진행을, 끝났거나 부탁이 없으면 잡담
+function askerTalk() {
+  const q = STORY[stage].quest;
+  const where = `${LANDS[STORY[stage].land].name} 2·3·4${LANDS[STORY[stage].land].unit}`;
+  if (!q.ask || markCount(marks) === 3) return say(VILLAGER[chatter++ % VILLAGER.length]);
+  if (took) return showTalk('주민', `${q.name} ${markCount(marks)}/3 — ${where}의 ${q.sign}, 잘 부탁해요.`);
+  took = true;
+  showTalk('주민', `${q.ask}\n\n(의뢰 수락: ${q.name} — ${where}의 ${q.sign})`);
+  changed();
+}
+
+// 야영지·의뢰 상태가 바뀌었다: 이름표(!)·임무 줄을 다시 그리고 바로 저장
+function changed() {
+  signs = signsOf(world);
+  saveRun(progress());
+  showFloor(floor, cycle, land, goalLine());
 }
 
 // 의뢰 대상 하나를 끝냈다: 진행을 켜고 이야기 조각(찾은 순서), 셋째면 스킬 포인트. 바로 저장(죽어도 남는다)
@@ -158,16 +186,18 @@ function markDone() {
   marks |= bit;
   const n = markCount(marks);
   const boss = bossName(LANDS[land].skins);
-  let note = `(${q.name} ${n}/3 — ${boss}의 힘이 줄었다)`;
+  // 보상: 금화 의뢰는 조각마다 금화, 약화 의뢰는 보스 체력(makeFloor). 셋째면 스킬 포인트(약화 의뢰는 전설 확정까지). 죽어도 남게 entry에도
+  const gold = q.reward === 'gold' ? markGold(land, floor) : 0;
+  world.gold += gold;
+  entry.gold += gold;
+  let note = `(${q.name} ${n}/3 — ${gold ? `금화 +${gold}` : `${boss}의 힘이 줄었다`})`;
   if (n === 3) {
     world.points++;
     entry.points++;
-    note = `(${q.name} 완료 — 스킬 포인트 +1, ${boss}의 전설 장비 확정)`;
+    note = `(${q.name} 완료 — ${gold ? `금화 +${gold}, 스킬 포인트 +1` : `스킬 포인트 +1, ${boss}의 전설 장비 확정`})`;
   }
   showTalk(piece.name, `${piece.text}\n\n${note}`);
-  signs = signsOf(world); // 끝낸 대상의 이름표를 지운다
-  saveRun(progress());
-  showFloor(floor, cycle, land, goalLine());
+  changed(); // 끝낸 대상의 이름표를 지운다
 }
 
 // 상점: 구역 사이의 떠돌이 상인(떠나면 산 것을 가지고 next로) 또는 야영지 상인(camp, 닫으면 그대로 야영지)
@@ -224,11 +254,10 @@ function restart() {
 // 보스를 잡은 뒤 야영지로: 지금 이야기 단계의 보스면 다음 단계(마지막이면 회차 + 1), 순찰대장이 다음 이야기를 한다
 function backToCamp() {
   if (outcome(world) !== 'clear' || clearT < LOOT_TIME) return;
-  const done = STORY[stage].done;
   const after = afterClear(stage, cycle, land);
   ({ stage, cycle } = after);
-  if (after.advanced) marks = 0;
-  toCamp(carryOf(world), after.advanced ? done : null);
+  if (after.advanced) [marks, took] = [0, false];
+  toCamp(carryOf(world), after.advanced);
   if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
 }
 
@@ -393,9 +422,8 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks] = [0, 0, 'camp', 'w', 0];
+  [cycle, stage, land, from, marks, news, took] = [0, 0, 'camp', 'w', 0, true, false];
   begin(0, startOf(cls));
-  showTalk('순찰대장', OPENING);
   if (!slots.some(Boolean)) help.showModal();
 };
 showTitle(true, slots);
@@ -423,7 +451,7 @@ initHud({
     useSlot(n);
     name = saved.name;
     stats = { ...saved.stats };
-    ({ cycle, stage, land, from, marks } = saved);
+    ({ cycle, stage, land, from, marks, news, took } = saved);
     begin(saved.floor, saved);
   },
   pick: pickClass,

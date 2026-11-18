@@ -339,6 +339,7 @@
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
       .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
       .label.sign { font-size: 14px; color: var(--gold); letter-spacing: 1px; padding: 2px 8px; background: #000a; border: 1px solid var(--gold-lo); border-radius: 3px; } /* 출구 이름표 */
+      .label.sign.alert::before { content: '! '; color: #ffd84a; font-weight: bold; } /* 할 말이 있는 NPC */
       .pips { position: absolute; left: 0; top: 0; font-size: 13px; font-weight: bold; line-height: 1; letter-spacing: 2px; color: #ffd66b; white-space: nowrap; pointer-events: none; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; } /* 칼의 여운: 기사 머리 위 칸 */
       .pips.full { color: #fff; animation: pips-glow 0.6s ease-in-out infinite alternate; } /* 가득: 다음 베기에 칼선 */
       @keyframes pips-glow { from { text-shadow: 0 0 2px #fff, 1px 0 #000, -1px 0 #000; } to { text-shadow: 0 0 8px #fff, 0 0 14px #ffd66b, 1px 0 #000, -1px 0 #000; } }
