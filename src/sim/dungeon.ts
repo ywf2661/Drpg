@@ -6,11 +6,11 @@ import type { Cell } from './path';
 import { ELITE } from './rules';
 
 export const FLOORS = 5;
-// 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 50%씩 더 강하다.
+// 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 100%씩 더 강하다(2회차 ×2, 3회차 ×3).
 // n은 이야기 깊이(5k + n). 초원(1~5)을 지나면 구역마다 extra만큼 더 가파르다 — 이어 가는 캐릭터가 깊이보다 빨리 커서(설계서 6-1)
 export const DEPTH_EXTRA = 0.15;
 export const floorPower = (n: number, cycle = 0, extra = DEPTH_EXTRA) => (1 + 0.15 * (n - 1) + extra * Math.max(0, n - FLOORS)) * cyclePower(cycle);
-export const cyclePower = (cycle: number) => 1 + 0.5 * cycle;
+export const cyclePower = (cycle: number) => 1 + cycle;
 // 보스 깊이 배율: 보스 수치(STATS.boss)는 초원 5구역(이야기 깊이 5) 기준이라, 깊은 지역 보스는 그 구역 몬스터 배율만큼 더 세진다(회차 배율은 따로)
 export const bossScale = (depth: number) => Math.max(1, floorPower(depth) / floorPower(FLOORS));
 // 층의 모습(렌더용): 깊은 층은 동굴
