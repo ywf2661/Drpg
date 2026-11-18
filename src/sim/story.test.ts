@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest';
 import { afterClear, bossHpScale, depthOf, markBit, markCount, openLands, STORY } from './rules';
+import { bossScale, floorPower } from './dungeon';
+import { createWorld, toughenBoss } from './world';
 
 test('이야기 순서: 초원 → 설원 → 미궁 → 폐허, 열린 지역은 지금 단계까지', () => {
   expect(STORY.map((s) => s.land)).toEqual(['field', 'snow', 'dungeon', 'ruins']);
@@ -30,4 +32,14 @@ test('지역 의뢰: 지역마다 종류가 다르고 조각 셋, 2·3·4구역 
   expect(markCount(7)).toBe(3);
   expect(bossHpScale(0)).toBe(1);
   expect(bossHpScale(3)).toBeCloseTo(0.7);
+});
+
+test('보스 깊이 배율: 초원 5구역 보스가 기준(1), 깊은 지역 보스는 그 구역 몬스터 배율만큼 세진다', () => {
+  expect(bossScale(depthOf('field', 5))).toBe(1);
+  expect(bossScale(depthOf('ruins', 5))).toBeCloseTo(floorPower(20) / floorPower(5));
+  const w = createWorld(1, ['#######', '#H...M#', '#######']);
+  const boss = w.entities.find((e) => e.kind === 'boss')!;
+  const [hp, power] = [boss.maxHp, boss.power];
+  toughenBoss(w, 2);
+  expect([boss.maxHp, boss.hp, boss.power]).toEqual([hp * 2, hp * 2, power * 2]);
 });

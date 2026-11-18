@@ -11,6 +11,8 @@ export const FLOORS = 5;
 export const DEPTH_EXTRA = 0.15;
 export const floorPower = (n: number, cycle = 0, extra = DEPTH_EXTRA) => (1 + 0.15 * (n - 1) + extra * Math.max(0, n - FLOORS)) * cyclePower(cycle);
 export const cyclePower = (cycle: number) => 1 + 0.5 * cycle;
+// 보스 깊이 배율: 보스 수치(STATS.boss)는 초원 5구역(이야기 깊이 5) 기준이라, 깊은 지역 보스는 그 구역 몬스터 배율만큼 더 세진다(회차 배율은 따로)
+export const bossScale = (depth: number) => Math.max(1, floorPower(depth) / floorPower(FLOORS));
 // 층의 모습(렌더용): 깊은 층은 동굴
 export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');

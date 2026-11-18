@@ -11,10 +11,11 @@ import { camera, draw, headOf, initRender, renderer, setAim, setWorld } from './
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
-import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
+import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, depthOf, OPENING, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
+import { toughenBoss } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -93,6 +94,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.pity = carry.pity;
   w.maxTier = Math.min(4, Math.max(1, depth) + 1);
   setLevel(w, carry.level, carry.xp);
+  toughenBoss(w, bossScale(depth)); // 깊은 지역 보스는 그 구역 몬스터만큼 세다
   // 의뢰를 끝낸 만큼 이 지역 보스가 약하다. 셋 다 끝냈으면 전설 확정
   if (questHere() && n === FLOORS) {
     const k = markCount(marks);

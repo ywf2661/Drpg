@@ -61,7 +61,7 @@ test('시드 1~50 × 1~5층: 크기, 테두리, 주인공·계단·몬스터 수
   }
 });
 
-test('소품: 화로 1개 이상, 막는 소품은 뒤쪽 벽에 붙고 계단·주인공 근처는 비어 있다', () => {
+test('소품: 화로 1개 이상, 막는 소품은 뒤쪽 벽에 붙고 계단·주인공 근처는 비어 있다', { timeout: 30_000 }, () => { // 50시드 × 5층 지도 생성(전체를 돌리면 5초를 넘기기도 한다)
   const cheb = ([ax, az]: [number, number], [bx, bz]: [number, number]) => Math.max(Math.abs(ax - bx), Math.abs(az - bz));
   for (let seed = 1; seed <= 50; seed++) {
     for (let floor = 1; floor <= FLOORS; floor++) {

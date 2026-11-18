@@ -104,6 +104,15 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
+// 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
+export function toughenBoss(w: World, k: number) {
+  for (const e of w.entities)
+    if (e.kind === 'boss') {
+      e.power *= k;
+      e.hp = e.maxHp = Math.round(e.maxHp * k);
+    }
+}
+
 // 봉인 문의 문지기: 문을 닫은 채로 주인공 칸에서 걸어서 닿는 몬스터(문 너머의 방에 있는 몬스터는 빼고) 중 가까운 것들
 function guardGates(grid: Grid, gates: Gate[], entities: Entity[]) {
   if (!gates.length) return;
