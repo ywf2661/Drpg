@@ -256,8 +256,11 @@ function renderBag() {
   });
 }
 
+// 보관함·스킬 창을 열 수 있나: 죽은 때만 빼고(보스를 깬 뒤에도 가방을 비워 전리품을 줍고, 포인트를 쓴다)
+const canOpen = () => !choosing && !shopping && outcome(world) !== 'dead' && !document.querySelector('dialog[open]');
+
 function openBag() {
-  if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) renderBag();
+  if (canOpen()) renderBag();
 }
 
 // 스킬 트리 창. 창이 열린 동안 sim이 멈추므로 배우기·끼우기·되돌리기를 바로 하고 다시 그린다(보관함과 같다)
@@ -270,7 +273,7 @@ function renderTree() {
 }
 function openTree() {
   if (tree.open) return tree.close();
-  if (!choosing && !shopping && !outcome(world) && !document.querySelector('dialog[open]')) renderTree();
+  if (canOpen()) renderTree();
 }
 
 const drink = () => commands.push({ type: 'drink' });
