@@ -3,7 +3,7 @@
 // three.js·Math.random 금지(난수는 rand(w)).
 import { walkable } from './path';
 import { asleep, dist, dress, dropGold, hurt, makeEntity, rand, randSlot, rollGear, wake } from './core';
-import { AGGRO, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
+import { AGGRO, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
 const LETTER: Record<string, Kind> = { m: 'minion', w: 'warrior', a: 'archer', g: 'mage' };
 // 몬스터 피해 배율(층 배율의 DMG_SCALE배 + 공통 배율) — 함정 피해에 곱한다
@@ -30,7 +30,11 @@ export const canSummonKnight = (w: World) => w.land !== 'camp' && (!!w.stairs ||
 // 특별한 상자를 눌렀다. true = 처리했다(평소처럼 열지 않는다)
 export function touchChest(w: World, ch: Chest): boolean {
   if (ch.kind === 'elder' || ch.kind === 'merchant' || ch.kind === 'villager' || ch.kind === 'clue') {
-    if (ch.kind === 'clue') ch.open = true; // NPC는 몇 번이든 다시 말을 건다
+    // NPC는 몇 번이든 다시 말을 건다. 흔적은 읽으면 끝(의뢰 하나)
+    if (ch.kind === 'clue') {
+      ch.open = true;
+      w.marked = true;
+    }
     w.talk = ch.kind;
     return true;
   }
@@ -44,12 +48,28 @@ export function touchChest(w: World, ch: Chest): boolean {
     nextWave(w, ch);
     return true;
   }
+  if (ch.kind === 'beacon') {
+    if (!ch.wave) nextWave(w, ch); // 불을 붙이면 물결. 켜지는 것은 tickGimmicks가(눌러서 열지 않는다)
+    return true;
+  }
+  if (ch.kind === 'seal') {
+    // 봉인을 깨면 둘레에 무덤이 솟는다
+    ch.open = true;
+    w.marked = true;
+    for (let i = 0; i < QUEST.graves; i++) {
+      const g = spawnNear(w, 'minion', ch.x + 0.5, ch.z + 0.5, 3, -1, 'grave');
+      if (g) g.cd = GRAVE.first;
+    }
+    return true;
+  }
   return false;
 }
 
+const wavesOf = (ch: Chest) => (ch.kind === 'beacon' ? QUEST.beacon : TRIAL.waves);
+
 function nextWave(w: World, ch: Chest) {
   ch.wave = (ch.wave ?? 0) + 1;
-  ch.guards = [...TRIAL.waves[ch.wave - 1]].map((c) => spawnNear(w, LETTER[c], ch.x + 0.5, ch.z + 0.5, TRIAL.radius)?.id ?? -1).filter((id) => id >= 0);
+  ch.guards = [...wavesOf(ch)[ch.wave - 1]].map((c) => spawnNear(w, LETTER[c], ch.x + 0.5, ch.z + 0.5, TRIAL.radius)?.id ?? -1).filter((id) => id >= 0);
 }
 
 // 시련·얼음 상자의 내용물: 최고 단계보다 하나 위(마법 이상) 장비 + 금화 배수. 평소 상자면 false
@@ -88,7 +108,16 @@ export function special(w: World, e: Entity, hero: Entity): boolean {
 export function tickGimmicks(w: World, hero: Entity) {
   if (w.buff && (w.buff.t -= DT) <= 0) w.buff = null;
   // 시련의 제단: 물결을 다 막으면 다음 물결(마지막 뒤엔 상자가 풀린다 — 열기는 주인공이)
-  for (const ch of w.chests) if (ch.kind === 'trial' && ch.wave && ch.wave < TRIAL.waves.length && ch.guards!.every((id) => w.entities[id].state === 'dead')) nextWave(w, ch);
+  // 봉화도 같은 방식이고, 마지막 물결을 다 막으면 저절로 켜진다(의뢰 하나)
+  for (const ch of w.chests) {
+    if ((ch.kind !== 'trial' && ch.kind !== 'beacon') || !ch.wave || ch.open || !ch.guards!.every((id) => w.entities[id].state === 'dead')) continue;
+    if (ch.wave < wavesOf(ch).length) nextWave(w, ch);
+    else if (ch.kind === 'beacon') {
+      ch.open = true;
+      w.marked = true;
+      w.blasts.push({ id: w.nextItem++, x: ch.x + 0.5, z: ch.z + 0.5, age: 0, kind: 'heal' });
+    }
+  }
   if (hero.state === 'dead') return;
   // 개미지옥: 가운데로 끌려간다(구르기·돌진 중엔 아님)
   const pit = w.pits.find(([x, z]) => Math.hypot(hero.x - x, hero.z - z) <= PIT.r);

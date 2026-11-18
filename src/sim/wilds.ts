@@ -14,16 +14,16 @@ export const opposite: Record<Side, Side> = { n: 's', s: 'n', e: 'w', w: 'e' };
 const SIDES: Side[] = ['n', 'e', 's', 'w'];
 type Wild = 'field' | 'snow' | 'ruins';
 
-// open = 열린 지역(초원 1구역 갈림길에서 갈 수 있는 곳, 없으면 다 열림), clue = 이야기 단서(L)를 놓는다
-export function makeMap(seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w', open?: Land[], clue = false): string[] {
+// open = 열린 지역(초원 1구역 갈림길에서 갈 수 있는 곳, 없으면 다 열림), mark = 놓을 의뢰 대상 글자(L 흔적·J 봉화·k 궤·O 봉인)
+export function makeMap(seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w', open?: Land[], mark?: string): string[] {
   if (land === 'camp') return generateCamp();
   const map = land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
-  return clue ? withClue(map, seed) : map;
+  return mark ? withMark(map, seed, mark) : map;
 }
 
-// 이야기 단서(L) 하나: 주인공에서 걸어서 가장 먼 곳의 40~70% 거리. 바깥 지역은 길에서 3칸 안(지나가며 보이게), 미궁은 방 안(5×5가 다 트인 곳).
+// 의뢰 대상 하나(글자 letter): 주인공에서 걸어서 가장 먼 곳의 40~70% 거리. 바깥 지역은 길에서 3칸 안(지나가며 보이게), 미궁은 방 안(5×5가 다 트인 곳).
 // 둘레 8칸이 다 트인 칸에만 놓아 길을 끊지 않는다. 앞의 난수열(땅·몬스터)을 바꾸지 않게 따로 굴린다
-export function withClue(map: string[], seed: number): string[] {
+export function withMark(map: string[], seed: number, letter: string): string[] {
   const cells = map.map((r) => r.split(''));
   const [W, H] = [map[0].length, map.length];
   const hz = map.findIndex((r) => r.includes('H'));
@@ -45,9 +45,14 @@ export function withClue(map: string[], seed: number): string[] {
     return spots;
   };
   const spots = road ? find(1) : find(2).length ? find(2) : find(1); // 미궁에 넓은 방이 거기 없으면 둘레 8칸만
-  if (!spots.length) return map; // 놓을 데가 없으면 없이(단서는 놓쳐도 진행이 막히지 않는다)
+  if (!spots.length) return map; // 놓을 데가 없으면 없이(의뢰는 선택이라 진행이 막히지 않는다)
   const [x, z] = spots[Math.floor(mulberry(seed ^ 0x51ed)() * spots.length)];
-  cells[z][x] = 'L';
+  cells[z][x] = letter;
+  // 잠긴 궤: 둘레 2칸의 빈 자리에 정예 전사 하나와 졸개 둘이 지킨다
+  if (letter === 'k') {
+    const guards = ['W', 'm', 'm'];
+    for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2]]) if (guards.length && cells[z + dz]?.[x + dx] === '.') cells[z + dz][x + dx] = guards.shift()!;
+  }
   return cells.map((r) => r.join(''));
 }
 export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land === 'camp' ? 'field' : land);

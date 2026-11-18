@@ -8,7 +8,7 @@ export type Stats = { time: number; kills: number; deaths: number }; // 이번 �
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number }; // land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3)
+export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number }; // land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
 const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
 const KEY = 'drpg-save'; // 슬롯 이전의 한 칸 저장. 지금은 KEY-0 ~ KEY-2
 export const SLOT_COUNT = 3;
@@ -16,7 +16,7 @@ export const NAME_MAX = 12;
 let slot = 0; // 지금 판이 저장되는 슬롯
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage });
+  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -119,6 +119,8 @@ export function decodeSave(text: string | null): Run | null {
   if (!LAND_LIST.includes(land) || !['n', 'e', 's', 'w'].includes(from)) return null;
   const stage = old ? 0 : d.stage;
   if (!int(stage, 0, STORY.length - 1)) return null;
+  const marks = old ? 0 : (d.marks ?? 0); // 나중에 생긴 항목
+  if (!int(marks, 0, 7)) return null;
   const camp = old || land === 'camp';
   const name = d.name ?? '모험가'; // 아이디(나중에 생긴 항목)
   if (typeof name !== 'string' || !name.trim() || name.length > NAME_MAX) return null;
@@ -144,6 +146,7 @@ export function decodeSave(text: string | null): Run | null {
     land: camp ? 'camp' : land,
     from,
     stage: stage as number,
+    marks: marks as number,
   };
 }
 

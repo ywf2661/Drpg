@@ -34,7 +34,7 @@ test('벼림 수치: 1단계 시작값, 단계마다', () => {
   expect(frostEdgeStat(w).freeze).toBeCloseTo(1.6);
 });
 test('저장: 탭 옵션 4는 통과, 5는 거부', () => {
-  const run = (tab: number) => ({ name: '용사', cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [{ kind: 'tab' as const, value: 1, tab }], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, stage: 0 });
+  const run = (tab: number) => ({ name: '용사', marks: 0, cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [{ kind: 'tab' as const, value: 1, tab }], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, stage: 0 });
   expect(decodeSave(encodeSave(run(4)))).not.toBeNull();
   expect(decodeSave(encodeSave(run(5)))).toBeNull();
 });

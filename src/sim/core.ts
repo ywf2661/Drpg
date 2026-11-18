@@ -393,7 +393,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     dropGold(w, t.x + 0.3, t.z, KING.gold[0], KING.gold[1], t.power);
     return dealt;
   }
-  if (t.kind === 'boss') dropUnique(w, t, LEGEND_DROP.boss, true);
+  if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
   if (t.skin === 'treasure') treasureDrop(w, t);
   gainXp(w, Math.round(XP[t.kind] * Math.min(t.power, w.xpCap) * (t.elite ? ELITE.xp : 1)));
   // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)

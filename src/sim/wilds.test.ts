@@ -142,13 +142,14 @@ test('초원 1구역 갈림길 잠금: 안 열린 지역 출구는 막히고(s·
   }
 });
 
-test('단서(L): makeMap에 clue를 주면 하나, 걸어서 닿고 길을 끊지 않는다(바깥 지역은 길가, 미궁은 방 안). 안 주면 없다', { timeout: 120_000 }, () => {
+test('의뢰 대상(L·J·O·k): makeMap에 글자를 주면 하나, 걸어서 닿고 길을 끊지 않는다(바깥 지역은 길가, 미궁은 방 안). 안 주면 없다', { timeout: 120_000 }, () => {
   for (let seed = 1; seed <= 12; seed++)
-    for (const land of ['field', 'snow', 'ruins', 'dungeon'] as const) {
-      expect(count(makeMap(seed, 3, land, 'w'), 'L')).toBe(0);
-      const map = makeMap(seed, 3, land, 'w', undefined, true);
-      expect(count(map, 'L')).toBe(1);
-      const [l] = find(map, 'L');
+    for (const [land, letter] of [['field', 'L'], ['snow', 'J'], ['ruins', 'O'], ['dungeon', 'k']] as const) {
+      expect(count(makeMap(seed, 3, land, 'w'), letter)).toBe(0);
+      const map = makeMap(seed, 3, land, 'w', undefined, letter);
+      expect(count(map, letter)).toBe(1);
+      const [l] = find(map, letter);
+      if (letter === 'k') expect(map.slice(l[1] - 2, l[1] + 3).some((r) => r.slice(l[0] - 2, l[0] + 3).includes('W'))).toBe(true); // 궤를 지키는 정예
       const [h] = find(map, 'H');
       expect(reachable(map, h)(l)).toBe(true);
       const lost = (m: string[]) => {

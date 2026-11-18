@@ -173,7 +173,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'clue'; wave?: number }; // elder·merchant·villager(주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'clue' | 'beacon' | 'keeper' | 'seal'; wave?: number }; // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -291,6 +291,8 @@ export type World = {
   portalLock: boolean;
   icicleT: number; // 다음 고드름 굴림까지(초)
   bossRaised: boolean; // 폐허 보스가 무덤을 일으켰다
+  marked: boolean; // 방금 의뢰 대상 하나를 끝냈다. main이 읽고 지운다
+  sureLegend: boolean; // 이 구역 보스는 전설을 반드시 남긴다(지역 의뢰를 다 끝냄)
   calmT: number; // 주인공이 마지막으로 다친 뒤 흐른 시간(초)
   lastHp: number; // 직전 틱의 주인공 체력(다쳤는지 비교)
   rested: number; // 모닥불에서 회복한 양의 누적(소수점 포함, 렌더가 +숫자로 띄운다)
@@ -396,40 +398,84 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
   camp: { name: '야영지', unit: '', skins: {} },
 };
 // 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.
-// goal = HUD 임무 줄, again = 순찰대장에게 다시 말을 걸면, clue = 그 지역 3구역(미궁 3층)의 단서, done = 보스를 깨고 야영지에 왔을 때(다음 단계의 시작 대사)
-export type Story = { land: Land; goal: string; again: string; clue: { name: string; text: string }; done: string };
+// goal = HUD 임무 줄, again = 순찰대장에게 다시 말을 걸면, quest = 그 지역 의뢰(2·3·4구역에 대상 하나씩, 선택), done = 보스를 깨고 야영지에 왔을 때(다음 단계의 시작 대사)
+// 의뢰 대상: note 흔적(읽기), beacon 봉화(물결 버티기), keeper 잠긴 궤(지킴이 사냥), seal 봉인 제단(깨면 무덤). marks = 찾은 순서대로 나오는 이야기 조각(셋째가 다음 지역을 가리킨다)
+export type QuestKind = 'note' | 'beacon' | 'keeper' | 'seal';
+export type Quest = { kind: QuestKind; name: string; sign: string; marks: { name: string; text: string }[] };
+export type Story = { land: Land; goal: string; again: string; quest: Quest; done: string };
 export const OPENING = "왔군. 요즘 초원이 수상하네. 고블린 떼가 부쩍 늘더니, 동쪽으로 정찰 나간 아이들이 돌아오질 않아. 마지막으로 들어온 전갈에는 '초원 가장 깊은 곳, 모래가 꺼진 자리'라는 말뿐이었지. 거기 무엇이 있는지 알아봐 주게.";
 export const STORY: Story[] = [
   {
     land: 'field',
     goal: '초원 가장 깊은 곳을 살펴본다',
     again: '초원 가장 깊은 곳, 모래가 꺼진 자리라 했네. 거기부터 가 보게.',
-    clue: { name: '얼어붙은 정찰병의 쪽지', text: '모래 구덩이 밑에서 찬 바람이 올라온다. 이 초원에서 날 수 없는 냉기다. 굴이 북쪽 눈밭까지 이어진 게 아닐까. 대장님께 꼭 전해야… (쪽지 끝이 서리에 덮여 있다)' },
+    quest: {
+      kind: 'note',
+      name: '실종된 정찰병',
+      sign: '정찰병의 흔적',
+      marks: [
+        { name: '찢어진 정찰 일지', text: '둘째 날. 고블린들이 무언가를 동쪽으로 끌고 간다. 먹이를 나르는 것 같지는 않다. 어딘가에 바치러 가는 것처럼 보인다.' },
+        { name: '부러진 창', text: "정찰병의 창이 반으로 부러져 모래에 꽂혀 있다. 자루에 손톱으로 긁은 글씨가 남아 있다. '땅이 꺼진다. 가까이 가지 마라.'" },
+        { name: '얼어붙은 정찰병의 쪽지', text: '모래 구덩이 밑에서 찬 바람이 올라온다. 이 초원에서 날 수 없는 냉기다. 굴이 북쪽 눈밭까지 이어진 게 아닐까. 대장님께 꼭 전해야… (쪽지 끝이 서리에 덮여 있다)' },
+      ],
+    },
     done: '그 구덩이 밑에 개미귀신이 버티고 있었다니… 쪽지에 적힌 냉기가 마음에 걸리는군. 초원 어귀에서 북쪽 설원으로 가는 길을 열어 두었네. 찬 바람이 어디서 불어오는지 찾아 주게.',
   },
   {
     land: 'snow',
     goal: '설원에서 찬 바람의 근원을 찾는다',
     again: '북쪽 설원이네. 그 찬 바람이 어디서 불어오는지 찾아 주게.',
-    clue: { name: '얼음 속 지도 조각', text: '얼음 속에 낡은 지도 조각이 갇혀 있다. 눈밭 아래로 굴이 그물처럼 뻗어 있고, 그 끝은 모두 한곳 — 땅 밑 깊은 미궁으로 모인다.' },
+    quest: {
+      kind: 'beacon',
+      name: '꺼진 봉화',
+      sign: '꺼진 봉화',
+      marks: [
+        { name: '되살린 봉화', text: '봉화에 다시 불이 붙었다. 불빛이 닿자 눈 속에 묻혀 있던 자국이 드러난다. 사람의 발자국이 아니다. 커다란 무언가가 날개를 끌며 지나갔다.' },
+        { name: '둘째 봉화', text: '불이 오르자 눈보라가 잠시 걷힌다. 멀리 얼음 절벽 밑으로 검은 굴 입구들이 줄지어 있다. 찬 바람은 저 굴에서 불어 나온다.' },
+        { name: '얼음 속 지도 조각', text: '봉화의 불길에 얼음이 녹자, 그 속에 갇혀 있던 낡은 지도 조각이 드러난다. 눈밭 아래로 굴이 그물처럼 뻗어 있고, 그 끝은 모두 한곳 — 땅 밑 깊은 미궁으로 모인다.' },
+      ],
+    },
     done: '서리 와이번이 그 굴의 입구를 지키고 있었군. 모든 굴이 미궁으로 모인다라… 초원 어귀의 동굴 입구를 막고 있던 돌을 치웠네. 조심하게. 저 밑은 우리가 아는 땅이 아니야.',
   },
   {
     land: 'dungeon',
     goal: '미궁 깊은 곳으로 내려간다',
     again: '초원 어귀의 동굴 입구는 열어 두었네. 미궁 맨 밑까지 내려가 보게.',
-    clue: { name: '해골이 쥔 열쇠', text: '부서진 해골 손에 녹슨 열쇠가 쥐여 있다. 손잡이에 낯선 문장이 새겨져 있다. 무너진 성채의 깃발에서 본 문장이다.' },
+    quest: {
+      kind: 'keeper',
+      name: '열쇠지기',
+      sign: '잠긴 궤',
+      marks: [
+        { name: '열쇠 조각', text: '궤 안에 녹슨 열쇠 조각이 들어 있다. 손잡이 쪽이다. 궤를 지키던 해골들은 이 쇳조각을 목숨처럼 붙들고 있었다.' },
+        { name: '또 하나의 열쇠 조각', text: '두 조각을 맞대 보니 아귀가 꼭 맞는다. 몸통에 무너진 탑과 뱀이 얽힌 문장이 새겨져 있다.' },
+        { name: '해골이 쥔 열쇠', text: '마지막 조각을 끼우자 열쇠가 온전해진다. 손잡이의 문장은 낯설지 않다. 무너진 성채의 깃발에서 본 바로 그 문장이다.' },
+      ],
+    },
     done: '미노타우르스가 지키던 문이 이 열쇠로 열리는 문이었군. 그 문장… 남쪽 폐허, 옛 성채의 것이네. 모든 일이 거기서 시작됐을 걸세. 초원 어귀에서 성채로 가는 길을 열겠네.',
   },
   {
     land: 'ruins',
     goal: '옛 성채에서 모든 일의 근원을 끊는다',
     again: '옛 성채로 가게. 모든 일의 시작이 거기 있을 걸세.',
-    clue: { name: '무너진 제단의 글', text: "무너진 제단에 검붉은 글씨가 남아 있다. '문이 열렸다. 그분이 깨어나신다.'" },
+    quest: {
+      kind: 'seal',
+      name: '봉인 제단',
+      sign: '봉인 제단',
+      marks: [
+        { name: '금 간 봉인', text: '봉인을 깨자 둘레의 무덤들이 들썩인다. 제단 밑에서 낮은 웅얼거림이 들린다. 기도인지 주문인지 알 수 없다.' },
+        { name: '피 묻은 봉인', text: '깨진 돌 틈으로 붉은 빛이 새어 나왔다가 꺼진다. 성채 깊은 곳의 무언가가 그만큼 약해졌다.' },
+        { name: '무너진 제단의 글', text: "마지막 봉인 밑에 검붉은 글씨가 남아 있다. '문이 열렸다. 그분이 깨어나신다.'" },
+      ],
+    },
     done: '해냈군. 성채의 악마가 쓰러지자 초원 바람도 잠잠해졌네. …하지만 땅은 쉽게 잠들지 않아. 벌써 더 짙은 기운이 올라오고 있어. 다시 초원부터 살펴봐 주게.',
   },
 ];
-export const CLUE_FLOOR = 3; // 단서가 놓이는 구역(층)
+// 의뢰 대상이 놓이는 구역: 2·3·4구역(미궁은 층). 진행(marks)은 비트: 2구역 1, 3구역 2, 4구역 4
+export const QUEST = { weaken: 0.1, beacon: ['mmm', 'mwa'], graves: 2 }; // 끝낸 대상 하나마다 보스 체력 −10%, 봉화 물결, 봉인을 깨면 솟는 무덤 수
+export const MARK_LETTER: Record<QuestKind, string> = { note: 'L', beacon: 'J', keeper: 'k', seal: 'O' };
+export const markBit = (floor: number) => (floor >= 2 && floor <= 4 ? 1 << (floor - 2) : 0);
+export const markCount = (marks: number) => [1, 2, 4].filter((b) => marks & b).length;
+export const bossHpScale = (count: number) => 1 - QUEST.weaken * count;
 // 열린 지역: 지금 단계까지
 export const openLands = (stage: number): Land[] => STORY.slice(0, stage + 1).map((s) => s.land);
 // 보스를 깬 뒤: 지금 단계의 지역이면 다음 단계(마지막이면 회차 + 1, 이야기는 처음부터). 지난 지역이면 그대로

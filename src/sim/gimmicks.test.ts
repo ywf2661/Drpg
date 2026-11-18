@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { createWorld, DT, GRAVE, hidden, ICICLE, LANDS, monsterName, moveSpeed, outcome, SHRINE, SPIKE, step, TREASURE, TRIAL, type Command, type World } from './world';
+import { createWorld, DT, GRAVE, hidden, ICICLE, LANDS, monsterName, moveSpeed, outcome, SHRINE, SPIKE, step, TREASURE, TRIAL, QUEST, type Command, type World } from './world';
 import { generateFloor } from './dungeon';
 import { generateWild } from './wilds';
 import { canSummonKnight, spawnNear } from './gimmicks';
@@ -204,3 +204,65 @@ test('맵에 기믹이 놓인다: 미궁 성소, 초원 개미지옥, 설원 얼
   }
   expect(shrines).toBeGreaterThanOrEqual(20);
 }, 30000); // 맵 80장
+
+// 의뢰 대상(설계: docs/superpowers/specs/2026-11-18-region-quests-design.md)
+const quest = (c: string) => createWorld(1, ['#########', '#.......#', `#...${c}...#`, '#.......#', '#.......#', '#H......#', '#########']);
+
+test('의뢰 흔적(L): 누르면 읽고 끝난다', () => {
+  const w = quest('L');
+  run(w, 60, [{ type: 'open', chestId: 0 }]);
+  expect(w.talk).toBe('clue');
+  expect(w.marked).toBe(true);
+});
+
+test('의뢰 봉화(J): 물결 둘을 다 막으면 켜지고 끝난다(전리품 없음)', () => {
+  const w = quest('J');
+  run(w, 60, [{ type: 'open', chestId: 0 }]);
+  const ch = w.chests[0];
+  for (let wave = 1; wave <= QUEST.beacon.length; wave++) {
+    expect(ch.wave).toBe(wave);
+    expect(ch.guards!.length).toBe(QUEST.beacon[wave - 1].length);
+    expect(w.marked).toBe(false);
+    run(w, 30, [{ type: 'open', chestId: 0 }]); // 물결 중에 눌러도 열리지 않는다
+    expect(ch.open).toBe(false);
+    kill(w, ch.guards!);
+    run(w, 2);
+  }
+  expect(ch.open).toBe(true);
+  expect(w.marked).toBe(true);
+  expect(w.items.filter((i) => i.kind !== 'gold')).toHaveLength(0);
+});
+
+test('의뢰 궤(k): 지킴이가 살아 있으면 안 열리고, 다 잡은 뒤 열면 끝난다', () => {
+  const w = createWorld(1, ['#########', '#.......#', '#.W.k.m.#', '#.......#', '#.......#', '#H......#', '#########']);
+  w.entities.slice(1).forEach((e) => (e.asleep = true));
+  const ch = w.chests[0];
+  expect(ch.guards!.length).toBe(2);
+  run(w, 60, [{ type: 'open', chestId: 0 }]);
+  expect(ch.open).toBe(false);
+  kill(w, ch.guards!);
+  run(w, 60, [{ type: 'open', chestId: 0 }]);
+  expect(ch.open).toBe(true);
+  expect(w.marked).toBe(true);
+});
+
+test('의뢰 봉인(O): 누르면 깨지고 무덤이 솟는다', () => {
+  const w = quest('O');
+  run(w, 60, [{ type: 'open', chestId: 0 }]);
+  expect(w.chests[0].open).toBe(true);
+  expect(w.marked).toBe(true);
+  expect(w.entities.filter((e) => e.skin === 'grave')).toHaveLength(QUEST.graves);
+});
+
+test('sureLegend: 의뢰를 다 끝낸 지역의 보스는 전설을 반드시 남긴다', () => {
+  for (let seed = 1; seed <= 5; seed++) {
+    const w = createWorld(seed, ['#######', '#H...M#', '#######']);
+    w.sureLegend = true;
+    const boss = w.entities.find((e) => e.kind === 'boss')!;
+    boss.hp = 1;
+    w.entities[0].hp = 99999;
+    for (let i = 0; i < 600 && boss.state !== 'dead'; i++) step(w, i === 0 ? [{ type: 'attack', targetId: boss.id }] : []);
+    expect(boss.state).toBe('dead');
+    expect([...w.items, ...w.bag].some((i) => 'affixes' in i && i.affixes?.[0]?.kind === 'unique')).toBe(true);
+  }
+});

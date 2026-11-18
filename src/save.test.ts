@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2 };
+const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5 };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -107,7 +107,7 @@ test('지역·들어온 가장자리: 이상하면 무시', () => {
 test('야영지 이전 저장(버전 1): 캐릭터·장비·금화·회차는 그대로, 하던 구역은 버리고 야영지·이야기 1단계로', () => {
   const { stage: _s, ...v1 } = run;
   const r = decodeSave(JSON.stringify({ v: 1, ...v1 }))!;
-  expect(r).toEqual({ ...run, land: 'camp', floor: 0, stage: 0 });
+  expect(r).toEqual({ ...run, land: 'camp', floor: 0, stage: 0, marks: 0 });
   const { land: _l, from: _f, ...older } = v1; // 지역이 생기기 전
   expect(decodeSave(JSON.stringify({ v: 1, ...older }))).toMatchObject({ land: 'camp', floor: 0, stage: 0 });
 });
@@ -123,4 +123,10 @@ test('아이디: 없으면(슬롯 이전 저장) 모험가, 비었거나 너무 
   expect(decodeSave(JSON.stringify({ v: 2, ...run, name: '  ' }))).toBeNull();
   expect(decodeSave(JSON.stringify({ v: 2, ...run, name: 'x'.repeat(13) }))).toBeNull();
   expect(decodeSave(JSON.stringify({ v: 2, ...run, name: 7 }))).toBeNull();
+});
+
+test('의뢰 진행(marks): 없으면 0, 0~7 정수가 아니면 버린다', () => {
+  const { marks: _, ...noMarks } = run;
+  expect(decodeSave(JSON.stringify({ v: 2, ...noMarks }))?.marks).toBe(0);
+  for (const bad of [8, -1, 1.5, '3']) expect(decodeSave(JSON.stringify({ v: 2, ...run, marks: bad }))).toBeNull();
 });

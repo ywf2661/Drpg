@@ -108,6 +108,9 @@ const MARK_FX = new THREE.Color(1.3 / TINT.r, 1.3 / TINT.g, 1.3 / TINT.b); // �
 const SLASH_RED = new THREE.Color(1.5, 0.16, 0.14); // 검흔 터짐: 폭발 그림을 붉게
 const SLASH_STAGGER = 0.03; // 한꺼번에 터진 검흔은 순서대로 이만큼씩 늦게(연쇄처럼)
 const ICE_CHEST = new THREE.Color(1.2, 2.2, 5.5); // 얼음에 갇힌 상자: 푸르게 빛난다
+const BEACON_COLD = new THREE.Color(0.3, 0.4, 0.75); // 의뢰 봉화(꺼짐): 불꽃이 멈춘 채 어둡고 푸르게(곱하기라 주황 불꽃은 밝게 못 바꾼다)
+const SEAL_RED = new THREE.Color(3, 0.7, 0.6); // 의뢰 봉인 제단: 붉게
+const KEEPER_GOLD = new THREE.Color(2.2, 1.7, 0.7); // 의뢰 잠긴 궤: 금빛
 const SPIKE_WARN = new THREE.Color(2.2, 0.5, 0.4);
 const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
 const trapCards = new Map<number, Card>(); // 놓인 덫 id → 판자(벌린 그림으로 멈춰 있다)
@@ -398,6 +401,7 @@ export function syncChests(world: World) {
   world.chests.forEach((ch, i) => {
     const c = chestCards[i];
     if (ch.open && c) c.card.clip = c.open;
+    if (ch.open && c && ch.kind === 'beacon') Object.assign(c.card, { glow: 1, tint: undefined }); // 켜진 봉화
     if (c) c.card.dim = ch.guards?.some((id) => world.entities[id].state !== 'dead') ? 0.4 : 1; // 야영지 무리가 살아 있으면 어둡게(잠김)
   });
 }
@@ -703,11 +707,20 @@ export function buildProps(world: World): THREE.Group {
       const c = Object.assign(card(npc, 'stance', ch.x + 0.5, ch.z + 0.5, false), { dir: NPC_DIR });
       return { card: c, open: c.clip };
     }
-    const [sheet, name] = ch.kind === 'shrine' ? [ruin, 'shrine'] : ch.kind === 'trial' ? [ruin, 'trial'] : [props, cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest'];
+    if (ch.kind === 'beacon') {
+      // 봉화 = 화로 그림. 꺼진 동안은 불꽃이 멈춘 채 얼음빛, 켜지면 원래 불(syncChests)
+      const c = card(props, 'brazier', ch.x + 0.5, ch.z + 0.5, false);
+      const lit = c.clip;
+      if (!ch.open) Object.assign(c, { clip: { ...lit, ms: 1e9 }, glow: 0, tint: BEACON_COLD });
+      return { card: c, open: lit };
+    }
+    const [sheet, name] = ch.kind === 'shrine' || ch.kind === 'seal' ? [ruin, 'shrine'] : ch.kind === 'trial' ? [ruin, 'trial'] : [props, cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest'];
     const open = sheet.info.anims[name === 'shrine' ? 'shrine_off' : `${name}_open`];
     const c = card(sheet, name, ch.x + 0.5, ch.z + 0.5, false);
     if (ch.open) c.clip = open;
     if (ch.kind === 'ice') c.tint = ICE_CHEST;
+    if (ch.kind === 'seal') c.tint = SEAL_RED;
+    if (ch.kind === 'keeper') c.tint = KEEPER_GOLD;
     if (ch.kind === 'shrine') c.glow = 0.9; // 구슬이 빛난다
     return { card: c, open };
   });

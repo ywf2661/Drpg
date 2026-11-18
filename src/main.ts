@@ -13,7 +13,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { afterClear, CLUE_FLOOR, depthOf, OPENING, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, depthOf, OPENING, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -36,9 +36,12 @@ let from: Side = 'w'; // 바깥 지역에서 들어온 가장자리(나간 출�
 let next: { land: Land; from: Side; floor: number } = { land, from, floor: 1 }; // 상점을 떠나면 갈 곳(출구를 지날 때 정한다)
 let cycle = 0; // 회차(0 = 첫 판). 마지막 이야기(폐허) 보스를 잡으면 1씩
 let stage = 0; // 이야기 단계(STORY). 지금 단계 지역의 보스를 잡으면 다음 단계
+let marks = 0; // 지금 단계 지역 의뢰의 진행(비트: 2·3·4구역). 죽어도 남고, 단계가 넘어가면 0
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
-// 이 구역의 단서: 지금 이야기 단계의 지역, 3구역(미궁은 3층)일 때만
-const clueHere = () => (STORY[stage].land === land && floor === CLUE_FLOOR ? STORY[stage].clue : null);
+// 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
+const questHere = () => STORY[stage].land === land;
+const markLetter = () => (questHere() && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
+const goalLine = () => `${STORY[stage].goal} · ${STORY[stage].quest.name} ${markCount(marks)}/3`;
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let clearT = 0; // 보스를 쓰러뜨린 뒤 흐른 초. LOOT_TIME 전에는 결과 버튼이 없다(공격하던 연타가 버튼을 누르지 않게)
@@ -52,6 +55,7 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 const nextFloor = (to: Land) => (to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
 const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인' };
+const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
   for (const to of ['field', 'snow', 'ruins'] as const) {
@@ -61,19 +65,19 @@ function signsOf(w: World): Sign[] {
     if (shut.length) out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` });
   }
   for (const c of w.chests) {
-    const text = c.kind === 'clue' ? (c.open ? '' : clueHere()?.name) : CHEST_SIGN[c.kind ?? ''];
+    const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
     if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text });
   }
   if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, openLands(stage), !!clueHere()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, openLands(stage), markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.rest = land === 'field' || land === 'camp'; // 초원·야영지 모닥불에서 쉴 수 있다
   w.land = land;
@@ -89,6 +93,12 @@ function makeFloor(n: number, carry: Carry): World {
   w.pity = carry.pity;
   w.maxTier = Math.min(4, Math.max(1, depth) + 1);
   setLevel(w, carry.level, carry.xp);
+  // 의뢰를 끝낸 만큼 이 지역 보스가 약하다. 셋 다 끝냈으면 전설 확정
+  if (questHere() && n === FLOORS) {
+    const k = markCount(marks);
+    for (const e of w.entities) if (e.kind === 'boss') e.hp = e.maxHp = Math.round(e.maxHp * bossHpScale(k));
+    w.sureLegend = k === 3;
+  }
   return w;
 }
 
@@ -104,7 +114,7 @@ function enterFloor(n: number, carry: Carry) {
   setWorld(world, themeOf(n, land));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
-  showFloor(n, cycle, land, STORY[stage].goal);
+  showFloor(n, cycle, land, goalLine());
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -134,9 +144,28 @@ function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'merchant') return openShop(true);
   if (t === 'villager') return say(VILLAGER[chatter++ % VILLAGER.length]);
   if (t === 'elder') return showTalk('순찰대장', STORY[stage].again);
-  const c = clueHere();
-  if (c) showTalk(c.name, c.text);
-  signs = signsOf(world); // 읽은 단서의 이름표를 지운다
+  // 흔적의 글은 의뢰 대상을 끝낼 때(markDone) 나온다
+}
+
+// 의뢰 대상 하나를 끝냈다: 진행을 켜고 이야기 조각(찾은 순서), 셋째면 스킬 포인트. 바로 저장(죽어도 남는다)
+function markDone() {
+  const bit = markBit(floor);
+  if (!questHere() || !bit || marks & bit) return;
+  const q = STORY[stage].quest;
+  const piece = q.marks[markCount(marks)];
+  marks |= bit;
+  const n = markCount(marks);
+  const boss = bossName(LANDS[land].skins);
+  let note = `(${q.name} ${n}/3 — ${boss}의 힘이 줄었다)`;
+  if (n === 3) {
+    world.points++;
+    entry.points++;
+    note = `(${q.name} 완료 — 스킬 포인트 +1, ${boss}의 전설 장비 확정)`;
+  }
+  showTalk(piece.name, `${piece.text}\n\n${note}`);
+  signs = signsOf(world); // 끝낸 대상의 이름표를 지운다
+  saveRun(progress());
+  showFloor(floor, cycle, land, goalLine());
 }
 
 // 상점: 구역 사이의 떠돌이 상인(떠나면 산 것을 가지고 next로) 또는 야영지 상인(camp, 닫으면 그대로 야영지)
@@ -196,6 +225,7 @@ function backToCamp() {
   const done = STORY[stage].done;
   const after = afterClear(stage, cycle, land);
   ({ stage, cycle } = after);
+  if (after.advanced) marks = 0;
   toCamp(carryOf(world), after.advanced ? done : null);
   if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
 }
@@ -358,7 +388,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from] = [0, 0, 'camp', 'w'];
+  [cycle, stage, land, from, marks] = [0, 0, 'camp', 'w', 0];
   begin(0, startOf(cls));
   showTalk('순찰대장', OPENING);
   if (!slots.some(Boolean)) help.showModal();
@@ -388,7 +418,7 @@ initHud({
     useSlot(n);
     name = saved.name;
     stats = { ...saved.stats };
-    ({ cycle, stage, land, from } = saved);
+    ({ cycle, stage, land, from, marks } = saved);
     begin(saved.floor, saved);
   },
   pick: pickClass,
@@ -413,7 +443,7 @@ sound.initSound();
 sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
 showSound(sound.settings);
 resetAutomap(world);
-showFloor(floor, cycle, land, STORY[stage].goal);
+showFloor(floor, cycle, land, goalLine());
 // 스킬 Q W E R(하단 버튼 순서), 물약 1. R은 사망 화면에서는 다시 시작(클리어 화면은 버튼으로만).
 // e.code: 한글 입력 상태에서도 물리 키
 const ended = () => outcome(world) === 'dead'; // 클리어 뒤 R(도끼 키 연타)로 '처음부터'가 눌리지 않게 — 클리어는 버튼으로만
@@ -478,6 +508,10 @@ requestAnimationFrame(function frame(now) {
     const t = world.talk;
     world.talk = null;
     talkTo(t);
+  }
+  if (world.marked) {
+    world.marked = false;
+    markDone();
   }
   const events = soundEvents(heard, world);
   sound.play(events, world.entities[0].x, world.entities[0].z);

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { afterClear, depthOf, openLands, STORY } from './rules';
+import { afterClear, bossHpScale, depthOf, markBit, markCount, openLands, STORY } from './rules';
 
 test('이야기 순서: 초원 → 설원 → 미궁 → 폐허, 열린 지역은 지금 단계까지', () => {
   expect(STORY.map((s) => s.land)).toEqual(['field', 'snow', 'dungeon', 'ruins']);
@@ -20,4 +20,14 @@ test('이야기 깊이 = 5k + n: 설원 1구역은 초원 5구역 다음, 야영
   expect(depthOf('dungeon', 3)).toBe(13);
   expect(depthOf('ruins', 5)).toBe(20);
   expect(depthOf('camp', 0)).toBe(0);
+});
+
+test('지역 의뢰: 지역마다 종류가 다르고 조각 셋, 2·3·4구역 비트, 끝낸 수만큼 보스 약화', () => {
+  expect(STORY.map((s) => s.quest.kind)).toEqual(['note', 'beacon', 'keeper', 'seal']);
+  for (const s of STORY) expect(s.quest.marks).toHaveLength(3);
+  expect([1, 2, 3, 4, 5].map(markBit)).toEqual([0, 1, 2, 4, 0]);
+  expect(markCount(5)).toBe(2);
+  expect(markCount(7)).toBe(3);
+  expect(bossHpScale(0)).toBe(1);
+  expect(bossHpScale(3)).toBeCloseTo(0.7);
 });
