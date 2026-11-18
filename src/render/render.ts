@@ -20,7 +20,7 @@ import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
 import { leapFx, rollFx, rollGroup } from './roll';
-import { flashFx, iaidoGroup, markFx, resetIaido, sheatheFx } from './iaido';
+import { cutsFx, flashFx, iaidoGroup, resetIaido } from './iaido';
 import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
@@ -299,12 +299,11 @@ export function draw(world: World, dt: number) {
     s.mesh.position.z += f.kz;
     // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts). 마법사의 순간이동도 sim에선 'roll'(잠깐 무적)이지만 예전처럼 몸만 낮춘다
     if (e === hero && world.cls === 'wizard') s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
-    else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt), sheatheFx(s, e, dt)); // 발도: 일섬 질주·납도(iaido.ts, 멈춤은 안에서 따진다)
+    else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt)); // 발도: 일섬·스쳐 베기 질주(iaido.ts, 멈춤은 안에서 따진다)
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
     s.mesh.visible = seen > 0 && !hidden(e); // 모래 속 개미귀신은 깨기 전엔 안 보인다
-    if (e !== hero) markFx(s, e); // 검흔이 새겨진 순간 붉은 사선(보이는 적만)
     s.mat.transparent = seen < 1;
     s.mat.opacity = seen;
     s.mat.alphaTest = Math.max(0.01, 0.5 * seen); // 투명도까지 곱한 알파로 자르므로 같이 낮춘다
@@ -335,6 +334,7 @@ export function draw(world: World, dt: number) {
   syncShots(world);
   syncComets(world);
   syncEffects(world);
+  cutsFx(world, dt); // 발도: 바닥의 칼선
   syncZones(world);
   syncFires(world, time);
   syncFlames(world);

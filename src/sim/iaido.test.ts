@@ -1,111 +1,133 @@
-// 발도 탭(기사 넷째). 설계: docs/superpowers/specs/2026-11-17-iaido-tab-design.md
+// 발도 탭(기사 넷째): 칼선. 설계: docs/superpowers/specs/2026-11-18-iaido-cutline-design.md
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave } from '../save';
-import { addMarks } from './iaido';
+import { addCut } from './iaido';
 import { walkable } from './path';
 import { hurt } from './core';
-import { DT, MARK, type Command, type SkillId, type World } from './rules';
-import { createWorld, learn, learnBlock, memoryStat, SKILLS, skillCost, step, TREES, useClass, type HeroClass } from './world';
+import { CUT, DT, type Command, type SkillId, type World } from './rules';
+import { createWorld, learn, learnBlock, markStat, SKILLS, skillCost, step, TREES, useClass, type HeroClass } from './world';
 
 const arena = (map: string[], ranks: Partial<Record<SkillId, number>>) => {
   const w = createWorld(1, map); useClass(w, 'knight'); Object.assign(w.ranks, ranks);
-  Object.assign(w.keys, { cleave: 'mark', dash: ranks.sheathe ? 'sheathe' : null, shout: ranks.flash ? 'flash' : null, throw: null });
+  Object.assign(w.keys, { cleave: 'mark', dash: ranks.graze ? 'graze' : null, shout: ranks.flash ? 'flash' : null, throw: null });
   for (const e of w.entities.slice(1)) Object.assign(e, { hp: 1e5, maxHp: 1e5, stunT: 1e9 });
   return w;
 };
 const runFor = (w: World, sec: number, cmds: Command[] = []) => { w.res = 100; step(w, cmds); for (let i = Math.round(sec / DT) - 1; i > 0; i--) step(w, []); };
+const run = (patch: object = {}) => ({ cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, ...patch });
 
-test('기사는 탭 넷(넷째 = 발도), 다른 직업은 셋', () => {
+test('기사는 탭 넷째가 발도, 다른 직업은 셋', () => {
   expect(TREES.knight.map((t) => t.name).slice(0, 4)).toEqual(['검술', '돌격', '투척', '발도']);
-  expect(TREES.knight[3].skills).toEqual(['mark', 'sheathe', 'memory', 'flash']);
+  expect(TREES.knight[3].skills).toEqual(['mark', 'graze', 'echo', 'flash']);
   for (const c of ['wizard', 'ranger', 'necromancer'] as HeroClass[]) expect(TREES[c]).toHaveLength(3);
-  expect(SKILLS.memory).toEqual({ cls: 'knight', tab: 3, tier: 2 });
-  expect(skillCost('knight', 'mark')).toBe(12);
-  expect(skillCost('knight', 'flash')).toBe(36);
+  expect(SKILLS.echo).toEqual({ cls: 'knight', tab: 3, tier: 2 });
+  expect([skillCost('knight', 'mark'), skillCost('knight', 'graze'), skillCost('knight', 'flash')]).toEqual([12, 24, 36]);
 });
-test('발도 단계: 그어두기는 Lv1, 납도는 Lv4 + 그어두기', () => {
+test('발도 단계: 그어두기는 Lv1, 스쳐 베기는 Lv4 + 그어두기', () => {
   const w = createWorld(1, ['H....']); useClass(w, 'knight'); w.points = 5;
   expect(learnBlock(w, 'mark')).toBeNull();
-  w.level = 4; expect(learnBlock(w, 'sheathe')).not.toBeNull(); // 아래 단계 없음
-  learn(w, 'mark'); expect(learnBlock(w, 'sheathe')).toBeNull();
+  w.level = 4; expect(learnBlock(w, 'graze')).not.toBeNull(); // 아래 단계 없음
+  learn(w, 'mark'); expect(learnBlock(w, 'graze')).toBeNull();
 });
-test('저장: 탭 옵션 3은 통과', () => {
-  const run = (tab: number) => ({ cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [{ kind: 'tab' as const, value: 1, tab }], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const });
-  expect(decodeSave(encodeSave(run(3)))).not.toBeNull();
-});
-test('그어두기: 맞은 적에 검흔 1, 예고 중이면 2, 5단계는 늘 2', () => {
-  const w = arena(['Hm...'], { mark: 1 }); runFor(w, 1, [{ type: 'skill' }]);
-  expect(w.entities[1].marks).toBe(1); expect(w.entities[1].hp).toBeLessThan(1e5);
-  const c = arena(['Hm...'], { mark: 1 }); c.entities[1].phase = 'windup'; runFor(c, 1, [{ type: 'skill' }]);
-  expect(c.entities[1].marks).toBe(2);
-  const m = arena(['Hm...'], { mark: 5 }); runFor(m, 1, [{ type: 'skill' }]);
-  expect(m.entities[1].marks).toBe(2);
-});
-test('한계 3에서 저절로 터진다(검흔 0, 피해, slash 기록)', () => {
-  const w = arena(['Hm...'], { mark: 1 }); const e = w.entities[1];
-  runFor(w, 1.6, [{ type: 'skill' }]); runFor(w, 1.6, [{ type: 'skill' }]);
-  const before = e.hp; runFor(w, 0.6, [{ type: 'skill' }]); // 폭발 연출은 0.6초 뒤 사라지니 맞은 직후에 본다
-  expect(e.marks).toBe(0); expect(before - e.hp).toBeGreaterThan(0);
-  expect(w.blasts.some((b) => b.kind === 'slash' && b.n === 3)).toBe(true);
-});
-test('검의 기억 1단계: 한계 4, 지속 5초', () => {
-  const w = arena(['Hm...'], { mark: 1, memory: 1 });
-  expect(memoryStat(w)).toEqual({ cap: 4, time: 5 });
-  for (let i = 0; i < 3; i++) runFor(w, 1.6, [{ type: 'skill' }]);
-  expect(w.entities[1].marks).toBe(3);
-});
-test('시간이 지나면 터지지 않고 사라진다', () => {
-  const w = arena(['Hm...'], { mark: 1 }); runFor(w, 1, [{ type: 'skill' }]);
-  const hp = w.entities[1].hp; runFor(w, MARK.time + 0.1);
-  expect(w.entities[1].marks).toBe(0); expect(w.entities[1].hp).toBe(hp);
-});
-test('보스에게도 새겨지고 터진다', () => {
-  const w = arena(['HM...'], { mark: 1 }); const b = w.entities[1];
-  b.marks = 2; b.markT = 4; addMarks(w, b, 1);
-  expect(b.marks).toBe(0); expect(b.hp).toBeLessThan(1e5);
+test('저장: 탭 옵션 3은 기사만, 옛 납도·검의 기억은 스쳐 베기·칼의 여운으로 읽는다', () => {
+  const tab = (cls: 'knight' | 'wizard') => run({ cls, mods: { weapon: [], armor: [{ kind: 'tab' as const, value: 1, tab: 3 }], helm: [], boots: [] } });
+  expect(decodeSave(encodeSave(tab('wizard')))).toBeNull();
+  expect(decodeSave(encodeSave(tab('knight')))).not.toBeNull();
+  const now = run({ ranks: { mark: 1, graze: 2, echo: 1 }, keys: { cleave: 'mark', dash: 'graze', shout: null, throw: null } });
+  const old = encodeSave(now).replace('"graze":', '"sheathe":').replace('"dash":"graze"', '"dash":"sheathe"').replace('"echo":', '"memory":');
+  expect(old).toContain('sheathe'); expect(old).toContain('memory');
+  const back = decodeSave(old)!;
+  expect(back.ranks).toEqual({ mark: 1, graze: 2, echo: 1 }); expect(back.keys.dash).toBe('graze');
 });
 
-test('납도: 검흔이 없으면 안 나간다(대기·비용 없음)', () => {
-  const w = arena(['Hm...'], { mark: 1, sheathe: 1 }); runFor(w, 0.1, [{ type: 'dash' }]);
-  expect(w.dashCd).toBe(0); expect(w.entities[0].phase).toBe('none');
+test('그어두기: 바로는 약하게 베고, 1초 뒤 칼선이 베인다', () => {
+  const w = arena(['Hm...'], { mark: 1 }); const e = w.entities[1];
+  runFor(w, 0.6, [{ type: 'skill' }]);
+  const first = 1e5 - e.hp;
+  expect(first).toBeGreaterThan(0); expect(w.cuts).toHaveLength(1); expect(w.cuts[0].src).toBe('mark');
+  runFor(w, 1);
+  expect(w.cuts).toHaveLength(0); expect(1e5 - e.hp).toBeGreaterThan(first);
+  expect(w.markSlashes).toBe(1); expect(w.cleaves).toBe(1);
 });
-test('납도: 0.25초 뒤 8m 안 검흔이 전부 터진다, 그 전엔 그대로', () => {
-  const w = arena(['Hm.......m'], { mark: 1, sheathe: 1 }); // 1m, 9m
-  const [, a, far] = w.entities; Object.assign(a, { marks: 2, markT: 4 }); Object.assign(far, { marks: 2, markT: 4 });
-  runFor(w, 0.2, [{ type: 'dash' }]);
-  expect(w.entities[0].phase).toBe('sheathe'); expect(a.marks).toBe(2);
-  expect(hurt(w, w.entities[0], 10)).toBeGreaterThan(0); // 무적 아님
-  runFor(w, 0.1);
-  expect(a.marks).toBe(0); expect(a.hp).toBeLessThan(1e5); expect(far.marks).toBe(2);
+test('그어두기 5단계: 앞뒤 모두 베고 둥근 칼선', () => {
+  const w = arena(['mHm'], { mark: 5 }); runFor(w, 0.6, [{ type: 'skill' }]);
+  expect(w.entities[1].hp).toBeLessThan(1e5); expect(w.entities[2].hp).toBeLessThan(1e5);
+  expect(w.cuts[0].segs).toHaveLength(24);
 });
-test('납도 중 주인공이 죽으면 터지지 않는다', () => {
-  const w = arena(['Hm...'], { mark: 1, sheathe: 1 }); Object.assign(w.entities[1], { marks: 2, markT: 4 });
-  runFor(w, 0.1, [{ type: 'dash' }]); hurt(w, w.entities[0], 1e6); runFor(w, 0.3);
-  expect(w.entities[1].marks).toBe(2);
+test('칼선: ① 그을 때 벤 적은 떠나도 맞고 ② 그 순간 선 위에 선 적도 맞는다. 둘 다 아니면 안 맞는다', () => {
+  const w = arena(['H.....', '......', '..m.mm'], { mark: 1 }); const [, a, b, c] = w.entities;
+  addCut(w, [[0, 0.5, 6, 0.5]], 1, [a], 'mark'); // a: 그을 때 벤 적(지금은 선에서 2m)
+  Object.assign(b, { x: 3, z: 0.7 }); // b: 선을 밟았다
+  runFor(w, CUT.delay + 0.05);
+  expect(a.hp).toBeLessThan(1e5); expect(b.hp).toBeLessThan(1e5); expect(c.hp).toBe(1e5);
+  expect(w.cuts).toHaveLength(0); expect(w.snapped).toHaveLength(1);
 });
-test('납도 5단계: 터져 죽은 적의 검흔이 2m 안 적에게 옮겨붙어 터진다', () => {
-  const w = arena(['H.mm.'], { mark: 1, sheathe: 5 }); const [, a, b] = w.entities;
-  Object.assign(a, { hp: 1, marks: 3, markT: 4 });
-  runFor(w, 0.3, [{ type: 'dash' }]);
-  expect(a.state).toBe('dead'); expect(b.hp).toBeLessThan(1e5); expect(b.marks).toBe(0);
+test('칼선: 그을 때 벤 적이 선 위에 있어도 한 번만 맞는다. 칼선이 둘이면 두 번', () => {
+  const hits = (n: number) => {
+    const w = arena(['H.m..'], { mark: 1 }); const e = w.entities[1];
+    for (let i = 0; i < n; i++) addCut(w, [[0, 0.5, 4, 0.5]], 1, [e], 'mark');
+    runFor(w, CUT.delay + 0.05); return w.blasts.filter((b) => b.kind === 'slash').length;
+  };
+  expect(hits(1)).toBe(1); expect(hits(2)).toBe(2);
+});
+test('칼선 배율에는 발도 탭 시너지가 들어간다', () => {
+  expect(markStat(arena(['H'], { mark: 1, graze: 3 })).cut).toBeGreaterThan(markStat(arena(['H'], { mark: 1 })).cut);
+});
+
+test('스쳐 베기: 순식간에 6m 지나가고(무적), 바로는 안 베고 1초 뒤 지나온 길이 베인다', () => {
+  const w = arena(['H.m.m....'], { mark: 1, graze: 1 }); const [h, a, b] = w.entities;
+  step(w, [{ type: 'dash', x: 8.5, z: 0.5 }]);
+  expect(h.phase).toBe('graze'); expect(hurt(w, h, 10)).toBe(0);
+  runFor(w, 0.2);
+  expect(h.phase).toBe('none'); expect(h.x).toBeCloseTo(6.5, 0);
+  expect([a.hp, b.hp]).toEqual([1e5, 1e5]); expect(w.cuts).toHaveLength(1);
+  runFor(w, 1);
+  expect(a.hp).toBeLessThan(1e5); expect(b.hp).toBeLessThan(1e5);
+});
+test('스쳐 베기: 벽 앞에서 멈춘다', () => {
+  const w = arena(['H..#....'], { mark: 1, graze: 1 }); runFor(w, 0.3, [{ type: 'dash', x: 7.5, z: 0.5 }]);
+  const h = w.entities[0]; expect(h.phase).toBe('none'); expect(walkable(w.grid, Math.floor(h.x), Math.floor(h.z))).toBe(true);
+});
+test('스쳐 베기 5단계: 칼선에 베여 죽은 적이 있으면 바로 다시 쓸 수 있다', () => {
+  const cdAfter = (rank: number) => {
+    const w = arena(['H.m....'], { mark: 1, graze: rank }); w.entities[1].hp = 1;
+    runFor(w, 1.3, [{ type: 'dash', x: 6.5, z: 0.5 }]); return w.dashCd;
+  };
+  expect(cdAfter(5)).toBe(0); expect(cdAfter(1)).toBeGreaterThan(0);
+});
+
+test('칼의 여운: 베는 스킬 두 번이면 가득, 발도 스킬은 쓰지 않고 다음 다른 탭 베기가 칼선을 남긴다', () => {
+  const w = arena(['Hm...'], { mark: 1, echo: 1, cleave: 1 }); w.keys.throw = 'cleave';
+  runFor(w, 1.6, [{ type: 'skill' }]); expect(w.echo).toBe(1);
+  runFor(w, 1.6, [{ type: 'skill' }]); expect(w.echo).toBe(2);
+  runFor(w, 1.6, [{ type: 'skill' }]); expect(w.echo).toBe(2); // 그어두기는 원래 칼선이 있다: 여운을 쓰지 않는다
+  runFor(w, 0.6, [{ type: 'throw' }]);
+  expect(w.echo).toBe(0); expect(w.cuts.some((c) => c.src === 'echo')).toBe(true);
+});
+test('칼의 여운: 안 배웠으면 칸이 차지 않는다', () => {
+  const w = arena(['Hm...'], { mark: 1 }); runFor(w, 0.6, [{ type: 'skill' }]); expect(w.echo).toBe(0);
+});
+test('칼의 여운: 회오리는 다 돈 자리에 원, 돌진 베기는 직선', () => {
+  const spin = arena(['Hm...'], { echo: 1, whirl: 1 }); Object.assign(spin, { echo: 2 }); spin.keys.throw = 'whirl';
+  runFor(spin, 2.1, [{ type: 'throw' }]);
+  const ring = spin.cuts.find((c) => c.src === 'echo'); expect(ring?.segs).toHaveLength(24); expect(ring?.hit).toContain(spin.entities[1].id);
+  const dash = arena(['H.m....'], { echo: 1, dash: 1 }); Object.assign(dash, { echo: 2 }); dash.keys.throw = 'dash';
+  runFor(dash, 0.8, [{ type: 'throw', x: 6.5, z: 0.5 }]);
+  expect(dash.cuts.find((c) => c.src === 'echo')?.segs).toHaveLength(1);
 });
 
 test('일섬: 6m 안 적이 없으면 안 나간다', () => {
-  const w = arena(['H.......m'], { mark: 1, sheathe: 1, memory: 1, flash: 1 }); runFor(w, 0.1, [{ type: 'shout' }]);
+  const w = arena(['H.......m'], { mark: 1, flash: 1 }); runFor(w, 0.1, [{ type: 'shout' }]);
   expect(w.shoutCd).toBe(0);
 });
-test('일섬: 검흔 많은 적부터, 도는 동안 무적, 끝나면 자동 납도로 전부 터진다', () => {
-  const w = arena(['H.m.m....'], { mark: 1, sheathe: 1, memory: 1, flash: 1 }); const [hero, a, b] = w.entities;
-  Object.assign(b, { marks: 1, markT: 4 });
+test('일섬: 도는 동안 무적, 끝에서 바닥의 칼선이 모두 바로 베이고 여운이 가득 찬다', () => {
+  const w = arena(['H.m.m....', '.........', '.........', '.........', '.....m...'], { mark: 1, echo: 1, flash: 1 }); const [hero, a, b, far] = w.entities;
+  addCut(w, [[4, 4.5, 7, 4.5]], 1, [], 'mark'); // 미리 그어 둔 칼선(일섬과 떨어진 곳)
   step(w, [{ type: 'shout' }]);
-  expect(w.flashQ[0]).toBe(b.id); expect(hero.phase).toBe('flash'); expect(hurt(w, hero, 10)).toBe(0);
-  runFor(w, 1.5);
-  expect(hero.phase).toBe('none'); expect([a.marks, b.marks]).toEqual([0, 0]);
-  expect(a.hp).toBeLessThan(1e5); expect(b.hp).toBeLessThan(1e5);
-});
-test('일섬 도중에는 한계를 넘어도 안 터진다', () => {
-  const w = arena(['Hm...'], { mark: 1 }); const e = w.entities[1]; Object.assign(e, { marks: 2, markT: 4 });
-  w.entities[0].phase = 'flash'; addMarks(w, e, 2); expect(e.marks).toBe(4);
+  expect(hero.phase).toBe('flash'); expect(hurt(w, hero, 10)).toBe(0);
+  for (let i = 0; i < 90 && hero.phase === 'flash'; i++) step(w, []);
+  expect(hero.phase).toBe('none'); expect(w.cuts).toHaveLength(0); expect(w.snapped).toHaveLength(2);
+  expect(a.hp).toBeLessThan(1e5); expect(b.hp).toBeLessThan(1e5); expect(far.hp).toBeLessThan(1e5); expect(w.echo).toBe(2);
 });
 test('일섬: 다음 대상이 이미 죽었으면 건너뛰고 끝난다', () => {
   const w = arena(['H.m.m....'], { mark: 1, flash: 1 }); step(w, [{ type: 'shout' }]);
@@ -124,7 +146,7 @@ test('일섬: 적을 밀지도 밀리지도 않고 뚫고 지나간다(대상 1m
   expect(h.x - ex).toBeGreaterThan(0.8); expect(h.x - ex).toBeLessThan(1.5);
 });
 test('일섬: 걷는 중에 써도 끝난 뒤 옛 중간 지점이 아니라 목적지로 간다', () => {
-  const w = arena(['H.m.#...', '....#...', '........'], { mark: 1, sheathe: 1, memory: 1, flash: 1 }); const h = w.entities[0];
+  const w = arena(['H.m.#...', '....#...', '........'], { mark: 1, flash: 1 }); const h = w.entities[0];
   step(w, [{ type: 'move', x: 7.5, z: 0.5 }]);
   for (let i = 0; i < 5; i++) step(w, []);
   expect(h.path.length).toBeGreaterThan(1);
@@ -134,19 +156,4 @@ test('일섬: 걷는 중에 써도 끝난 뒤 옛 중간 지점이 아니라 목
   for (let i = 0; i < 90 && h.phase === 'flash'; i++) step(w, []);
   expect(h.phase).toBe('none'); expect(h.path[h.path.length - 1]).toEqual(dest);
 });
-test('저절로 터질 때도 발도 탭 시너지가 곱해진다', () => {
-  const dmg = (sheathe: number) => {
-    const w = arena(['Hm...'], { mark: 1, sheathe }); const e = w.entities[1];
-    addMarks(w, e, 3); return 1e5 - e.hp;
-  };
-  expect(dmg(3)).toBeGreaterThan(dmg(0));
-});
-test('저장: 마법사는 탭 3 옵션 거부, 기사는 통과', () => {
-  const run = (cls: 'knight' | 'wizard') => ({ cls, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [{ kind: 'tab' as const, value: 1, tab: 3 }], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const });
-  expect(decodeSave(encodeSave(run('wizard')))).toBeNull();
-  expect(decodeSave(encodeSave(run('knight')))).not.toBeNull();
-});
-test('그어두기만 markSlashes를 올린다(가르기·회오리는 안 올린다)', () => {
-  const w = arena(['Hm...'], { mark: 1 }); runFor(w, 1, [{ type: 'skill' }]);
-  expect(w.markSlashes).toBe(1); expect(w.cleaves).toBe(1);
-});
+

@@ -257,14 +257,10 @@
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
       .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
       .label.sign { font-size: 14px; color: var(--gold); letter-spacing: 1px; padding: 2px 8px; background: #000a; border: 1px solid var(--gold-lo); border-radius: 3px; } /* 출구 이름표 */
-      .pips { position: absolute; left: 0; top: 0; min-width: 8px; font-size: 14px; font-weight: bold; line-height: 1; letter-spacing: -1px; color: #ff3b3b; white-space: nowrap; pointer-events: none; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; } /* 검흔: 머리 위 */
-      .pips.dim { opacity: 0.45; } /* 곧 사라짐 */
-      .pips.blink { animation: pips-blink 0.5s steps(2, jump-none) infinite; } /* 한계 직전 */
-      .pips.grow { animation: pips-pop 0.12s ease-out; } /* 새로 붙음 */
-      .pips.blink.grow { animation: pips-pop 0.12s ease-out, pips-blink 0.5s 0.12s steps(2, jump-none) infinite; }
-      @keyframes pips-blink { 50% { opacity: 0.25; } }
-      @keyframes pips-pop { from { scale: 1.4; } to { scale: 1; } }
-      @media (prefers-reduced-motion: reduce) { .pips, .pips.blink, .pips.grow, .pips.blink.grow { animation: none; } }
+      .pips { position: absolute; left: 0; top: 0; font-size: 13px; font-weight: bold; line-height: 1; letter-spacing: 2px; color: #ffd66b; white-space: nowrap; pointer-events: none; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; } /* 칼의 여운: 기사 머리 위 칸 */
+      .pips.full { color: #fff; animation: pips-glow 0.6s ease-in-out infinite alternate; } /* 가득: 다음 베기에 칼선 */
+      @keyframes pips-glow { from { text-shadow: 0 0 2px #fff, 1px 0 #000, -1px 0 #000; } to { text-shadow: 0 0 8px #fff, 0 0 14px #ffd66b, 1px 0 #000, -1px 0 #000; } }
+      @media (prefers-reduced-motion: reduce) { .pips.full { animation: none; } }
       .label.q3 { color: var(--legend); font-weight: bold; } .label.q4 { color: var(--set); font-weight: bold; } /* 전설·세트 */
       .pop { position: fixed; z-index: 2; pointer-events: none; font-weight: 800; font-size: 16px; font-family: var(--serif); color: #f4ead6; text-shadow: 0 2px 0 #000, 0 0 4px #000, 1px 0 0 #000, -1px 0 0 #000; } /* 떠오르는 데미지 숫자(명조, 검은 테로 읽히게) */
       .pop.skill { font-size: 30px; color: var(--gold-hi); text-shadow: 0 2px 0 #000, 0 0 4px #000, 0 0 12px #c9a14a; }

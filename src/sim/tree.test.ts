@@ -92,7 +92,6 @@ test('모든 직업의 모든 액티브 스킬이 칸에서 나가고 재사용 
     for (const id of TREES[cls].flatMap((t) => t.skills).filter((id) => !isPassive(id))) {
       const w = make(['.....', '.H.m.', '.....'], cls, { [id]: 1 }, id);
       if (id === 'corpseBlast') Object.assign(w.entities[1], { state: 'dead' }); // 시체가 있어야
-      if (id === 'sheathe') Object.assign(w.entities[1], { marks: 1, markT: 4 }); // 검흔이 있어야
       step(w, [{ type: 'skill', x: 3.5, z: 1.5 }]);
       expect(w[KEY_CD.cleave], `${cls} ${id}`).toBeGreaterThan(0);
       expect(w.cdFull.cleave).toBe(w.skillCd);

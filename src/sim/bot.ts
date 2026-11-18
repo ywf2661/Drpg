@@ -7,9 +7,9 @@ import { uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
 const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
 // 봇이 포인트를 넣는 스킬: 예전 스킬 넷(BASIC)과, 그중 궁극기에 이르는 같은 탭의 아래 단계들. 칸은 BASIC 순서 그대로
-// 칸 이름은 옛 이름 그대로다: dash=납도, shout=일섬, throw=함성
-const IAIDO: SkillId[] = ['mark', 'sheathe', 'flash', 'shout']; // 발도 빌드의 칸 순서(Q W E R)
-const IAIDO_LEARN: SkillId[] = [...IAIDO, 'memory'];
+// 칸 이름은 옛 이름 그대로다: dash=스쳐 베기, shout=일섬, throw=가르기(칼의 여운이 실린다)
+const IAIDO: SkillId[] = ['mark', 'graze', 'flash', 'cleave']; // 발도 빌드의 칸 순서(Q W E R)
+const IAIDO_LEARN: SkillId[] = [...IAIDO, 'echo'];
 // 회오리 빌드(dash=회오리)와, 거기에 불 벼림 1점만 얹은 벼림 빌드(throw=불 벼림). 벼림 밸런스 측정용
 const WHIRL: SkillId[] = ['cleave', 'whirl', 'shout', 'throw'];
 const TEMPER: SkillId[] = ['cleave', 'whirl', 'shout', 'flameEdge'];
@@ -105,13 +105,12 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
     if (skills && ready('throw') && (big || near(6) >= 3)) cmds.push({ type: 'throw' });
   } else if (build !== 'iaido' && near(2) >= 2) cmds.push({ type: 'skill' });
   if (skills && w.cls === 'knight' && build === 'iaido') {
-    // 발도: 검흔 낀 적이 둘 넘으면 납도, 무리면 일섬, 가까운 적엔 그어두기, 함성은 기본 빌드와 같은 때
-    const marked = foes.filter((e) => e.marks && d(e.x, e.z) < 8).length;
-    const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
-    if (marked >= 2 && ready('dash')) cmds.push({ type: 'dash' });
-    else if (near(6) >= 3 && ready('shout')) cmds.push({ type: 'shout' });
-    else if (foes[0] && d(foes[0].x, foes[0].z) < 2 && ready('cleave')) cmds.push({ type: 'skill', x: foes[0].x, z: foes[0].z });
-    if (ready('throw') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'throw' });
+    // 발도: 무리면 일섬, 가까운 적은 스쳐 베기로 지나가고, 붙은 적엔 그어두기, 둘 넘게 붙으면 가르기(칼의 여운이 실린다)
+    const f = foes[0];
+    if (near(6) >= 3 && ready('shout')) cmds.push({ type: 'shout' });
+    else if (f && d(f.x, f.z) < 5 && ready('dash')) cmds.push({ type: 'dash', x: f.x, z: f.z });
+    else if (f && d(f.x, f.z) < 2 && ready('cleave')) cmds.push({ type: 'skill', x: f.x, z: f.z });
+    if (ready('throw') && near(2) >= 2) cmds.push({ type: 'throw' });
   } else if (skills && w.cls === 'knight' && (build === 'whirl' || build === 'temper')) {
     // 회오리: 붙은 적이 둘 넘으면 돈다. 벼림 빌드는 칼이 비었으면 그 직전에 불 벼림
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);

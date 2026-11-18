@@ -6,14 +6,14 @@ import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGa
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
-import { drawMarks, initMarks } from './render/marks';
+import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setWorld } from './render/render';
 import { walkable } from './sim/path';
 import { clearRun, loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -237,6 +237,7 @@ const ARROW = (): AimShape => ({ kind: 'line', len: PIERCE.flight, width: PIERCE
 const AXE_LINE = (): AimShape => ({ kind: 'line', len: AXE.flight, width: AXE.hit * 2 });
 const AIM: Partial<Record<SkillId, (w: World) => AimShape>> = {
   dash: (w) => ({ kind: 'line', len: dashStat(w).dist, width: DASH.hit * 2 }),
+  graze: () => ({ kind: 'line', len: GRAZE.dist, width: GRAZE.near * 2 }),
   throw: AXE_LINE,
   bounce: AXE_LINE,
   execute: () => ({ kind: 'circle', range: EXECUTE.reach, r: 0.6 }),
@@ -367,7 +368,7 @@ setSkillGate((cmd) => cmd === 'roll' || !short(cmd)); // 우클릭·조준 발�
 for (const [sel, cmd] of [['#skill', 'skill'], ['#dash', 'dash'], ['#shout', 'shout'], ['#throw', 'throw'], ['#roll', 'roll']] as const) dragAim($(sel), cmd, () => canDrag(cmd));
 initAutomap(document.querySelector<HTMLCanvasElement>('#automap')!);
 initLabels($('#labels'));
-initMarks($('#labels'));
+initEcho($('#labels'));
 sound.initSound();
 sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
 showSound(sound.settings);
@@ -449,7 +450,7 @@ requestAnimationFrame(function frame(now) {
   draw(world, dt);
   drawAutomap(world);
   drawLabels(world, camera, renderer.domElement, signs);
-  drawMarks(world, camera, renderer.domElement, headOf);
+  drawEcho(world, camera, renderer.domElement, headOf);
   updateHud(world, hovered, choosing, stats, lostGold ?? 0, clearT >= LOOT_TIME);
   requestAnimationFrame(frame);
 });

@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, SHEATHE, MEMORY, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -65,16 +65,17 @@ export const axeStat = (w: World) => ({ cd: (AXE.cd - 0.2 * ext(w, 'throw')) * a
 export const bounceStat = (w: World) => ({ cd: (BOUNCE.cd - 0.2 * ext(w, 'bounce')) * axeMod(w).cd, count: BOUNCE.count * (mastered(w, 'bounce') ? 2 : 1), mult: (BOUNCE.mult + 0.2 * ext(w, 'bounce')) * syn(w, 'bounce') * axeMod(w).dmg });
 export const axeStormStat = (w: World) => ({ cd: (AXE_STORM.cd - 0.5 * ext(w, 'axeStorm')) * axeMod(w).cd, count: AXE_STORM.count + ext(w, 'axeStorm'), mult: (AXE_STORM.mult + 0.2 * ext(w, 'axeStorm')) * syn(w, 'axeStorm') * axeMod(w).dmg });
 // 발도 탭
-export const markStat = (w: World) => ({ cd: MARK.cd - 0.1 * ext(w, 'mark'), mult: (MARK.hit + 0.05 * ext(w, 'mark')) * syn(w, 'mark'), per: mastered(w, 'mark') ? 2 : 1, pop: MARK.mult * syn(w, 'mark') });
-export const memoryStat = (w: World) => (rank(w, 'memory') ? { cap: rank(w, 'memory') >= MEMORY.highAt ? MEMORY.capHigh : MEMORY.cap, time: MARK.time + MEMORY.time + MEMORY.timePer * ext(w, 'memory') } : { cap: MARK.cap, time: MARK.time });
-export const sheatheStat = (w: World) => ({ cd: SHEATHE.cd - 0.3 * ext(w, 'sheathe'), mult: (SHEATHE.mult + 0.15 * ext(w, 'sheathe')) * syn(w, 'sheathe') });
+// 발도 탭. 칼선 배율에는 시너지를 넣어 둔다(그을 때 정해진다)
+export const markStat = (w: World) => ({ cd: MARK.cd - 0.1 * ext(w, 'mark'), mult: MARK.hit * syn(w, 'mark'), cut: (MARK.cut + 0.1 * ext(w, 'mark')) * syn(w, 'mark') });
+export const grazeStat = (w: World) => ({ cd: GRAZE.cd - 0.3 * ext(w, 'graze'), cut: (GRAZE.cut + 0.2 * ext(w, 'graze')) * syn(w, 'graze') });
+export const echoStat = (w: World) => ({ need: ECHO.need, cut: (ECHO.cut + 0.1 * ext(w, 'echo')) * syn(w, 'echo') });
 // 벼림 탭. 덧벼림 단계마다 충전 +1
 const edgeCharges = (w: World) => TEMPER.charges + ext(w, 'reforge');
 export const flameEdgeStat = (w: World) => ({ cd: TEMPER.flameCd, mult: (TEMPER.flame + 0.1 * ext(w, 'flameEdge')) * syn(w, 'flameEdge'), charges: edgeCharges(w) });
 export const frostEdgeStat = (w: World) => ({ cd: TEMPER.frostCd, hits: mastered(w, 'frostEdge') ? 2 : TEMPER.hits, freeze: TEMPER.freeze + 0.15 * ext(w, 'frostEdge'), charges: edgeCharges(w) });
 export const reforgeStat = (w: World) => ({ radius: TEMPER.reforgeR, mult: (TEMPER.reforge + 0.05 * ext(w, 'reforge')) * syn(w, 'reforge') });
 export const unleashStat = (w: World) => ({ cd: TEMPER.cd - 0.5 * ext(w, 'unleash'), time: TEMPER.time + 0.5 * ext(w, 'unleash'), mult: TEMPER.slash * syn(w, 'unleash') });
-export const flashStat = (w: World) => ({ cd: FLASH.cd - 0.5 * ext(w, 'flash'), max: FLASH.max + ext(w, 'flash'), mult: FLASH.hit * syn(w, 'flash') });
+export const flashStat = (w: World) => ({ cd: FLASH.cd - 0.5 * ext(w, 'flash'), max: FLASH.max + ext(w, 'flash'), mult: FLASH.hit * syn(w, 'flash'), cut: FLASH.cut * syn(w, 'flash') });
 
 // 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
 export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));
@@ -343,7 +344,7 @@ export function damage(w: World, a: Entity, t: Entity) {
 // 피해 적용: 주인공은 갑옷(+단단한)으로 줄이되 최소 1. from이 주인공이면 흡혈, 근접(from)이 주인공을 치면 가시 반사.
 // 몬스터가 죽으면 경험치·드롭. 실제로 준 피해를 돌려준다
 export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
-  if (t.kind === 'hero' && (t.phase === 'roll' || t.phase === 'leap' || t.phase === 'flash')) {
+  if (t.kind === 'hero' && (t.phase === 'roll' || t.phase === 'leap' || t.phase === 'flash' || t.phase === 'graze')) {
     w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'dodge', age: 0 }); // 구르는 중: 무적
     return 0;
   }

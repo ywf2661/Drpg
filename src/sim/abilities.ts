@@ -1,9 +1,10 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { temper } from './temper';
+import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
 import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
@@ -48,6 +49,7 @@ export function execute(w: World, hero: Entity, x?: number, z?: number): number 
   w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'slam' });
   w.cleaves++;
   temper(w, hero, [t]);
+  echoCut(w, 'execute', () => crossSegs(t.x, t.z, ECHO.x, true), [t]); // 칼의 여운: X자
   if (t.hp <= 0) {
     if (rank(w, 'burst')) burst(w, hero, [t]);
     for (const e of w.entities)
@@ -77,11 +79,15 @@ export function cleave(w: World, hero: Entity) {
   if (rank(w, 'burst')) burst(w, hero, killed);
   temper(w, hero, hit);
   w.cleaves++;
+  const r = cleaveStat(w).radius;
+  echoCut(w, 'cleave', () => (mastered(w, 'cleave') ? ringSegs(hero.x, hero.z, r) : halfSegs(hero, r)), hit); // 칼의 여운: 벤 모양 그대로
 }
 
 // 회오리 한 틱: WHIRL.tick마다 둘레 한 바퀴의 적을 벤다(밀어내지 않는다 — 계속 붙어서 갈린다)
 export function spin(w: World, hero: Entity) {
   w.spinT = Math.max(0, w.spinT - DT);
+  // 칼의 여운: 다 돈 자리에 원(도는 동안 벤 적은 어디 있든 맞는다)
+  if (!w.spinT) echoCut(w, 'whirl', () => ringSegs(hero.x, hero.z, whirlStat(w).radius), w.entities.filter((e) => w.echoHit.includes(e.id)));
   if ((w.spinAcc += DT) < WHIRL.tick - 1e-9) return;
   w.spinAcc = 0;
   const st = whirlStat(w);
@@ -95,6 +101,7 @@ export function spin(w: World, hero: Entity) {
   }
   if (rank(w, 'burst')) burst(w, hero, killed);
   temper(w, hero, hit);
+  if (w.echoOn === 'whirl') w.echoHit.push(...hit.map((e) => e.id));
   w.cleaves++;
 }
 
@@ -190,6 +197,7 @@ export function dashStart(w: World, hero: Entity, x?: number, z?: number): numbe
   Object.assign(hero, { phase: 'charge', phaseT: dashStat(w).dist, dx, dz, state: 'move', path: [], target: null, attackT: 0, skill: false });
   hero.facing = Math.atan2(dx, dz);
   Object.assign(w, { dashHit: [], opening: null, toStairs: false });
+  if (w.echoOn === 'dash') w.echoFrom = [hero.x, hero.z];
   w.trail = rank(w, 'trail') ? w.nextItem : -1;
   if (rank(w, 'trail')) w.fires.push({ id: w.nextItem++, x0: hero.x, z0: hero.z, x1: hero.x, z1: hero.z, t: TRAIL.time, acc: 0, r: TRAIL.width, mult: trailStat(w).mult }); // 불길: 돌진하며 늘어난다
   w.dashes++;
@@ -232,6 +240,7 @@ export function leapStep(w: World, hero: Entity) {
     knock(w, e, r > 1e-6 ? (e.x - hero.x) / r : 1, r > 1e-6 ? (e.z - hero.z) / r : 0, KNOCK.shout);
   }
   temper(w, hero, hit);
+  echoCut(w, 'leap', () => crossSegs(hero.x, hero.z, st.radius * 2, false), hit); // 칼의 여운: 십자
   w.shouts++; // 땅 울림 그림·소리
 }
 
@@ -265,7 +274,8 @@ export function rollStep(w: World, hero: Entity) {
 
 // 돌진 한 틱: 지나가는 길 DASH.hit 안의, 이번 돌진에서 아직 안 맞은 적에게 피해. 불길(돌격 패시브)은 길을 따라 늘어난다
 export function dashStep(w: World, hero: Entity) {
-  if (!rush(w, hero, DASH.speed)) return;
+  // 칼의 여운: 멈춘 자리까지 직선
+  if (!rush(w, hero, DASH.speed)) return echoCut(w, 'dash', () => [[w.echoFrom[0], w.echoFrom[1], hero.x, hero.z]], w.entities.filter((e) => w.dashHit.includes(e.id)));
   const trail = w.fires.find((f) => f.id === w.trail);
   if (trail) [trail.x1, trail.z1] = [hero.x, hero.z];
   const first = !w.dashHit.length; // 돌진 하나 = 휘두름 하나: 처음 맞힌 틱에만 충전을 쓴다

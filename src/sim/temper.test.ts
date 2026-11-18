@@ -103,7 +103,7 @@ test('충전을 쓰는 타격과 쓰지 않는 타격', () => {
   expect(left('throw', ['H..m.'], { type: 'skill', ...at(3.5) }), '도끼').toBe(6);
   expect(left('bounce', ['H..m.'], { type: 'skill', ...at(3.5) }), '튕기는 도끼').toBe(6);
   expect(left('axeStorm', ['H..m.'], { type: 'skill' }), '도끼 폭풍').toBe(6);
-  expect(left('sheathe', ['Hm...'], { type: 'skill' }, 1, (w) => Object.assign(w.entities[1], { marks: 2, markT: 4 })), '납도').toBe(6);
+  expect(left('graze', ['Hm...'], { type: 'skill' }, 0.3), '스쳐 베기(지나칠 때)').toBe(5);
 });
 test('respec하면 칼이 빈다', () => {
   const w = arena(['Hm...'], { flameEdge: 1 }); w.gold = 1e4; w.edge = flame(3);

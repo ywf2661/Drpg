@@ -12,7 +12,7 @@ export type SkillId =
   | 'fireball' | 'firefield' | 'embers' | 'comet' | 'frost' | 'ward' | 'frostArmor' | 'blizzard' | 'lightning' | 'chain' | 'static' | 'tempest'
   | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
   | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
-  | 'mark' | 'sheathe' | 'memory' | 'flash'
+  | 'mark' | 'graze' | 'echo' | 'flash'
   | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash';
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
@@ -20,7 +20,7 @@ export const TREES: Record<HeroClass, Tab[]> = {
     { name: '검술', skills: ['cleave', 'whirl', 'burst', 'execute'] },
     { name: '돌격', skills: ['dash', 'shout', 'trail', 'leap'] },
     { name: '투척', skills: ['throw', 'bounce', 'axes', 'axeStorm'] },
-    { name: '발도', skills: ['mark', 'sheathe', 'memory', 'flash'] },
+    { name: '발도', skills: ['mark', 'graze', 'echo', 'flash'] },
     { name: '벼림', skills: ['flameEdge', 'frostEdge', 'reforge', 'unleash'] },
   ],
   wizard: [
@@ -74,6 +74,8 @@ export const KEY_CD = { cleave: 'skillCd', dash: 'dashCd', shout: 'shoutCd', thr
 export const KEY_LABEL: Record<SkillName, string> = { cleave: 'Q', dash: 'W', shout: 'E', throw: 'R' };
 
 export type Point = [x: number, z: number];
+// 칼선(발도): 바닥의 선분들. t초 뒤 베인다. 그을 때 벤 적(hit)은 어디 있든, 그 순간 선 가까이 있는 적도 맞는다. src = 남긴 스킬
+export type Cut = { id: number; segs: [x0: number, z0: number, x1: number, z1: number][]; t: number; mult: number; hit: number[]; src: SkillId };
 
 export type Entity = {
   id: number;
@@ -94,13 +96,11 @@ export type Entity = {
   eliteKind?: EliteKind; // 정예의 특성(createWorld가 정한다)
   skin?: Skin; // 초원·설원의 몬스터: 원형(kind)은 그대로, 그림·이름·수치가 다르다
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
-  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'sheathe' | 'flash'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
+  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'graze' | 'flash'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
   phaseT: number;
   cd: number;
   dx: number;
   dz: number;
-  marks?: number; // 검흔 개수(없으면 0)
-  markT?: number; // 검흔 남은 시간(초)
   frost?: number; // 서리 칼에 맞은 횟수(벼림, 없으면 0)
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
@@ -246,6 +246,16 @@ export type World = {
   castT: number; // 스킬 시전으로 발이 묶인 남은 시간(초)
   flashQ: number[]; // 일섬이 차례로 꿰뚫을 적 id
   flashHit: number; // 이번 도약에서 이미 벤 대상 id(-1 = 아직)
+  flashPath: Point[]; // 일섬이 지나간 꺾은 자리들(끝나면 칼선)
+  flashHits: number[]; // 일섬이 벤 적 id
+  cuts: Cut[]; // 바닥에 그어 둔 칼선(발도)
+  snapped: Cut[]; // 베인 칼선(최근 것만, 렌더용)
+  echo: number; // 칼의 여운 칸(0~ECHO.need)
+  echoOn: SkillId | null; // 여운을 실은 다른 탭 베기(그 스킬이 벨 때 칼선을 남긴다)
+  echoHit: number[]; // 여운을 실은 회오리가 벤 적 id
+  echoFrom: Point; // 여운을 실은 돌진의 출발점
+  grazeFrom: Point; // 스쳐 베기 출발점
+  grazeHit: number[]; // 스쳐 베기가 지나친 적 id
   props: Prop[];
   chests: Chest[];
   gates: Gate[];
@@ -438,10 +448,11 @@ export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브
 export const EXECUTE = { cd: 8, reach: 2.5, below: 0.3, mult: 2.5, fear: 3, fearR: 4 }; // 처형(검술 궁극): 재사용, 닿는 거리, 즉사 체력 비율(단계마다 +0.03), 아니면 배율, 처치 시 주변 공포(시간·반경)
 export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
 // 발도(기사 넷째 탭): 그어두기가 적에게 검흔을 새기고, 납도가 한꺼번에 터뜨린다
-export const MARK = { mult: 1.0, time: 4, cap: 3, hit: 0.5, cd: 1.5 }; // 검흔 한 개 피해 배율, 지속(초), 한 적의 한계, 그어두기 피해, 재사용
-export const SHEATHE = { mult: 1.5, cd: 5, range: 8, delay: 0.25, spread: 2 }; // 납도: 배율, 재사용, 범위, 터지기까지, 옮겨붙는 거리
-export const MEMORY = { cap: 4, capHigh: 5, highAt: 4, time: 1, timePer: 0.5 }; // 검의 기억: 한계, 4단계 한계, 지속 늘림, 단계마다 더
-export const FLASH = { cd: 14, range: 6, max: 5, hit: 0.5, marks: 2, speed: 30, past: 1, near: 0.8 }; // 일섬(궁극): 재사용, 거리, 최대 대상, 한 번 피해, 새기는 검흔, 속도, 지나가는 거리, 가까이 서는 거리
+export const CUT = { delay: 1, near: 0.6 }; // 칼선: 그은 뒤 베이기까지(초), 선에서 이 거리 안이면 맞는다(m)
+export const MARK = { hit: 0.4, cut: 1.2, cd: 1.5 }; // 그어두기: 바로 들어가는 피해, 칼선 배율, 재사용
+export const GRAZE = { cd: 6, dist: 6, speed: 60, near: 0.8, cut: 2.0 }; // 스쳐 베기: 재사용, 거리, 속도(m/s), 지나치는 거리, 칼선 배율
+export const ECHO = { need: 2, cut: 0.8, x: 2 }; // 칼의 여운: 채울 칸, 칼선 배율, 처형 X자 길이(m)
+export const FLASH = { cd: 14, range: 6, max: 5, hit: 0.5, cut: 1.5, speed: 30, past: 1, near: 0.8 }; // 일섬(궁극): 재사용, 거리, 최대 대상, 지날 때 피해, 칼선 배율, 속도, 지나가는 거리, 가까이 서는 거리
 // 벼림(기사 다섯째 탭): 칼에 불·서리를 입혀 휘두를 때마다 충전을 쓴다
 // charges 충전, flame 불 배율, flameCd 불 대기, burstR·burst 5단계 화염 폭발, hits·freeze 서리 빙결 타수·시간, frostCd 서리 대기,
 // reforgeR·reforge·reforgeFreeze 덧벼림 반경·배율·빙결, time·cd 해방 시간·대기, len·width·slash 해방 참격 길이·폭·배율

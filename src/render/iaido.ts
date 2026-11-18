@@ -1,7 +1,7 @@
-// 발도 연출(그림에 없는 동작이라 판자를 움직여 만든다 — 구르기와 같은 방식): 일섬 질주, 납도, 검흔이 새겨지고 터지는 칼선.
+// 발도 연출(그림에 없는 동작이라 판자를 움직여 만든다 — 구르기와 같은 방식): 일섬·스쳐 베기 질주, 바닥의 칼선과 베이는 순간.
 // sim은 바꾸지 않는다. 판자 모양은 sim을 따라 멈추고(타격 멈춤 동안 그대로), 칼선·반짝임은 실제 시간으로 흐른다.
 import * as THREE from 'three';
-import { SHEATHE, type Entity } from '../sim/world';
+import { CUT as CUT_RULE, type Cut, type Entity, type World } from '../sim/world';
 import { dirIndex, type Sprite } from './sprites';
 import { hitstop, pause, rumble } from './feel';
 import { ghost } from './roll';
@@ -11,7 +11,6 @@ const RIGHT = new THREE.Vector3(1, 0, -1).normalize(); // 화면 가로(카메�
 const UP = new THREE.Vector3(0, 1, 0);
 const VIEW = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(60), THREE.MathUtils.degToRad(45)); // 카메라 쪽(칼선이 화면을 향하게)
 const WHITE = new THREE.Color(1, 1, 1); // 흰 잔상(그림을 75% 덮은 흰 실루엣)
-const RED = 0xff3030;
 const WAIST = 0.55; // 칼선·반짝임 높이(m, 허리)
 
 // 일섬
@@ -22,12 +21,8 @@ const GHOST_EVERY = 0.02;
 const TURN_STOP = 0.05; // 다음 적으로 꺾을 때 멈춤(초)
 const TRAIL = { life: 0.35, width: 0.24 }; // 지나간 길의 칼선
 const GLINT = 0.2; // 칼 넣는 반짝임(초)
-// 납도
-const SINK = 0.92; // 칼을 넣는 동안 판자 세로
-const SNAP = 0.03; // 남은 시간이 이 아래면 원래로(밀어 넣는 순간)
-// 검흔
-const CUT = { len: 1.2, life: 0.25, width: 0.16, grow: 0.05 }; // 터질 때 칼선 하나
-const NICK = { life: 0.1, width: 0.09 }; // 새겨질 때 붉은 사선
+// 칼선
+const CUT = { len: 1.2, life: 0.25, width: 0.16, grow: 0.05 }; // 맞은 적 몸 위 칼선 하나
 
 export const iaidoGroup = new THREE.Group();
 
@@ -112,10 +107,10 @@ function glint(s: Sprite, e: Entity) {
   starSide = Math.sin(e.facing) * RIGHT.x + Math.cos(e.facing) * RIGHT.z >= 0 ? 1 : -1; // 바라보는 쪽 허리
 }
 
-// 터짐 대기열: 같은 순간에 생긴 터짐은 순서대로 조금씩 늦게(연쇄처럼)
+// 맞은 자리 대기열: 같은 순간에 생긴 것은 순서대로 조금씩 늦게(연쇄처럼)
 const bursts: { x: number; z: number; n: number; wait: number; then: () => void }[] = [];
 
-// 검흔 n개가 터진 자리: delay초 뒤 흰 칼선 n개(X·사선 번갈아)가 동시에 그어지고 then()(붉은 터짐)
+// 칼선에 맞은 적 자리: delay초 뒤 흰 칼선 n개(X·사선 번갈아)가 동시에 그어지고 then()(붉은 터짐)
 export function slashBurst(x: number, z: number, n: number, delay: number, then: () => void) {
   bursts.push({ x, z, n, wait: delay, then });
 }
@@ -128,19 +123,6 @@ function cuts(x: number, z: number, n: number) {
     const o = RIGHT.clone().multiplyScalar(((i % 3) - 1) * 0.12); // 겹치지 않게 조금씩 비킨다
     line(c.clone().add(o).sub(d), c.clone().add(o).add(d), { geo: LENS, color: 0xffffff, width: CUT.width, life: CUT.life, grow: CUT.grow, over: true });
   }
-}
-
-// 검흔이 새로 늘어난 적: 몸 위에 붉은 사선 한 줄이 번쩍(직전 개수와 비교)
-const seenMarks = new WeakMap<Entity, number>();
-export function markFx(s: Sprite, e: Entity) {
-  const n = e.marks ?? 0;
-  if (n > (seenMarks.get(e) ?? 0) && e.state !== 'dead' && s.mesh.visible) {
-    const h = s.info.anchor[1] / s.info.ppm; // 발에서 그림 위까지(m)
-    const c = new THREE.Vector3(e.x, h * 0.45, e.z);
-    const d = RIGHT.clone().addScaledVector(UP, 1.1).normalize().multiplyScalar(h * 0.22);
-    line(c.clone().sub(d), c.add(d), { geo: LENS, color: RED, width: NICK.width, life: NICK.life, over: true });
-  }
-  seenMarks.set(e, n);
 }
 
 // 일섬 상태: 지금 칸(시작점·방향·남은 거리·자라는 칼선), 웅크림, 기울기, 직전 위치
@@ -165,7 +147,7 @@ function corner(x0: number, z0: number, dx0: number, dz0: number, x1: number, z1
 // 주인공 판자를 그린 뒤(rollFx·leapFx 다음) 매 프레임. dt는 실제 시간(타격 멈춤 중에도 흐른다)
 export function flashFx(s: Sprite, e: Entity, dt: number) {
   const live = hitstop > 0 ? 0 : dt; // 판자 움직임은 sim과 같이 멈춘다
-  const on = e.phase === 'flash' && e.state !== 'dead';
+  const on = (e.phase === 'flash' || e.phase === 'graze') && e.state !== 'dead'; // 스쳐 베기도 같은 질주
   const mesh = s.mesh;
   if (on && !hop) {
     // 출발: 직전 자리에서 웅크렸다가(그동안 sim도 멈춘다) 튀어 나간다
@@ -252,20 +234,85 @@ function update(dt: number) {
   }
 }
 
+// 바닥의 칼선(sim world.cuts): 그어 둔 동안 흰 선 + 넓고 옅은 빛 띠가 숨 쉬듯 빛나고, 베이기 직전엔 빠르게 깜빡인다.
+// 베이는 순간(world.snapped) 빛 띠가 넓게 번쩍이며 사라지고, 선을 따라 허리 높이에 칼날 빛이 그어진다
+const FLOOR = { y: 0.03, core: 0.1, glow: 0.55, warn: CUT_RULE.delay * 0.3, die: 0.3, flare: 3 }; // 높이, 선 폭, 빛 폭, 깜빡이기 시작(남은 초), 베인 뒤 사라지는 시간, 그때 넓어지는 배율
+const SNAP = { y: 0.35, width: 0.5, life: 0.3 }; // 베이는 칼날 빛
+const ECHO_COLOR = 0xffd66b; // 칼의 여운이 남긴 칼선(금빛)
+const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2); // 바닥에 눕힌 1×1(길이 = x)
+type Floor = { meshes: THREE.Mesh[]; core: THREE.MeshBasicMaterial; glow: THREE.MeshBasicMaterial; die: number }; // die: 베인 뒤 흐른 시간(-1 = 아직)
+const floors = new Map<number, Floor>();
+const snapSeen = new Set<number>();
+let clock = 0;
+
+const colorOf = (c: Cut) => (c.src === 'echo' ? ECHO_COLOR : 0xffffff);
+function floorOf(c: Cut): Floor {
+  const mat = () => new THREE.MeshBasicMaterial({ color: colorOf(c), transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
+  const f: Floor = { meshes: [], core: mat(), glow: mat(), die: -1 };
+  for (const [x0, z0, x1, z1] of c.segs) {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    for (const [mat, w] of [[f.glow, FLOOR.glow], [f.core, FLOOR.core]] as const) {
+      const mesh = new THREE.Mesh(PLANE, mat);
+      mesh.position.set((x0 + x1) / 2, FLOOR.y, (z0 + z1) / 2);
+      mesh.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+      mesh.scale.set(len + w * 0.5, 1, w); // 끝을 조금 겹쳐 꺾인 자리가 끊기지 않게
+      mesh.userData.w = w;
+      mesh.renderOrder = 1; // 바닥 다음, 캐릭터 전에
+      iaidoGroup.add(mesh);
+      f.meshes.push(mesh);
+    }
+  }
+  floors.set(c.id, f);
+  return f;
+}
+function drop(id: number, f: Floor) {
+  for (const m of f.meshes) m.removeFromParent();
+  f.core.dispose();
+  f.glow.dispose();
+  floors.delete(id);
+}
+
+export function cutsFx(world: World, dt: number) {
+  clock += dt;
+  const live = new Set<number>();
+  for (const c of world.cuts) {
+    live.add(c.id);
+    const f = floors.get(c.id) ?? floorOf(c);
+    const warn = c.t < FLOOR.warn;
+    const pulse = warn ? 0.55 + 0.45 * Math.sin(clock * 50) : 0.8 + 0.2 * Math.sin(clock * 8);
+    f.core.opacity = pulse;
+    f.glow.opacity = (warn ? 0.5 : 0.25) * pulse;
+  }
+  for (const c of world.snapped) {
+    if (snapSeen.has(c.id)) continue;
+    snapSeen.add(c.id);
+    (floors.get(c.id) ?? floorOf(c)).die = 0; // 그은 틱에 바로 베인 칼선(일섬)도 한 번은 보이게
+    for (const [x0, z0, x1, z1] of c.segs) line(new THREE.Vector3(x0, SNAP.y, z0), new THREE.Vector3(x1, SNAP.y, z1), { geo: LENS, color: colorOf(c), width: SNAP.width, life: SNAP.life });
+    rumble(0.15);
+  }
+  if (snapSeen.size > 128) for (const id of [...snapSeen]) if (!world.snapped.some((c) => c.id === id)) snapSeen.delete(id);
+  for (const [id, f] of floors) {
+    if (f.die < 0) {
+      if (!live.has(id)) drop(id, f);
+      continue;
+    }
+    const k = (f.die += dt) / FLOOR.die;
+    if (k >= 1) {
+      drop(id, f);
+      continue;
+    }
+    f.core.opacity = 1 - k;
+    f.glow.opacity = 0.8 * (1 - k);
+    for (const m of f.meshes) m.scale.z = m.userData.w * (1 + (FLOOR.flare - 1) * Math.sqrt(k));
+  }
+}
+
 // 층이 바뀔 때 옛 좌표의 상태를 비운다
 export function resetIaido() {
   hop = null;
-  sheathing = false;
   bursts.length = 0;
   starAt = null;
   starT = GLINT;
-}
-
-// 납도(sim phase 'sheathe', SHEATHE.delay초): 판자를 조금 낮췄다가 마지막 순간 원래로 — 칼을 밀어 넣는다. 넣는 순간 허리춤 반짝임
-let sheathing = false;
-export function sheatheFx(s: Sprite, e: Entity, _dt: number) {
-  const on = e.phase === 'sheathe' && e.state !== 'dead';
-  if (on) s.mesh.scale.y = e.phaseT > SNAP ? 1 - (1 - SINK) * Math.min(1, (SHEATHE.delay - e.phaseT) / 0.05) : 1;
-  else if (sheathing && e.state !== 'dead') glint(s, e);
-  sheathing = on;
+  for (const [id, f] of floors) drop(id, f);
+  snapSeen.clear();
 }
