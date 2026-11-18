@@ -269,15 +269,15 @@
       #pick-back { min-height: 44px; padding: 0 4px; font-size: 15px; letter-spacing: 3px; color: #a8977a; }
       #pick-back:hover, #pick-back:focus-visible { color: var(--gold-hi); }
       #classes { position: absolute; left: 64px; right: 64px; top: 140px; bottom: 110px; display: flex; gap: 14px; }
-      .class-card { --tint: #c9a14a22; flex: 1 1 0; min-width: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 12px 40px !important; color: var(--ink); border: 1px solid #3a2a1a !important; border-radius: 3px; background: radial-gradient(ellipse at 50% 100%, var(--tint) 0%, transparent 65%), linear-gradient(#1e140d, #0e0a07) !important; box-shadow: inset 0 0 0 1px #000, inset 0 0 40px #000c; transition: flex-grow 0.35s ease, border-color 0.2s; }
+      .class-card { container-type: inline-size; --tint: #c9a14a22; flex: 1 1 0; min-width: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 12px 40px !important; color: var(--ink); border: 1px solid #3a2a1a !important; border-radius: 3px; background: radial-gradient(ellipse at 50% 100%, var(--tint) 0%, transparent 65%), linear-gradient(#1e140d, #0e0a07) !important; box-shadow: inset 0 0 0 1px #000, inset 0 0 40px #000c; transition: flex-grow 0.35s ease, border-color 0.2s; }
       .class-card[data-cls='wizard'] { --tint: #7d9bff22; }
       .class-card[data-cls='ranger'] { --tint: #3fdc5a1c; }
       .class-card[data-cls='necromancer'] { --tint: #b06aff1f; }
       .class-card img { height: min(230px, 30vh); image-rendering: pixelated; filter: brightness(0.55) saturate(0.6) drop-shadow(0 8px 10px #000); transition: filter 0.25s; }
       .class-card:hover img, .class-card:focus-visible img { filter: brightness(0.85) saturate(0.8) drop-shadow(0 8px 10px #000); }
       .class-card .txt { display: grid; justify-items: center; gap: 8px; }
-      .class-card b { font-size: 22px; letter-spacing: 6px; color: #c9b98f; }
-      .class-card em { font-style: normal; font-size: 13px; letter-spacing: 2px; color: #8f8068; text-align: center; }
+      .class-card b { font-size: min(22px, 17cqi); letter-spacing: min(6px, 2cqi); white-space: nowrap; color: #c9b98f; }
+      .class-card em { font-style: normal; font-size: min(13px, 10cqi); letter-spacing: min(2px, 1cqi); white-space: nowrap; color: #8f8068; text-align: center; }
       .class-card small { display: none; }
       .class-card[aria-pressed='true'] { flex-grow: 2.6; flex-direction: row; align-items: flex-end; justify-content: center; gap: 36px; padding: 0 40px 44px !important; border-color: var(--gold) !important; }
       .class-card[aria-pressed='true'] img { height: min(330px, 44vh); filter: brightness(1.15) drop-shadow(0 10px 12px #000); }
@@ -286,6 +286,12 @@
       .class-card[aria-pressed='true'] em { order: 0; color: var(--gold); letter-spacing: 4px; text-align: left; }
       .class-card[aria-pressed='true'] small { order: 2; display: block; font-size: 15px; line-height: 1.8; color: var(--ink-dim); }
       .class-card[aria-pressed='true'] small::before { content: ''; display: block; width: 48px; height: 1px; margin-bottom: 14px; background: var(--gold-lo); }
+      /* 선택된 카드가 좁으면(낮은 해상도 창) 그림을 설명 뒤 배경으로 깔아 설명 칸이 눌리지 않게 */
+      @media (min-width: 701px) { @container (max-width: 460px) {
+        .class-card[aria-pressed='true'] img { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); opacity: 0.35; }
+        .class-card[aria-pressed='true'] .txt { position: relative; max-width: none; }
+        .class-card[aria-pressed='true'] b { font-size: min(40px, 14cqi); letter-spacing: min(10px, 3cqi); white-space: nowrap; }
+      } }
       #pick-go { position: absolute; right: 64px; bottom: 40px; min-height: 52px; padding: 0 44px; font-size: 20px; font-weight: 700; letter-spacing: 6px; color: var(--gold-hi); text-align: center !important; background: linear-gradient(#3a2416, #1c120b) !important; border: 1px solid var(--blood) !important; border-top-color: var(--blood-hi) !important; border-radius: 3px; box-shadow: inset 0 1px 0 #ffffff1c, 0 2px 0 #000; }
       #pick-go:hover, #pick-go:focus-visible { color: #fff; box-shadow: inset 0 1px 0 #ffffff1c, 0 2px 0 #000, 0 0 20px #9c1f1666; }
       @media (max-width: 700px) {
