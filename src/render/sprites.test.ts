@@ -1,8 +1,45 @@
 import * as THREE from 'three';
 import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
+import heads from '../assets/sprites/fallen_paladin_heads.json';
 import { createWorld } from '../sim/world';
-import { heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf } from './sprites';
+import { heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, type Sprite } from './sprites';
+
+test('후광 맥동: min~max 사이를 period 주기로 오르내린다', () => {
+  const xs = Array.from({ length: 200 }, (_, i) => haloLevel((i / 200) * HALO.period));
+  expect(Math.min(...xs)).toBeCloseTo(HALO.min, 2);
+  expect(Math.max(...xs)).toBeCloseTo(HALO.max, 2);
+  expect(haloLevel(0.3)).toBeCloseTo(haloLevel(0.3 + HALO.period), 6);
+});
+
+test('후광은 타락한 성기사에게만 붙고, 죽으면 꺼진다', () => {
+  const w = createWorld(1, ['H.M']);
+  const boss = w.entities[1];
+  const card = () => {
+    const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
+    return { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: boss.hp, maxHp: boss.maxHp, hitT: 0, castT: 0, tint: new THREE.Color(1, 1, 1) } as Sprite;
+  };
+  const plain = card();
+  attachHalo(plain, boss);
+  expect(plain.halo).toBeUndefined();
+  boss.skin = 'fallen_paladin';
+  const s = card();
+  attachHalo(s, boss);
+  expect(s.halo).toBeDefined();
+  updateSprite(s, boss, 2, 1.8);
+  expect(s.halo!.k).toBe(1);
+  // 고리는 지금 장면의 머리 자리(발 기준 화면 m, 세운 판자라 높이는 cos30으로 나눈다)를 따라간다
+  s.anim = 'stance';
+  s.t = 0;
+  updateSprite(s, boss, 0.001, 1.8);
+  const [hx, hy] = heads.stance[dirIndex(boss.facing)][0];
+  expect(s.halo!.ring.position.x).toBeCloseTo(hx, 5);
+  expect(s.halo!.ring.position.y).toBeCloseTo(hy / Math.cos(Math.PI / 6), 5);
+  boss.state = 'dead';
+  for (let i = 0; i < 120; i++) updateSprite(s, boss, 1 / 30, 1.8);
+  expect(s.halo!.k).toBe(0);
+  expect(s.halo!.glow.visible).toBe(false);
+});
 
 // 카메라는 +x+z 쪽에서 -x-z를 내려다본다. facing = atan2(dx, dz)
 // FLARE 방향 번호(화면 기준): 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW

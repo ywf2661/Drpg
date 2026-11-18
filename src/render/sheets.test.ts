@@ -15,6 +15,8 @@ import props from '../assets/sprites/props.json';
 import stairs from '../assets/sprites/stairs.json';
 import loot from '../assets/sprites/loot.json';
 import ember from '../assets/sprites/ember.json';
+import fallenPaladin from '../assets/sprites/fallen_paladin.json';
+import fallenPaladinHeads from '../assets/sprites/fallen_paladin_heads.json';
 
 const ANIMS = ['stance', 'move', 'attack', 'hit', 'die'] as const;
 
@@ -25,6 +27,7 @@ test.each([
   ['archer', archer],
   ['mage', mage],
   ['boss', boss],
+  ['fallen_paladin', fallenPaladin],
 ])('%s 시트: 모든 동작 × 8방향이 시트 범위 안에 있다', (_, info) => {
   expect(info.ppm).toBe(30);
   expect(info.rows).toBe(ANIMS.length * 8);
@@ -79,7 +82,7 @@ test('loot 시트: 물약과 장비(기사·마법사·궁수) 바닥 그림', (
 });
 
 test('사망 동작은 모두 1회 재생(마지막 프레임 = 시체)', () => {
-  for (const info of [hero, minion, warrior, archer, mage, boss]) expect(info.anims.die.loop).toBe('play_once');
+  for (const info of [hero, minion, warrior, archer, mage, boss, fallenPaladin]) expect(info.anims.die.loop).toBe('play_once');
 });
 
 test('가르기 효과 시트: 8방향 × 6프레임 1회', () => {
@@ -111,8 +114,40 @@ test('마력탄은 화살처럼 가슴 높이로 난다(칸 꼭대기 = 그림�
 });
 
 test('모든 시트의 기준점(발)은 칸 안에 있다(판자 바닥선)', () => {
-  for (const info of [hero, minion, warrior, archer, mage, boss, props, stairs, loot, arrow, cleave, fireball, blast, axe, quake]) {
+  for (const info of [hero, minion, warrior, archer, mage, boss, fallenPaladin, props, stairs, loot, arrow, cleave, fireball, blast, axe, quake]) {
     expect(info.anchor[1]).toBeLessThanOrEqual(info.cell[1]);
     expect(info.anchor[1]).toBeGreaterThanOrEqual(0);
+  }
+});
+
+test('타락한 성기사 시트: 원본 동작 수(대기는 솎음), 지어낸 피격·쓰러짐', () => {
+  expect(fallenPaladin.anims.move).toMatchObject({ frames: 9, loop: 'looped' });
+  expect(fallenPaladin.anims.attack).toMatchObject({ frames: 12, loop: 'play_once' });
+  expect(fallenPaladin.anims.stance.frames).toBeGreaterThanOrEqual(8);
+  expect(fallenPaladin.anims.hit.frames).toBe(2);
+  expect(fallenPaladin.anims.die.frames).toBeGreaterThanOrEqual(5);
+});
+
+test('타락한 성기사 머리 위치표: 모든 동작 × 8방향 × 프레임마다 발 기준 (x, y)m, 머리는 발보다 1m 이상 위', () => {
+  for (const [name, clip] of Object.entries(fallenPaladin.anims)) {
+    const dirs = (fallenPaladinHeads as Record<string, number[][][]>)[name];
+    expect(dirs).toHaveLength(8);
+    for (const frames of dirs) {
+      expect(frames).toHaveLength(clip.frames);
+      for (const [x, y] of frames) {
+        expect(Math.abs(x)).toBeLessThan(2); // 누우면 머리가 발에서 키(약 1.7m)만큼 옆으로
+        if (name !== 'die') expect(y).toBeGreaterThan(1);
+      }
+    }
+  }
+});
+
+test('타락한 성기사 머리 위치표: 쓰러지면 머리가 바닥 가까이로, 맞으면 대기와 다른 자리(젖힌 만큼)', () => {
+  const h = fallenPaladinHeads as Record<string, number[][][]>;
+  for (let d = 0; d < 8; d++) {
+    const ys = h.die[d].map(([, y]) => y);
+    expect(ys.at(-1)!).toBeLessThan(0.5);
+    for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeLessThanOrEqual(ys[i - 1] + 1e-9);
+    expect(h.hit[d][0][0]).not.toBeCloseTo(h.stance[d][0][0], 2);
   }
 });

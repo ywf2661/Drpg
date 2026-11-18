@@ -11,7 +11,7 @@ import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tic
 import { clearEdge, flameEdge, frostEdge, temper, tickEdge, unleash } from './temper';
 import { BLOCKS } from './dungeon';
 import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
-import { GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
@@ -37,16 +37,19 @@ export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ r
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 // 'D' 사슬 문(닫힌 동안 막음). 기믹: 'Y' 성소, 'Q' 시련의 제단, 'I' 얼어붙은 보물(모두 상자처럼 막고 누른다), 'Z' 잠든 졸개, 'U' 모래 속 새끼 개미귀신(개미지옥 가운데), '~' 개미지옥 모래,
-// 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허)
+// 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허), 's'·'r' 잠긴 출구(막음),
+// 'E' 순찰대장·'V' 상인·'L' 단서(상자처럼 막고 누른다)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
 const SPAWN_SKIN: Record<string, Skin | undefined> = { U: 'antlion_small', T: 'treasure', X: 'grave' }; // 지역 스킨 대신
-const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice' };
+const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', L: 'clue' };
 const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins' };
+const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins' };
 
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
-// power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만)
-export function createWorld(seed: number, map: string[], power = 1, bossPower = 1, skins: World['skins'] = {}): World {
+// power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만).
+// deep: 초원 너머(이야기 깊이 6부터) — 정예에 광폭·질주·불굴이 섞이고, 보스도 그중 하나를 단다
+export function createWorld(seed: number, map: string[], power = 1, bossPower = 1, skins: World['skins'] = {}, deep = false): World {
   const w = map[0].length;
   const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
   const spawns: { kind: Kind; x: number; z: number; elite: boolean; c: string }[] = [];
@@ -55,6 +58,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const chests: Chest[] = [];
   const gateCells: Cell[] = [];
   const exits: Exit[] = [];
+  const locked: Exit[] = [];
   const roads: Cell[] = [];
   const sand: Cell[] = [];
   const pits: Point[] = [];
@@ -73,6 +77,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
       if (c === '^') spikes.push([x, z]);
       if (c === '@') portals.push([x + 0.5, z + 0.5]);
       if (EXIT_TO[c]) exits.push({ x, z, to: EXIT_TO[c]! });
+      if (LOCKED_TO[c]) locked.push({ x, z, to: LOCKED_TO[c]! });
       if (BLOCKS.includes(c)) grid.blocked[z * w + x] = 1;
       else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c), c });
@@ -91,9 +96,12 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   guardGates(grid, gates, entities);
   for (const ch of chests) if (ch.guards) ch.guards = entities.filter((e) => e.kind !== 'hero' && Math.hypot(e.x - ch.x - 0.5, e.z - ch.z - 0.5) <= CAMP.radius).map((e) => e.id);
   // 정예 특성: 시드와 id로 정한다(월드 난수열을 쓰지 않아 정예가 없던 때와 전투 굴림이 같다)
-  for (const e of entities) if (e.elite) e.eliteKind = ELITE_KIND_LIST[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * ELITE_KIND_LIST.length)];
+  const pool = deep ? [...ELITE_KIND_LIST, ...FIERCE] : ELITE_KIND_LIST;
+  const pick = <T,>(e: Entity, list: T[]) => list[Math.floor(rand({ rng: seed + e.id * 7919 } as World) * list.length)];
+  for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
+  for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 봉인 문의 문지기: 문을 닫은 채로 주인공 칸에서 걸어서 닿는 몬스터(문 너머의 방에 있는 몬스터는 빼고) 중 가까운 것들
@@ -216,6 +224,7 @@ function rest(w: World, hero: Entity) {
 // 자동 장착이면 더 좋은 장비는 바로 입는다. 벗은 장비는 보관함으로, 자리가 없으면 발밑에(사라지는 장비는 없다)
 function pickup(w: World, hero: Entity) {
   if (hero.state === 'dead') return;
+  for (const it of w.items) unstick(w.grid, it);
   const fallen: Item[] = [];
   w.items = w.items.filter((it) => {
     if (Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
@@ -410,6 +419,20 @@ function advance(w: World, hero: Entity) {
   const p = Math.hypot(x - hero.x, z - hero.z) > 0.3 ? pathTo(w, hero, x, z) : null;
   if (p) hero.path = p;
   else w.amove = null;
+}
+
+// 벽·소품 칸에 떨어진 아이템(상자 옆 금화 등)은 주울 수 없으니, 둘레 8칸 중 가장 가까운 걸을 수 있는 칸 안으로 옮긴다
+function unstick(g: Grid, it: Item) {
+  const [cx, cz] = [Math.floor(it.x), Math.floor(it.z)];
+  if (walkable(g, cx, cz)) return;
+  const near = (x: number, z: number) => [Math.min(x + 0.8, Math.max(x + 0.2, it.x)), Math.min(z + 0.8, Math.max(z + 0.2, it.z))];
+  let best: number[] | null = null;
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    if (!walkable(g, cx + dx, cz + dz)) continue;
+    const p = near(cx + dx, cz + dz);
+    if (!best || Math.hypot(p[0] - it.x, p[1] - it.z) < Math.hypot(best[0] - it.x, best[1] - it.z)) best = p;
+  }
+  if (best) [it.x, it.z] = best;
 }
 
 // 상자 옆 걸을 수 있는 칸 중 가장 가까운 곳으로 간다

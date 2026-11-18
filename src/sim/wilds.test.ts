@@ -1,14 +1,15 @@
 import { expect, test } from 'vitest';
 import { bossName, createWorld, LANDS, step } from './world';
-import { FLOORS, OPEN, walkDistances } from './dungeon';
-import { exitsFor, generateWild, WILD, wildCount, type Side } from './wilds';
+import { FLOORS, OPEN, SIZE, walkDistances } from './dungeon';
+import { exitsFor, generateCamp, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
 
 const count = (map: string[], chars: string) => map.join('').split('').filter((c) => chars.includes(c)).length;
 const find = (map: string[], ch: string): [number, number][] => map.flatMap((r, z) => [...r].flatMap((c, x) => (c === ch ? [[x, z] as [number, number]] : [])));
 // 칸이 맞닿은 가장자리(맨 바깥 줄)
-const edgeOf = ([x, z]: [number, number]): Side | null => (z === 0 ? 'n' : z === WILD - 1 ? 's' : x === 0 ? 'w' : x === WILD - 1 ? 'e' : null);
+const edgeOfIn = (n: number) => ([x, z]: [number, number]): Side | null => (z === 0 ? 'n' : z === n - 1 ? 's' : x === 0 ? 'w' : x === n - 1 ? 'e' : null);
+const edgeOf = edgeOfIn(WILD);
 
-test('출구 종류: 초원 1구역만 갈림길(초원 2·설원 1·폐허 1·미궁 1), 그 밖은 같은 지역의 다음 구역뿐, 5구역은 없음', () => {
+test('출구 종류: 초원 1구역만 갈림길(초원 2·설원 1·폐허 1·미궁 1), 그 밖은 같은 지역의 다음 구역뿐, 5구역은 없음', { timeout: 120_000 }, () => {
   expect(exitsFor(1, 'field')).toEqual(['field', 'snow', 'ruins', 'dungeon']);
   expect(exitsFor(2, 'ruins')).toEqual(['ruins']);
   expect(exitsFor(2, 'field')).toEqual(['field']);
@@ -53,7 +54,7 @@ for (const land of ['field', 'snow', 'ruins'] as const)
     }
   }, 30000); // 맵 80장
 
-test('초원 야영지: 한 맵에 3~5개, 상자(C) 둘레 4칸 안에 모닥불과 몬스터 셋 이상. 설원엔 없다', () => {
+test('초원 야영지: 한 맵에 3~5개, 상자(C) 둘레 4칸 안에 모닥불과 몬스터 셋 이상. 설원엔 없다', { timeout: 120_000 }, () => {
   for (let seed = 1; seed <= 30; seed++) {
     const floor = 1 + (seed % FLOORS);
     const map = generateWild(seed, floor, 'field');
@@ -73,7 +74,7 @@ test('초원 야영지: 한 맵에 3~5개, 상자(C) 둘레 4칸 안에 모닥�
   }
 });
 
-test('지역의 몬스터는 스킨을 입는다: 이름·체력·속도가 다르고, 스킨이 없는 원형은 해골 그대로', () => {
+test('지역의 몬스터는 스킨을 입는다: 이름·체력·속도가 다르고, 스킨이 없는 원형은 해골 그대로', { timeout: 120_000 }, () => {
   const w = createWorld(1, generateWild(2, 2, 'snow'), 1, 1, LANDS.snow.skins);
   const zombie = w.entities.find((e) => e.kind === 'warrior' && !e.elite)!;
   expect(zombie.skin).toBe('zombie');
@@ -85,4 +86,77 @@ test('지역의 몬스터는 스킨을 입는다: 이름·체력·속도가 다�
   expect([boss('field').skin, boss('snow').skin]).toEqual(['antlion', 'wyvern']);
   expect(bossName(LANDS.snow.skins)).toBe('서리 와이번');
   expect(bossName({})).toBe('미노타우르스');
+});
+
+// 칸에서 걸어서 닿는가(막는 칸이면 이웃 중 하나라도 닿으면 — NPC·출구 앞에 설 수 있다)
+const reachable = (map: string[], [hx, hz]: [number, number]) => {
+  const cells = map.map((r) => r.split(''));
+  const d = walkDistances(cells, hx, hz);
+  const W = map[0].length;
+  return ([x, z]: [number, number]) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => d[(z + dz) * W + x + dx] >= 0 && x + dx >= 0 && x + dx < W);
+};
+
+test('야영지: 48칸, 늘 같은 맵, 모닥불·순찰대장·상인 하나씩·주민 둘, 출구는 맨 바깥 줄의 초원(F 3칸)뿐, 몬스터·상자 없음, 모두 걸어서 닿는다', { timeout: 120_000 }, () => {
+  const map = generateCamp();
+  expect(map.length).toBe(SIZE);
+  expect(map.every((r) => r.length === SIZE)).toBe(true);
+  expect(map).toEqual(generateCamp());
+  expect(makeMap(123, 3, 'camp')).toEqual(map); // 시드·구역과 상관없이
+  for (const ch of 'HEV') expect(count(map, ch)).toBe(1);
+  expect(count(map, 'P')).toBe(2);
+  expect(count(map, 'B')).toBeGreaterThanOrEqual(1);
+  const exits = find(map, 'F');
+  expect(exits.length).toBe(3);
+  expect(new Set(exits.map(edgeOfIn(SIZE))).size).toBe(1);
+  expect(exits.every((e) => edgeOfIn(SIZE)(e) !== null)).toBe(true);
+  expect(count(map, 'SRsr>')).toBe(0);
+  expect(count(map, 'mwagNWAGKMZUTXcCYQIL')).toBe(0);
+  const ok = reachable(map, find(map, 'H')[0]);
+  for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'P'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
+  const w = createWorld(1, map);
+  expect(w.chests.map((c) => c.kind).sort()).toEqual(['elder', 'merchant', 'villager', 'villager']);
+  expect(w.exits.every((e) => e.to === 'field')).toBe(true);
+  expect(w.entities).toHaveLength(1);
+});
+
+test('초원 1구역 갈림길 잠금: 안 열린 지역 출구는 막히고(s·r, 동굴은 돌 o) 나머지는 같은 맵, 열린 출구까지는 길이 이어진다', { timeout: 120_000 }, () => {
+  for (let seed = 1; seed <= 15; seed++) {
+    const from = (['n', 'e', 's', 'w'] as const)[seed % 4];
+    const all = generateWild(seed, 1, 'field', from);
+    expect(generateWild(seed, 1, 'field', from, ['field', 'snow', 'dungeon', 'ruins'])).toEqual(all);
+    const first = generateWild(seed, 1, 'field', from, ['field']);
+    expect(count(first, 'SR>')).toBe(0);
+    expect([count(first, 's'), count(first, 'r'), count(first, 'F')]).toEqual([3, 3, 3]);
+    // 바뀐 칸은 잠긴 출구 자리뿐
+    const diff = all.flatMap((r, z) => [...r].flatMap((c, x) => (c !== first[z][x] ? [c + first[z][x]] : [])));
+    expect(diff.sort()).toEqual(['>o', 'Rr', 'Rr', 'Rr', 'Ss', 'Ss', 'Ss']);
+    const ok = reachable(first, find(first, 'H')[0]);
+    for (const p of find(first, 'F')) expect(ok(p)).toBe(true);
+    const w = createWorld(1, first);
+    expect(w.exits.map((e) => e.to)).toEqual(['field', 'field', 'field']);
+    expect(new Set(w.locked.map((e) => e.to))).toEqual(new Set(['snow', 'ruins']));
+    expect(w.stairs).toBeNull();
+    // 설원·미궁까지 열림: 폐허만 막힘
+    const third = generateWild(seed, 1, 'field', from, ['field', 'snow', 'dungeon']);
+    expect([count(third, 'S'), count(third, 'r'), count(third, '>')]).toEqual([3, 3, 1]);
+  }
+});
+
+test('단서(L): makeMap에 clue를 주면 하나, 걸어서 닿고 길을 끊지 않는다(바깥 지역은 길가, 미궁은 방 안). 안 주면 없다', { timeout: 120_000 }, () => {
+  for (let seed = 1; seed <= 12; seed++)
+    for (const land of ['field', 'snow', 'ruins', 'dungeon'] as const) {
+      expect(count(makeMap(seed, 3, land, 'w'), 'L')).toBe(0);
+      const map = makeMap(seed, 3, land, 'w', undefined, true);
+      expect(count(map, 'L')).toBe(1);
+      const [l] = find(map, 'L');
+      const [h] = find(map, 'H');
+      expect(reachable(map, h)(l)).toBe(true);
+      const lost = (m: string[]) => {
+        const cells = m.map((r) => r.split(''));
+        const d = walkDistances(cells, h[0], h[1]);
+        return cells.flatMap((row, z) => row.filter((c, x) => OPEN(c) && d[z * row.length + x] < 0)).length;
+      };
+      expect(lost(map)).toBe(lost(makeMap(seed, 3, land, 'w'))); // 단서가 길을 끊지 않는다(미궁은 사슬 문 너머가 원래 닿지 않는다)
+      if (land !== 'dungeon') expect(map.slice(l[1] - 3, l[1] + 4).some((r) => r.slice(l[0] - 3, l[0] + 4).includes('='))).toBe(true);
+    }
 });

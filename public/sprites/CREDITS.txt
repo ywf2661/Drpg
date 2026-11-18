@@ -14,6 +14,9 @@ Items: drop animations scaled by 0.32 (potion by 0.5), item icons cropped from t
 Demon (ruins boss): "Demon - Flare sprite sheets", OpenGameArt, CC0 - https://opengameart.org/content/demon-flare-sprite-sheets
 Modifications: selected frames, saturation and brightness lowered, scaled by 0.64, alpha thresholded, reduced to 256 colors.
 
+Fallen paladin (boss): "8 Directional Greatsword Knight" by Hormelz, itch.io, CC0 - https://hormelz.itch.io/8-directional-great-sword-knight-character
+Modifications: idle frames halved, recolored (32-color palette swap), hit and death frames made by rotating the idle frame, scaled by 0.5, alpha thresholded, reduced to 256 colors.
+
 Files used:
   mods/fantasycore/animations/enemies/skeleton_weak.txt
   mods/fantasycore/images/enemies/skeleton_weak.png
@@ -274,6 +277,14 @@ Files used:
   mods/fantasycore/music/boss_theme.ogg
   mods/fantasycore/images/cursors/cursor_normal.png
   mods/fantasycore/images/cursors/cursor_attack.png
+  mods/fantasycore/animations/npcs/knight.txt
+  mods/fantasycore/images/npcs/knight.png
+  mods/fantasycore/animations/npcs/wandering_trader.txt
+  mods/fantasycore/images/npcs/wandering_trader.png
+  mods/fantasycore/animations/npcs/peasant_man1.txt
+  mods/fantasycore/images/npcs/peasant_man1.png
+  mods/fantasycore/animations/npcs/peasant_woman1.txt
+  mods/fantasycore/images/npcs/peasant_woman1.png
 
 --- Flare CREDITS.txt ---
 Flare Game Credits

@@ -1,9 +1,10 @@
 // 미궁(방 + 복도)이 아닌 바깥 지역의 맵(72×72). 결과는 generateFloor와 같은 글자 맵 + '=' 길, 'F'·'S' 출구(맨 바깥 줄, → 초원·설원).
 // 디아블로2의 평지처럼: 가장자리는 숲(초원)·얼음 절벽(설원) 띠, 들어온 가장자리에서 다른 가장자리의 출구까지 구불구불한 길.
 // 초원: 탁 트인 들판에 바위 무더기, 몬스터는 야영지마다 떼로(모닥불 'B' + 무리가 다 쓰러져야 열리는 상자 'C'). 설원: 눈밭에 얼음 바위 덩어리, 몬스터는 둘셋씩.
-// 초원 1구역은 갈림길: 초원·설원 출구와 맵 안쪽 먼 곳의 동굴 입구('>', 계단 → 미궁 1층). 그 밖은 같은 지역 출구 하나, 마지막 구역은 출구 대신 보스.
+// 초원 1구역은 갈림길: 초원·설원·폐허 출구와 맵 안쪽 먼 곳의 동굴 입구('>', 계단 → 미궁 1층). 그 밖은 같은 지역 출구 하나, 마지막 구역은 출구 대신 보스.
+// 안 열린 지역의 출구는 막힌다(설원 's'·폐허 'r', 동굴 입구는 큰 돌 'o'). 야영지(generateCamp)는 늘 같은 48칸 맵.
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
-import { finish, FLOORS, generateFloor, mulberry, OPEN, themeFor, walkDistances, type Theme } from './dungeon';
+import { finish, FLOORS, generateFloor, mulberry, OPEN, SIZE, themeFor, walkDistances, type Theme } from './dungeon';
 import type { Cell } from './path';
 import type { Land } from './rules';
 
@@ -13,17 +14,101 @@ export const opposite: Record<Side, Side> = { n: 's', s: 'n', e: 'w', w: 'e' };
 const SIDES: Side[] = ['n', 'e', 's', 'w'];
 type Wild = 'field' | 'snow' | 'ruins';
 
-export const makeMap = (seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w') => (land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from));
-export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land);
+// open = 열린 지역(초원 1구역 갈림길에서 갈 수 있는 곳, 없으면 다 열림), clue = 이야기 단서(L)를 놓는다
+export function makeMap(seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w', open?: Land[], clue = false): string[] {
+  if (land === 'camp') return generateCamp();
+  const map = land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
+  return clue ? withClue(map, seed) : map;
+}
+
+// 이야기 단서(L) 하나: 주인공에서 걸어서 가장 먼 곳의 40~70% 거리. 바깥 지역은 길에서 3칸 안(지나가며 보이게), 미궁은 방 안(5×5가 다 트인 곳).
+// 둘레 8칸이 다 트인 칸에만 놓아 길을 끊지 않는다. 앞의 난수열(땅·몬스터)을 바꾸지 않게 따로 굴린다
+export function withClue(map: string[], seed: number): string[] {
+  const cells = map.map((r) => r.split(''));
+  const [W, H] = [map[0].length, map.length];
+  const hz = map.findIndex((r) => r.includes('H'));
+  const d = walkDistances(cells, map[hz].indexOf('H'), hz);
+  const far = Math.max(...d);
+  const road = map.some((r) => r.includes('='));
+  const around = (x: number, z: number, r: number, ok: (c: string) => boolean) => {
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (ok(cells[z + dz]?.[x + dx] ?? '#')) return true;
+    return false;
+  };
+  const find = (r: number) => {
+    const spots: Cell[] = [];
+    for (let z = 1; z < H - 1; z++)
+      for (let x = 1; x < W - 1; x++) {
+        const k = d[z * W + x];
+        if (cells[z][x] !== '.' || k < 0.4 * far || k > 0.7 * far || around(x, z, r, (c) => !OPEN(c))) continue;
+        if (!road || around(x, z, 3, (c) => c === '=')) spots.push([x, z]);
+      }
+    return spots;
+  };
+  const spots = road ? find(1) : find(2).length ? find(2) : find(1); // 미궁에 넓은 방이 거기 없으면 둘레 8칸만
+  if (!spots.length) return map; // 놓을 데가 없으면 없이(단서는 놓쳐도 진행이 막히지 않는다)
+  const [x, z] = spots[Math.floor(mulberry(seed ^ 0x51ed)() * spots.length)];
+  cells[z][x] = 'L';
+  return cells.map((r) => r.join(''));
+}
+export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land === 'camp' ? 'field' : land);
 export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 16) + 4 * (floor - 1); // 몬스터 수(잠든 몬스터·무덤·보물 고블린은 따로)
 // 이 구역의 출구가 이끄는 곳. 초원 1구역만 갈림길(초원 2·설원 1·폐허 1·미궁 1, 미궁은 동굴 입구), 지역을 고른 뒤로는 그 지역의 다음 구역뿐. 마지막 구역은 없음
 export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : land === 'field' && floor === 1 ? ['field', 'snow', 'ruins', 'dungeon'] : [land]);
 const MIN_OPEN = 1500; // 걸어 다닐 칸이 이보다 적으면 다시 만든다
 const N = WILD;
 // 가장자리 side에서 가장자리를 따라 t번째, 안쪽으로 k칸
-const at = (side: Side, t: number, k: number): Cell => (side === 'n' ? [t, k] : side === 's' ? [t, N - 1 - k] : side === 'w' ? [k, t] : [N - 1 - k, t]);
+const at = (side: Side, t: number, k: number, n = N): Cell => (side === 'n' ? [t, k] : side === 's' ? [t, n - 1 - k] : side === 'w' ? [k, t] : [n - 1 - k, t]);
 
-export function generateWild(seed: number, floor: number, land: Wild, from: Side = 'w'): string[] {
+// 바깥 맵. 안 열린 지역의 출구는 막는 글자(설원 's'·폐허 'r'), 동굴 입구는 큰 돌('o')로 바꾼다.
+// 다 만든 뒤 글자만 바꿔서 같은 시드면 잠금과 상관없이 같은 맵이다
+export function generateWild(seed: number, floor: number, land: Wild, from: Side = 'w', open?: Land[]): string[] {
+  const map = wild(seed, floor, land, from);
+  if (!open) return map;
+  const shut: Record<string, string> = {};
+  if (!open.includes('snow')) shut.S = 's';
+  if (!open.includes('ruins')) shut.R = 'r';
+  if (!open.includes('dungeon')) shut['>'] = 'o';
+  return map.map((row) => row.replace(/[SR>]/g, (c) => shut[c] ?? c));
+}
+
+// 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o).
+// 동쪽으로 곧은 길 끝, 맨 바깥 줄에 초원 1구역 출구(F 3칸). 가장자리는 숲 띠, 마당 밖에 바위·잔해. 몬스터·상자·기믹은 없다
+const CAMP_SEED = 7;
+export function generateCamp(): string[] {
+  const M = SIZE;
+  const c = M / 2;
+  const rand = mulberry(CAMP_SEED);
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const inside = (x: number, z: number) => x > 0 && z > 0 && x < M - 1 && z < M - 1;
+  const cells: string[][] = Array.from({ length: M }, (_, z) => Array.from({ length: M }, (_, x) => (inside(x, z) ? '.' : '#')));
+  const set = ([x, z]: Cell, ch: string) => inside(x, z) && (cells[z][x] = ch);
+  for (const side of SIDES)
+    for (let t = 0, th = int(2, 4); t < M; t++, th = Math.min(4, Math.max(2, th + int(-1, 1)))) for (let k = 0; k < th; k++) set(at(side, t, k, M), '#');
+  // 바위 무더기: 마당(반지름 9)과 길(동쪽 띠) 밖에만
+  for (let k = int(10, 14); k > 0; k--) {
+    const [cx, cz, r] = [int(5, M - 6), int(5, M - 6), 0.8 + rand()];
+    if (Math.hypot(cx - c, cz - c) < 10 || (cx > c && Math.abs(cz - c) < 5)) continue;
+    for (let z = Math.floor(cz - r); z <= cz + r; z++) for (let x = Math.floor(cx - r); x <= cx + r; x++) if (Math.hypot(x - cx, z - cz) <= r) set([x, z], '#');
+  }
+  for (let z = 0; z < M; z++) for (let x = 0; x < M; x++) if (Math.hypot(x - c, z - c) <= 5) set([x, z], '='); // 흙마당
+  for (let x = c + 4; x < M - 1; x++) for (let z = c - 1; z <= c + 1; z++) cells[z][x] = '='; // 동쪽 길(숲 띠를 뚫는다)
+  for (let z = c - 1; z <= c + 1; z++) cells[z][M - 1] = 'F';
+  cells[c][c] = 'B';
+  cells[c + 2][c] = 'H';
+  cells[c][c - 3] = 'E';
+  cells[c - 3][c] = 'V';
+  for (const [x, z] of [[c + 2, c + 1], [c - 2, c + 2]]) cells[z][x] = 'P'; // 모닥불 곁의 주민 둘(배경)
+  for (const [x, z] of [[c - 4, c - 3], [c + 3, c - 4], [c - 4, c + 3], [c + 2, c + 4]]) cells[z][x] = 'o';
+  for (let k = 0; k < 20; k++) {
+    const [x, z] = [int(4, M - 5), int(4, M - 5)];
+    if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 6) cells[z][x] = ',';
+  }
+  const d = walkDistances(cells, c, c + 2); // 주인공에서 닿지 않는 땅은 메운다
+  for (let z = 0; z < M; z++) for (let x = 0; x < M; x++) if (d[z * M + x] < 0 && OPEN(cells[z][x])) cells[z][x] = '#';
+  return cells.map((row) => row.join(''));
+}
+
+function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   const rand = mulberry(seed);
   const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1)); // lo..hi 포함
   const inside = (x: number, z: number) => x > 0 && z > 0 && x < N - 1 && z < N - 1;
@@ -130,7 +215,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
       if (d[z * N + x] >= 0) open++;
       else if (OPEN(cells[z][x])) cells[z][x] = '#';
     }
-  if (open < MIN_OPEN) return generateWild(seed + 1, floor, land, from);
+  if (open < MIN_OPEN) return wild(seed + 1, floor, land, from);
   const dist = ([x, z]: Cell) => d[z * N + x];
   const clear = ([cx, cz]: Cell, r: number) => {
     for (let z = cz - r; z <= cz + r; z++) for (let x = cx - r; x <= cx + r; x++) if (cells[z][x] === '#') cells[z][x] = '.';
@@ -211,7 +296,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   let campsLeft = land === 'field' ? int(3, 5) : 0;
   // ponytail: 600번 안에 자리를 못 찾으면 그 시드는 버리고 다음 시드로(실제로는 늘 채운다)
   for (let k = 0, guard = 0, camps = 0; k < count; guard++) {
-    if (guard > 600) return generateWild(seed + 1, floor, land, from);
+    if (guard > 600) return wild(seed + 1, floor, land, from);
     const camp = pick((p) => dist(p) >= 12 && (camps % 2 === 1 || byRoad(p)));
     if (!camp) continue;
     camps++;
@@ -222,7 +307,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
     }
     if (campsLeft > 0 && placed >= 3 && makeCamp(camp)) campsLeft--;
   }
-  if (campsLeft > 0) return generateWild(seed + 1, floor, land, from); // 야영지가 모자라면 다음 시드로
+  if (campsLeft > 0) return wild(seed + 1, floor, land, from); // 야영지가 모자라면 다음 시드로
   gimmicks(cells, mulberry(seed ^ 0x9e37), floor, land, all, keep, (p) => dist(p) >= 0 && OPEN(cells[p[1]][p[0]]), connected, (p) => dist(p));
   return finish(cells, rand);
 }

@@ -5,6 +5,7 @@
 """
 import functools
 import json
+import math
 import re
 import shutil
 import urllib.request
@@ -53,8 +54,29 @@ KINDS = {  # 몬스터: 레이어 1장
 GRIDS = {'demon': {'url': 'https://opengameart.org/content/demon-flare-sprite-sheets', 'rows': [7, 0, 1, 2, 3, 4, 5, 6], 'foot': (105, 188), 'sat': 0.75, 'bright': 0.8,
                    'anims': {'stance': (0, 4, 533, 'back_forth'), 'run': (4, 9, 600, 'looped'), 'swing': (13, 5, 500, 'play_once'),
                              'hit': (30, 2, 133, 'back_forth'), 'die': (32, 10, 1000, 'play_once')}}}
+# 타락한 성기사(최종 보스 후보): Hormelz 「8 Directional Greatsword Knight」(CC0) 무료판. 자동으로 못 받는다 — url에서 받은 zip 셋
+# (2hIdle5·2hWalk·Slash)을 tools/.cache/local/greatsword_knight/에 푼다. 512px 칸, PixelOver JSON, dir1 = 화면 왼쪽 아래부터 시계 방향(dir8 = 정면)
+KNIGHT = {
+    'url': 'https://hormelz.itch.io/8-directional-great-sword-knight-character', 'dir': 'greatsword_knight', 'foot': (256, 269), 'scale': 0.5,
+    # 게임 동작 → (원본 동작, 쓸 프레임(None = 전부), loop). 대기 26장은 짝수 번째만
+    'anims': {'stance': ('2hIdle5', range(0, 26, 2), 'looped'), 'move': ('2hWalk', None, 'looped'), 'attack': ('Slash', None, 'play_once')},
+    'hit': ((8, 1.5), (4, 1.2)), 'hit_ms': 133,  # 지어낸 피격: (뒤로 젖히는 각도, 밝기)
+    'die': ((15, 1), (35, 0.9), (55, 0.8), (70, 0.7), (80, 0.6), (85, 0.55)), 'die_ms': 900,  # 지어낸 쓰러짐
+    # 배색 C(검붉은 판금·흑금·지옥불 칼): 부위 → (원본 색들, 어두운 쪽부터 밝은 쪽 기준점). 원본 색은 부위 안 밝기 비율로 기준점 사이를 보간
+    'palette': [
+        ([(54, 115, 143), (65, 128, 156), (43, 108, 136), (32, 96, 122), (79, 144, 171), (92, 154, 181), (72, 134, 163), (19, 84, 112), (108, 168, 192), (124, 186, 210)], [(28, 10, 12), (62, 22, 24), (108, 44, 40)]),  # 판금
+        ([(52, 200, 225), (44, 183, 208), (24, 160, 181), (0, 134, 158), (0, 93, 118)], [(40, 14, 16), (90, 32, 30), (152, 64, 50)]),  # 가슴·등판
+        ([(1, 64, 91), (0, 20, 51), (0, 45, 70)], [(8, 2, 4), (20, 6, 8)]),  # 그늘
+        ([(132, 132, 0), (89, 89, 0), (47, 47, 0), (170, 170, 0)], [(36, 30, 20), (90, 76, 46), (140, 120, 70)]),  # 투구 꼭대기
+        ([(147, 8, 0), (42, 0, 0), (100, 0, 0), (184, 25, 0)], [(120, 40, 0), (255, 140, 20), (255, 220, 120)]),  # 눈구멍·칼자루
+        ([(147, 158, 95), (176, 187, 125)], [(60, 40, 36), (100, 70, 60)]),  # 얼굴 조각
+        ([(164, 175, 177), (255, 255, 255), (240, 238, 238)], [(30, 20, 20), (255, 110, 10), (255, 230, 140)]),  # 칼날
+    ],
+}
 KIND_ANIMS = {'archer':{**ANIMS, 'attack': 'shoot'}, 'mage': {**ANIMS, 'attack': 'cast'}, 'fire_ant': {**ANIMS, 'attack': 'cast'}, 'hobgoblin_archer': {**ANIMS, 'attack': 'shoot'},
               'grave': {**ANIMS, 'move': 'stance', 'attack': 'cast'}}  # 궁수는 활쏘기, 마법사는 시전, 무덤은 걷지 않는다
+# 야영지 사람(FLARE fantasycore npcs): 서 있는 동작만 있다. 순찰대장 = 기사, 상인 = 떠돌이 상인, 주민 둘 = 농부
+NPCS = {'npc_captain': 'npcs/knight', 'npc_merchant': 'npcs/wandering_trader', 'npc_villager1': 'npcs/peasant_man1', 'npc_villager2': 'npcs/peasant_woman1'}
 KIND_SCALE = {'demon': 0.64, 'boss': 0.28,'wyvern': 0.28, 'antlion': 0.36, 'bone_knight': 0.3, 'grave': 0.26, 'hobgoblin': 0.45, 'hobgoblin_archer': 0.45}  # 홉고블린은 원본이 고블린만 하다 — 고블린보다 크게  # 0.32면 시트 세로가 4560px(> 4096)
 # 주인공 = 부위별 레이어 시트(hero_<레이어>_<단계>.png). 게임이 장비에 맞춰 방향마다 LAYER_ORDER대로 겹친다.
 # 모든 레이어가 같은 칸 크기·기준점이라 hero.json 하나를 공유한다. 단계 1~4 순
@@ -252,6 +274,108 @@ def frames_of(layers, anims=ANIMS):
                 bb = c.getbbox() or (FOOT[0], FOOT[1], FOOT[0] + 1, FOOT[1] + 1)
                 frames[(anim, d, i)] = (c.crop(bb), bb[:2])
     return frames, meta
+
+
+def knight_palette():
+    """KNIGHT 배색: 원본 색 → 새 색"""
+    lum = lambda c: 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+    out = {}
+    for cols, stops in KNIGHT['palette']:
+        lo, hi = min(map(lum, cols)), max(map(lum, cols))
+        for c in cols:
+            t = (lum(c) - lo) / (hi - lo) * (len(stops) - 1) if hi > lo else len(stops) - 1
+            i = min(int(t), len(stops) - 2)
+            out[c] = tuple(round(a + (b - a) * (t - i)) for a, b in zip(stops[i], stops[i + 1]))
+    return out
+
+
+def knight_frames():
+    """타락한 성기사: frames_of와 같은 형식. 피격·쓰러짐은 대기 첫 장을 발을 축으로 돌려 지어낸다"""
+    root = CACHE / 'local' / KNIGHT['dir']
+    assert root.exists(), f'{root} 없음 — {KNIGHT["url"]}에서 받은 zip을 푼다'
+    pal = knight_palette()
+    fx, fy = KNIGHT['foot']
+
+    def recolor(im):  # 그림이 있는 곳만 잘라 색을 바꾼 512 칸(원본 칸과 같은 좌표)
+        bb = im.getbbox()
+        part = im.crop(bb)
+        px = part.load()
+        for y in range(part.height):
+            for x in range(part.width):
+                p = px[x, y]
+                if p[3] and p[:3] in pal:
+                    px[x, y] = pal[p[:3]] + (p[3],)
+        out = Image.new('RGBA', im.size)
+        out.paste(part, bb[:2])
+        return out
+
+    @functools.lru_cache(maxsize=None)
+    def load(src, d):  # 시트 방향 d(화면 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW) → 원본 dir((d+1)%8+1)의 칸들(색 바꾼 것)
+        base = next(root.glob(f'**/GreatSwordKnight_{src}_dir{(d + 1) % 8 + 1}.png'))
+        im = Image.open(base).convert('RGBA')
+        fr = json.loads(base.with_suffix('.json').read_text(encoding='utf-8'))['frames']
+        cells = [recolor(im.crop((f['frame']['x'], f['frame']['y'], f['frame']['x'] + f['frame']['w'], f['frame']['y'] + f['frame']['h']))) for f in fr]
+        return cells, [f['duration'] for f in fr]
+
+    def put(im):  # 원본 칸(발 = foot) → (잘라낸 그림, 발이 FOOT인 좌상단)
+        bb = im.getbbox()
+        return im.crop(bb), (FOOT[0] - fx + bb[0], FOOT[1] - fy + bb[1])
+
+    def tilt(im, deg, bright, d):  # 바라보는 쪽의 반대로 넘어간다: W·NW·SW·N은 화면 시계 방향(PIL 음수 각), 나머지는 반시계
+        pad = Image.new('RGBA', (im.width * 2, im.height * 2))
+        pad.paste(im, (im.width // 2, im.height // 2))
+        sign = -1 if d in (0, 1, 2, 7) else 1
+        r = pad.rotate(sign * deg, resample=Image.BICUBIC, center=(fx + im.width // 2, fy + im.height // 2))
+        rgb = ImageEnhance.Brightness(r.convert('RGB')).enhance(bright)
+        rgb.putalpha(r.getchannel('A'))
+        bb = rgb.getbbox()
+        return rgb.crop(bb), (FOOT[0] - fx - im.width // 2 + bb[0], FOOT[1] - fy - im.height // 2 + bb[1])
+
+    frames, meta = {}, {}
+    for d in range(8):
+        for anim, (src, pick, loop) in KNIGHT['anims'].items():
+            cells, ms = load(src, d)
+            idx = list(pick) if pick is not None else list(range(len(cells)))
+            # 고른 장들이 원본과 같은 시간이 걸리게(솎은 대기는 한 장이 두 장 몫)
+            meta[anim] = (len(idx), sum(ms), loop)
+            for i, k in enumerate(idx):
+                frames[(anim, d, i)] = put(cells[k])
+        idle = load('2hIdle5', d)[0][0]
+        for i, (deg, bright) in enumerate(KNIGHT['hit']):
+            frames[('hit', d, i)] = tilt(idle, deg, bright, d)
+        for i, (deg, bright) in enumerate(KNIGHT['die']):
+            frames[('die', d, i)] = tilt(idle, deg, bright, d)
+    meta['hit'] = (len(KNIGHT['hit']), KNIGHT['hit_ms'], 'play_once')
+    meta['die'] = (len(KNIGHT['die']), KNIGHT['die_ms'], 'play_once')
+    return frames, meta
+
+
+def knight_heads(frames, meta):
+    """후광 고리 자리: 장면마다 투구 꼭대기(투구 꼭대기 색 픽셀의 가운데·맨 위)를 발 기준 화면 m로(x 오른쪽, y 위).
+    피격·쓰러짐(돌려 지어낸 장면)은 대기 첫 장의 머리 자리를 tilt와 같은 각도로 발을 축으로 돌린 것"""
+    pal = knight_palette()
+    crest = {pal[c] for c in KNIGHT['palette'][3][0]}
+    k = KNIGHT['scale'] / PPM
+
+    def head(im, xy):
+        pts = [(x, y) for y in range(im.height) for x in range(im.width) if im.getpixel((x, y))[3] and im.getpixel((x, y))[:3] in crest]
+        assert pts, '투구 꼭대기 색이 없는 장면'
+        x = sum(p[0] for p in pts) / len(pts) + xy[0] - FOOT[0]
+        y = min(p[1] for p in pts) + xy[1] - FOOT[1]
+        return [round(x * k, 3), round(-y * k, 3)]
+
+    def turned(xy, deg, d):  # tilt과 같은 회전(PIL 양수 = 화면 반시계, W·NW·N·SW는 음수)
+        a = math.radians((-1 if d in (0, 1, 2, 7) else 1) * deg)
+        x, y = xy
+        return [round(x * math.cos(a) - y * math.sin(a), 3), round(x * math.sin(a) + y * math.cos(a), 3)]
+
+    out = {}
+    for anim, (n, _, _) in meta.items():
+        if anim in KNIGHT['anims']:
+            out[anim] = [[head(*frames[(anim, d, i)]) for i in range(n)] for d in range(8)]
+        else:
+            out[anim] = [[turned(head(*frames[('stance', d, 0)]), deg, d) for deg, _ in KNIGHT[anim]] for d in range(8)]
+    return out
 
 
 def pack(name, frames, meta, scale, dirs, bbox=None, json_name=None):
@@ -563,6 +687,9 @@ Items: drop animations scaled by {SCALE} (potion by 0.5), item icons cropped fro
 Demon (ruins boss): "Demon - Flare sprite sheets", OpenGameArt, CC0 - {GRIDS['demon']['url']}
 Modifications: selected frames, saturation and brightness lowered, scaled by {KIND_SCALE['demon']}, alpha thresholded, reduced to 256 colors.
 
+Fallen paladin (boss): "8 Directional Greatsword Knight" by Hormelz, itch.io, CC0 - {KNIGHT['url']}
+Modifications: idle frames halved, recolored (32-color palette swap), hit and death frames made by rotating the idle frame, scaled by {KNIGHT['scale']}, alpha thresholded, reduced to 256 colors.
+
 Files used:
 {files}
 
@@ -576,6 +703,11 @@ if __name__ == '__main__':
     TILES.mkdir(parents=True, exist_ok=True)
     for kind in KINDS:
         pack(kind, *frames_of(KINDS[kind], KIND_ANIMS.get(kind, ANIMS)), KIND_SCALE.get(kind, SCALE), 8)
+    knight = knight_frames()
+    pack('fallen_paladin', *knight, KNIGHT['scale'], 8)
+    (SHEETS / 'fallen_paladin_heads.json').write_text(json.dumps(knight_heads(*knight)) + '\n', encoding='utf-8')  # 후광 고리가 따라갈 머리 자리
+    for name, src in NPCS.items():
+        pack(name, *frames_of({'body': src}, {'stance': 'stance'}), SCALE, 8)
     effect('arrow', 'arrows')  # 화살: 8방향 3프레임, 기준점 위로 비행 높이가 들어 있다
     effect('cleave', 'cleave')
     effect('fireball', 'fireball')  # 화염구: 8방향 4프레임

@@ -16,6 +16,7 @@ import rangerPortrait from './assets/sprites/portrait_ranger.png';
 import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
 import { edgeLeft } from './render/edge';
+import { campfire } from './render/campfire';
 import { drawHeroPortrait, looksOf, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
@@ -117,12 +118,18 @@ export function initHud(h: Handlers) {
   music.addEventListener('input', () => h.sound({ music: +music.value / 100 }));
   mute.addEventListener('change', () => h.sound({ muted: mute.checked }));
   continueBtn.addEventListener('click', h.resume);
-  const portraits: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait, ranger: rangerPortrait, necromancer: necroPortrait };
-  for (const card of title.querySelectorAll<HTMLElement>('.class-card')) {
+  $('#title-new').addEventListener('click', () => showPick(true));
+  $('#title-sound').addEventListener('click', () => soundBtn.click());
+  $('#title-help').addEventListener('click', () => $('#help-btn').click());
+  $('#pick-back').addEventListener('click', () => showPick(false));
+  $('#title-pick').addEventListener('keydown', (e) => e.key === 'Escape' && showPick(false));
+  $('#pick-go').addEventListener('click', () => h.pick(picked));
+  for (const card of classCards()) {
     const c = card.dataset.cls as HeroClass;
-    card.querySelector('img')!.src = portraits[c];
-    card.addEventListener('click', () => h.pick(c));
+    card.querySelector('img')!.src = PORTRAITS[c];
+    card.addEventListener('click', () => selectClass(c));
   }
+  selectClass(picked);
   const smart = $('#smart-key') as HTMLInputElement;
   smart.checked = h.smartOn();
   smart.addEventListener('change', () => h.smart(smart.checked));
@@ -135,12 +142,25 @@ function replay(el: HTMLElement) {
   el.classList.add('show');
 }
 
-export function showFloor(n: number, cycle: number, land: Land = 'dungeon') {
-  const place = `${LANDS[land].name} ${n}${LANDS[land].unit}`;
-  floorLabel.textContent = place + (cycle ? ` · ${cycle + 1}회차` : '');
-  floorTitle.textContent = n === FLOORS ? `${place} — ${bossName(LANDS[land].skins)}` : floorLabel.textContent;
+// 구역 이름표(늘 회차를 붙인다)와 그 아래 임무 줄
+let shownCycle = 0;
+export function showFloor(n: number, cycle: number, land: Land = 'dungeon', goal = '') {
+  shownCycle = cycle;
+  const place = land === 'camp' ? LANDS.camp.name : `${LANDS[land].name} ${n}${LANDS[land].unit}`;
+  floorLabel.textContent = `${place} · ${cycle + 1}회차`;
+  floorTitle.textContent = land !== 'camp' && n === FLOORS ? `${place} — ${bossName(LANDS[land].skins)}` : floorLabel.textContent;
+  $('#quest').textContent = goal && `임무: ${goal}`;
   replay(floorTitle);
 }
+
+// 순찰대장의 말·단서 창. 닫으면 게임이 이어진다
+const talkDlg = document.querySelector<HTMLDialogElement>('#talk')!;
+export function showTalk(who: string, text: string) {
+  $('#talk-who').textContent = who;
+  $('#talk-text').textContent = text;
+  if (!talkDlg.open) talkDlg.showModal();
+}
+export const talking = () => talkDlg.open;
 
 // 소리 버튼 글자와 패널의 값을 설정에 맞춘다
 export function showSound(s: SoundSettings) {
@@ -154,14 +174,44 @@ export function showLoadError(err: unknown) {
   bannerText.textContent = `그림을 불러오지 못했습니다: ${err instanceof Error ? err.message : err}`;
 }
 
-// 시작할 때 저장된 진행이 있으면 이어하기/새 게임을 묻는다(saved = null이면 배너를 닫는다)
+const PORTRAITS: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait, ranger: rangerPortrait, necromancer: necroPortrait };
+const CLASS_ORDER: HeroClass[] = ['knight', 'wizard', 'ranger', 'necromancer'];
+const classCards = () => title.querySelectorAll<HTMLElement>('.class-card');
+let picked: HeroClass = 'knight';
+let stopFire: (() => void) | null = null;
+
+// 직업 선택: 고른 판이 넓어지며 설명이 나오고, 아래 버튼으로 시작한다
+function selectClass(c: HeroClass) {
+  picked = c;
+  for (const card of classCards()) card.setAttribute('aria-pressed', String(card.dataset.cls === c));
+  $('#pick-go').textContent = `${CLASSES[c].name}로 시작`; // 네 직업 이름이 모두 받침 없음
+}
+
+function showPick(open: boolean, focus = true) {
+  $('#title-main').hidden = open;
+  $('#title-pick').hidden = !open;
+  if (focus) (open ? title.querySelector<HTMLElement>(`.class-card[data-cls="${picked}"]`)! : $('#title-new')).focus();
+}
+
+// 첫 화면: 제목·메뉴와 모닥불. 저장이 있으면 이어하기를 맨 위에, 그 직업을 불 앞에 세운다
 export function showTitle(open: boolean, saved: Run | null = null) {
   title.hidden = !open;
+  stopFire?.();
+  stopFire = null;
   if (!open) return;
   banner.hidden = true;
-  $('#title-save').hidden = !saved;
-  if (saved) $('#title-save-info').textContent = `${CLASSES[saved.cls].name} · 지하 ${saved.floor}층 · Lv ${saved.level}`;
-  $('#title-pick').textContent = saved ? '새 게임 — 직업을 고르세요' : '직업을 고르세요';
+  continueBtn.hidden = !saved;
+  continueBtn.classList.toggle('primary', !!saved);
+  $('#title-new').classList.toggle('primary', !saved);
+  if (saved) {
+    const place = saved.land === 'camp' ? LANDS.camp.name : `${LANDS[saved.land].name} ${saved.floor}${LANDS[saved.land].unit}`;
+    $('#title-save-info').textContent = `${CLASSES[saved.cls].name} Lv ${saved.level} · ${place}`;
+  }
+  const lead = saved?.cls ?? 'knight';
+  const rest = CLASS_ORDER.filter((c) => c !== lead);
+  for (const [slot, c] of [['fl', lead], ['bl', rest[0]], ['br', rest[1]], ['fr', rest[2]]] as const) $(`#camp-scene .slot-${slot}`).setAttribute('src', PORTRAITS[c]);
+  showPick(false, false);
+  stopFire = campfire($('#campfire') as HTMLCanvasElement);
 }
 
 const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [dashBtn, 'dash'], [shoutBtn, 'shout'], [throwBtn, 'throw']];
@@ -539,7 +589,7 @@ function showGear(w: World) {
   }
 }
 
-function say(text: string) {
+export function say(text: string) {
   toast.textContent = text;
   replay(toast);
 }
@@ -715,9 +765,14 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
   auto.onchange = () => h.auto(auto.checked);
 }
 
-// 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, '다음 층으로'는 onLeave, '이 층에 남기'·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다
-export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void, dest = '다음 층') {
+// 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, '다음 구역으로'는 onLeave, '여기 남기'·닫기·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다.
+// camp = 야영지 상인(사고팔기, 닫기만), 아니면 구역 사이의 떠돌이 상인(물약 사기만, 다음 구역으로·남기)
+export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void, dest = '다음 층', camp = false) {
   cls = c.cls;
+  $('#shop-title').textContent = camp ? '상인' : '떠돌이 상인';
+  $('#shop-note').textContent = camp ? '물약을 사고, 쓰지 않는 장비를 팝니다.' : '길에서 만난 상인입니다. 물약만 팝니다.';
+  $('#shop-leave').hidden = camp;
+  $('#shop-stay').textContent = camp ? '닫기' : '◀ 여기 남기';
   $('#shop-leave').textContent = `${dest}으로 ▶`; // 층·구역 모두 받침으로 끝난다
   const label = (_item: ShopItem) => `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`;
   shopGold.textContent = String(c.gold);
@@ -730,7 +785,7 @@ export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem)
       return b;
     }),
   );
-  shopSell.hidden = c.bag.length === 0;
+  shopSell.hidden = !camp || c.bag.length === 0;
   $('#shop-sell-items').replaceChildren(
     ...c.bag.map((it, i) => {
       const b = document.createElement('button');
@@ -902,14 +957,15 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   const o = outcome(world);
   banner.hidden = o !== 'dead' && o !== 'clear';
   banner.classList.toggle('clear', o === 'clear'); // 클리어는 화면을 덮지 않고 위에 — 떨어진 전리품을 보고 주울 수 있게
-  restartBtn.hidden = o !== 'dead' && !(o === 'clear' && clearReady);
+  restartBtn.hidden = o !== 'dead'; // 클리어는 '야영지로' 하나
   if (o === 'dead') bannerText.textContent = '사망했습니다' + (lostGold ? ` — 금화 ${lostGold}을 잃었습니다` : '');
   if (o === 'clear') {
     const name = bossName(world.skins);
     bannerText.textContent = `${name}${(name.charCodeAt(name.length - 1) - 0xac00) % 28 ? '을' : '를'} 쓰러뜨렸습니다! 클리어!`;
-    summary.textContent = `플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;
+    summary.textContent = `${shownCycle + 1}회차 · 플레이 시간 ${formatTime(stats.time)} · 처치 ${stats.kills} · 사망 ${stats.deaths} · Lv ${world.level}`;
   }
   summary.hidden = o !== 'clear';
   nextCycleBtn.hidden = !(o === 'clear' && clearReady);
-  restartBtn.textContent = o === 'clear' ? '처음부터' : '다시 시작 (R)';
+  restartBtn.textContent = '야영지로 (R)';
+  nextCycleBtn.textContent = '야영지로';
 }

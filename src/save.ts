@@ -2,18 +2,18 @@
 import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
 import type { Side } from './sim/wilds';
-import { LAND_LIST, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
+import { LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side }; // land·from: 이 구역의 지역과 들어온 가장자리
-const VERSION = 1;
+export type Run = { pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number }; // land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3)
+const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
 const KEY = 'drpg-save';
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from });
+  return JSON.stringify({ v: VERSION, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -84,12 +84,13 @@ export function decodeSave(text: string | null): Run | null {
   } catch {
     return null;
   }
-  if (!d || typeof d !== 'object' || Array.isArray(d) || d.v !== VERSION) return null;
+  if (!d || typeof d !== 'object' || Array.isArray(d) || (d.v !== VERSION && d.v !== 1)) return null;
+  const old = d.v === 1; // 야영지 이전 저장: 캐릭터·장비·금화·회차는 그대로, 하던 구역은 버리고 야영지·이야기 1단계로
   // 투구·신발은 나중에 생긴 부위라 없으면 1단계·옵션 없음
   const g0 = d.gear as Record<string, unknown> | null;
   const g = g0 && typeof g0 === 'object' ? ({ helm: 1, boots: 1, ...g0 } as Record<string, unknown>) : null;
   if (!g || !SLOTS.every((s) => int(g[s], 1, 4))) return null;
-  if (!int(d.floor, 1, FLOORS) || !int(d.potions, 0, POTION.max) || !int(d.level, 1, 99) || !int(d.xp, 0, 1e6)) return null;
+  if (!int(d.floor, d.land === 'camp' ? 0 : 1, FLOORS) || !int(d.potions, 0, POTION.max) || !int(d.level, 1, 99) || !int(d.xp, 0, 1e6)) return null;
   // 금화·기록은 나중에 생긴 항목이라 없으면 0. 있는데 이상하면 저장 전체를 버린다
   const gold = d.gold ?? 0;
   const cycle = d.cycle ?? 0;
@@ -113,13 +114,16 @@ export function decodeSave(text: string | null): Run | null {
   const land = (d.land ?? 'dungeon') as Land;
   const from = (d.from ?? 'w') as Side;
   if (!LAND_LIST.includes(land) || !['n', 'e', 's', 'w'].includes(from)) return null;
+  const stage = old ? 0 : d.stage;
+  if (!int(stage, 0, STORY.length - 1)) return null;
+  const camp = old || land === 'camp';
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
   return {
     pity,
     cls,
-    floor: d.floor as number,
+    floor: camp ? 0 : (d.floor as number),
     potions: d.potions as number,
     gear: Object.fromEntries(SLOTS.map((s) => [s, g[s]])) as Gear,
     level: d.level as number,
@@ -131,8 +135,9 @@ export function decodeSave(text: string | null): Run | null {
     bag: bagged.bag,
     autoEquip,
     stats: { time, kills: st.kills as number, deaths: st.deaths as number },
-    land,
+    land: camp ? 'camp' : land,
     from,
+    stage: stage as number,
   };
 }
 

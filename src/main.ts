@@ -1,7 +1,7 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, sayLocked, sayShort, showBag, showTitle, showTree, showFloor, showLoadError, showShop, showSound, updateHud } from './hud';
+import { $, initHud, say, sayLocked, sayShort, showBag, showTalk, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud } from './hud';
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
@@ -9,11 +9,12 @@ import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setWorld } from './render/render';
 import { walkable } from './sim/path';
-import { clearRun, loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
+import { loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { afterClear, CLUE_FLOOR, depthOf, OPENING, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { canSummonKnight, spawnNear } from './sim/gimmicks';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -28,12 +29,15 @@ const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const saved = loadRun(); // 지난번 진행(있으면 시작 화면에 이어하기)
 let choosing = true; // 시작 화면(이어하기·직업 선택)을 보는 중. 뒤에는 기사 1층이 미리 그려져 있다
 let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터)
-let floor = 1;
-let land: Land = 'field'; // 지역(미궁·초원·설원). 한 판은 초원 1구역에서 시작하고, 구역 끝의 출구로 다음 지역을 고른다
+let floor = 0;
+let land: Land = 'camp'; // 지역. 한 판은 야영지에서 시작하고, 야영지 출구는 초원 1구역(갈림길에서 열린 지역을 고른다)
 let from: Side = 'w'; // 바깥 지역에서 들어온 가장자리(나간 출구의 맞은편)
 let next: { land: Land; from: Side; floor: number } = { land, from, floor: 1 }; // 상점을 떠나면 갈 곳(출구를 지날 때 정한다)
-let cycle = 0; // 회차(0 = 첫 판). 보스를 잡고 다음 회차로 가면 1씩
+let cycle = 0; // 회차(0 = 첫 판). 마지막 이야기(폐허) 보스를 잡으면 1씩
+let stage = 0; // 이야기 단계(STORY). 지금 단계 지역의 보스를 잡으면 다음 단계
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
+// 이 구역의 단서: 지금 이야기 단계의 지역, 3구역(미궁은 3층)일 때만
+const clueHere = () => (STORY[stage].land === land && floor === CLUE_FLOOR ? STORY[stage].clue : null);
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let clearT = 0; // 보스를 쓰러뜨린 뒤 흐른 초. LOOT_TIME 전에는 결과 버튼이 없다(공격하던 연타가 버튼을 누르지 않게)
@@ -45,25 +49,32 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구마다(같은 지역 칸끼리 묶어 가운데) "▶ 설원 3구역", 바깥 지역의 계단은 동굴 입구 "▼ 지하 3층"
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (to === land ? floor + 1 : 1);
+const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인' };
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
   for (const to of ['field', 'snow', 'ruins'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
-    if (cells.length) out.push({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5, text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
+    if (cells.length) out.push({ ...middle(cells), text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
+    const shut = w.locked.filter((e) => e.to === to);
+    if (shut.length) out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` });
+  }
+  for (const c of w.chests) {
+    const text = c.kind === 'clue' ? (c.open ? '' : clueHere()?.name) : CHEST_SIGN[c.kind ?? ''];
+    if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text });
   }
   if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ floor, ...entry, cycle, stats, land, from }); // 저장할 진행
-// 새 판·새 회차: 초원 1구역 서쪽에서
-const fresh = () => ([land, from] = ['field', 'w']);
+const progress = () => ({ floor, ...entry, cycle, stats, land, from, stage }); // 저장할 진행
 
-// 층마다 새 시드(sim 밖이라 Math.random 사용). 층 배율 floorPower, 떨어지는 장비는 층 + 1단계까지
+// 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
-  const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n, cycle), cyclePower(cycle), LANDS[land].skins);
+  const depth = depthOf(land, n);
+  const w = createWorld(seed, makeMap(seed, n, land, from, openLands(stage), !!clueHere()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
-  w.rest = land === 'field'; // 초원 모닥불에서 쉴 수 있다
+  w.rest = land === 'field' || land === 'camp'; // 초원·야영지 모닥불에서 쉴 수 있다
   w.land = land;
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
@@ -75,7 +86,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.bag = [...carry.bag];
   w.autoEquip = carry.autoEquip;
   w.pity = carry.pity;
-  w.maxTier = Math.min(4, n + 1);
+  w.maxTier = Math.min(4, Math.max(1, depth) + 1);
   setLevel(w, carry.level, carry.xp);
   return w;
 }
@@ -92,17 +103,44 @@ function enterFloor(n: number, carry: Carry) {
   setWorld(world, themeOf(n, land));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
-  showFloor(n, cycle, land);
+  showFloor(n, cycle, land, STORY[stage].goal);
   sound.playMusic(sound.musicFor(n));
 }
 
-// 계단을 내려가면 다음 층을 만들기 전에 상점. 떠나면 산 것을 가지고 다음 층으로
-function openShop() {
-  shopping = carryOf(world);
-  // 바깥 출구면 그 지역(맞은편 가장자리에서), 계단(미궁·동굴 입구)이면 미궁
+// 야영지로(죽었을 때·보스를 깼을 때). words = 순찰대장이 바로 하는 말
+function toCamp(carry: Carry, words: string | null = null) {
+  [land, from] = ['camp', 'w'];
+  enterFloor(0, carry);
+  if (words) showTalk('순찰대장', words);
+}
+
+// 출구·계단에 들어서면: 야영지 출구는 바로 초원 1구역, 그 밖은 떠돌이 상인을 거쳐 다음 구역
+function leave() {
   const ex = exitAt(world);
   const to: Land = ex ? ex.to : 'dungeon';
   next = { land: to, from: ex ? opposite[sideOf(world, ex)] : 'w', floor: nextFloor(to) };
+  if (land !== 'camp') return openShop(false);
+  ({ land, from } = next);
+  enterFloor(next.floor, carryOf(world));
+}
+
+// 주민(배경)이 하는 말: 누를 때마다 다음 줄
+const VILLAGER = ['불 곁을 떠나지 마세요. 해가 지면 초원도 위험해요.', '정찰병은 아직 소식이 없대요.', '순찰대장님이 요즘 잠을 못 주무세요.', '상인한테 물약은 넉넉히 사 두세요.'];
+let chatter = 0;
+
+// NPC·단서를 누르면(sim이 w.talk를 남긴다)
+function talkTo(t: NonNullable<World['talk']>) {
+  if (t === 'merchant') return openShop(true);
+  if (t === 'villager') return say(VILLAGER[chatter++ % VILLAGER.length]);
+  if (t === 'elder') return showTalk('순찰대장', STORY[stage].again);
+  const c = clueHere();
+  if (c) showTalk(c.name, c.text);
+  signs = signsOf(world); // 읽은 단서의 이름표를 지운다
+}
+
+// 상점: 구역 사이의 떠돌이 상인(떠나면 산 것을 가지고 next로) 또는 야영지 상인(camp, 닫으면 그대로 야영지)
+function openShop(camp: boolean) {
+  shopping = carryOf(world);
   const coin = () => sound.play([{ name: 'gold', x: world.entities[0].x, z: world.entities[0].z }], world.entities[0].x, world.entities[0].z);
   const render = () =>
     showShop(
@@ -133,6 +171,7 @@ function openShop() {
         Object.assign(world, { potions: c.potions, gear: { ...c.gear }, gold: c.gold, bag: [...c.bag], toStairs: false });
       },
       `${LANDS[next.land].name} ${next.floor}${LANDS[next.land].unit}`,
+      camp,
     );
   render();
 }
@@ -143,25 +182,21 @@ function begin(n: number, carry: Carry) {
   enterFloor(n, carry);
 }
 
+// 죽으면 야영지로: 그 구역에 들어올 때의 물약·장비로(금화는 절반). 지역 진행은 기억하지 않는다
 function restart() {
-  const o = outcome(world);
-  if (o === 'dead') {
-    stats.deaths++;
-    enterFloor(floor, entry); // 같은 층을 새 모양으로, 들어올 때의 물약·장비로
-  } else if (o === 'clear' && clearT >= LOOT_TIME) {
-    stats = newStats();
-    cycle = 0;
-    fresh();
-    enterFloor(1, startOf(world.cls));
-  }
+  if (outcome(world) !== 'dead') return;
+  stats.deaths++;
+  toCamp(entry);
 }
 
-// 보스를 잡은 뒤: 레벨·장비·물약·금화를 가지고 더 강한 1층부터
-function nextCycle() {
+// 보스를 잡은 뒤 야영지로: 지금 이야기 단계의 보스면 다음 단계(마지막이면 회차 + 1), 순찰대장이 다음 이야기를 한다
+function backToCamp() {
   if (outcome(world) !== 'clear' || clearT < LOOT_TIME) return;
-  cycle++;
-  fresh();
-  enterFloor(1, carryOf(world));
+  const done = STORY[stage].done;
+  const after = afterClear(stage, cycle, land);
+  ({ stage, cycle } = after);
+  toCamp(carryOf(world), after.advanced ? done : null);
+  if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
 }
 
 // 보관함 창. 게임이 멈춘 동안 바로 고치고 다시 그린다
@@ -320,9 +355,9 @@ try {
 // 시작 화면: 이어하기 또는 직업을 골라 새 게임. 처음 하는 사람에게는 고른 뒤 조작법
 const pickClass = (cls: HeroClass) => {
   stats = newStats();
-  cycle = 0;
-  fresh();
-  begin(1, startOf(cls));
+  [cycle, stage, land, from] = [0, 0, 'camp', 'w'];
+  begin(0, startOf(cls));
+  showTalk('순찰대장', OPENING);
   if (!saved) help.showModal();
 };
 showTitle(true, saved);
@@ -338,7 +373,7 @@ initHud({
   bag: openBag,
   tree: openTree,
   restart,
-  nextCycle,
+  nextCycle: backToCamp,
   toggleMap: toggleAutomap,
   sound: (patch) => {
     sound.setSound(patch);
@@ -347,8 +382,7 @@ initHud({
   resume: () => {
     if (!saved) return;
     stats = { ...saved.stats };
-    cycle = saved.cycle;
-    ({ land, from } = saved);
+    ({ cycle, stage, land, from } = saved);
     begin(saved.floor, saved);
   },
   pick: pickClass,
@@ -373,7 +407,7 @@ sound.initSound();
 sound.playMusic(sound.musicFor(floor)); // 곡만 정해 두고, 첫 입력 때 재생
 showSound(sound.settings);
 resetAutomap(world);
-showFloor(floor, cycle);
+showFloor(floor, cycle, land, STORY[stage].goal);
 // 스킬 Q W E R(하단 버튼 순서), 물약 1. R은 사망 화면에서는 다시 시작(클리어 화면은 버튼으로만).
 // e.code: 한글 입력 상태에서도 물리 키
 const ended = () => outcome(world) === 'dead'; // 클리어 뒤 R(도끼 키 연타)로 '처음부터'가 눌리지 않게 — 클리어는 버튼으로만
@@ -411,6 +445,11 @@ if (new URLSearchParams(location.search).has('test')) {
     land = LAND_LIST[(LAND_LIST.indexOf(land) + 1) % LAND_LIST.length];
     enterFloor(floor, carryOf(world));
   });
+  // 최종 보스 후보: 주인공 근처에 타락한 성기사(야영지 제외)
+  $('#test-knight').addEventListener('click', () => {
+    const hero = world.entities[0];
+    if (playing() && canSummonKnight(world)) spawnNear(world, 'boss', hero.x, hero.z, 3, -1, 'fallen_paladin');
+  });
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
 if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; } } });
@@ -421,30 +460,35 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  const paused = credits.open || help.open || bag.open || tree.open || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
   pollInput(world, dt, paused);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : null);
   renderer.domElement.classList.toggle('aiming', !!aiming || amoving);
   if (paused || hitstop > 0) acc = 0; // 타격 멈춤 동안은 sim이 서 있다(명령은 큐에 남는다)
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
+  if (world.talk) {
+    const t = world.talk;
+    world.talk = null;
+    talkTo(t);
+  }
   const events = soundEvents(heard, world);
   sound.play(events, world.entities[0].x, world.entities[0].z);
   stats.kills += events.filter((e) => e.name === 'skel_die' || e.name === 'boss_die').length;
   const o = outcome(world);
   if (!paused && !o) stats.time += dt;
   if (o === 'dead' && lostGold === null) {
-    // 죽는 순간 금화 절반을 잃고 바로 저장(새로고침으로 피할 수 없게). 다시 시작하면 줄어든 금화로 같은 층
+    // 죽는 순간 금화 절반을 잃고 야영지로 저장(새로고침으로 '1구역부터' 벌칙을 피할 수 없게)
     lostGold = entry.gold - deathGold(entry.gold);
     entry = { ...entry, gold: deathGold(entry.gold) };
-    saveRun(progress());
+    saveRun({ ...progress(), land: 'camp', floor: 0, from: 'w' });
   }
-  if (o === 'clear') (clearRun(), (clearT += dt)); // 다 깼으면 이어할 것이 없다
+  if (o === 'clear') clearT += dt; // 저장은 지우지 않는다(야영지로 가기 전에 탭을 닫아도 캐릭터가 남는다)
   const [hero, st] = [world.entities[0], world.stairs];
   if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY) && !exitAt(world)) stayed = false; // 계단·출구에서 벗어나야 상점이 다시 열린다
   if (o === 'descend' && !shopping) {
     if (stayed) world.toStairs = false; // 계단 위에서 다시 눌러도 열리지 않는다
-    else openShop();
+    else leave();
   }
   heard = snapshot(world);
   draw(world, dt);

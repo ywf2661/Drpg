@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { steady, ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { temper } from './temper';
@@ -53,7 +53,7 @@ export function execute(w: World, hero: Entity, x?: number, z?: number): number 
   if (t.hp <= 0) {
     if (rank(w, 'burst')) burst(w, hero, [t]);
     for (const e of w.entities)
-      if (e !== hero && e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king' && dist(e, t) <= EXECUTE.fearR) Object.assign(e, { fearT: EXECUTE.fear, state: 'idle', attackT: 0, path: [], phase: 'none' });
+      if (e !== hero && e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king' && !steady(e) && dist(e, t) <= EXECUTE.fearR) Object.assign(e, { fearT: EXECUTE.fear, state: 'idle', attackT: 0, path: [], phase: 'none' });
   }
   return st.cd;
 }
@@ -334,7 +334,7 @@ export function shout(w: World, hero: Entity): number {
   const st = shoutStat(w);
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead' || dist(e, hero) > st.radius) continue;
-    Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none', stunT: st.stun });
+    stun(e, st.stun);
     const d = dist(e, hero);
     knock(w, e, d > 1e-6 ? (e.x - hero.x) / d : 1, d > 1e-6 ? (e.z - hero.z) / d : 0, KNOCK.shout);
   }

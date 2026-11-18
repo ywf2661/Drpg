@@ -31,6 +31,14 @@ import stuckInfo from '../assets/sprites/stuck.json';
 import stuckUrl from '../assets/sprites/stuck.png';
 import ruinInfo from '../assets/sprites/ruin_props.json';
 import ruinUrl from '../assets/sprites/ruin_props.png';
+import captainInfo from '../assets/sprites/npc_captain.json';
+import captainUrl from '../assets/sprites/npc_captain.png';
+import merchantInfo from '../assets/sprites/npc_merchant.json';
+import merchantUrl from '../assets/sprites/npc_merchant.png';
+import villager1Info from '../assets/sprites/npc_villager1.json';
+import villager1Url from '../assets/sprites/npc_villager1.png';
+import villager2Info from '../assets/sprites/npc_villager2.json';
+import villager2Url from '../assets/sprites/npc_villager2.png';
 import { walkable } from '../sim/path';
 import { resetWard, syncWard, updateWard, wardFx } from './ward';
 import { cardGeometry, dirIndex, frameAt, loadSheet, type Clip, type SheetInfo } from './sprites';
@@ -61,6 +69,9 @@ const VARIANTS: Record<Prop['kind'], string[]> = {
 type Sheet = { info: SheetInfo; url: string; tex?: THREE.Texture; geo?: THREE.BufferGeometry };
 type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number; dim?: number; tint?: THREE.Color }; // dir: 방향 행(화살), dim: 밝기 배수(잠긴 야영지 상자), tint: 색(얼어붙은 보물·가시 예고)
 const props: Sheet = { info: propsInfo as SheetInfo, url: propsUrl };
+// 야영지 사람(FLARE npcs, 서 있는 동작 8방향): 순찰대장·상인·주민 둘. 상자 칸에 정면(NPC_DIR)을 보고 선다
+const npcs = { captain: { info: captainInfo as SheetInfo, url: captainUrl }, merchant: { info: merchantInfo as SheetInfo, url: merchantUrl }, villager1: { info: villager1Info as SheetInfo, url: villager1Url }, villager2: { info: villager2Info as SheetInfo, url: villager2Url } } as Record<'captain' | 'merchant' | 'villager1' | 'villager2', Sheet>;
+const NPC_DIR = 6;
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
 const arrow: Sheet = { info: arrowInfo as SheetInfo, url: arrowUrl };
@@ -350,7 +361,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [ruin, props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
+  for (const s of [...Object.values(npcs), ruin, props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -686,7 +697,12 @@ export function buildProps(world: World): THREE.Group {
     const names = VARIANTS[p.kind];
     return card(props, names[cellHash(p.x, p.z) % names.length], p.x + 0.5, p.z + 0.5, p.kind === 'debris');
   });
-  chestCards = world.chests.map((ch) => {
+  chestCards = world.chests.map((ch, i) => {
+    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' ? npcs.merchant : ch.kind === 'villager' ? (i % 2 ? npcs.villager2 : npcs.villager1) : null;
+    if (npc) {
+      const c = Object.assign(card(npc, 'stance', ch.x + 0.5, ch.z + 0.5, false), { dir: NPC_DIR });
+      return { card: c, open: c.clip };
+    }
     const [sheet, name] = ch.kind === 'shrine' ? [ruin, 'shrine'] : ch.kind === 'trial' ? [ruin, 'trial'] : [props, cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest'];
     const open = sheet.info.anims[name === 'shrine' ? 'shrine_off' : `${name}_open`];
     const c = card(sheet, name, ch.x + 0.5, ch.z + 0.5, false);

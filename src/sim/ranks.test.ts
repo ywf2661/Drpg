@@ -6,7 +6,7 @@ const run = (w: World, ticks: number) => {
 };
 
 test('레벨이 오르면 오른 만큼 스킬 포인트, 찍으면 단계 +1(최대 5), 포인트가 없으면 그대로', () => {
-  const w = createWorld(1, ['Hw'], 5); // 전사 경험치 125: 40 + 70 → 2레벨 오름
+  const w = createWorld(1, ['Hw'], 5, 5); // 전사 경험치 125(회차 배율 5라 경험치 상한 8): 40 + 70 → 2레벨 오름
   expect(w.ranks).toEqual({ cleave: 1, dash: 1, shout: 1, throw: 1 });
   expect(w.points).toBe(0);
   w.entities[1].hp = 1;

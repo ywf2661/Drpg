@@ -2,6 +2,7 @@
 import { FLOORS, floorPower } from './dungeon';
 import { makeMap, opposite, type Side } from './wilds';
 import { buy, deathGold, sell } from '../shop';
+import { CLUE_FLOOR, depthOf, isPassive, openLands, STORY } from './rules';
 import { uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
@@ -16,10 +17,17 @@ const TEMPER: SkillId[] = ['cleave', 'whirl', 'shout', 'flameEdge'];
 export type Build = 'basic' | 'iaido' | 'whirl' | 'temper';
 const SLOTS: Record<Build, SkillId[] | null> = { basic: null, iaido: IAIDO, whirl: WHIRL, temper: TEMPER };
 const LEARN = (cls: HeroClass, build: Build = 'basic'): SkillId[] => (build === 'iaido' ? IAIDO_LEARN : SLOTS[build] ?? BASIC[cls]).flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
+// 빌드 스킬을 다 찍은 뒤 남는 포인트: 그 스킬들이 있는 탭의 패시브까지(칸이 필요 없고, 같은 탭 포인트는 시너지로 피해도 올린다)
+const MORE = (cls: HeroClass, build: Build = 'basic'): SkillId[] => {
+  const tabs = new Set(LEARN(cls, build).map((id) => TREES[cls].findIndex((t) => t.skills.includes(id))));
+  return TREES[cls].filter((_, i) => tabs.has(i)).flatMap((t) => t.skills.slice(0, t.skills.findIndex(isPassive) + 1));
+};
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): World {
-  const w = createWorld(seed, makeMap(seed, n, land, from), floorPower(n), 1, LANDS[land].skins);
+  return loadCarry(createWorld(seed, makeMap(seed, n, land, from), floorPower(n), 1, LANDS[land].skins), c, land, Math.min(4, n + 1));
+}
+function loadCarry(w: World, c: Carry, land: Land, maxTier: number): World {
   w.cls = c.cls;
   w.land = land;
   w.potions = c.potions;
@@ -31,7 +39,7 @@ function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): W
   w.points = c.points;
   w.bag = [...c.bag];
   w.pity = c.pity;
-  w.maxTier = Math.min(4, n + 1);
+  w.maxTier = maxTier;
   setLevel(w, c.level, c.xp);
   return w;
 }
@@ -55,7 +63,9 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
   const nec = w.cls === 'necromancer';
   if (skills && w.points > 0) {
     // 포인트는 배울 수 있는 것 중 가장 낮은 단계부터(같으면 LEARN 순서)
-    const can = LEARN(w.cls, build).filter((id) => !learnBlock(w, id) && !(id === 'flameEdge' && w.ranks.flameEdge)); // 불 벼림은 1점만
+    const free = (ids: SkillId[]) => ids.filter((id) => !learnBlock(w, id) && !(id === 'flameEdge' && w.ranks.flameEdge)); // 불 벼림은 1점만
+    const first = free(LEARN(w.cls, build));
+    const can = first.length ? first : free(MORE(w.cls, build));
     if (can.length) cmds.push({ type: 'learn', skill: can.reduce((a, b) => ((w.ranks[b] ?? 0) < (w.ranks[a] ?? 0) ? b : a)) });
   }
   // 예전 스킬 넷은 예전 칸에(봇의 판단이 칸 이름을 스킬로 본다)
@@ -171,6 +181,10 @@ function reachable(w: World, x: number, z: number): Uint8Array {
 // 상점: 보관함을 다 팔고(봇은 자동 장착만 쓴다), 물약을 8개까지 채운다
 function shopping(c: Carry): Carry {
   while (c.bag.length) c = sell(c, 0);
+  return potionsOnly(c);
+}
+// 떠돌이 상인(구역 사이): 물약만
+function potionsOnly(c: Carry): Carry {
   while (buy(c, 'potion') !== c) c = buy(c, 'potion');
   return c;
 }
@@ -208,4 +222,63 @@ export function playthrough(seed: number, skills = true, dodge = true, cls: Hero
     if (!done) return { cleared: false, deaths, level: carry.level, floor: n, uniques, time };
   }
   return { cleared: true, deaths, level: carry.level, floor: FLOORS, uniques, time };
+}
+
+// 이야기 순서대로 이어서(설계서 6): 한 캐릭터가 초원 → 설원 → 미궁 → 폐허를 레벨·장비·금화를 들고 간다(회차 0).
+// 초원이 아닌 지역은 야영지 → 초원 1구역 → 그 지역 1구역. 죽으면 야영지로(그 구역 진입 상태, 금화 절반) → 다시 초원 1구역부터.
+// 구역 사이엔 물약만 사고, 장비 팔기는 야영지에서만. 결과: 지역마다 시도 수(야영지를 떠난 횟수)·사망·sim 시간(초)·깬 뒤 레벨·죽은 구역
+export function story(seed: number, cls: HeroClass = 'knight', build: Build = 'basic', maxTries = 15, extra?: number) {
+  let carry = shopping(START(cls)); // 야영지 상인
+  const out: { land: Land; tries: number; deaths: number; time: number; level: number; cleared: boolean; died: string[]; killed: number; taken: number }[] = []; // killed: 잡은 몬스터 최대 체력 합, taken: 받은 피해 합
+  let k = 0;
+  for (let stage = 0; stage < STORY.length; stage++) {
+    const goal = STORY[stage].land;
+    const r = { land: goal, tries: 0, deaths: 0, time: 0, level: carry.level, cleared: false, died: [] as string[], killed: 0, taken: 0 };
+    out.push(r);
+    while (!r.cleared && r.tries < maxTries) {
+      r.tries++;
+      // 야영지에서 나가 초원 1구역부터: [지역, 구역]
+      let [land, n, from] = ['field' as Land, 1, 'w' as Side];
+      let c = carry;
+      for (;;) {
+        const s = seed * 1_000_003 + k++ * 7919; // 멀리 띄운다: 지도 생성이 실패하면 시드 + 1로 다시 만들어 이웃 시드는 같은 지도가 된다
+        const w = createWorld(s, makeMap(s, n, land, from, openLands(stage), goal === land && n === CLUE_FLOOR), floorPower(depthOf(land, n), 0, extra), 1, LANDS[land].skins, depthOf(land, n) > FLOORS);
+        loadCarry(w, c, land, Math.min(4, depthOf(land, n) + 1));
+        const target = land === 'field' && goal !== 'field' ? goal : land; // 초원 1구역에선 그 지역 출구로
+        let o: ReturnType<typeof outcome> = null;
+        let t = 0;
+        const alive = new Set(w.entities.filter((e) => e.kind !== 'hero').map((e) => e.id));
+        for (; t < 600 / DT && !o; t++) {
+          const hp = w.entities[0].hp;
+          step(w, t % THINK === 0 ? think(w, true, true, target, build) : []);
+          r.taken += Math.max(0, hp - w.entities[0].hp);
+          o = outcome(w);
+          if (o === 'descend' && (exitAt(w)?.to ?? 'dungeon') !== target) o = null; // 지나가다 밟은 다른 출구: 게임에선 상인 창에서 '머문다'
+        }
+        r.time += t * DT;
+        for (const e of w.entities) if (alive.has(e.id) && e.state === 'dead') r.killed += e.maxHp;
+        if (o !== 'descend' && o !== 'clear') {
+          r.deaths++;
+          r.died.push(`${land}${n}${o ? '' : '(시간)'}`);
+          carry = shopping({ ...c, gold: deathGold(c.gold) }); // 야영지: 그 구역에 들어올 때의 상태로
+          break;
+        }
+        c = { pity: w.pity, cls: w.cls, potions: w.potions, gear: { ...w.gear }, mods: w.mods, level: w.level, xp: w.xp, gold: w.gold, ranks: { ...w.ranks }, keys: { ...w.keys }, points: w.points, bag: w.bag };
+        if (o === 'clear') {
+          if (land !== goal) throw new Error(`엉뚱한 보스: ${land}`);
+          carry = shopping(c);
+          r.cleared = true;
+          r.level = c.level;
+          break;
+        }
+        const ex = exitAt(w);
+        const to: Land = ex ? ex.to : 'dungeon';
+        [n, from] = [to === land ? n + 1 : 1, ex ? opposite[sideOf(w, ex)] : 'w'];
+        land = to;
+        c = potionsOnly(c);
+      }
+    }
+    if (!r.cleared) break;
+  }
+  return out;
 }

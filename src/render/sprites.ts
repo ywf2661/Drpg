@@ -42,12 +42,19 @@ import boneKnightInfo from '../assets/sprites/bone_knight.json';
 import boneKnightUrl from '../assets/sprites/bone_knight.png';
 import demonInfo from '../assets/sprites/demon.json';
 import demonUrl from '../assets/sprites/demon.png';
+import fallenPaladinInfo from '../assets/sprites/fallen_paladin.json';
+import fallenPaladinUrl from '../assets/sprites/fallen_paladin.png';
+import fallenPaladinHeads from '../assets/sprites/fallen_paladin_heads.json';
 
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 // tint: 불빛에 곱하는 고유 색(정예는 특성 색). ring: 정예의 발밑 고리
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh };
+// halo: 타락한 성기사의 후광(k = 켜짐 정도 0~1, t = 맥동 시간)
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number } };
+// 후광: 맥동 주기(초)·밝기 범위, 켜지고 꺼지는 시간(초). 고리는 빛무리 밝기의 ring배
+export const HALO = { period: 2.6, min: 0.35, max: 0.6, fade: 1.2, ring: 0.6 };
+export const haloLevel = (t: number) => HALO.min + (HALO.max - HALO.min) * (0.5 - 0.5 * Math.cos((2 * Math.PI * t) / HALO.period));
 export const CAST_SHOW = 0.35; // 스킬 시전 동작(공격 그림 = 마법사는 cast)을 보여 주는 시간(초)
 const RING = new THREE.RingGeometry(0.4, 0.52, 28).rotateX(-Math.PI / 2);
 const WHITE = new THREE.Color(1, 1, 1);
@@ -90,6 +97,7 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   hobgoblin_archer: { info: hobgoblinArcherInfo as SheetInfo, url: hobgoblinArcherUrl },
   bone_knight: { info: boneKnightInfo as SheetInfo, url: boneKnightUrl },
   demon: { info: demonInfo as SheetInfo, url: demonUrl },
+  fallen_paladin: { info: fallenPaladinInfo as SheetInfo, url: fallenPaladinUrl }, // 타락한 성기사(Hormelz 대검 기사, 배색 C)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
@@ -287,8 +295,66 @@ export function makeSprite(e: Entity): Sprite {
     s.ring.renderOrder = 1; // 바닥 다음, 캐릭터 전에
     mesh.add(s.ring);
   }
+  attachHalo(s, e);
   if (e.kind === 'hero') heroSprite = s;
   return s;
+}
+
+// 후광 그림 두 장(64×64, 테스트 환경엔 캔버스가 없어 픽셀을 직접 계산): 검붉은 빛무리, 금 간 금빛 고리
+const haloTextures = { glow: null as THREE.DataTexture | null, ring: null as THREE.DataTexture | null };
+function haloTexture(paint: (u: number, v: number) => [number, number, number, number]): THREE.DataTexture {
+  const n = 64;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) data.set(paint(((x + 0.5) / n) * 2 - 1, ((y + 0.5) / n) * 2 - 1), (y * n + x) * 4);
+  const t = new THREE.DataTexture(data, n, n);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+const glowPaint = (u: number, v: number): [number, number, number, number] => {
+  const r = Math.hypot(u, v);
+  const a = Math.max(0, 1 - r) ** 1.6; // 가운데가 밝고 가장자리 0
+  const hot = Math.max(0, 1 - r * 2); // 가운데만 주황
+  return [200 + 55 * hot, 40 + 80 * hot, 20 + 20 * hot, Math.round(255 * a)];
+};
+const ringPaint = (u: number, v: number): [number, number, number, number] => {
+  const deg = ((Math.atan2(v, u) * 180) / Math.PI + 360) % 360; // DataTexture 0번 줄 = 아래 → v가 클수록 위, 화면 위 = 90°
+  const broken = deg > 170 && deg < 200; // 금 간 자리 둘(170°~200°, 330°~345°)
+  const broken2 = deg > 330 && deg < 345;
+  const a = broken || broken2 ? 0 : Math.max(0, 1 - Math.abs(Math.hypot(u, v) - 0.8) / 0.12);
+  return [255, 200, 110, Math.round(255 * a * a)];
+};
+const COS30 = Math.cos(Math.PI / 6); // 세운 판자는 화면에서 cos30°로 줄어 보인다(cardGeometry와 같은 보정)
+
+export function attachHalo(s: Sprite, e: Entity) {
+  if (e.skin !== 'fallen_paladin') return;
+  haloTextures.glow ??= haloTexture(glowPaint);
+  haloTextures.ring ??= haloTexture(ringPaint);
+  const plate = (map: THREE.Texture, w: number, h: number, y: number) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h / COS30), new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+    m.position.set(0, y / COS30, -0.05); // 그림 바로 뒤
+    m.renderOrder = 1;
+    s.mesh.add(m);
+    return m;
+  };
+  // 크기·높이는 화면에서 본 m(키 약 1.7m): 빛무리는 몸 가운데, 고리는 머리 뒤
+  s.halo = { glow: plate(haloTextures.glow, 2.0, 2.2, 1.1), ring: plate(haloTextures.ring, 0.62, 0.28, 1.62), k: 0, t: 0 }; // 고리 높이는 updateHalo가 장면마다 머리 자리로
+}
+
+// 머리 자리표(tools/sprites.py knight_heads): 동작 → 방향 → 프레임 → 발 기준 화면 m (x 오른쪽, y 위)
+const HEADS = fallenPaladinHeads as Record<string, number[][][]>;
+
+function updateHalo(h: NonNullable<Sprite['halo']>, dead: boolean, dt: number, anim: Anim, dir: number, f: number) {
+  h.t += dt;
+  const [hx, hy] = HEADS[anim]?.[dir]?.[f] ?? [0, 1.62];
+  h.ring.position.set(hx, hy / COS30, -0.05); // 고리는 머리를 따라간다(쓰러지면 꺼진다)
+  h.k = dead ? Math.max(0, h.k - dt / HALO.fade) : Math.min(1, h.k + dt / HALO.fade);
+  const level = haloLevel(h.t) * h.k;
+  (h.glow.material as THREE.MeshBasicMaterial).opacity = level;
+  (h.ring.material as THREE.MeshBasicMaterial).opacity = level * HALO.ring;
+  h.glow.visible = h.ring.visible = h.k > 0;
 }
 
 // interval: 이 캐릭터의 휘두르기 시간(주인공은 무기마다 다름)
@@ -316,6 +382,7 @@ export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number)
   s.mesh.renderOrder = dead ? 1 : 2;
   s.mat.depthWrite = !dead;
   if (s.ring) s.ring.visible = !dead;
+  if (s.halo) updateHalo(s.halo, dead, dt, anim, dirIndex(e.facing), f);
 }
 
 function animFor(e: Entity, hitT: number): Anim {

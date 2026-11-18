@@ -23,8 +23,17 @@ export function spawnNear(w: World, kind: Kind, cx: number, cz: number, r: numbe
   return null;
 }
 
+// ?test 「기사 소환」(타락한 성기사)이 되는 곳: 야영지가 아니고, 구역 클리어를 계단·출구·원래 보스가 정하는 곳.
+// 셋 다 없는 구역(안 열린 지역으로 건너뛴 구역 등)에서는 기사가 유일한 보스가 되어 쓰러뜨리면 구역 클리어 → 이야기가 넘어갈 수 있다
+export const canSummonKnight = (w: World) => w.land !== 'camp' && (!!w.stairs || w.exits.length > 0 || w.entities.some((e) => e.kind === 'boss'));
+
 // 특별한 상자를 눌렀다. true = 처리했다(평소처럼 열지 않는다)
 export function touchChest(w: World, ch: Chest): boolean {
+  if (ch.kind === 'elder' || ch.kind === 'merchant' || ch.kind === 'villager' || ch.kind === 'clue') {
+    if (ch.kind === 'clue') ch.open = true; // NPC는 몇 번이든 다시 말을 건다
+    w.talk = ch.kind;
+    return true;
+  }
   if (ch.kind === 'shrine') {
     ch.open = true;
     w.buff = { kind: BUFF_LIST[Math.floor(rand(w) * BUFF_LIST.length)], t: SHRINE.time };
@@ -113,7 +122,7 @@ export function tickGimmicks(w: World, hero: Entity) {
     Object.assign(w, { portalLock: true, amove: null, opening: null });
   }
   // 폐허 보스: 체력 절반에 무덤을 일으킨다
-  const boss = w.land === 'ruins' && !w.bossRaised ? w.entities.find((e) => e.kind === 'boss' && e.state !== 'dead' && e.hp <= e.maxHp / 2) : undefined;
+  const boss = w.land === 'ruins' && !w.bossRaised ? w.entities.find((e) => e.kind === 'boss' && e.skin === 'demon' && e.state !== 'dead' && e.hp <= e.maxHp / 2) : undefined;
   if (boss) {
     w.bossRaised = true;
     for (let i = 0; i < GRAVE.boss; i++) {

@@ -1,13 +1,60 @@
 import { expect, test } from 'vitest';
-import { createWorld, DT, GRAVE, hidden, ICICLE, LANDS, moveSpeed, SHRINE, SPIKE, step, TREASURE, TRIAL, type Command, type World } from './world';
+import { createWorld, DT, GRAVE, hidden, ICICLE, LANDS, monsterName, moveSpeed, outcome, SHRINE, SPIKE, step, TREASURE, TRIAL, type Command, type World } from './world';
 import { generateFloor } from './dungeon';
 import { generateWild } from './wilds';
+import { canSummonKnight, spawnNear } from './gimmicks';
 
 const run = (w: World, ticks: number, cmds: Command[] = []) => {
   for (let i = 0; i < ticks; i++) step(w, i === 0 ? cmds : []);
 };
 const kill = (w: World, ids: number[]) => ids.forEach((id) => Object.assign(w.entities[id], { state: 'dead', hp: 0 }));
 const count = (map: string[], chars: string) => map.join('').split('').filter((c) => chars.includes(c)).length;
+
+test('타락한 성기사: 소환하면 이름·체력 배율이 붙고, 폐허에서 체력 절반이 돼도 무덤을 일으키지 않는다', () => {
+  const w = createWorld(1, ['#########', '#H......#', '#.......#', '#.......#', '#########'], 1, 1, LANDS.ruins.skins);
+  w.land = 'ruins';
+  const k = spawnNear(w, 'boss', 1.5, 1.5, 3, -1, 'fallen_paladin')!;
+  expect(k.skin).toBe('fallen_paladin');
+  expect(monsterName(k)).toBe('타락한 성기사');
+  k.hp = Math.floor(k.maxHp / 2) - 1;
+  w.entities[0].hp = 99999;
+  run(w, 10);
+  expect(w.bossRaised).toBe(false);
+  expect(w.entities.some((e) => e.skin === 'grave')).toBe(false);
+});
+
+test('폐허 무덤 기믹: 기사는 체력 절반이어도 안 일으키고, 악마는 체력 절반에 무덤을 일으킨다', () => {
+  const w = createWorld(1, ['###########', '#H........#', '#.........#', '#........M#', '###########'], 1, 1, LANDS.ruins.skins);
+  w.land = 'ruins';
+  w.entities[0].hp = 99999;
+  const demon = w.entities.find((e) => e.kind === 'boss')!;
+  expect(demon.skin).toBe('demon');
+  const k = spawnNear(w, 'boss', 1.5, 1.5, 2, -1, 'fallen_paladin')!;
+  k.hp = Math.floor(k.maxHp / 2) - 1;
+  run(w, 5);
+  expect(w.entities.filter((e) => e.skin === 'grave')).toHaveLength(0);
+  demon.hp = Math.floor(demon.maxHp / 2) - 1;
+  run(w, 5);
+  expect(w.bossRaised).toBe(true);
+  expect(w.entities.filter((e) => e.skin === 'grave')).toHaveLength(GRAVE.boss);
+});
+
+test('타락한 성기사 소환: 기사가 클리어 판정을 좌우하는 구역(계단·출구·원래 보스가 모두 없음)과 야영지에서는 안 된다', () => {
+  const room = ['#######', '#H....#', '#.....#', '#######'];
+  expect(canSummonKnight(createWorld(1, room))).toBe(false); // 기사가 유일한 보스가 되어 쓰러뜨리면 구역 클리어
+  expect(canSummonKnight(createWorld(1, ['#######', '#H...>#', '#######']))).toBe(true); // 계단
+  expect(canSummonKnight(createWorld(1, ['#######', '#H...M#', '#######']))).toBe(true); // 원래 보스가 판정
+  const camp = createWorld(1, ['#######', '#H...>#', '#######']);
+  camp.land = 'camp';
+  expect(canSummonKnight(camp)).toBe(false);
+});
+
+test('타락한 성기사: 원래 보스가 살아 있으면 기사를 쓰러뜨려도 클리어가 아니다', () => {
+  const w = createWorld(1, ['#########', '#H......#', '#.......#', '#......M#', '#########']);
+  const k = spawnNear(w, 'boss', 1.5, 1.5, 2, -1, 'fallen_paladin')!;
+  k.state = 'dead';
+  expect(outcome(w)).toBe(null);
+});
 
 test('성소(Y): 누르면 30초 버프 하나, 한 번만', () => {
   const w = createWorld(1, ['H.Y']);

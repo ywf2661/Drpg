@@ -1,7 +1,7 @@
 // 마법사 스킬: 마력탄(평타), 화염(화염구·불바다·잔불·운석), 냉기(서리 고리·마나 방패·서리 갑옷·눈보라), 번개(낙뢰·연쇄 번개·정전기·천둥 폭풍), 순간이동(스페이스).
 // 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다(칸에 적는 것은 world의 cast). 조준·지점 도구(aimDir·spot·stun)는 다른 직업도 쓴다
 import { walkable } from './path';
-import { LEGEND_FX, BLINK, BLIZZARD, BOLT, CHAIN, COMET, DT, EMBERS, FIREBALL, FIREFIELD, FROST, FROST_ARMOR, KNOCK, ROLL, STATIC, TEMPEST, WARD, WIZ, type Blast, type Entity, type Shot, type World } from './rules';
+import { steady, LEGEND_FX, BLINK, BLIZZARD, BOLT, CHAIN, COMET, DT, EMBERS, FIREBALL, FIREFIELD, FROST, FROST_ARMOR, KNOCK, ROLL, STATIC, TEMPEST, WARD, WIZ, type Blast, type Entity, type Shot, type World } from './rules';
 import { emberLine, hasUnique, clearLine, dist, ext, heroMax, hurt, knock, mastered, rank, roll, skillHit, syn } from './core';
 
 // 스킬 단계별 수치(1단계 = 기본값). 5단계가 바꾸는 수치도 여기서. 피해 배율에는 시너지가 붙는다
@@ -39,7 +39,7 @@ export const nearest = (w: World, hero: Entity, r: number) =>
     .sort((a, b) => dist(a, hero) - dist(b, hero))[0];
 export const blast = (w: World, kind: Blast['kind'], x: number, z: number, r?: number) => w.blasts.push({ id: w.nextItem++, x, z, r, age: 0, kind });
 // 스킬에 맞은 적: 하던 휘두르기·이동·예고를 끊고 t초 기절(얼음·벼락)
-export const stun = (e: Entity, t: number) => e.state !== 'dead' && Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none', stunT: Math.max(e.stunT, t) });
+export const stun = (e: Entity, t: number) => e.state !== 'dead' && !steady(e) && Object.assign(e, { state: 'idle', attackT: 0, path: [], phase: 'none', stunT: Math.max(e.stunT, t) });
 
 // 조준 방향(단위 벡터): 조준점 → 가까운 적(range 안) → 바라보는 방향
 export function aimDir(w: World, hero: Entity, range: number, x?: number, z?: number): [number, number] {

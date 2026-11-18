@@ -636,10 +636,19 @@ test('레벨업: 경계에서 오르고 남는 경험치는 이월, 한 번에 �
   slay(w);
   expect([w.level, w.xp]).toEqual([2, 5]);
   expect([w.entities[0].hp, w.entities[0].maxHp]).toEqual([110, 110]);
-  const big = createWorld(1, ['Hw'], 5); // 125 경험치: 40 + 70 + 15
+  const big = createWorld(1, ['Hw'], 5, 5); // 125 경험치: 40 + 70 + 15(회차 배율 5라 경험치 상한 8)
   setLevel(big, 1, 0);
   slay(big);
   expect([big.level, big.xp]).toEqual([3, 15]);
+});
+
+test('경험치 배율은 상한(1.6 × 회차 배율)까지: 이야기 깊이로 세진 몬스터도 초원 5구역만큼만 준다', () => {
+  const capped = createWorld(1, ['Hw'], 5); // 전사 25 × 1.6 = 40
+  slay(capped);
+  expect([capped.level, capped.xp]).toEqual([2, 0]);
+  const low = createWorld(1, ['Hw'], 1.2); // 상한 아래면 배율 그대로: 25 × 1.2 = 30
+  slay(low);
+  expect([low.level, low.xp]).toEqual([1, 30]);
 });
 
 test('setLevel은 주인공 최대 체력·체력을 맞추고, 레벨은 주인공 데미지를 5%씩 올린다', () => {
@@ -1059,4 +1068,41 @@ test('모닥불(초원): 싸우지 않은 지 3초 지나고 근처에 적이 �
   foe.entities[0].hp = 50;
   run(foe, Math.round(6 / DT));
   expect(foe.entities[0].hp).toBeLessThanOrEqual(50);
+});
+
+test('야영지 NPC(E 순찰대장·V 상인)를 누르면 talk만 남고 열리지 않는다(다시 누를 수 있다). 단서(L)는 talk와 함께 열린다', () => {
+  const w = createWorld(1, ['H...E', '.....', 'V...L']);
+  expect(w.chests.map((c) => c.kind)).toEqual(['elder', 'merchant', 'clue']);
+  const press = (id: number) => run(w, 120, [{ type: 'open', chestId: id }]);
+  press(0);
+  expect(w.talk).toBe('elder');
+  expect(w.chests[0].open).toBe(false);
+  expect(w.items).toEqual([]);
+  w.talk = null;
+  press(0);
+  expect(w.talk).toBe('elder'); // 또 말을 건다
+  press(1);
+  expect(w.talk).toBe('merchant');
+  press(2);
+  expect(w.talk).toBe('clue');
+  expect(w.chests[2].open).toBe(true);
+  expect(w.items).toEqual([]);
+});
+
+test('잠긴 출구(s·r)는 막혀 있고 locked에만 남는다', () => {
+  const w = createWorld(1, ['#s#', '#.#', '#H#', '#r#']);
+  expect(w.exits).toEqual([]);
+  expect(w.locked).toEqual([{ x: 1, z: 0, to: 'snow' }, { x: 1, z: 3, to: 'ruins' }]);
+  expect(walkable(w.grid, 1, 0)).toBe(false);
+});
+
+test('벽 칸에 떨어진 금화는 옆의 걸을 수 있는 칸으로 옮겨져, 걸어가면 주울 수 있다', () => {
+  const w = createWorld(1, ['#####', '#H..#', '#.###', '#####']);
+  w.entities = w.entities.slice(0, 1);
+  w.items.push({ id: 99, x: 2.67, z: 2.3, kind: 'gold', tier: 0, amount: 15 }); // (2,2)는 벽
+  step(w, []);
+  const g = w.items.find((i) => i.id === 99)!;
+  expect(walkable(w.grid, Math.floor(g.x), Math.floor(g.z))).toBe(true);
+  for (let t = 0; t < 200 && w.gold === 0; t++) step(w, t === 0 ? [{ type: 'move', x: g.x, z: g.z }] : []);
+  expect(w.gold).toBe(15);
 });

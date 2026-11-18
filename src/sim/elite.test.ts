@@ -1,8 +1,9 @@
 // 정예 특성: 무작위 등장, 특성별 효과
 import { expect, test } from 'vitest';
 import { generateFloor } from './dungeon';
-import { attackInterval, createWorld, ELITE, ELITE_FX, ELITE_KIND_LIST, moveSpeed, STATS, step, type EliteKind, type World } from './world';
-import { hurt, roll } from './core';
+import { attackInterval, createWorld, ELITE, ELITE_FX, ELITE_KIND_LIST, FIERCE, moveSpeed, STATS, step, type EliteKind, type World } from './world';
+import { hurt, knock, roll } from './core';
+import { stun } from './wizard';
 
 const elite = (kind: EliteKind, map = ['HW']): World => {
   const w = createWorld(1, map);
@@ -82,4 +83,51 @@ test('분열하는: 죽으면 주인공을 노리는 졸개들이 나온다', ()
   const born = w.entities.slice(2);
   expect(born.map((m) => [m.kind, m.elite, m.target])).toEqual(Array(ELITE_FX.split).fill(['minion', false, 0]));
   expect(born.map((m) => m.id)).toEqual([2, 3]);
+});
+
+test('깊은 곳(deep)에서만 광폭·질주·불굴이 섞이고, 보스는 셋 중 하나를 단다. 초원(deep 아님) 보스는 특성이 없다', () => {
+  const kinds = new Set<EliteKind>();
+  for (let seed = 1; seed <= 60; seed++) {
+    expect(FIERCE).not.toContain(createWorld(seed, ['HWm']).entities[1].eliteKind);
+    kinds.add(createWorld(seed, ['HWm'], 1, 1, {}, true).entities[1].eliteKind!);
+    expect(FIERCE).toContain(createWorld(seed, ['HM'], 1, 1, {}, true).entities[1].eliteKind);
+    expect(createWorld(seed, ['HM']).entities[1].eliteKind).toBeUndefined();
+  }
+  expect(kinds.size).toBe(ELITE_KIND_LIST.length + FIERCE.length);
+});
+
+test('광폭한: 공격이 frenzy배 빠르다. 질주하는: 이동이 rush배 빠르다', () => {
+  const f = elite('frenzied');
+  expect(attackInterval(f, f.entities[1])).toBeCloseTo(STATS.warrior.interval / ELITE_FX.frenzy);
+  expect(moveSpeed(f, f.entities[1])).toBeCloseTo(STATS.warrior.speed);
+  const r = elite('rushing');
+  expect(moveSpeed(r, r.entities[1])).toBeCloseTo(STATS.warrior.speed * ELITE_FX.rush);
+  expect(attackInterval(r, r.entities[1])).toBeCloseTo(STATS.warrior.interval);
+});
+
+test('불굴의: 기절·밀쳐내기를 받지 않고 하던 일을 이어 간다(보통 정예는 받는다)', () => {
+  for (const [kind, steady] of [['unyielding', true], ['vampiric', false]] as const) {
+    const w = elite(kind, ['H.......W.']);
+    const e = w.entities[1];
+    e.state = 'attack';
+    stun(e, 2);
+    expect(e.stunT > 0).toBe(!steady);
+    const x = e.x;
+    e.state = 'attack';
+    knock(w, e, -1, 0, 1);
+    expect(e.x !== x).toBe(!steady);
+    expect(e.state).toBe(steady ? 'attack' : 'idle');
+  }
+});
+
+test('정예 사냥꾼 4부위로 얻은 새 특성: 질주는 이동, 광폭은 공격 속도, 불굴은 받는 피해 감소', () => {
+  const w = createWorld(1, ['H.m']);
+  const hero = w.entities[0];
+  const [move, interval] = [moveSpeed(w, hero), attackInterval(w, hero)];
+  const before = hurt(w, hero, 50);
+  hero.hp = hero.maxHp;
+  w.trophies = { rushing: 5, frenzied: 5, unyielding: 5 };
+  expect(moveSpeed(w, hero)).toBeCloseTo(move * 1.3);
+  expect(attackInterval(w, hero)).toBeCloseTo(interval / 1.3);
+  expect(hurt(w, hero, 50)).toBe(Math.round(Math.round(50 * 0.7) * before / 50));
 });

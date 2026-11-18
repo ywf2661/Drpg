@@ -6,15 +6,17 @@ import type { Cell } from './path';
 import { ELITE } from './rules';
 
 export const FLOORS = 5;
-// 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 50%씩 더 강하다
-export const floorPower = (n: number, cycle = 0) => (1 + 0.15 * (n - 1)) * cyclePower(cycle);
+// 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 50%씩 더 강하다.
+// n은 이야기 깊이(5k + n). 초원(1~5)을 지나면 구역마다 extra만큼 더 가파르다 — 이어 가는 캐릭터가 깊이보다 빨리 커서(설계서 6-1)
+export const DEPTH_EXTRA = 0.15;
+export const floorPower = (n: number, cycle = 0, extra = DEPTH_EXTRA) => (1 + 0.15 * (n - 1) + extra * Math.max(0, n - FLOORS)) * cyclePower(cycle);
 export const cyclePower = (cycle: number) => 1 + 0.5 * cycle;
 // 층의 모습(렌더용): 깊은 층은 동굴
 export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-export const BLOCKS = '#BocCDYQI'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물
+export const BLOCKS = '#BocCDYQIEVPLsr'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인, 주민, 단서, 잠긴 출구(설원·폐허)
 export const OPEN = (c: string) => !BLOCKS.includes(c); // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 

@@ -149,7 +149,7 @@ export const UNIQUE_COLOR = { legend: '#ff8c1a', set: '#3fdc5a' };
 // 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
 export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100 };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
-export const SET_HUNTER = { dmg: 1.25, res: 30, time: 20, leech: 0.1, blastR: 1.2, blastMult: 1.5, aura: 1.3, allyLife: 10, allyMax: 3 };
+export const SET_HUNTER = { frenzy: 1.3, rush: 1.3, steady: 0.7, dmg: 1.25, res: 30, time: 20, leech: 0.1, blastR: 1.2, blastMult: 1.5, aura: 1.3, allyLife: 10, allyMax: 3 };
 // 전설 효과 수치
 export const LEGEND_FX = { orbs: 3, orbMult: 0.4, bones: 2, boneBlastR: 1.2, boneBlast: 1.5, duelCd: 1, duelRes: 15, emberTime: 2, rage: 0.4, cloakHp: 0.85 };
 
@@ -173,7 +173,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice'; wave?: number }; // guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'clue'; wave?: number }; // elder·merchant·villager(주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -240,6 +240,8 @@ export type World = {
   stairs: Cell | null;
   toStairs: boolean;
   exits: Exit[]; // 바깥 지역 가장자리의 출구 칸(들어서면 다음 구역)
+  locked: Exit[]; // 아직 안 열린 지역으로 가는 출구 칸(막혀 있다, 이름표만)
+  talk: 'elder' | 'merchant' | 'villager' | 'clue' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
   roads: Cell[]; // 바깥 지역의 길 칸(그림만 다르다)
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
   queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
@@ -272,6 +274,7 @@ export type World = {
   potions: number;
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
+  xpCap: number; // 경험치 배율 상한(몬스터 배율이 이보다 커도 경험치는 여기까지): 이야기 깊이로 세진 만큼 레벨이 빨리 올라 상쇄되지 않게
   gear: Gear;
   mods: Record<Slot, Affix[]>; // 장착 장비의 마법 옵션
   bag: BagItem[]; // 보관함(BAG 격자, 서로 겹치지 않는다)
@@ -347,19 +350,26 @@ export const MONSTER_DMG = 3.25; // 공통 배율(밸런스 손잡이). 사용�
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4, chance: 0.1 }; // chance: 몬스터 하나가 정예로 나올 확률
 // 정예 특성: 이름(접두어)·설명·색(스프라이트·발밑 고리·대상 이름).
 // 신속 = 이동·공격 속도 배수, 흡혈 = 주인공에게 준 피해의 배수만큼 회복, 폭발 = 죽은 자리에 예고 후 폭발(굴림 × mult),
-// 통솔 = 반경 안의 다른 몬스터 데미지 배수, 분열 = 죽으면 졸개 count마리
-export type EliteKind = 'swift' | 'vampiric' | 'volatile' | 'warlord' | 'splitting';
+// 통솔 = 반경 안의 다른 몬스터 데미지 배수, 분열 = 죽으면 졸개 count마리.
+// 깊은 곳(설원부터, FIERCE)의 셋: 광폭 = 공격 속도 ×frenzy, 질주 = 이동 속도 ×rush, 불굴 = 기절·공포·밀쳐내기를 받지 않는다(맞아도 멈추지 않고 걸어온다).
+// 원거리 직업이 거리만 벌리면 끝나지 않게(설계서 6-1). 설원·미궁·폐허 보스도 셋 중 하나를 단다
+export type EliteKind = 'swift' | 'vampiric' | 'volatile' | 'warlord' | 'splitting' | 'frenzied' | 'rushing' | 'unyielding';
 export const ELITE_KINDS: Record<EliteKind, { name: string; desc: string; color: string }> = {
   swift: { name: '신속한', desc: '빠르게 움직이고 빠르게 친다', color: '#5fd0ff' },
   vampiric: { name: '흡혈의', desc: '때릴 때마다 체력을 회복한다', color: '#ff4d6a' },
   volatile: { name: '폭발하는', desc: '죽은 자리가 잠시 뒤 폭발한다', color: '#ff9a2e' },
   warlord: { name: '통솔하는', desc: '주변 몬스터의 공격이 강해진다', color: '#ffd84a' },
   splitting: { name: '분열하는', desc: '죽으면 졸개 둘로 갈라진다', color: '#8de05a' },
+  frenzied: { name: '광폭한', desc: '몹시 빠르게 몰아친다', color: '#e040fb' },
+  rushing: { name: '질주하는', desc: '눈 깜짝할 새 달려든다', color: '#3dffb0' },
+  unyielding: { name: '불굴의', desc: '맞아도 멈추지 않고 걸어온다', color: '#c9d1e0' },
 };
-export const ELITE_KIND_LIST = Object.keys(ELITE_KINDS) as EliteKind[];
+export const FIERCE: EliteKind[] = ['frenzied', 'rushing', 'unyielding'];
+export const ELITE_KIND_LIST = (Object.keys(ELITE_KINDS) as EliteKind[]).filter((k) => !FIERCE.includes(k)); // 초원에서 나오는 특성
+export const steady = (e: Entity) => e.eliteKind === 'unyielding'; // 기절·공포·밀쳐내기를 받지 않는다
 // 지역(맵의 종류)과 그곳의 몬스터. 스킨 = 전투 원형(졸개·전사·마법사)에 그림·이름을 바꾸고 체력·이동 속도에 배율을 곱한 것
-export type Land = 'dungeon' | 'field' | 'snow' | 'ruins';
-export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon';
+export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp'; // camp = 야영지(거점, 몬스터 없음)
+export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin';
 export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = {
   goblin: { name: '고블린', hp: 0.8, speed: 1.25 }, // 약하지만 빠르고 떼로 온다
   goblin_elite: { name: '고블린 전사', hp: 0.9, speed: 1.15 },
@@ -376,19 +386,67 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   hobgoblin_archer: { name: '홉고블린 궁수', hp: 1, speed: 1 }, // 폐허 궁수
   bone_knight: { name: '해골 기사 왕', hp: 1.2, speed: 1 }, // 지금은 안 쓴다(폐허 보스가 악마로 바뀜)
   demon: { name: '심연의 악마', hp: 1.2, speed: 1 }, // 폐허의 보스: 체력 절반에 무덤을 일으킨다
+  fallen_paladin: { name: '타락한 성기사', hp: 1.2, speed: 1 }, // 최종 보스 후보(보스 원형). 아직 어느 지역에도 없다 — ?test 소환만
 };
 export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Record<Kind, Skin>> }> = {
   dungeon: { name: '지하', unit: '층', skins: {} },
   field: { name: '초원', unit: '구역', skins: { minion: 'goblin', warrior: 'goblin_elite', mage: 'fire_ant', boss: 'antlion' } },
   snow: { name: '설원', unit: '구역', skins: { minion: 'ice_ant', warrior: 'zombie', boss: 'wyvern' } },
   ruins: { name: '폐허', unit: '구역', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'demon' } },
+  camp: { name: '야영지', unit: '', skins: {} },
 };
+// 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.
+// goal = HUD 임무 줄, again = 순찰대장에게 다시 말을 걸면, clue = 그 지역 3구역(미궁 3층)의 단서, done = 보스를 깨고 야영지에 왔을 때(다음 단계의 시작 대사)
+export type Story = { land: Land; goal: string; again: string; clue: { name: string; text: string }; done: string };
+export const OPENING = "왔군. 요즘 초원이 수상하네. 고블린 떼가 부쩍 늘더니, 동쪽으로 정찰 나간 아이들이 돌아오질 않아. 마지막으로 들어온 전갈에는 '초원 가장 깊은 곳, 모래가 꺼진 자리'라는 말뿐이었지. 거기 무엇이 있는지 알아봐 주게.";
+export const STORY: Story[] = [
+  {
+    land: 'field',
+    goal: '초원 가장 깊은 곳을 살펴본다',
+    again: '초원 가장 깊은 곳, 모래가 꺼진 자리라 했네. 거기부터 가 보게.',
+    clue: { name: '얼어붙은 정찰병의 쪽지', text: '모래 구덩이 밑에서 찬 바람이 올라온다. 이 초원에서 날 수 없는 냉기다. 굴이 북쪽 눈밭까지 이어진 게 아닐까. 대장님께 꼭 전해야… (쪽지 끝이 서리에 덮여 있다)' },
+    done: '그 구덩이 밑에 개미귀신이 버티고 있었다니… 쪽지에 적힌 냉기가 마음에 걸리는군. 초원 어귀에서 북쪽 설원으로 가는 길을 열어 두었네. 찬 바람이 어디서 불어오는지 찾아 주게.',
+  },
+  {
+    land: 'snow',
+    goal: '설원에서 찬 바람의 근원을 찾는다',
+    again: '북쪽 설원이네. 그 찬 바람이 어디서 불어오는지 찾아 주게.',
+    clue: { name: '얼음 속 지도 조각', text: '얼음 속에 낡은 지도 조각이 갇혀 있다. 눈밭 아래로 굴이 그물처럼 뻗어 있고, 그 끝은 모두 한곳 — 땅 밑 깊은 미궁으로 모인다.' },
+    done: '서리 와이번이 그 굴의 입구를 지키고 있었군. 모든 굴이 미궁으로 모인다라… 초원 어귀의 동굴 입구를 막고 있던 돌을 치웠네. 조심하게. 저 밑은 우리가 아는 땅이 아니야.',
+  },
+  {
+    land: 'dungeon',
+    goal: '미궁 깊은 곳으로 내려간다',
+    again: '초원 어귀의 동굴 입구는 열어 두었네. 미궁 맨 밑까지 내려가 보게.',
+    clue: { name: '해골이 쥔 열쇠', text: '부서진 해골 손에 녹슨 열쇠가 쥐여 있다. 손잡이에 낯선 문장이 새겨져 있다. 무너진 성채의 깃발에서 본 문장이다.' },
+    done: '미노타우르스가 지키던 문이 이 열쇠로 열리는 문이었군. 그 문장… 남쪽 폐허, 옛 성채의 것이네. 모든 일이 거기서 시작됐을 걸세. 초원 어귀에서 성채로 가는 길을 열겠네.',
+  },
+  {
+    land: 'ruins',
+    goal: '옛 성채에서 모든 일의 근원을 끊는다',
+    again: '옛 성채로 가게. 모든 일의 시작이 거기 있을 걸세.',
+    clue: { name: '무너진 제단의 글', text: "무너진 제단에 검붉은 글씨가 남아 있다. '문이 열렸다. 그분이 깨어나신다.'" },
+    done: '해냈군. 성채의 악마가 쓰러지자 초원 바람도 잠잠해졌네. …하지만 땅은 쉽게 잠들지 않아. 벌써 더 짙은 기운이 올라오고 있어. 다시 초원부터 살펴봐 주게.',
+  },
+];
+export const CLUE_FLOOR = 3; // 단서가 놓이는 구역(층)
+// 열린 지역: 지금 단계까지
+export const openLands = (stage: number): Land[] => STORY.slice(0, stage + 1).map((s) => s.land);
+// 보스를 깬 뒤: 지금 단계의 지역이면 다음 단계(마지막이면 회차 + 1, 이야기는 처음부터). 지난 지역이면 그대로
+export function afterClear(stage: number, cycle: number, land: Land): { stage: number; cycle: number; advanced: boolean; newCycle: boolean } {
+  if (STORY[stage]?.land !== land) return { stage, cycle, advanced: false, newCycle: false };
+  if (stage === STORY.length - 1) return { stage: 0, cycle: cycle + 1, advanced: true, newCycle: true };
+  return { stage: stage + 1, cycle, advanced: true, newCycle: false };
+}
+// 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
+export const depthOf = (land: Land, n: number) => (land === 'camp' ? 0 : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n);
+
 // 그림을 그리지 않는(모래 속에 숨은) 몬스터
 export const hidden = (e: Entity) => e.skin === 'antlion_small' && !!e.asleep;
 export const LAND_LIST = Object.keys(LANDS) as Land[];
 export const bossName = (skins: World['skins']) => (skins?.boss ? SKINS[skins.boss].name : STATS.boss.name);
 export const monsterName = (e: Entity) => (e.skin ? SKINS[e.skin].name : STATS[e.kind].name);
-export const ELITE_FX = { swiftMove: 1.35, swiftAttack: 1.25, leech: 2, blastDelay: 1.2, blastMult: 1.5, auraRange: 5, auraDmg: 1.3, split: 2 };
+export const ELITE_FX = { frenzy: 2, rush: 2, swiftMove: 1.35, swiftAttack: 1.25, leech: 2, blastDelay: 1.2, blastMult: 1.5, auraRange: 5, auraDmg: 1.3, split: 2 };
 // 마법 옵션: 붙는 부위들, 이름(접두어), 값 범위. dmg·speed·leech·crit·guard·thorns·move는 %, life는 체력, regen은 초당 1/10.
 // 여러 부위에 붙은 같은 옵션은 더한다
 // skill은 이름(접두어) 없이 줄로만 보인다. special = 무작위 옵션 후보가 아니다(탭은 희귀가 따로 굴리고, 모든 스킬·고유는 전설만)
@@ -514,6 +572,11 @@ export const GEAR_DROP: Record<Kind, number> = { hero: 0, minion: 0.05, warrior:
 
 // 처치 경험치(× 몬스터 층 배율). 레벨마다 최대 체력 +10, 주인공 데미지 +5%
 export const XP: Record<Kind, number> = { hero: 0, minion: 10, warrior: 25, archer: 15, mage: 20, king: 150, boss: 0 };
+// 기사의 후반 성장: from 레벨부터 레벨마다 피해 +dmg(모든 직업 공통 5%에 더해). 근접이라 싸움이 길어지면 계속 맞는데,
+// 원거리 직업은 레벨 40에 화력이 기사의 1.6~2.4배였다(설계서 6-1, 화력 벤치)
+export const KNIGHT_LATE = { from: 15, dmg: 0.08 };
+export const XP_CAP = 1.6; // 경험치 배율 상한 × 회차 배율 = 초원 5구역(floorPower(5))의 배율. 설계서 6-1
+
 
 export const xpToNext = (level: number) => 40 + 30 * (level - 1);
 

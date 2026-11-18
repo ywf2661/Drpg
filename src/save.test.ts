@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const };
+const run = { pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2 };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -12,7 +12,7 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(decodeSave('')).toBeNull();
   expect(decodeSave('{not json')).toBeNull();
   expect(decodeSave('[]')).toBeNull();
-  const bad = (patch: object) => decodeSave(JSON.stringify({ v: 1, ...run, ...patch }));
+  const bad = (patch: object) => decodeSave(JSON.stringify({ v: 2, ...run, ...patch }));
   expect(bad({})).toEqual(run);
   expect(bad({ v: 99 })).toBeNull(); // 다른 형식 버전
   expect(bad({ floor: 0 })).toBeNull();
@@ -32,6 +32,9 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
   expect(bad({ gold: -5 })).toBeNull();
   expect(bad({ gold: 1.5 })).toBeNull();
   expect(bad({ cycle: -1 })).toBeNull();
+  expect(bad({ stage: 4 })).toBeNull();
+  expect(bad({ stage: undefined })).toBeNull();
+  expect(bad({ land: 'snow', floor: 0 })).toBeNull(); // 층 0은 야영지만
   expect(bad({ mods: { weapon: [{ kind: 'life', value: 20 }], armor: [] } })).toBeNull(); // 부위가 다른 옵션
   expect(bad({ mods: { weapon: [{ kind: 'dmg', value: 999 }], armor: [] } })).toBeNull(); // 범위 밖
   expect(bad({ mods: 'x' })).toBeNull();
@@ -61,7 +64,7 @@ test('손상되거나 범위를 벗어난 저장은 무시한다(null)', () => {
 
 test('격자가 생기기 전 저장: 보관함을 빈 자리에 차례로 놓고, 안 들어가는 장비는 판 값의 금화로', () => {
   const plate = { kind: 'armor', tier: 4, affixes: [] }; // 2×3: 5벌까지 들어간다. 판 값 40
-  const r = decodeSave(JSON.stringify({ v: 1, ...run, bag: Array(8).fill(plate) }))!;
+  const r = decodeSave(JSON.stringify({ v: 2, ...run, bag: Array(8).fill(plate) }))!;
   expect(r.bag).toEqual([0, 2, 4, 6, 8].map((x) => ({ ...plate, x, y: 0 })));
   expect(r.gold).toBe(run.gold + 3 * 40);
 });
@@ -96,9 +99,20 @@ test('궁수 저장도 직업을 그대로 되읽고, 다른 직업의 스킬이
   expect(decodeSave(encodeSave({ ...run, cls: 'ranger' }))).toBeNull(); // 마법사 스킬
 });
 
-test('지역·들어온 가장자리: 없으면(지역이 생기기 전 저장) 미궁·서쪽, 이상하면 무시', () => {
-  const { land: _l, from: _f, ...old } = run;
-  expect(decodeSave(JSON.stringify({ v: 1, ...old }))).toMatchObject({ land: 'dungeon', from: 'w' });
-  expect(decodeSave(JSON.stringify({ v: 1, ...run, land: 'moon' }))).toBeNull();
-  expect(decodeSave(JSON.stringify({ v: 1, ...run, from: 'x' }))).toBeNull();
+test('지역·들어온 가장자리: 이상하면 무시', () => {
+  expect(decodeSave(JSON.stringify({ v: 2, ...run, land: 'moon' }))).toBeNull();
+  expect(decodeSave(JSON.stringify({ v: 2, ...run, from: 'x' }))).toBeNull();
+});
+
+test('야영지 이전 저장(버전 1): 캐릭터·장비·금화·회차는 그대로, 하던 구역은 버리고 야영지·이야기 1단계로', () => {
+  const { stage: _s, ...v1 } = run;
+  const r = decodeSave(JSON.stringify({ v: 1, ...v1 }))!;
+  expect(r).toEqual({ ...run, land: 'camp', floor: 0, stage: 0 });
+  const { land: _l, from: _f, ...older } = v1; // 지역이 생기기 전
+  expect(decodeSave(JSON.stringify({ v: 1, ...older }))).toMatchObject({ land: 'camp', floor: 0, stage: 0 });
+});
+
+test('야영지 저장(층 0)을 그대로 되읽는다', () => {
+  const camp = { ...run, land: 'camp' as const, floor: 0, stage: 3 };
+  expect(decodeSave(encodeSave(camp))).toEqual(camp);
 });

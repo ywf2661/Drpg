@@ -1,0 +1,21 @@
+{
+  "cell": [
+    44,
+    58
+  ],
+  "anchor": [
+    17,
+    50
+  ],
+  "ppm": 30,
+  "cols": 4,
+  "rows": 8,
+  "anims": {
+    "stance": {
+      "row": 0,
+      "frames": 4,
+      "ms": 1600,
+      "loop": "back_forth"
+    }
+  }
+}

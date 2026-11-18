@@ -1,0 +1,21 @@
+{
+  "cell": [
+    35,
+    55
+  ],
+  "anchor": [
+    11,
+    51
+  ],
+  "ppm": 30,
+  "cols": 6,
+  "rows": 8,
+  "anims": {
+    "stance": {
+      "row": 0,
+      "frames": 6,
+      "ms": 2000,
+      "loop": "looped"
+    }
+  }
+}
