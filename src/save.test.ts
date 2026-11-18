@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2 };
+const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2 };
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -115,4 +115,12 @@ test('야영지 이전 저장(버전 1): 캐릭터·장비·금화·회차는 �
 test('야영지 저장(층 0)을 그대로 되읽는다', () => {
   const camp = { ...run, land: 'camp' as const, floor: 0, stage: 3 };
   expect(decodeSave(encodeSave(camp))).toEqual(camp);
+});
+
+test('아이디: 없으면(슬롯 이전 저장) 모험가, 비었거나 너무 길면 버린다', () => {
+  const { name: _, ...noName } = run;
+  expect(decodeSave(JSON.stringify({ v: 2, ...noName }))?.name).toBe('모험가');
+  expect(decodeSave(JSON.stringify({ v: 2, ...run, name: '  ' }))).toBeNull();
+  expect(decodeSave(JSON.stringify({ v: 2, ...run, name: 'x'.repeat(13) }))).toBeNull();
+  expect(decodeSave(JSON.stringify({ v: 2, ...run, name: 7 }))).toBeNull();
 });

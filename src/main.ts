@@ -9,7 +9,7 @@ import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setWorld } from './render/render';
 import { walkable } from './sim/path';
-import { loadRun, saveRun, type Keys, type Mods, type Ranks, type Stats } from './save';
+import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
@@ -26,7 +26,8 @@ type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: 
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
 const carryOf = (c: Carry): Carry => ({ pity: c.pity, cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, keys: { ...c.keys }, bag: [...c.bag], autoEquip: c.autoEquip });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
-const saved = loadRun(); // 지난번 진행(있으면 시작 화면에 이어하기)
+const slots = loadSlots(); // 저장 슬롯 셋(있으면 시작 화면에 이어하기)
+let name = ''; // 아이디(새 게임에서 입력)
 let choosing = true; // 시작 화면(이어하기·직업 선택)을 보는 중. 뒤에는 기사 1층이 미리 그려져 있다
 let stats = newStats(); // 이번 판 기록(이어하기면 저장된 것부터)
 let floor = 0;
@@ -66,7 +67,7 @@ function signsOf(w: World): Sign[] {
   if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ floor, ...entry, cycle, stats, land, from, stage }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
@@ -353,14 +354,16 @@ try {
   throw err;
 }
 // 시작 화면: 이어하기 또는 직업을 골라 새 게임. 처음 하는 사람에게는 고른 뒤 조작법
-const pickClass = (cls: HeroClass) => {
+const pickClass = (cls: HeroClass, id: string, n: number) => {
+  useSlot(n);
+  name = id;
   stats = newStats();
   [cycle, stage, land, from] = [0, 0, 'camp', 'w'];
   begin(0, startOf(cls));
   showTalk('순찰대장', OPENING);
-  if (!saved) help.showModal();
+  if (!slots.some(Boolean)) help.showModal();
 };
-showTitle(true, saved);
+showTitle(true, slots);
 $('#help-btn').addEventListener('click', () => help.showModal());
 initHud({
   drink,
@@ -379,8 +382,11 @@ initHud({
     sound.setSound(patch);
     showSound(sound.settings);
   },
-  resume: () => {
+  resume: (n) => {
+    const saved = slots[n];
     if (!saved) return;
+    useSlot(n);
+    name = saved.name;
     stats = { ...saved.stats };
     ({ cycle, stage, land, from } = saved);
     begin(saved.floor, saved);
@@ -413,6 +419,7 @@ showFloor(floor, cycle, land, STORY[stage].goal);
 const ended = () => outcome(world) === 'dead'; // 클리어 뒤 R(도끼 키 연타)로 '처음부터'가 눌리지 않게 — 클리어는 버튼으로만
 const SKILL_KEYS: Record<string, SkillName> = { KeyQ: 'cleave', KeyW: 'dash', KeyE: 'shout', KeyR: 'throw' };
 addEventListener('keydown', (e) => {
+  if ((e.target as Element).matches?.('input[type=text], input:not([type])')) return; // 아이디를 치는 동안은 게임 키가 아니다
   if (e.code === 'KeyI') {
     if (!e.repeat && !e.ctrlKey && !e.metaKey) (bag.open ? bag.close() : openBag()); // 누르고 있을 때·개발자 도구 단축키는 무시
     return;

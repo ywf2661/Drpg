@@ -8,12 +8,15 @@ export type Stats = { time: number; kills: number; deaths: number }; // 이번 �
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number }; // land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3)
+export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number }; // land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3)
 const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
-const KEY = 'drpg-save';
+const KEY = 'drpg-save'; // 슬롯 이전의 한 칸 저장. 지금은 KEY-0 ~ KEY-2
+export const SLOT_COUNT = 3;
+export const NAME_MAX = 12;
+let slot = 0; // 지금 판이 저장되는 슬롯
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage });
+  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -117,10 +120,13 @@ export function decodeSave(text: string | null): Run | null {
   const stage = old ? 0 : d.stage;
   if (!int(stage, 0, STORY.length - 1)) return null;
   const camp = old || land === 'camp';
+  const name = d.name ?? '모험가'; // 아이디(나중에 생긴 항목)
+  if (typeof name !== 'string' || !name.trim() || name.length > NAME_MAX) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
   const time = st.time;
   if (typeof time !== 'number' || !(time >= 0 && time < 1e7) || !int(st.kills, 0, 1e6) || !int(st.deaths, 0, 1e6)) return null;
   return {
+    name,
     pity,
     cls,
     floor: camp ? 0 : (d.floor as number),
@@ -150,26 +156,28 @@ export function formatTime(sec: number): string {
 }
 
 // 저장소 접근은 사생활 보호 모드 등에서 막힐 수 있다 — 실패해도 게임은 계속
-export function loadRun(): Run | null {
+// 슬롯 셋을 읽는다. 슬롯 이전의 저장은 빈 첫 슬롯으로 옮긴다
+export function loadSlots(): (Run | null)[] {
   try {
-    return decodeSave(localStorage.getItem(KEY));
+    const old = localStorage.getItem(KEY);
+    if (old !== null) {
+      if (localStorage.getItem(`${KEY}-0`) === null) localStorage.setItem(`${KEY}-0`, old);
+      localStorage.removeItem(KEY);
+    }
+    return Array.from({ length: SLOT_COUNT }, (_, i) => decodeSave(localStorage.getItem(`${KEY}-${i}`)));
   } catch {
-    return null;
+    return Array(SLOT_COUNT).fill(null);
   }
+}
+
+export function useSlot(n: number) {
+  slot = n;
 }
 
 export function saveRun(r: Run) {
   try {
-    localStorage.setItem(KEY, encodeSave(r));
+    localStorage.setItem(`${KEY}-${slot}`, encodeSave(r));
   } catch {
     // 저장 못 해도 이번 판은 계속된다
-  }
-}
-
-export function clearRun() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    // 무시
   }
 }

@@ -81,7 +81,7 @@ let shownGatesOpen = 0; // 열린 사슬 문 수(늘면 알림)
 let shownGimmick = ''; // 기믹 알림(성소 버프·시련 물결·보물 고블린)을 띄운 상태
 let shownWorld: World | null = null; // 층이 바뀌면(이어하기·재시작 포함) 알림 없이 표시만 맞춘다
 
-type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; tree(): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(): void; pick(cls: HeroClass): void; smart(on: boolean): void; smartOn(): boolean };
+type Handlers = { drink(): void; skill(): void; dash(): void; shout(): void; throwAxe(): void; roll(): void; learn(s: SkillName): void; tree(): void; bag(): void; restart(): void; nextCycle(): void; toggleMap(): void; sound(patch: Partial<SoundSettings>): void; resume(slot: number): void; pick(cls: HeroClass, name: string, slot: number): void; smart(on: boolean): void; smartOn(): boolean };
 
 export function initHud(h: Handlers) {
   potionBtn.querySelector('img')!.src = potionIcon;
@@ -117,13 +117,30 @@ export function initHud(h: Handlers) {
   sfx.addEventListener('input', () => h.sound({ sfx: +sfx.value / 100 }));
   music.addEventListener('input', () => h.sound({ music: +music.value / 100 }));
   mute.addEventListener('change', () => h.sound({ muted: mute.checked }));
-  continueBtn.addEventListener('click', h.resume);
-  $('#title-new').addEventListener('click', () => showPick(true));
+  continueBtn.addEventListener('click', () => showSlots('load'));
+  $('#title-new').addEventListener('click', () => showSlots('new'));
+  $('#slots-back').addEventListener('click', () => showScreen('main'));
+  $('#title-slots').addEventListener('keydown', (e) => e.key === 'Escape' && showScreen('main'));
+  $('#slot-list').addEventListener('click', (e) => {
+    const btn = (e.target as Element).closest<HTMLButtonElement>('button');
+    if (!btn) return;
+    const n = +btn.dataset.slot!;
+    const s = slotList[n];
+    if (slotMode === 'load') return s && h.resume(n);
+    if (s && !confirm(`슬롯 ${n + 1}의 「${s.name}」 기록을 지우고 새로 시작할까요?`)) return;
+    chosenSlot = n;
+    nameInput.value = '';
+    showScreen('pick');
+  });
+  nameInput.addEventListener('keydown', (e) => e.key === 'Enter' && title.querySelector<HTMLElement>(`.class-card[data-cls="${picked}"]`)!.focus());
   $('#title-sound').addEventListener('click', () => soundBtn.click());
   $('#title-help').addEventListener('click', () => $('#help-btn').click());
-  $('#pick-back').addEventListener('click', () => showPick(false));
-  $('#title-pick').addEventListener('keydown', (e) => e.key === 'Escape' && showPick(false));
-  $('#pick-go').addEventListener('click', () => h.pick(picked));
+  $('#pick-back').addEventListener('click', () => showSlots('new'));
+  $('#title-pick').addEventListener('keydown', (e) => e.key === 'Escape' && showSlots('new'));
+  $('#pick-go').addEventListener('click', () => {
+    nameInput.value = nameInput.value.trim();
+    if (nameInput.reportValidity()) h.pick(picked, nameInput.value, chosenSlot);
+  });
   for (const card of classCards()) {
     const c = card.dataset.cls as HeroClass;
     card.querySelector('img')!.src = PORTRAITS[c];
@@ -178,6 +195,10 @@ const PORTRAITS: Record<HeroClass, string> = { knight: knightPortrait, wizard: w
 const CLASS_ORDER: HeroClass[] = ['knight', 'wizard', 'ranger', 'necromancer'];
 const classCards = () => title.querySelectorAll<HTMLElement>('.class-card');
 let picked: HeroClass = 'knight';
+const nameInput = $('#pick-name') as HTMLInputElement;
+let slotList: (Run | null)[] = [];
+let slotMode: 'new' | 'load' = 'new';
+let chosenSlot = 0;
 let stopFire: (() => void) | null = null;
 
 // 직업 선택: 고른 판이 넓어지며 설명이 나오고, 아래 버튼으로 시작한다
@@ -187,30 +208,49 @@ function selectClass(c: HeroClass) {
   $('#pick-go').textContent = `${CLASSES[c].name}로 시작`; // 네 직업 이름이 모두 받침 없음
 }
 
-function showPick(open: boolean, focus = true) {
-  $('#title-main').hidden = open;
-  $('#title-pick').hidden = !open;
-  if (focus) (open ? title.querySelector<HTMLElement>(`.class-card[data-cls="${picked}"]`)! : $('#title-new')).focus();
+// 타이틀 안의 세 화면: 메뉴 → 저장 슬롯 → (새 게임이면) 아이디·직업 선택
+function showScreen(which: 'main' | 'slots' | 'pick', focus = true) {
+  for (const s of ['main', 'slots', 'pick']) $(`#title-${s}`).hidden = s !== which;
+  if (!focus) return;
+  const first = { main: () => $('#title-new'), slots: () => title.querySelector<HTMLElement>('#slot-list button:not(:disabled)')!, pick: () => nameInput }[which]();
+  first.focus();
 }
 
-// 첫 화면: 제목·메뉴와 모닥불. 저장이 있으면 이어하기를 맨 위에, 그 직업을 불 앞에 세운다
-export function showTitle(open: boolean, saved: Run | null = null) {
+const placeOf = (r: Run) => (r.land === 'camp' ? LANDS.camp.name : `${LANDS[r.land].name} ${r.floor}${LANDS[r.land].unit}`);
+
+// 저장 슬롯: 이어하기면 빈 슬롯은 못 고르고, 새 게임이면 찬 슬롯은 덮어쓸지 묻는다
+function showSlots(mode: 'new' | 'load') {
+  slotMode = mode;
+  $('#slots-mode').textContent = mode === 'new' ? '새 게임' : '이어하기';
+  $('#slot-list').replaceChildren(
+    ...slotList.map((r, i) => {
+      const b = document.createElement('button');
+      b.dataset.slot = String(i);
+      b.disabled = mode === 'load' && !r;
+      b.append(Object.assign(document.createElement('b'), { textContent: r ? r.name : `슬롯 ${i + 1}` }));
+      b.append(Object.assign(document.createElement('span'), { textContent: r ? `슬롯 ${i + 1} · ${CLASSES[r.cls].name} Lv ${r.level} · ${placeOf(r)}` : '비어 있음' }));
+      return b;
+    }),
+  );
+  showScreen('slots');
+}
+
+// 첫 화면: 제목·메뉴와 모닥불. 저장이 있으면 이어하기를 맨 위에, 첫 저장의 직업을 불 앞에 세운다
+export function showTitle(open: boolean, slots: (Run | null)[] = slotList) {
   title.hidden = !open;
   stopFire?.();
   stopFire = null;
   if (!open) return;
   banner.hidden = true;
+  slotList = slots;
+  const saved = slots.find(Boolean) ?? null;
   continueBtn.hidden = !saved;
   continueBtn.classList.toggle('primary', !!saved);
   $('#title-new').classList.toggle('primary', !saved);
-  if (saved) {
-    const place = saved.land === 'camp' ? LANDS.camp.name : `${LANDS[saved.land].name} ${saved.floor}${LANDS[saved.land].unit}`;
-    $('#title-save-info').textContent = `${CLASSES[saved.cls].name} Lv ${saved.level} · ${place}`;
-  }
   const lead = saved?.cls ?? 'knight';
   const rest = CLASS_ORDER.filter((c) => c !== lead);
   for (const [slot, c] of [['fl', lead], ['bl', rest[0]], ['br', rest[1]], ['fr', rest[2]]] as const) $(`#camp-scene .slot-${slot}`).setAttribute('src', PORTRAITS[c]);
-  showPick(false, false);
+  showScreen('main', false);
   stopFire = campfire($('#campfire') as HTMLCanvasElement);
 }
 

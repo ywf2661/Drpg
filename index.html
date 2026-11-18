@@ -228,7 +228,7 @@
       /* 타이틀: 왼쪽 제목·메뉴, 오른쪽 모닥불(render/campfire.ts)과 둘러선 네 직업. 새 게임 → 직업 선택 */
       #title { position: fixed; inset: 0; z-index: 4; overflow: hidden; background: radial-gradient(ellipse at 30% 30%, #17100b, #070504 75%); }
       #title::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 60% 55%, transparent 45%, #000c 100%); }
-      #title-main, #title-pick { position: absolute; inset: 0; }
+      #title-main, #title-slots, #title-pick { position: absolute; inset: 0; }
       #title button { font-family: inherit; cursor: pointer; background: none; border: none; text-align: left; }
       #title-menu { position: absolute; z-index: 1; left: max(24px, calc(50% - 528px)); top: 50%; translate: 0 -50%; }
       #title h1 { margin: 0; font-size: clamp(64px, 9vw, 116px); font-weight: 800; letter-spacing: 0.16em; line-height: 1; color: var(--gold-hi); text-shadow: 0 4px 0 #000, 0 0 40px #c9a14a55; }
@@ -240,8 +240,6 @@
       #title nav button.primary { font-size: 30px; font-weight: 700; color: var(--gold-hi) !important; }
       #title nav button:hover, #title nav button:focus-visible { color: var(--gold-hi); }
       #title nav button.primary::before, #title nav button:hover::before, #title nav button:focus-visible::before { background: var(--gold-hi); box-shadow: 0 0 10px var(--gold-hi); }
-      #continue > span { display: grid; gap: 4px; }
-      #title-save-info { font-size: 14px; font-weight: normal; letter-spacing: 1px; color: var(--ink-dim); }
       #camp-scene { position: absolute; left: calc(50% - 20px); bottom: 0; width: 620px; height: 560px; pointer-events: none; }
       #camp-scene > * { position: absolute; }
       #camp-scene .ambient { left: -210px; bottom: -220px; width: 1040px; height: 600px; background: radial-gradient(closest-side, #7a3412 0%, #3a170a 45%, #1a0a0455 75%, transparent 100%); } /* closest-side: 상자 끝에서 0이 되어 가장자리 선이 안 생긴다 */
@@ -263,11 +261,22 @@
       @keyframes ember-rise { 0% { transform: translate(0, 0); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(var(--dx), -210px); opacity: 0; } }
       @media (prefers-reduced-motion: reduce) { #camp-scene * { animation: none !important; } }
       @media (max-width: 900px) { #camp-scene { left: 50%; translate: -50% 0; scale: 0.75; transform-origin: 50% 100%; opacity: 0.45; } }
-      #title-pick header { position: absolute; left: 64px; right: 64px; top: 44px; display: flex; align-items: flex-end; justify-content: space-between; }
-      #title-pick header p { margin: 0 0 8px; font-size: 13px; letter-spacing: 6px; color: #a8977a; }
+      #title-slots header, #title-pick header { position: absolute; left: 64px; right: 64px; top: 44px; display: flex; align-items: flex-end; justify-content: space-between; }
+      #title-slots header p, #title-pick header p { margin: 0 0 8px; font-size: 13px; letter-spacing: 6px; color: #a8977a; }
       #title h2 { margin: 0; font-size: 40px; font-weight: 700; letter-spacing: 8px; color: var(--gold-hi); }
-      #pick-back { min-height: 44px; padding: 0 4px; font-size: 15px; letter-spacing: 3px; color: #a8977a; }
-      #pick-back:hover, #pick-back:focus-visible { color: var(--gold-hi); }
+      #slots-back, #pick-back { min-height: 44px; padding: 0 4px; font-size: 15px; letter-spacing: 3px; color: #a8977a; }
+      #slots-back:hover, #slots-back:focus-visible, #pick-back:hover, #pick-back:focus-visible { color: var(--gold-hi); }
+      /* 저장 슬롯 셋: 가운데 세로 목록 */
+      #slot-list { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(520px, calc(100vw - 32px)); display: grid; gap: 12px; }
+      #slot-list button { display: grid; gap: 6px; min-height: 44px; padding: 18px 24px; color: var(--ink); border: 1px solid #3a2a1a; border-radius: 3px; background: linear-gradient(#1e140d, #0e0a07); box-shadow: inset 0 0 0 1px #000, inset 0 0 40px #000c; }
+      #slot-list button:hover:not(:disabled), #slot-list button:focus-visible { border-color: var(--gold); }
+      #slot-list button:disabled { opacity: 0.45; cursor: default; }
+      #slot-list b { font-size: 20px; letter-spacing: 4px; color: var(--gold-hi); }
+      #slot-list span { font-size: 14px; letter-spacing: 1px; color: var(--ink-dim); }
+      /* 아이디 입력(직업 선택 위) */
+      #pick-name-row { display: flex; align-items: center; gap: 10px; margin: 0 24px 4px auto; font-size: 13px; letter-spacing: 4px; color: #a8977a; }
+      #pick-name { width: 200px; padding: 8px 10px; font: 16px var(--serif); letter-spacing: 1px; color: var(--gold-hi); background: #0e0a07; border: 1px solid var(--gold-lo); border-radius: 3px; }
+      #pick-name:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 10px #c9a14a44; }
       #classes { position: absolute; left: 64px; right: 64px; top: 140px; bottom: 110px; display: flex; gap: 14px; }
       .class-card { container-type: inline-size; --tint: #c9a14a22; flex: 1 1 0; min-width: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 12px 40px !important; color: var(--ink); border: 1px solid #3a2a1a !important; border-radius: 3px; background: radial-gradient(ellipse at 50% 100%, var(--tint) 0%, transparent 65%), linear-gradient(#1e140d, #0e0a07) !important; box-shadow: inset 0 0 0 1px #000, inset 0 0 40px #000c; transition: flex-grow 0.35s ease, border-color 0.2s; }
       .class-card[data-cls='wizard'] { --tint: #7d9bff22; }
@@ -295,9 +304,11 @@
       #pick-go { position: absolute; right: 64px; bottom: 40px; min-height: 52px; padding: 0 44px; font-size: 20px; font-weight: 700; letter-spacing: 6px; color: var(--gold-hi); text-align: center !important; background: linear-gradient(#3a2416, #1c120b) !important; border: 1px solid var(--blood) !important; border-top-color: var(--blood-hi) !important; border-radius: 3px; box-shadow: inset 0 1px 0 #ffffff1c, 0 2px 0 #000; }
       #pick-go:hover, #pick-go:focus-visible { color: #fff; box-shadow: inset 0 1px 0 #ffffff1c, 0 2px 0 #000, 0 0 20px #9c1f1666; }
       @media (max-width: 700px) {
-        #title-pick header { left: 16px; right: 16px; top: 20px; }
+        #title-slots header, #title-pick header { left: 16px; right: 16px; top: 20px; flex-wrap: wrap; }
+        #pick-name-row { order: 3; width: 100%; margin: 8px 0 0; }
+        #pick-name { flex: 1; min-width: 0; }
         #title h2 { font-size: 28px; }
-        #classes { left: 16px; right: 16px; top: 100px; bottom: 96px; flex-direction: column; gap: 8px; }
+        #classes { left: 16px; right: 16px; top: 150px; bottom: 96px; flex-direction: column; gap: 8px; }
         .class-card, .class-card[aria-pressed='true'] { flex-direction: row; align-items: center; justify-content: flex-start; gap: 16px; padding: 0 16px !important; }
         .class-card img { height: min(80px, 10vh); }
         .class-card[aria-pressed='true'] { flex-grow: 2.4; }
@@ -425,15 +436,19 @@
           <h1>DRPG</h1>
           <i class="rule"></i>
           <nav aria-label="메인 메뉴">
-            <button id="continue" hidden><span>이어하기<small id="title-save-info"></small></span></button>
+            <button id="continue" hidden>이어하기</button>
             <button id="title-new">새 게임</button>
             <button id="title-sound">설정</button>
             <button id="title-help">조작법</button>
           </nav>
         </div>
       </div>
+      <div id="title-slots" hidden>
+        <header><div><p id="slots-mode">새 게임</p><h2>저장 슬롯</h2></div><button id="slots-back" title="Esc">뒤로</button></header>
+        <div id="slot-list"></div>
+      </div>
       <div id="title-pick" hidden>
-        <header><div><p>새 게임</p><h2>직업 선택</h2></div><button id="pick-back" title="Esc">뒤로</button></header>
+        <header><div><p>새 게임</p><h2>직업 선택</h2></div><label id="pick-name-row">아이디 <input id="pick-name" maxlength="12" required autocomplete="off" spellcheck="false" placeholder="이름을 입력하세요" /></label><button id="pick-back" title="Esc">뒤로</button></header>
         <div id="classes">
           <button class="class-card" data-cls="knight"><img alt="" /><span class="txt"><b>기사</b><em>근접 · 방어</em><small>검과 방패를 들고 맨 앞에 선다. 공격을 받아쳐 흐름을 끊고, 돌진과 투척으로 거리를 좁힌다. 네 직업 가운데 가장 단단하다.</small></span></button>
           <button class="class-card" data-cls="wizard"><img alt="" /><span class="txt"><b>마법사</b><em>원거리 · 원소</em><small>화염과 냉기, 번개를 다룬다. 적을 얼려 묶어 두고 멀리서 태운다. 몸이 약해 마나 방패와 순간이동에 기대야 한다.</small></span></button>
