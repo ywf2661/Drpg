@@ -104,7 +104,9 @@ export function landSword(w: World, z: Zone) {
   w.blasts.push({ id: w.nextItem++, x: z.x, z: z.z, age: 0, kind: 'slam' });
   for (const f of friends(w)) if (Math.hypot(f.x - z.x, f.z - z.z) <= z.r) hurt(w, f, z.dmg);
   const [x, cz] = [Math.floor(z.x), Math.floor(z.z)];
-  const taken = [...w.entities, ...w.allies].some((e) => e.state !== 'dead' && Math.floor(e.x) === x && Math.floor(e.z) === cz);
+  // 선 칸, 그리고 대지 강타로 뛰는 중이면 내릴 칸(체공 중엔 칸을 확인하지 않아 벽 안에 내려앉는다)
+  const on = (e: Entity, t: number) => Math.floor(e.x + e.dx * t) === x && Math.floor(e.z + e.dz * t) === cz;
+  const taken = [...w.entities, ...w.allies].some((e) => e.state !== 'dead' && (on(e, 0) || (e.phase === 'leap' && on(e, e.phaseT))));
   if (taken || !walkable(w.grid, x, cz)) return;
   w.grid.blocked[cz * w.grid.w + x] = 1;
   w.swords.push({ id: z.id, x, z: cz, t: PALADIN.swordWall });
