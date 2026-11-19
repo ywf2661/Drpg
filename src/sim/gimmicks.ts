@@ -5,7 +5,8 @@ import { walkable } from './path';
 import { asleep, dist, dress, dropGold, hurt, makeEntity, rand, randSlot, rollGear, wake } from './core';
 import { guardOf, SANCTUM } from './sanctum';
 import { tickPaladin } from './paladin';
-import { AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
+import { bossScale, cyclePower, FLOORS } from './dungeon';
+import { depthOf, FIERCE, AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
 const LETTER: Record<string, Kind> = { m: 'minion', w: 'warrior', a: 'archer', g: 'mage' };
 // 몬스터 피해 배율(층 배율의 DMG_SCALE배 + 공통 배율) — 함정 피해에 곱한다
@@ -23,6 +24,18 @@ export function spawnNear(w: World, kind: Kind, cx: number, cz: number, r: numbe
     return e;
   }
   return null;
+}
+
+// ?test 「기사 소환」: 주인공 곁에 그 회차의 성소 5층 기도하는 자와 같은 수치(체력·힘·깊은 곳 특성 하나).
+// 어느 구역에서 불러도 실제 결전과 같은 세기로 시험하게(main.ts makeFloor의 보스 배율·성소 체력 배율과 같은 순서로 반올림)
+export function summonKnight(w: World, cycle: number): Entity | null {
+  const hero = w.entities[0];
+  const k = spawnNear(w, 'boss', hero.x, hero.z, 3, -1, 'fallen_paladin');
+  if (!k) return null;
+  const base = dress(makeEntity(k.id, 'boss', k.x, k.z, cyclePower(cycle)), { boss: 'fallen_paladin' });
+  const s = bossScale(depthOf('sanctum', FLOORS));
+  const hp = Math.round(Math.round(base.maxHp * s) * SANCTUM.bossHp);
+  return Object.assign(k, { power: base.power * s, hp, maxHp: hp, eliteKind: FIERCE[Math.floor(rand(w) * FIERCE.length)] });
 }
 
 // ?test 「기사 소환」(타락한 성기사)이 되는 곳: 야영지가 아니고, 구역 클리어를 계단·출구·원래 보스가 정하는 곳.

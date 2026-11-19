@@ -14,7 +14,7 @@ import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
-import { canSummonKnight, spawnNear } from './sim/gimmicks';
+import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 import { hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
 
@@ -588,10 +588,9 @@ if (new URLSearchParams(location.search).has('test')) {
     land = LAND_LIST[(LAND_LIST.indexOf(land) + 1) % LAND_LIST.length];
     enterFloor(floor, carryOf(world));
   });
-  // 최종 보스 후보: 주인공 근처에 타락한 성기사(야영지 제외)
+  // 최종 보스: 주인공 근처에 기도하는 자(그 회차 성소 5층과 같은 수치, 야영지 제외)
   $('#test-knight').addEventListener('click', () => {
-    const hero = world.entities[0];
-    if (playing() && canSummonKnight(world)) spawnNear(world, 'boss', hero.x, hero.z, 3, -1, 'fallen_paladin');
+    if (playing() && canSummonKnight(world)) summonKnight(world, cycle); // 그 회차의 성소 5층 기도하는 자와 같은 수치
   });
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기

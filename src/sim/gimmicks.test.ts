@@ -2,7 +2,8 @@ import { expect, test } from 'vitest';
 import { createWorld, DT, GRAVE, hidden, ICICLE, LANDS, monsterName, moveSpeed, outcome, SHRINE, SPIKE, step, TREASURE, TRIAL, QUEST, type Command, type World } from './world';
 import { generateFloor } from './dungeon';
 import { generateWild } from './wilds';
-import { canSummonKnight, spawnNear } from './gimmicks';
+import { canSummonKnight, spawnNear, summonKnight } from './gimmicks';
+import { FIERCE } from './rules';
 
 const run = (w: World, ticks: number, cmds: Command[] = []) => {
   for (let i = 0; i < ticks; i++) step(w, i === 0 ? cmds : []);
@@ -265,4 +266,18 @@ test('sureLegend: 의뢰를 다 끝낸 지역의 보스는 전설을 반드시 �
     expect(boss.state).toBe('dead');
     expect([...w.items, ...w.bag].some((i) => 'affixes' in i && i.affixes?.[0]?.kind === 'unique')).toBe(true);
   }
+});
+
+test('기사 소환: 어디서 불러도 그 회차의 성소 5층 기도하는 자와 같은 체력·힘, 깊은 곳 특성 하나', () => {
+  const map = ['#########', '#H......#', '#.......#', '#.......#', '#########'];
+  const w0 = createWorld(1, map, 1, 1, LANDS.field.skins); // 초원 1구역 배율
+  const k0 = summonKnight(w0, 0)!;
+  expect(k0.maxHp).toBe(2280);
+  expect(k0.hp).toBe(2280);
+  expect(k0.power).toBeCloseTo(4.75);
+  expect(FIERCE).toContain(k0.eliteKind);
+  const w1 = createWorld(1, map, 8, 2, LANDS.ruins.skins); // 다른 구역 배율이어도 회차만 따른다
+  const k1 = summonKnight(w1, 1)!;
+  expect(k1.maxHp).toBe(4560);
+  expect(k1.power).toBeCloseTo(9.5);
 });
