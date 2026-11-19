@@ -920,7 +920,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
     info.textContent = `${runeName(r)} — ${runeEffect(runeAffix(r)!)}`;
     info.style.color = RUNE_COLOR[runeGrade(r)];
   };
-  info.textContent = runes.length ? '룬을 우클릭(모바일은 누르기)해서 집고, 꽂을 장비를 누른다' : '비어 있습니다. 룬은 몬스터가 떨어뜨립니다(지역마다 다른 룬).';
+  info.textContent = runes.length ? '룬을 우클릭(모바일은 누르기)해서 집고, 꽂을 장비를 누른다' : '비어 있습니다.';
   info.style.color = '';
   $('#bag-runes').replaceChildren(
     ...runes.map((r) => {
@@ -1118,8 +1118,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   const boss = world.entities.find((e) => (altar ? e.kind === 'boss' : e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && (altar || Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE));
   bossBar.hidden = !boss;
   if (boss) {
-    const lit = world.chests.filter((c) => c.kind === 'altar' && !c.open).length;
-    const ward = !altar ? '' : world.bareT > 0 ? ` — 고리가 깨졌다 ${Math.ceil(world.bareT)}초` : ` — 빛 고리(켜진 성소 ${lit})`;
+    const ward = !altar ? '' : world.bareT > 0 ? ' — 고리가 깨졌다' : ' — 빛 고리';
     const offer = world.offer ? ` · 성물을 바치는 중 ${Math.min(100, Math.round((world.offer.t / SANCTUM.offer) * 100))}%` : '';
     bossLabel.textContent = monsterName(boss) + ward + offer;
     bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;

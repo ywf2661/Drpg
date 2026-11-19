@@ -13,7 +13,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, ROW_NAME, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 import { ALL_RELICS, missAfter, nameSalt, relicDue, RELICS, SANCTUM, SANCTUM_DONE } from './sim/sanctum';
@@ -75,7 +75,7 @@ function signsOf(w: World): Sign[] {
   for (const to of ['field', 'snow', 'ruins', 'sanctum'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
     const mark = to === 'sanctum' ? '▼' : '▶';
-    if (cells.length) out.push({ ...middle(cells), text: `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}${runeHint(to)}` });
+    if (cells.length) out.push({ ...middle(cells), text: `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
     const shut = w.locked.filter((e) => e.to === to);
     if (shut.length && to !== 'sanctum') out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` }); // 성소 입구 자리는 이름표 없이 땅만 갈라진다
   }
@@ -83,11 +83,9 @@ function signsOf(w: World): Sign[] {
     const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
     if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text, alert: alertOf(c.kind) });
   }
-  if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}${runeHint('dungeon')}` });
+  if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-// 다른 지역으로 가는 출구에 그 지역 룬(고를 근거)
-const runeHint = (to: Land) => (to === land || runeRow(to) < 0 ? '' : ` · ${ROW_NAME[runeRow(to)]} 스킬 룬`);
 const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss] }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
@@ -143,7 +141,7 @@ function enterFloor(n: number, carry: Carry) {
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle, land, goalLine());
-  if (land === 'sanctum' && n === FLOORS) say('성소 넷이 성기사를 감싸고 있다 — 성소를 눌러 성물을 바쳐라');
+  if (land === 'sanctum' && n === FLOORS) say('성소 넷이 성기사를 감싸고 있다');
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -192,11 +190,10 @@ function talkTo(t: NonNullable<World['talk']>) {
 // 의뢰인 주민: 부탁이 있는 의뢰면 맡기고(들으면 수락), 맡긴 뒤엔 진행을, 끝났거나 부탁이 없으면 잡담
 function askerTalk() {
   const q = STORY[stage].quest;
-  const where = `${LANDS[STORY[stage].land].name} 2·3·4${LANDS[STORY[stage].land].unit}`;
   if (!q.ask || markCount(marks) === 3) return say(VILLAGER[chatter++ % VILLAGER.length]);
-  if (took) return showTalk('주민', `${q.name} ${markCount(marks)}/3 — ${where}의 ${q.sign}, 잘 부탁해요.`);
+  if (took) return showTalk('주민', `${q.name} ${markCount(marks)}/3 — 잘 부탁해요.`);
   took = true;
-  showTalk('주민', `${q.ask}\n\n(의뢰 수락: ${q.name} — ${where}의 ${q.sign})`);
+  showTalk('주민', q.ask);
   changed();
 }
 
