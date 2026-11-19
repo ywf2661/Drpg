@@ -223,7 +223,7 @@
       #bag-sel > small, #bag-note { display: block; padding: 6px 0; color: var(--ink-dim); }
       #bag-note { color: #ff8a70; }
       .gear-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #0006; border: 1px solid #3a2a1a; border-radius: 3px; }
-      .gear-row > div:nth-child(2) { flex: 1; min-width: 0; }
+      .gear-row > div:nth-child(2) { flex: 1 1 12em; min-width: 0; } /* 12em보다 좁아지면 버튼이 아랫줄로 내려간다(글이 한 글자 폭으로 눌리지 않게) */
       .gear-row .slot { flex: none; }
       .gear-row { flex-wrap: wrap; }
       .gear-row button { flex: none; padding: 6px 10px; font-size: 13px; }

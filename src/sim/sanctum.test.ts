@@ -5,7 +5,7 @@ import { clearLine, hurt } from './core';
 import { spawnNear, touchChest } from './gimmicks';
 import { landSword, litBeams, paladin, tickPaladin } from './paladin';
 import { makeMap } from './wilds';
-import { hasAllRelics, hasHorse, prayerFall, prayerMeet, RELIC_TEXT, RELICS, TRACES, ALL_RELICS, ARENA, generateArena, missAfter, PALADIN, relicCount, relicDue, relicRoll, SANCTUM } from './sanctum';
+import { hasAllRelics, hasHorse, prayerFall, prayerMeet, RELIC_FROM, RELIC_TEXT, RELICS, TRACES, ALL_RELICS, ARENA, generateArena, missAfter, PALADIN, relicCount, relicDue, relicRoll, SANCTUM } from './sanctum';
 import { stun } from './wizard';
 
 // 회차 c마다 네 보스를 처음 깬다고 치고 성물을 모은다. 돌려주는 값 = 넷이 다 모인 회차(0부터)
@@ -260,6 +260,7 @@ test('성기사가 곁에서 쉬지 않고 휘두르는 중이어도 성검의 �
 
 test('이야기: 귀중품마다 설명, 성소 1~4층마다 흔적, 처음 쓰러뜨리면 긴 대화(그 왕의 아이는)', () => {
   expect(RELIC_TEXT).toHaveLength(RELICS.length);
+  expect(RELIC_FROM).toHaveLength(RELICS.length);
   expect(TRACES).toHaveLength(4);
   expect(hasAllRelics(0b11111) && hasAllRelics(0b1111) && !hasAllRelics(0b10111)).toBe(true);
   expect(hasHorse(0b1111)).toBe(false);
