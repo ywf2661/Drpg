@@ -1,6 +1,7 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, hidden, winding, type World } from '../sim/world';
+import { attackInterval, hasUnique, hidden, winding, type World } from '../sim/world';
+import { REWIND } from '../sim/rules';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
 import caveFloorUrl from '../assets/tiles/floor_cave.png';
@@ -25,7 +26,7 @@ import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
-import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHaloGoal, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 import { warded } from '../sim/sanctum';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
@@ -348,6 +349,7 @@ export function draw(world: World, dt: number) {
   syncChests(world);
   const altars = world.chests.filter((c) => c.kind === 'altar');
   setHaloGoal(!altars.length ? 1 : warded(world) ? altars.filter((c) => !c.open).length / altars.length : 0);
+  setHeroRing(hasUnique(world, 'crackedHalo') ? heroRingLevel(world.haloCd, REWIND.cd) : 0); // 「금 간 빛 고리」: 머리 위 고리가 되감기 상태
   syncSpikes(world);
   syncGates(world);
   syncRain(world, frozen ? 0 : dt, stickArrow);

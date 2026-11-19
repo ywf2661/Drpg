@@ -50,10 +50,13 @@ export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 // tint: 불빛에 곱하는 고유 색(정예는 특성 색). ring: 정예의 발밑 고리
-// halo: 타락한 성기사의 후광(k = 켜짐 정도 0~1, t = 맥동 시간)
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number } };
+// halo: 기도하는 자(성기사 그림)의 후광(k = 켜짐 정도 0~1, t = 맥동 시간). hero = 주인공의 「금 간 빛 고리」(고리만, 머리 위)
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number; hero?: boolean } };
 // 후광: 맥동 주기(초)·밝기 범위, 켜지고 꺼지는 시간(초). 고리는 빛무리 밝기의 ring배
 export const HALO = { period: 2.6, min: 0.35, max: 0.6, fade: 1.2, ring: 0.6 };
+// 주인공 머리 위 고리: y = 발에서 높이(m), broken = 되감기를 막 쓴 밝기 → 다시 쓸 수 있으면 1(그 사이는 차오름)
+export const HERO_RING = { y: 1.65, w: 0.7, h: 0.3, broken: 0.15, refill: 0.55 };
+export const heroRingLevel = (cd: number, total: number) => (cd <= 0 ? 1 : HERO_RING.broken + HERO_RING.refill * (1 - cd / total));
 export const haloLevel = (t: number) => HALO.min + (HALO.max - HALO.min) * (0.5 - 0.5 * Math.cos((2 * Math.PI * t) / HALO.period));
 export const CAST_SHOW = 0.35; // 스킬 시전 동작(공격 그림 = 마법사는 cast)을 보여 주는 시간(초)
 const RING = new THREE.RingGeometry(0.4, 0.52, 28).rotateX(-Math.PI / 2);
@@ -329,7 +332,7 @@ const ringPaint = (u: number, v: number): [number, number, number, number] => {
 const COS30 = Math.cos(Math.PI / 6); // 세운 판자는 화면에서 cos30°로 줄어 보인다(cardGeometry와 같은 보정)
 
 export function attachHalo(s: Sprite, e: Entity) {
-  if (e.skin !== 'fallen_paladin') return;
+  if (e.skin !== 'fallen_paladin' && e.kind !== 'hero') return;
   haloTextures.glow ??= haloTexture(glowPaint);
   haloTextures.ring ??= haloTexture(ringPaint);
   const plate = (map: THREE.Texture, w: number, h: number, y: number) => {
@@ -340,7 +343,8 @@ export function attachHalo(s: Sprite, e: Entity) {
     return m;
   };
   // 크기·높이는 화면에서 본 m(키 약 1.7m): 빛무리는 몸 가운데, 고리는 머리 뒤
-  s.halo = { glow: plate(haloTextures.glow, 2.0, 2.2, 1.1), ring: plate(haloTextures.ring, 0.62, 0.28, 1.62), k: 0, t: 0 }; // 고리 높이는 updateHalo가 장면마다 머리 자리로
+  if (e.kind === 'hero') s.halo = { glow: plate(haloTextures.glow, 0, 0, 0), ring: plate(haloTextures.ring, HERO_RING.w, HERO_RING.h, HERO_RING.y), k: 0, t: 0, hero: true }; // 빛무리 없이 고리만(벗고 있으면 heroRing 0이라 꺼져 있다)
+  else s.halo = { glow: plate(haloTextures.glow, 2.0, 2.2, 1.1), ring: plate(haloTextures.ring, 0.62, 0.28, 1.62), k: 0, t: 0 }; // 고리 높이는 updateHalo가 장면마다 머리 자리로
 }
 
 // 머리 자리표(tools/sprites.py knight_heads): 동작 → 방향 → 프레임 → 발 기준 화면 m (x 오른쪽, y 위)
@@ -349,16 +353,21 @@ const HEADS = fallenPaladinHeads as Record<string, number[][][]>;
 // 성소 5층: 후광 밝기 = 켜진 성소 비율(고리가 깨지면 0). 그 밖에서는 1
 let haloGoal = 1;
 export const setHaloGoal = (k: number) => (haloGoal = k);
+// 주인공 고리 밝기(heroRingLevel, 안 쓰고 있으면 0)
+let heroRing = 0;
+export const setHeroRing = (k: number) => (heroRing = k);
 function updateHalo(h: NonNullable<Sprite['halo']>, dead: boolean, dt: number, anim: Anim, dir: number, f: number) {
   h.t += dt;
-  const [hx, hy] = HEADS[anim]?.[dir]?.[f] ?? [0, 1.62];
+  const [hx, hy] = h.hero ? [0, HERO_RING.y] : (HEADS[anim]?.[dir]?.[f] ?? [0, 1.62]);
   h.ring.position.set(hx, hy / COS30, -0.05); // 고리는 머리를 따라간다(쓰러지면 꺼진다)
-  const goal = dead ? 0 : haloGoal;
+  const goal = dead ? 0 : h.hero ? heroRing : haloGoal;
+  if (h.hero && goal < h.k - 0.5) h.k = goal; // 되감기를 쓴 순간: 고리가 단번에 깨진다
   h.k = h.k > goal ? Math.max(goal, h.k - dt / HALO.fade) : Math.min(goal, h.k + dt / HALO.fade);
   const level = haloLevel(h.t) * h.k;
   (h.glow.material as THREE.MeshBasicMaterial).opacity = level;
-  (h.ring.material as THREE.MeshBasicMaterial).opacity = level * HALO.ring;
-  h.glow.visible = h.ring.visible = h.k > 0;
+  (h.ring.material as THREE.MeshBasicMaterial).opacity = h.hero ? h.k * (0.8 + 0.2 * haloLevel(h.t)) : level * HALO.ring; // 주인공 고리는 빛무리가 없어 더 밝게
+  h.glow.visible = !h.hero && h.k > 0;
+  h.ring.visible = h.k > 0;
 }
 
 // interval: 이 캐릭터의 휘두르기 시간(주인공은 무기마다 다름)

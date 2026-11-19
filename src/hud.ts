@@ -25,7 +25,7 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { RELICS, SANCTUM } from './sim/sanctum';
+import { RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
 import { runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
@@ -175,11 +175,24 @@ export function showFloor(n: number, cycle: number, land: Land = 'dungeon', goal
 
 // 순찰대장의 말·단서 창. 닫으면 게임이 이어진다
 const talkDlg = document.querySelector<HTMLDialogElement>('#talk')!;
-export function showTalk(who: string, text: string) {
+// 여러 줄 대화: [말하는 이(빈칸 = 지문), 글]을 차례로. 마지막 줄 전까지 버튼은 [다음](닫으면 다음 줄이 열린다)
+let talkQueue: Line[] = [];
+const talkBtn = talkDlg.querySelector('button')!;
+talkDlg.addEventListener('close', () => {
+  const next = talkQueue.shift();
+  if (next) showLine(next);
+});
+function showLine([who, text]: Line) {
   $('#talk-who').textContent = who;
   $('#talk-text').textContent = text;
+  talkBtn.textContent = talkQueue.length ? '다음' : '닫기';
   if (!talkDlg.open) talkDlg.showModal();
 }
+export function showTalks(lines: Line[]) {
+  talkQueue = lines.slice(1);
+  if (lines.length) showLine(lines[0]);
+}
+export const showTalk = (who: string, text: string) => showTalks([[who, text]]);
 export const talking = () => talkDlg.open;
 
 // 소리 버튼 글자와 패널의 값을 설정에 맞춘다
@@ -908,10 +921,18 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
           ])
         : Object.assign(document.createElement('small'), { textContent: w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 장비를 밟으면 여기로 들어옵니다.' }),
   );
-  // 귀중품(성물): 가진 것만 이름으로. 몇 개인지·어디서 나오는지는 보여 주지 않는다. 없으면 칸째 숨김. 버릴 수 없다(가방 칸이 아니다)
-  $('#bag-relics-h').hidden = !w.relics;
+  // 귀중품(성물·목마): 가진 것만 이름으로. 몇 개인지·어디서 나오는지는 보여 주지 않는다. 없으면 칸째 숨김. 버릴 수 없다(가방 칸이 아니다)
+  // 올리거나 누르면 아래에 생김새 한 줄(RELIC_TEXT) — 어디에 쓰는지는 말하지 않는다
+  const relicInfo = $('#relic-info');
+  $('#bag-relics-h').hidden = relicInfo.hidden = !w.relics;
+  relicInfo.textContent = '';
   $('#bag-relics').replaceChildren(
-    ...RELICS.filter((_, k) => (w.relics >> k) & 1).map((name) => Object.assign(document.createElement('span'), { className: 'relic', textContent: name })),
+    ...RELICS.flatMap((name, k) => {
+      if (!((w.relics >> k) & 1)) return [];
+      const el = Object.assign(document.createElement('span'), { className: 'relic', textContent: name });
+      el.onpointerenter = el.onpointerdown = () => (relicInfo.textContent = RELIC_TEXT[k]);
+      return [el];
+    }),
   );
   // 룬 주머니: 아이콘 + 개수. 올리거나 누르면 아래에 이름·효과, 우클릭(손가락은 누르기)하면 집는다
   const runes = (Object.keys(w.runes) as Rune[]).filter((r) => w.runes[r]).sort((a, b) => runeGrade(b) - runeGrade(a) || runeName(a).localeCompare(runeName(b)));

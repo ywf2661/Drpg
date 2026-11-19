@@ -36,17 +36,18 @@ export function withMark(map: string[], seed: number, letter: string): string[] 
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (ok(cells[z + dz]?.[x + dx] ?? '#')) return true;
     return false;
   };
-  const find = (r: number) => {
+  const find = (r: number, lo = 0.4, hi = 0.7) => {
     const spots: Cell[] = [];
     for (let z = 1; z < H - 1; z++)
       for (let x = 1; x < W - 1; x++) {
         const k = d[z * W + x];
-        if (cells[z][x] !== '.' || k < 0.4 * far || k > 0.7 * far || around(x, z, r, (c) => !OPEN(c))) continue;
+        if (cells[z][x] !== '.' || k < lo * far || k > hi * far || around(x, z, r, (c) => !OPEN(c))) continue;
         if (!road || around(x, z, 3, (c) => c === '=')) spots.push([x, z]);
       }
     return spots;
   };
-  const spots = road ? find(1) : find(2).length ? find(2) : find(1); // 미궁에 넓은 방이 거기 없으면 둘레 8칸만
+  let spots = road ? find(1) : find(2).length ? find(2) : find(1); // 미궁에 넓은 방이 거기 없으면 둘레 8칸만
+  if (!spots.length) spots = find(1, 0.15, 1); // 그 거리에 없으면 더 넓게(성소 흔적은 이야기라 빠지면 안 된다)
   if (!spots.length) return map; // 놓을 데가 없으면 없이(의뢰는 선택이라 진행이 막히지 않는다)
   const [x, z] = spots[Math.floor(mulberry(seed ^ 0x51ed)() * spots.length)];
   cells[z][x] = letter;

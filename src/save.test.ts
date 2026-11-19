@@ -154,7 +154,8 @@ test('성물이 생기기 전 저장은 성물 0개, 범위를 벗어난 성물�
   const r = decodeSave(JSON.stringify({ v: 2, ...old }))!;
   expect([r.relics, r.relicMiss]).toEqual([0, [0, 0, 0, 0]]);
   const bad = (patch: object) => decodeSave(JSON.stringify({ v: 2, ...run, ...patch }));
-  expect(bad({ relics: 16 })).toBeNull();
+  expect(bad({ relics: 32 })).toBeNull(); // 비트 4 = 작은 목마까지(0~31)
+  expect(decodeSave(JSON.stringify({ ...JSON.parse(encodeSave(r)), relics: 31 }))!.relics).toBe(31);
   expect(bad({ relicMiss: [0, 3, 0, 0] })).toBeNull();
   expect(bad({ relicMiss: [0, 0] })).toBeNull();
   expect(decodeSave(encodeSave({ ...run, land: 'sanctum', floor: 4 }))?.land).toBe('sanctum');

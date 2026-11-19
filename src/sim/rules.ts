@@ -127,10 +127,11 @@ export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 
 export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId; key?: SkillName; r?: Rune };
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
-export type UniqueId = 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots';
+export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots';
 // name의 %는 그 단계의 기본 이름. cls: 그 직업일 때만 떨어진다. fixed: 고정 옵션(tab = 탭 하나 +1, tier1 = 1단계 스킬 하나 +1을 드롭 때 굴림).
-// look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER)
-export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
+// look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER). only: 무작위 전설에 안 나온다(정해진 보스만)
+export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; only?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
+  crackedHalo: { name: '금 간 빛 고리', slot: 'helm', only: true, fixed: [{ kind: 'life', value: 20 }], desc: '쓰러질 만큼 맞으면 3초 전의 자리와 체력으로 되감긴다(120초에 한 번)' }, // 기도하는 자만
   boomerang: { name: '돌아오는 도끼날', slot: 'weapon', cls: 'knight', fixed: [{ kind: 'skill', value: 2, skill: 'throw' }], desc: '도끼 던지기의 도끼가 끝에서 돌아오며 한 번 더 맞힌다' },
   splitOrb: { name: '쪼개지는 구슬', slot: 'weapon', cls: 'wizard', fixed: [{ kind: 'skill', value: 2, skill: 'fireball' }], look: '#e8261c', desc: '화염구가 터지면 작은 화염구 3개가 사방으로 퍼진다' },
   hawkHood: { name: '매의 눈 두건', slot: 'helm', cls: 'ranger', fixed: [{ kind: 'skill', value: 2, skill: 'pierce' }], look: '#1fb83c', desc: '관통 사격이 벽에 닿으면 한 번 튕긴다' },
@@ -152,6 +153,8 @@ export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, s
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
 export const SET_HUNTER = { frenzy: 1.3, rush: 1.3, steady: 0.7, dmg: 1.25, res: 30, time: 20, leech: 0.1, blastR: 1.2, blastMult: 1.5, aura: 1.3, allyLife: 10, allyMax: 3 };
 // 전설 효과 수치
+// 「금 간 빛 고리」 되감기: back초 전으로(틱마다 기록), 한 번 쓰면 cd초
+export const REWIND = { back: 3, cd: 120 };
 export const LEGEND_FX = { orbs: 3, orbMult: 0.4, bones: 2, boneBlastR: 1.2, boneBlast: 1.5, duelCd: 1, duelRes: 15, emberTime: 2, rage: 0.4, cloakHp: 0.85 };
 
 // 장비 하나(부위·단계·옵션)
@@ -304,6 +307,12 @@ export type World = {
   offer: { id: number; t: number } | null;
   bareT: number;
   knightsUp: boolean;
+  // 기도하는 자: haloDrop = 쓰러지면 「금 간 빛 고리」가 나올 확률(0 = 아님, 못 나오면 평소 전설), horseDrop = 작은 목마를 떨군다(처음 쓰러뜨릴 때)
+  haloDrop: number;
+  horseDrop: boolean;
+  // 「금 간 빛 고리」: past = 주인공 자리·체력 기록(틱마다, 가장 오래된 것이 REWIND.back초 전), haloCd = 다시 되감을 수 있을 때까지(초)
+  past: [number, number, number][];
+  haloCd: number;
   // 성기사 전용 기술(paladin.ts): rain = 다음 성검의 비까지, judge = 다음 심판까지(-1 = 아직 잠김), quiet = 빛줄이 꺼져 있을 남은 시간, burn = 대상 id → 다시 데일 수 있을 때까지(초)
   pal: { rain: number; judge: number; quiet: number; burn: Record<number, number> };
   swords: { id: number; x: number; z: number; t: number }[]; // 꽂힌 성검(칸 정수, t = 벽 남은 시간)
@@ -402,7 +411,7 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   hobgoblin_archer: { name: '홉고블린 궁수', hp: 1, speed: 1 }, // 폐허 궁수
   bone_knight: { name: '해골 기사 왕', hp: 1.2, speed: 1 }, // 지금은 안 쓴다(폐허 보스가 악마로 바뀜)
   demon: { name: '심연의 악마', hp: 1.2, speed: 1 }, // 폐허의 보스: 체력 절반에 무덤을 일으킨다
-  fallen_paladin: { name: '타락한 성기사', hp: 1.2, speed: 1 }, // 최종 보스 후보(보스 원형). 아직 어느 지역에도 없다 — ?test 소환만
+  fallen_paladin: { name: '기도하는 자', hp: 1.2, speed: 1 }, // 무너진 성소 5층의 보스(보스 원형). 이야기: docs/superpowers/specs/2026-11-19-prayer-story-design.md
 };
 export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Record<Kind, Skin>> }> = {
   dungeon: { name: '지하', unit: '층', skins: {} },
@@ -419,7 +428,7 @@ export type QuestKind = 'note' | 'beacon' | 'keeper' | 'seal';
 // ask = 야영지 의뢰인(주민)의 부탁. 있으면 부탁을 들어야 시작(없으면 처음부터 켜져 있다). reward = 조각마다 금화(gold) 또는 이 지역 보스 약화(weaken, 셋이면 전설 확정)
 export type Quest = { kind: QuestKind; name: string; sign: string; ask?: string; reward: 'gold' | 'weaken'; marks: { name: string; text: string }[] };
 export type Story = { land: Land; goal: string; again: string; quest: Quest; done: string };
-export const OPENING = "왔군. 요즘 초원이 수상하네. 고블린 떼가 부쩍 늘더니, 동쪽으로 정찰 나간 아이들이 돌아오질 않아. 마지막으로 들어온 전갈에는 '초원 가장 깊은 곳, 모래가 꺼진 자리'라는 말뿐이었지. 거기 무엇이 있는지 알아봐 주게.";
+export const OPENING = "왔군. 왕도에서 우리를 보낸 까닭이 있네. 요즘 초원이 수상하네. 고블린 떼가 부쩍 늘더니, 동쪽으로 정찰 나간 아이들이 돌아오질 않아. 마지막으로 들어온 전갈에는 '초원 가장 깊은 곳, 모래가 꺼진 자리'라는 말뿐이었지. 거기 무엇이 있는지 알아봐 주게.";
 export const STORY: Story[] = [
   {
     land: 'field',
@@ -432,7 +441,7 @@ export const STORY: Story[] = [
       name: '실종된 정찰병',
       sign: '정찰병의 흔적',
       marks: [
-        { name: '찢어진 정찰 일지', text: '둘째 날. 고블린들이 무언가를 동쪽으로 끌고 간다. 먹이를 나르는 것 같지는 않다. 어딘가에 바치러 가는 것처럼 보인다.' },
+        { name: '찢어진 정찰 일지', text: '둘째 날. 고블린들이 무언가를 동쪽으로 끌고 간다. 먹이를 나르는 것 같지는 않다. 어딘가에 바치러 가는 것처럼 보인다. 몇 놈은 등에 검은 딱지가 번져 있다. 병든 짐승 같다.' },
         { name: '부러진 창', text: "정찰병의 창이 반으로 부러져 모래에 꽂혀 있다. 자루에 손톱으로 긁은 글씨가 남아 있다. '땅이 꺼진다. 가까이 가지 마라.'" },
         { name: '얼어붙은 정찰병의 쪽지', text: '모래 구덩이 밑에서 찬 바람이 올라온다. 이 초원에서 날 수 없는 냉기다. 굴이 북쪽 눈밭까지 이어진 게 아닐까. 대장님께 꼭 전해야… (쪽지 끝이 서리에 덮여 있다)' },
       ],
@@ -452,7 +461,7 @@ export const STORY: Story[] = [
       marks: [
         { name: '되살린 봉화', text: '봉화에 다시 불이 붙었다. 불빛이 닿자 눈 속에 묻혀 있던 자국이 드러난다. 사람의 발자국이 아니다. 커다란 무언가가 날개를 끌며 지나갔다.' },
         { name: '둘째 봉화', text: '불이 오르자 눈보라가 잠시 걷힌다. 멀리 얼음 절벽 밑으로 검은 굴 입구들이 줄지어 있다. 찬 바람은 저 굴에서 불어 나온다.' },
-        { name: '얼음 속 지도 조각', text: '봉화의 불길에 얼음이 녹자, 그 속에 갇혀 있던 낡은 지도 조각이 드러난다. 눈밭 아래로 굴이 그물처럼 뻗어 있고, 그 끝은 모두 한곳 — 땅 밑 깊은 미궁으로 모인다.' },
+        { name: '얼음 속 지도 조각', text: '봉화의 불길에 얼음이 녹자, 그 속에 갇혀 있던 낡은 지도 조각이 드러난다. 눈밭 아래로 굴이 그물처럼 뻗어 있고, 그 끝은 모두 한곳 — 땅 밑 깊은 미궁으로 모인다. 적힌 지명은 하나도 알아볼 수 없다. 백 년은 묵은 글씨다.' },
       ],
     },
     done: '서리 와이번이 그 굴의 입구를 지키고 있었군. 모든 굴이 미궁으로 모인다라… 초원 어귀의 동굴 입구를 막고 있던 돌을 치웠네. 조심하게. 저 밑은 우리가 아는 땅이 아니야.',
@@ -468,7 +477,7 @@ export const STORY: Story[] = [
       sign: '잠긴 궤',
       marks: [
         { name: '열쇠 조각', text: '궤 안에 녹슨 열쇠 조각이 들어 있다. 손잡이 쪽이다. 궤를 지키던 해골들은 이 쇳조각을 목숨처럼 붙들고 있었다.' },
-        { name: '또 하나의 열쇠 조각', text: '두 조각을 맞대 보니 아귀가 꼭 맞는다. 몸통에 무너진 탑과 뱀이 얽힌 문장이 새겨져 있다.' },
+        { name: '또 하나의 열쇠 조각', text: '두 조각을 맞대 보니 아귀가 꼭 맞는다. 몸통에 금 간 고리 아래 무릎 꿇은 사람의 문장이 새겨져 있다.' },
         { name: '해골이 쥔 열쇠', text: '마지막 조각을 끼우자 열쇠가 온전해진다. 손잡이의 문장은 낯설지 않다. 무너진 성채의 깃발에서 본 바로 그 문장이다.' },
       ],
     },

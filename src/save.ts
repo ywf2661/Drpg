@@ -8,7 +8,7 @@ export type Stats = { time: number; kills: number; deaths: number }; // 이번 �
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[]; relics: number; relicMiss: number[] }; // relics·relicMiss: 무너진 성소의 성물(비트 0~15)·지역마다 놓친 횟수(0~2) // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
+export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[]; relics: number; relicMiss: number[] }; // relics·relicMiss: 무너진 성소의 성물(비트 0~3, 4 = 작은 목마 → 0~31)·지역마다 놓친 횟수(0~2) // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
 const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
 const KEY = 'drpg-save'; // 슬롯 이전의 한 칸 저장. 지금은 KEY-0 ~ KEY-2
 export const SLOT_COUNT = 3;
@@ -150,7 +150,7 @@ export function decodeSave(text: string | null): Run | null {
   if (!int(beat, 0, 15) || !Array.isArray(marksBy) || marksBy.length !== STORY.length || !marksBy.every((n) => int(n, 0, 7))) return null;
   const relics = d.relics ?? 0; // 성물 이전 저장은 0개
   const relicMiss = d.relicMiss ?? [0, 0, 0, 0];
-  if (!int(relics, 0, 15) || !Array.isArray(relicMiss) || relicMiss.length !== STORY.length || !relicMiss.every((n) => int(n, 0, 2))) return null;
+  if (!int(relics, 0, 31) || !Array.isArray(relicMiss) || relicMiss.length !== STORY.length || !relicMiss.every((n) => int(n, 0, 2))) return null;
   if (typeof news !== 'boolean' || typeof took !== 'boolean') return null;
   const camp = old || land === 'camp';
   const name = d.name ?? '모험가'; // 아이디(나중에 생긴 항목)

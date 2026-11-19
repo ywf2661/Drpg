@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
 import heads from '../assets/sprites/fallen_paladin_heads.json';
 import { createWorld } from '../sim/world';
-import { heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, type Sprite } from './sprites';
+import { heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, HERO_RING, heroRingLevel, setHeroRing, type Sprite } from './sprites';
 
 test('후광 맥동: min~max 사이를 period 주기로 오르내린다', () => {
   const xs = Array.from({ length: 200 }, (_, i) => haloLevel((i / 200) * HALO.period));
@@ -12,7 +12,7 @@ test('후광 맥동: min~max 사이를 period 주기로 오르내린다', () => 
   expect(haloLevel(0.3)).toBeCloseTo(haloLevel(0.3 + HALO.period), 6);
 });
 
-test('후광은 타락한 성기사에게만 붙고, 죽으면 꺼진다', () => {
+test('후광은 기도하는 자(성기사 그림)와 주인공에게만 붙고, 죽으면 꺼진다', () => {
   const w = createWorld(1, ['H.M']);
   const boss = w.entities[1];
   const card = () => {
@@ -150,4 +150,26 @@ test('원색 외형: 특출난 전설을 입으면 그 부위 레이어 색, 아
   w.mods.weapon = [{ kind: 'unique', value: 0, u: 'boomerang' }]; // 원색이 없는 전설
   expect(looksOf(w)).toEqual({ armor: '#f5c400' });
   expect(heroKey(w.gear, 'knight', looksOf(w))).not.toBe(heroKey(w.gear, 'knight', {}));
+});
+
+test('주인공 「금 간 빛 고리」: 고리만 머리 위에, 안 쓰면 꺼짐, 되감기를 쓰면 단번에 깨지고 차오른다', () => {
+  const w = createWorld(1, ['H.M']);
+  const h = w.entities[0];
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
+  const s = { mesh: new THREE.Mesh(cardGeometry(hero as never), mat), mat, info: hero as never, anim: 'stance' as const, t: 0, hp: h.hp, maxHp: h.maxHp, hitT: 0, castT: 0, tint: new THREE.Color(1, 1, 1) } as Sprite;
+  attachHalo(s, h);
+  expect(s.halo!.hero).toBe(true);
+  setHeroRing(0);
+  updateSprite(s, h, 1, 1.8);
+  expect(s.halo!.ring.visible).toBe(false);
+  setHeroRing(heroRingLevel(0, 120));
+  for (let i = 0; i < 60; i++) updateSprite(s, h, 1 / 30, 1.8);
+  expect(s.halo!.k).toBe(1);
+  expect(s.halo!.glow.visible).toBe(false); // 빛무리는 없다
+  expect(s.halo!.ring.position.y).toBeCloseTo(HERO_RING.y / Math.cos(Math.PI / 6), 5);
+  setHeroRing(heroRingLevel(120, 120));
+  updateSprite(s, h, 1 / 30, 1.8);
+  expect(s.halo!.k).toBe(HERO_RING.broken);
+  expect(heroRingLevel(60, 120)).toBeGreaterThan(HERO_RING.broken);
+  expect(heroRingLevel(60, 120)).toBeLessThan(1);
 });

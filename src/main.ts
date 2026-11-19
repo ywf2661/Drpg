@@ -1,7 +1,7 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, say, sayLocked, sayShort, showBag, showTalk, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud } from './hud';
+import { $, initHud, say, sayLocked, sayShort, showBag, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud } from './hud';
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
@@ -16,7 +16,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ALL_RELICS, missAfter, nameSalt, relicDue, RELICS, SANCTUM, SANCTUM_DONE } from './sim/sanctum';
+import { hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -49,10 +49,13 @@ let relics = 0;
 let relicMiss = [0, 0, 0, 0];
 // ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
 let captainLine: string | null = null;
+// 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
+let [risen, fell] = [false, false];
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 // 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
 const questHere = () => STORY[stage].land === land;
-const markLetter = () => (questHere() && questOn(stage, took) && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
+// 성소 1~4층: 층마다 흔적 하나(TRACES, 글자는 단서와 같은 L)
+const markLetter = () => (land === 'sanctum' ? (floor < FLOORS ? 'L' : undefined) : questHere() && questOn(stage, took) && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
 const goalLine = () => (cycle ? `${FREE_GOAL} ${beatCount(beat)}/${STORY.length}` : STORY[stage].goal) + (questOn(stage, took) ? ` · ${STORY[stage].quest.name} ${markCount(marks)}/3` : '');
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
@@ -80,7 +83,7 @@ function signsOf(w: World): Sign[] {
     if (shut.length && to !== 'sanctum') out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` }); // 성소 입구 자리는 이름표 없이 땅만 갈라진다
   }
   for (const c of w.chests) {
-    const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
+    const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : land === 'sanctum' ? TRACES[floor - 1]?.name : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
     if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text, alert: alertOf(c.kind) });
   }
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
@@ -92,7 +95,7 @@ const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(relics === ALL_RELICS ? (['sanctum'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.rest = land === 'field' || land === 'camp'; // 초원·야영지 모닥불에서 쉴 수 있다
   w.land = land;
@@ -120,10 +123,12 @@ function makeFloor(n: number, carry: Carry): World {
   // 성물: 그 회차에 그 지역 보스를 처음 깨는 판이면 굴린다(회차·지역·이름으로 정해져 다시 들어가도 같다)
   const k = runeRow(land);
   if (n === FLOORS && k >= 0 && afterClear(stage, cycle, land, beat).advanced && relicDue(relics, relicMiss, k, cycle, nameSalt(name))) w.relicDrop = k;
-  // 타락한 성기사: 고리가 깨진 창에만 맞으니 체력을 낮추고, 쓰러뜨리면 전설 확정
+  // 기도하는 자: 고리가 깨진 창에만 맞으니 체력을 낮추고, 쓰러뜨리면 전설 확정. 처음(목마가 없다)이면 「금 간 빛 고리」·작은 목마 확정, 그 뒤엔 빛 고리가 낮은 확률로
   if (land === 'sanctum' && n === FLOORS) {
     for (const e of w.entities) if (e.kind === 'boss') e.hp = e.maxHp = Math.round(e.maxHp * SANCTUM.bossHp);
     w.sureLegend = true;
+    w.horseDrop = !hasHorse(relics);
+    w.haloDrop = w.horseDrop ? 1 : SANCTUM.haloAgain;
   }
   return w;
 }
@@ -141,7 +146,11 @@ function enterFloor(n: number, carry: Carry) {
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle, land, goalLine());
-  if (land === 'sanctum' && n === FLOORS) say('성소 넷이 성기사를 감싸고 있다');
+  [risen, fell] = [false, false];
+  if (land === 'sanctum' && n === FLOORS) {
+    say('성소 넷이 기도하는 자를 감싸고 있다');
+    showTalks(prayerMeet(!hasHorse(relics))); // 열려 있는 동안 싸움은 멈춘다
+  }
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -169,13 +178,20 @@ function leave() {
 }
 
 // 주민(배경)이 하는 말: 누를 때마다 다음 줄
-const VILLAGER = ['불 곁을 떠나지 마세요. 해가 지면 초원도 위험해요.', '정찰병은 아직 소식이 없대요.', '순찰대장님이 요즘 잠을 못 주무세요.', '상인한테 물약은 넉넉히 사 두세요.'];
+// 성물이 둘 이상이면 땅 밑 기도 소리 한 줄이 섞인다
+const VILLAGER = ['불 곁을 떠나지 마세요. 해가 지면 초원도 위험해요.', '정찰병은 아직 소식이 없대요.', '할머니가 그러는데, 초원 밑에 옛 왕국이 잠들어 있대요. 다 옛날이야기지만요.', '순찰대장님이 요즘 잠을 못 주무세요.', '상인한테 물약은 넉넉히 사 두세요.'];
+const MURMUR = '요즘 밤마다 땅 밑에서 웅얼거리는 소리가 나요. 꼭 누가 기도하는 것 같아요.';
+const chat = () => { const lines = relicCount(relics) >= 2 ? [...VILLAGER, MURMUR] : VILLAGER; return lines[chatter++ % lines.length]; };
 let chatter = 0;
 
 // NPC·단서를 누르면(sim이 w.talk를 남긴다)
 function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'merchant') return openShop(true);
-  if (t === 'villager') return say(VILLAGER[chatter++ % VILLAGER.length]);
+  if (t === 'villager') return say(chat());
+  if (t === 'clue' && land === 'sanctum' && TRACES[floor - 1]) {
+    signs = signsOf(world); // 읽은 흔적은 이름표를 뗀다
+    return showTalk(TRACES[floor - 1].name, TRACES[floor - 1].text);
+  }
   if (t === 'asker') return askerTalk();
   if (t === 'elder') {
     if (!news) return showTalk('순찰대장', cycle ? FREE_AGAIN : STORY[stage].again);
@@ -190,7 +206,7 @@ function talkTo(t: NonNullable<World['talk']>) {
 // 의뢰인 주민: 부탁이 있는 의뢰면 맡기고(들으면 수락), 맡긴 뒤엔 진행을, 끝났거나 부탁이 없으면 잡담
 function askerTalk() {
   const q = STORY[stage].quest;
-  if (!q.ask || markCount(marks) === 3) return say(VILLAGER[chatter++ % VILLAGER.length]);
+  if (!q.ask || markCount(marks) === 3) return say(chat());
   if (took) return showTalk('주민', `${q.name} ${markCount(marks)}/3 — 잘 부탁해요.`);
   took = true;
   showTalk('주민', q.ask);
@@ -615,7 +631,18 @@ requestAnimationFrame(function frame(now) {
     entry = { ...entry, gold: deathGold(entry.gold) };
     saveRun({ ...progress(), land: 'camp', floor: 0, from: 'w' });
   }
-  if (o === 'clear') clearT += dt; // 저장은 지우지 않는다(야영지로 가기 전에 탭을 닫아도 캐릭터가 남는다)
+  if (o === 'clear' && !talking()) clearT += dt;
+  // 성소 5층: 체력 절반에 기사가 일어날 때 한 줄, 쓰러지는 모습이 끝나면 대화(전리품 시간은 대화를 닫은 뒤부터)
+  if (land === 'sanctum' && floor === FLOORS) {
+    if (world.knightsUp && !risen) {
+      risen = true;
+      say(PRAYER_RISE);
+    }
+    if (o === 'clear' && !fell && clearT >= SANCTUM.fallTalk) {
+      [fell, clearT] = [true, 0];
+      showTalks(prayerFall(world.horseDrop)); // 처음 쓰러뜨린 판(목마를 떨군 판)이면 긴 대화
+    }
+  } // 저장은 지우지 않는다(야영지로 가기 전에 탭을 닫아도 캐릭터가 남는다)
   const [hero, st] = [world.entities[0], world.stairs];
   if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY) && !exitAt(world)) stayed = false; // 계단·출구에서 벗어나야 상점이 다시 열린다
   if (o === 'descend' && !shopping) {

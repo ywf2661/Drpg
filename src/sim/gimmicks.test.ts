@@ -15,7 +15,7 @@ test('타락한 성기사: 소환하면 이름·체력 배율이 붙고, 폐허�
   w.land = 'ruins';
   const k = spawnNear(w, 'boss', 1.5, 1.5, 3, -1, 'fallen_paladin')!;
   expect(k.skin).toBe('fallen_paladin');
-  expect(monsterName(k)).toBe('타락한 성기사');
+  expect(monsterName(k)).toBe('기도하는 자');
   k.hp = Math.floor(k.maxHp / 2) - 1;
   w.entities[0].hp = 99999;
   run(w, 10);

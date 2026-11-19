@@ -1,7 +1,7 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
-import { warded } from './sanctum';
+import { REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -320,12 +320,18 @@ export function quality(it: { affixes: Affix[] }): number {
 export function rollUnique(w: World, x: number, z: number, tier: number): Item {
   const pick = <T>(list: T[]) => list[Math.floor(rand(w) * list.length)];
   let u: UniqueId;
+  const pool = UNIQUE_LIST.filter((id) => !UNIQUES[id].only); // 정해진 보스만 떨구는 것은 빼고
   if (rand(w) < LEGEND_DROP.set) {
-    const sets = UNIQUE_LIST.filter((id) => UNIQUES[id].set);
+    const sets = pool.filter((id) => UNIQUES[id].set);
     const owned = new Set([...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] })), ...w.bag.map((it) => uniqueOf(it))]);
     const missing = sets.filter((id) => !owned.has(id));
     u = pick(missing.length && rand(w) < LEGEND_DROP.missing ? missing : sets);
-  } else u = pick(UNIQUE_LIST.filter((id) => !UNIQUES[id].set && (!UNIQUES[id].cls || UNIQUES[id].cls === w.cls)));
+  } else u = pick(pool.filter((id) => !UNIQUES[id].set && (!UNIQUES[id].cls || UNIQUES[id].cls === w.cls)));
+  return makeUnique(w, u, x, z, tier);
+}
+// 고유 장비 u 하나를 만든다
+export function makeUnique(w: World, u: UniqueId, x: number, z: number, tier: number): Item {
+  const pick = <T>(list: T[]) => list[Math.floor(rand(w) * list.length)];
   const def = UNIQUES[u];
   const fixed = def.fixed.map((f): Affix => (f === 'tab' ? { kind: 'tab', value: 1, tab: Math.floor(rand(w) * TREES[w.cls].length) } : f === 'tier1' ? { kind: 'skill', value: 1, skill: pick(TREES[w.cls]).skills[0] } : { ...f }));
   const n = rand(w) < 0.5 ? 1 : 2;
@@ -337,9 +343,31 @@ export function rollUnique(w: World, x: number, z: number, tier: number): Item {
 function dropUnique(w: World, t: Entity, p: number, toBag = false): boolean {
   if (rand(w) >= p) return false;
   const it = rollUnique(w, t.x, t.z, w.maxTier);
-  const at = toBag && bagSpot(w.bag, it as GearItem);
+  if (toBag) toBagOrFloor(w, it);
+  else w.items.push(it);
+  return true;
+}
+// 보관함에 자리가 있으면 보관함, 없으면 바닥(층이 끝나 바닥 것을 못 줍는 보스)
+function toBagOrFloor(w: World, it: Item) {
+  const at = bagSpot(w.bag, it as GearItem);
   if (at) w.bag.push({ kind: it.kind as Slot, tier: it.tier, affixes: it.affixes!, x: at[0], y: at[1] });
   else w.items.push(it);
+}
+
+// 「금 간 빛 고리」: 쓰고 있으면 틱마다 주인공 자리·체력을 남긴다(가장 오래된 것 = REWIND.back초 전)
+export function recordPast(w: World, hero: Entity) {
+  if (!hasUnique(w, 'crackedHalo') || hero.state === 'dead') return void (w.past.length = 0);
+  w.past.push([hero.x, hero.z, hero.hp]);
+  if (w.past.length > Math.round(REWIND.back / DT)) w.past.shift();
+}
+// 쓰러질 피해를 받았다: 고리가 차 있으면 가장 오래된 기록으로 되감고 true.
+// 그 칸이 그사이 막혔으면(성검의 비가 꽂힌 칼 벽 등) 지금 쪽으로 가까운 기록 중 걸을 수 있는 첫 칸으로
+function rewind(w: World, hero: Entity): boolean {
+  if (w.haloCd > 0 || !w.past.length || !hasUnique(w, 'crackedHalo')) return false;
+  const [x, z, hp] = w.past.find(([px, pz]) => walkable(w.grid, Math.floor(px), Math.floor(pz))) ?? [hero.x, hero.z, 1];
+  Object.assign(hero, { x, z, hp: Math.max(1, hp), path: [], target: null });
+  w.past.length = 0;
+  w.haloCd = REWIND.cd;
   return true;
 }
 
@@ -436,6 +464,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   }
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
+  if (t.kind === 'hero' && !t.hp && rewind(w, t)) return dealt; // 「금 간 빛 고리」: 쓰러지는 대신 되감긴다
   const hero = w.entities[0];
   const leech = from?.kind === 'hero' ? Math.round((dealt * worn(w, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) + (w.trophies.vampiric ? Math.round(dealt * SET_HUNTER.leech) : 0) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
   if (leech > 0 && hero.state !== 'dead') hero.hp = Math.min(hero.maxHp, hero.hp + leech);
@@ -459,7 +488,10 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     dropGold(w, t.x + 0.3, t.z, KING.gold[0], KING.gold[1], t.power);
     return dealt;
   }
-  if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
+  // 기도하는 자: 「금 간 빛 고리」(haloDrop 확률, 아니면 평소 전설)·작은 목마(처음)
+  if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < w.haloDrop) toBagOrFloor(w, makeUnique(w, 'crackedHalo', t.x, t.z, w.maxTier));
+  else if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
+  if (t.kind === 'boss' && w.horseDrop) w.items.push({ id: w.nextItem++, x: t.x - 0.6, z: t.z + 0.3, kind: 'relic', tier: 0, relic: HORSE });
   if (t.kind === 'boss' && w.relicDrop >= 0) w.items.push({ id: w.nextItem++, x: t.x, z: t.z + 0.6, kind: 'relic', tier: 0, relic: w.relicDrop }); // 지역 보스의 성물
   if (t.skin === 'treasure') treasureDrop(w, t);
   gainXp(w, Math.round(XP[t.kind] * Math.min(t.power, w.xpCap) * (t.elite ? ELITE.xp : 1)));

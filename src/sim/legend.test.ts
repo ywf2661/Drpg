@@ -7,6 +7,7 @@ import { gearName } from '../render/labels';
 import { hurt, roll, skillHit } from './core';
 import { fireBurst } from './wizard';
 import { bonesStat, raise } from './necro';
+import { REWIND } from './rules';
 import { plainAffixes, setLevel, ELITE_FX, moveSpeed, SET_HUNTER, attackInterval, DT, heroMax, LEGEND_FX, type Command, type UniqueId, createWorld, learn, learnBlock, LEGEND_DROP, mastered, quality, rank, RANK_MAX, rollGear, rollUnique, SKILLS, step, TREES, UNIQUES, uniqueOf, useClass, type Affix, type HeroClass, type SkillId, type World } from './world';
 
 const make = (cls: HeroClass = 'knight') => {
@@ -374,4 +375,53 @@ test('얻은 특성: 흡혈·통솔·폭발(연쇄)·분열(잠깐 서는 해골
   for (const e of v.entities.slice(1)) hurt(v, e, 1e9, v.entities[0]);
   expect(v.allies).toHaveLength(SET_HUNTER.allyMax);
   expect(v.allies[0].life).toBe(SET_HUNTER.allyLife);
+});
+
+// 「금 간 빛 고리」(기도하는 자만). 설계: docs/superpowers/specs/2026-11-19-prayer-story-design.md
+const halo: Affix = { kind: 'unique', value: 0, u: 'crackedHalo' };
+test('금 간 빛 고리: 쓰러질 피해에 3초 전 자리·체력으로 되감기고, 120초 동안 다시 안 된다', () => {
+  const w = arena(['H.........'], 'knight');
+  const hero = w.entities[0];
+  w.mods.helm = [halo];
+  hero.hp = 80;
+  for (let i = 0; i < Math.round(REWIND.back / DT) + 30; i++) {
+    step(w, []);
+    if (i === 30) [hero.x, hero.hp] = [5.5, 40]; // 기록이 3초를 넘게 쌓인 뒤 자리·체력이 바뀐다
+  }
+  const [x0, , hp0] = w.past[0];
+  hurt(w, hero, 1e6);
+  expect(hero.state).not.toBe('dead');
+  expect([hero.x, hero.hp]).toEqual([x0, hp0]);
+  expect(w.haloCd).toBe(REWIND.cd);
+  step(w, []);
+  hurt(w, hero, 1e6);
+  expect(hero.state).toBe('dead'); // 고리가 깨져 있다
+});
+
+test('금 간 빛 고리: 안 쓰고 있으면 기록도 되감기도 없다', () => {
+  const w = arena(['H....'], 'knight');
+  for (let i = 0; i < 10; i++) step(w, []);
+  expect(w.past).toHaveLength(0);
+  hurt(w, w.entities[0], 1e6);
+  expect(w.entities[0].state).toBe('dead');
+});
+
+test('금 간 빛 고리: 되감을 칸이 그사이 막혔으면 걸을 수 있는 가장 오래된 기록으로', () => {
+  const w = arena(['H.........'], 'knight');
+  const hero = w.entities[0];
+  w.mods.helm = [halo];
+  w.past = [[1.5, 0.5, 30], [2.5, 0.5, 50], [3.5, 0.5, 70]];
+  w.grid.blocked[1] = 1; // x 1 칸이 칼 벽이 됐다
+  hurt(w, hero, 1e6);
+  expect([hero.x, hero.hp]).toEqual([2.5, 50]);
+});
+
+test('금 간 빛 고리는 무작위 전설에 안 나오고, 기도하는 자(haloDrop)만 떨군다. 목마는 horseDrop일 때', () => {
+  const w = arena(['H.M'], 'knight');
+  for (let i = 0; i < 300; i++) expect(uniqueOf(rollUnique(w, 0, 0, 4) as never)).not.toBe('crackedHalo');
+  Object.assign(w, { haloDrop: 1, horseDrop: true });
+  hurt(w, w.entities[1], 1e9, w.entities[0]);
+  const got = [...w.bag, ...w.items.filter((it) => it.affixes)].map((it) => uniqueOf(it as never));
+  expect(got).toContain('crackedHalo');
+  expect(w.items.some((it) => it.kind === 'relic' && it.relic === 4)).toBe(true);
 });
