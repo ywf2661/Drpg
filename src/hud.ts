@@ -952,7 +952,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
             }],
             ...unsock(i, sel.affixes),
           ])
-        : Object.assign(document.createElement('small'), { textContent: w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 장비를 밟으면 여기로 들어옵니다.' }),
+        : Object.assign(document.createElement('small'), { textContent: stash ? '우클릭하면 보관함 ↔ 창고 빈자리로, 끌면 원하는 칸으로 옮깁니다.' : w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 장비를 밟으면 여기로 들어옵니다.' }),
   );
   // 귀중품(성물·목마): 가진 것만 이름으로. 몇 개인지·어디서 나오는지는 보여 주지 않는다. 없으면 칸째 숨김. 버릴 수 없다(가방 칸이 아니다)
   // 올리거나 누르면 아래에 생김새 한 줄(RELIC_TEXT) — 어디에 쓰는지는 말하지 않는다

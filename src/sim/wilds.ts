@@ -85,7 +85,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   return out.map((row, z) => (Math.abs(z - gz - 0.5) > 5 ? row : row.replace(/[B,]/g, (c, x: number) => (Math.abs(x - gx - 0.5) > 5 ? c : '.'))));
 }
 
-// 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o)·창고(h, 북동).
+// 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o)·창고(h, 주인공 바로 남쪽 — 들어오자마자 화면에 보이게).
 // 동쪽으로 곧은 길 끝, 맨 바깥 줄에 초원 1구역 출구(F 3칸). 가장자리는 숲 띠, 마당 밖에 바위·잔해. 몬스터·상자·기믹은 없다
 const CAMP_SEED = 7;
 export function generateCamp(): string[] {
@@ -114,8 +114,8 @@ export function generateCamp(): string[] {
   cells[c - 5][c] = 'V';
   cells[c + 2][c + 4] = 'q';
   cells[c + 4][c - 3] = 'P';
-  for (const [x, z] of [[c - 4, c - 4], [c + 1, c + 5], [c + 5, c + 5]]) cells[z][x] = 'o';
-  cells[c - 4][c + 4] = 'h';
+  for (const [x, z] of [[c - 4, c - 4], [c + 4, c - 4], [c + 1, c + 5], [c + 5, c + 5]]) cells[z][x] = 'o';
+  cells[c + 4][c + 2] = 'h';
   for (let k = 0; k < 20; k++) {
     const [x, z] = [int(4, M - 5), int(4, M - 5)];
     if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 6) cells[z][x] = ',';
