@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { AFFIXES, createWorld, defenseScore, DT, isBetter, rollGear, setLevel, step, weaponScore, SLOTS, type Affix, type World } from './world';
+import { AFFIXES, plainAffixes, createWorld, defenseScore, DT, isBetter, rollGear, setLevel, step, weaponScore, SLOTS, type Affix, type World } from './world';
 
 const run = (w: World, ticks: number) => {
   for (let i = 0; i < ticks; i++) step(w, []);
@@ -11,13 +11,14 @@ test('장비 굴림: 일반 60%·마법 32%·희귀 8%, 정예급은 마법 70%�
     const n = [0, 0, 0];
     for (let i = 0; i < 3000; i++) {
       const it = rollGear(w, 0, 0, SLOTS[i % 4], 2, boosted);
-      n[it.affixes!.length]++;
-      for (const a of it.affixes!) {
+      const plain = plainAffixes(it.affixes!); // 소켓은 따로(runes.test)
+      n[plain.length]++;
+      for (const a of plain) {
         expect(AFFIXES[a.kind].slots).toContain(it.kind);
         expect(a.value).toBeGreaterThanOrEqual(AFFIXES[a.kind].lo);
         expect(a.value).toBeLessThanOrEqual(AFFIXES[a.kind].hi);
       }
-      expect(new Set(it.affixes!.map((a) => a.kind)).size).toBe(it.affixes!.length);
+      expect(new Set(plain.map((a) => a.kind)).size).toBe(plain.length);
     }
     return n.map((k) => k / 3000);
   };

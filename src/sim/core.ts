@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -143,7 +143,7 @@ export function gearDiff(w: World, it: GearItem): number {
 
 // 장비가 지금 장착한 것보다 나은가
 export function isBetter(w: World, it: Item | GearItem): boolean {
-  if (it.kind === 'potion' || it.kind === 'gold') return false;
+  if (it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune') return false;
   if (uniqueOf({ affixes: it.affixes ?? [] }) || uniqueOf({ affixes: w.mods[it.kind] })) return false; // 고유 장비는 자동 장착이 입히지도 벗기지도 않는다(빌드는 플레이어가 고른다)
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
@@ -201,13 +201,73 @@ export function bagSpot(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>): [n
 }
 
 export function discardFromBag(w: World, i: number) {
-  if (w.entities[0].state !== 'dead' && w.bag[i]) w.bag.splice(i, 1);
+  if (w.entities[0].state !== 'dead' && w.bag[i]) pocket(w, w.bag.splice(i, 1)[0].affixes);
+}
+
+// 룬 주머니에 넣기(버리거나 판 장비의 꽂힌 룬은 돌아온다)
+export function pocket(w: Pick<World, 'runes'>, list: Affix[]) {
+  for (const a of runesIn(list)) w.runes[a.r!] = (w.runes[a.r!] ?? 0) + 1;
+}
+// 룬을 꽂을 장비: 입은 부위(Slot) 또는 보관함 번호
+export type RuneTarget = Slot | number;
+const targetAffixes = (w: World, t: RuneTarget) => (typeof t === 'number' ? w.bag[t]?.affixes : w.mods[t]);
+function setAffixes(w: World, t: RuneTarget, list: Affix[]) {
+  if (typeof t === 'number') w.bag[t] = { ...w.bag[t], affixes: list };
+  else wear(w, { kind: t, tier: w.gear[t], affixes: list }); // 체력 룬이면 최대 체력 비율을 맞춘다
+}
+// 룬 꽂기: 주머니에 있고 빈 소켓이 있으면(창이 열린 동안 바로 — 보관함 조작과 같다)
+export function socketRune(w: World, t: RuneTarget, r: Rune): boolean {
+  const list = targetAffixes(w, t);
+  const a = runeAffix(r);
+  if (w.entities[0].state === 'dead' || !list || !a || !w.runes[r] || runesIn(list).length >= socketsOf(list)) return false;
+  if (a.skill && SKILLS[a.skill].cls !== w.cls) return false;
+  w.runes[r]!--;
+  if (!w.runes[r]) delete w.runes[r];
+  setAffixes(w, t, [...list, a]);
+  return true;
+}
+// 꽂힌 룬 k번째를 빼서 주머니로(대가 없음)
+export function unsocketRune(w: World, t: RuneTarget, k: number): boolean {
+  const list = targetAffixes(w, t);
+  const a = list && runesIn(list)[k];
+  if (w.entities[0].state === 'dead' || !a) return false;
+  pocket(w, [a]);
+  setAffixes(w, t, list.filter((o) => o !== a));
+  return true;
+}
+// 칸의 재사용 대기 배율(칸 룬 합계, 상한 RUNE.cutMax%)
+export const keyCut = (w: World, key: SkillName) => 1 - Math.min(RUNE.cutMax, SLOTS.reduce((s, sl) => s + w.mods[sl].reduce((t, a) => t + (a.kind === 'keyCd' && a.key === key ? a.value : 0), 0), 0)) / 100;
+
+// 소켓 굴림(전용 난수)
+function rollSocket(w: World): Affix {
+  const r = runeRand(w);
+  const [a, b] = RUNE.sockets;
+  return { kind: 'socket', value: r < a ? 1 : r < a + b ? 2 : 3 };
+}
+// 지금 지역의 룬 하나: odds = [흔함, 보통, 드묾] 확률. 야영지면 null
+export function rollRune(w: World, odds: number[]): Rune | null {
+  const row = runeRow(w.land);
+  if (row < 0) return null;
+  const pick = <T>(list: T[]) => list[Math.floor(runeRand(w) * list.length)];
+  const r = runeRand(w);
+  if (r < odds[0]) return pick(Object.keys(STAT_RUNES).filter((k) => STAT_RUNES[k].land === w.land));
+  return `${pick(TREES[w.cls].map((t) => t.skills[row]))}+${r < odds[0] + odds[1] ? 1 : 2}`;
+}
+// 쓰러진 적의 룬: 잡몹은 가끔, 정예·해골 왕 하나, 보스 둘 + 칸 룬(낮은 확률, 의뢰를 다 끝냈으면 확정)
+function dropRunes(w: World, t: Entity) {
+  const put = (r: Rune | null) => r && w.items.push({ id: w.nextItem++, x: t.x + (runeRand(w) - 0.5) * 0.8, z: t.z + (runeRand(w) - 0.5) * 0.8, kind: 'rune', tier: 0, rune: r });
+  if (t.kind === 'boss') {
+    for (let i = 0; i < RUNE_DROP.boss; i++) put(rollRune(w, RUNE_DROP.odds.boss));
+    const row = runeRow(w.land);
+    if (row >= 0 && (w.sureLegend || runeRand(w) < RUNE_DROP.key)) put(`key:${KEYS[row]}`);
+  } else if (t.elite || t.kind === 'king') put(rollRune(w, RUNE_DROP.odds.elite));
+  else if (runeRand(w) < RUNE_DROP.mob) put(rollRune(w, RUNE_DROP.odds.mob));
 }
 
 // 보관함에 자리가 없어 발밑 장비를 못 줍는 중인가
 export function bagBlocked(w: World): boolean {
   const hero = w.entities[0];
-  return w.items.some((it) => it.kind !== 'potion' && it.kind !== 'gold' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
+  return w.items.some((it) => it.kind !== 'potion' && it.kind !== 'gold' && it.kind !== 'rune' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
 }
 
 // 장비 아이템 굴림: 등급(옵션 0·1·2개) → 부위에 맞는 서로 다른 옵션, 값은 범위 안 균등
@@ -215,7 +275,7 @@ export function rollGear(w: World, x: number, z: number, kind: Slot, tier: numbe
   const odds = boosted ? QUALITY.boosted : QUALITY.normal;
   const r = rand(w);
   const n = r < odds[0] ? 0 : r < odds[0] + odds[1] ? 1 : 2;
-  return { id: w.nextItem++, x, z, kind, tier, affixes: rollAffixes(w, kind, n) };
+  return { id: w.nextItem++, x, z, kind, tier, affixes: [...rollAffixes(w, kind, n), rollSocket(w)] };
 }
 
 // 부위에 맞는 서로 다른 무작위 옵션 n개. 희귀(2개)는 SKILL_AFFIX.tab 확률로 마지막 하나가 탭 +1
@@ -251,7 +311,7 @@ export function setCount(w: World) {
 // 등급: 0 일반, 1 마법, 2 희귀, 3 전설, 4 세트
 export function quality(it: { affixes: Affix[] }): number {
   const u = uniqueOf(it);
-  return u ? (UNIQUES[u].set ? 4 : 3) : Math.min(2, it.affixes.length);
+  return u ? (UNIQUES[u].set ? 4 : 3) : Math.min(2, plainAffixes(it.affixes).length);
 }
 
 // 고유 장비 굴림: 세트 조각(LEGEND_DROP.set, 입지도 갖지도 않은 부위를 missing 확률로) 또는 전설(지금 직업 것 + 공용).
@@ -269,7 +329,7 @@ export function rollUnique(w: World, x: number, z: number, tier: number): Item {
   const fixed = def.fixed.map((f): Affix => (f === 'tab' ? { kind: 'tab', value: 1, tab: Math.floor(rand(w) * TREES[w.cls].length) } : f === 'tier1' ? { kind: 'skill', value: 1, skill: pick(TREES[w.cls]).skills[0] } : { ...f }));
   const n = rand(w) < 0.5 ? 1 : 2;
   const affixes: Affix[] = [{ kind: 'unique', value: 0, u }, ...fixed, ...rollAffixes(w, def.slot, n, fixed.map((a) => a.kind))];
-  return { id: w.nextItem++, x, z, kind: def.slot, tier, affixes };
+  return { id: w.nextItem++, x, z, kind: def.slot, tier, affixes: [...affixes, rollSocket(w)] };
 }
 
 // 고유 장비 판정(확률 p). 성공하면 바닥에(toBag면 보관함 먼저 — 층이 끝나 바닥 것을 못 줍는 보스)
@@ -315,7 +375,7 @@ export function dress(e: Entity, skins: World['skins']): Entity {
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
-  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + mod(w.mods.weapon, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) / (w.trophies.frenzied ? SET_HUNTER.frenzy : 1) / (w.buff?.kind === 'haste' ? 1 + SHRINE.haste : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : e.eliteKind === 'frenzied' ? ELITE_FX.frenzy : 1); // 궁수 집중 중엔 빠르게
+  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + worn(w, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) / (w.trophies.frenzied ? SET_HUNTER.frenzy : 1) / (w.buff?.kind === 'haste' ? 1 + SHRINE.haste : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : e.eliteKind === 'frenzied' ? ELITE_FX.frenzy : 1); // 궁수 집중 중엔 빠르게
 }
 
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)
@@ -323,8 +383,8 @@ export function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + mod(w.mods.weapon, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
-  const crit = a.kind === 'hero' ? mod(w.mods.weapon, 'crit') : 0;
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + worn(w, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
+  const crit = a.kind === 'hero' ? worn(w, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale) * twice;
 }
@@ -372,7 +432,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
   const hero = w.entities[0];
-  const leech = from?.kind === 'hero' ? Math.round((dealt * mod(w.mods.weapon, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) + (w.trophies.vampiric ? Math.round(dealt * SET_HUNTER.leech) : 0) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
+  const leech = from?.kind === 'hero' ? Math.round((dealt * worn(w, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) + (w.trophies.vampiric ? Math.round(dealt * SET_HUNTER.leech) : 0) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
   if (leech > 0 && hero.state !== 'dead') hero.hp = Math.min(hero.maxHp, hero.hp + leech);
   const thorns = t.kind === 'hero' && from && from.state !== 'dead' ? Math.round((dealt * worn(w, 'thorns')) / 100) : 0;
   if (thorns > 0) hurt(w, from!, thorns);
@@ -384,6 +444,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (t.kind === 'hero' || t.id < 0) return dealt; // 해골 병사는 경험치도 드롭도 없다(tickAllies가 치운다)
   if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'focus')) cutCd(w, 'focus', FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
   if (from?.kind === 'hero') trophyKill(w, t);
+  dropRunes(w, t);
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
     gainXp(w, Math.round(XP.king * Math.min(t.power, w.xpCap)));
@@ -452,7 +513,13 @@ export function dropGold(w: World, x: number, z: number, lo: number, hi: number,
 
 // mulberry32. 상태가 world.rng에 있어서 같은 시드 = 같은 난수열.
 export function rand(w: World) {
-  let t = (w.rng = (w.rng + 0x6d2b79f5) | 0);
+  return mulberry((w.rng = (w.rng + 0x6d2b79f5) | 0));
+}
+// 소켓·룬 굴림 전용(rand 순서를 흔들지 않아 기존 드롭·봇 결과가 그대로)
+export function runeRand(w: World) {
+  return mulberry((w.runeRng = (w.runeRng + 0x6d2b79f5) | 0));
+}
+function mulberry(t: number) {
   t = Math.imul(t ^ (t >>> 15), t | 1);
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;

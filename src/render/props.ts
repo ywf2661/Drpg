@@ -2,8 +2,10 @@
 import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
-import { COMET, quality, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
+import { COMET, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import lootInfo from '../assets/sprites/loot.json';
+import runesInfo from '../assets/sprites/runes.json';
+import runesUrl from '../assets/sprites/runes.png';
 import lootUrl from '../assets/sprites/loot.png';
 import arrowInfo from '../assets/sprites/arrow.json';
 import arrowUrl from '../assets/sprites/arrow.png';
@@ -74,6 +76,7 @@ const npcs = { captain: { info: captainInfo as SheetInfo, url: captainUrl }, mer
 const NPC_DIR = 6;
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
+const runeSheet: Sheet = { info: runesInfo as SheetInfo, url: runesUrl }; // 바닥 룬(tools/runes.py)
 const arrow: Sheet = { info: arrowInfo as SheetInfo, url: arrowUrl };
 const cleaveFx: Sheet = { info: cleaveInfo as SheetInfo, url: cleaveUrl };
 const fireballFx: Sheet = { info: fireballInfo as SheetInfo, url: fireballUrl };
@@ -364,7 +367,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [...Object.values(npcs), ruin, props, stairs, loot, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
+  for (const s of [...Object.values(npcs), ruin, props, stairs, loot, runeSheet, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -657,16 +660,18 @@ export function syncItems(world: World) {
   }
   for (const it of world.items) {
     if (items.has(it.id)) continue;
-    const c = card(loot, lootClip(it, world.cls), it.x, it.z, false);
+    const c = it.kind === 'rune' ? card(runeSheet, `rune${runeIcon(it.rune!)}`, it.x, it.z, false) : card(loot, lootClip(it, world.cls), it.x, it.z, false);
     c.t = 0;
     c.glow = LOOT_MIN_LIGHT;
     c.mesh.renderOrder = 2; // 아이템은 늘 시체 위에 떨어진다. 시체(깊이 안 씀)보다 나중에 그려야 가려지지 않는다
     items.set(it.id, c);
     cards.push(c);
     group.add(c.mesh);
-    const q = it.kind === 'potion' || it.kind === 'gold' ? 0 : quality({ affixes: it.affixes ?? [] });
-    if (q < 3) continue;
-    const mat = new THREE.MeshBasicMaterial({ color: q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+    const g = it.kind === 'rune' ? runeGrade(it.rune!) : -1;
+    if (g >= 0) c.glow = 1; // 룬 돌은 어둠 속에서도 보이게
+    const q = it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
+    if (q < 3 && g < 2) continue; // 빛기둥: 전설·세트, 드묾 이상 룬
+    const mat = new THREE.MeshBasicMaterial({ color: g >= 2 ? RUNE_COLOR[g] : q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
     const p = new THREE.Mesh(PILLAR_GEO, mat);
     p.position.set(it.x, 0, it.z);
     p.renderOrder = 3;

@@ -1,7 +1,17 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true };
+const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true, runes: { gale: 3, 'fireball+2': 1, 'key:dash': 1 }, beat: 5, marksBy: [1, 0, 7, 0] };
+
+test('소켓·꽂힌 룬·룬 주머니·2회차 진행을 되읽고, 소켓보다 많은 룬·다른 직업 스킬 룬은 버린다', () => {
+  const sock = { ...run, mods: { ...run.mods, weapon: [{ kind: 'dmg' as const, value: 20 }, { kind: 'socket' as const, value: 2 }, { kind: 'move' as const, value: 4, r: 'gale' }, { kind: 'skill' as const, value: 1, skill: 'fireball' as const, r: 'fireball+1' }] } };
+  expect(decodeSave(encodeSave(sock))).toEqual(sock);
+  const over = { ...sock, mods: { ...sock.mods, weapon: [{ kind: 'socket' as const, value: 1 }, { kind: 'move' as const, value: 4, r: 'gale' }, { kind: 'crit' as const, value: 4, r: 'spark' }] } };
+  expect(decodeSave(encodeSave(over))).toBeNull();
+  expect(decodeSave(encodeSave({ ...run, runes: { 'cleave+1': 1 } }))).toBeNull(); // 기사 스킬 룬을 마법사가
+  const forged = { ...sock, mods: { ...sock.mods, weapon: [{ kind: 'socket' as const, value: 1 }, { kind: 'move' as const, value: 99, r: 'gale' }] } };
+  expect(decodeSave(encodeSave(forged))!.mods.weapon[1].value).toBe(4); // 룬 값은 표에서 다시 만든다
+});
 
 test('저장한 진행을 그대로 되읽는다', () => {
   expect(decodeSave(encodeSave(run))).toEqual(run);
@@ -94,7 +104,7 @@ test('플레이 시간 표시', () => {
 });
 
 test('궁수 저장도 직업을 그대로 되읽고, 다른 직업의 스킬이 든 저장은 버린다', () => {
-  const ranger = { ...run, cls: 'ranger' as const, ranks: { pierce: 2, trap: 1 }, keys: { cleave: 'pierce' as const, dash: 'trap' as const, shout: null, throw: null } };
+  const ranger = { ...run, runes: { gale: 1 }, cls: 'ranger' as const, ranks: { pierce: 2, trap: 1 }, keys: { cleave: 'pierce' as const, dash: 'trap' as const, shout: null, throw: null } };
   expect(decodeSave(encodeSave(ranger))?.cls).toBe('ranger');
   expect(decodeSave(encodeSave({ ...run, cls: 'ranger' }))).toBeNull(); // 마법사 스킬
 });

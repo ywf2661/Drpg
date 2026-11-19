@@ -119,11 +119,12 @@ export type Slot = 'weapon' | 'armor' | 'helm' | 'boots';
 export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 // amount: 금화 양(금화만)
-export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | Slot; tier: number; amount?: number; affixes?: Affix[] };
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune }; // rune: 룬(룬만)
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
 // skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~4), unique = 고유 장비(전설·세트) 표식(u)
-export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique';
-export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId };
+// socket = 소켓 수(장비마다 하나, 맨 뒤 쪽), keyCd = 칸(key)의 재사용 대기 −value%(칸 룬). r = 꽂힌 룬(그 룬이 주는 옵션 한 줄)
+export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique' | 'socket' | 'keyCd';
+export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId; key?: SkillName; r?: Rune };
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
 export type UniqueId = 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots';
@@ -278,6 +279,8 @@ export type World = {
   gear: Gear;
   mods: Record<Slot, Affix[]>; // 장착 장비의 마법 옵션
   bag: BagItem[]; // 보관함(BAG 격자, 서로 겹치지 않는다)
+  runes: Partial<Record<Rune, number>>; // 룬 주머니(종류별 개수, 칸을 차지하지 않는다)
+  runeRng: number; // 소켓·룬 굴림 전용 난수(다른 굴림 순서를 흔들지 않게)
   autoEquip: boolean; // 밟은 장비가 더 좋으면 바로 입는다
   regenAcc: number; // 재생 옵션의 소수점 회복 누적
   rest: boolean; // 모닥불에서 쉴 수 있는 지역(초원). main이 정한다
@@ -474,7 +477,7 @@ export const STORY: Story[] = [
         { name: '무너진 제단의 글', text: "마지막 봉인 밑에 검붉은 글씨가 남아 있다. '문이 열렸다. 그분이 깨어나신다.'" },
       ],
     },
-    done: '해냈군. 성채의 악마가 쓰러지자 초원 바람도 잠잠해졌네. …하지만 땅은 쉽게 잠들지 않아. 벌써 더 짙은 기운이 올라오고 있어. 다시 초원부터 살펴봐 주게.',
+    done: '해냈군. 성채의 악마가 쓰러지자 초원 바람도 잠잠해졌네. …하지만 땅은 쉽게 잠들지 않아. 벌써 더 짙은 기운이 올라오고 있어. 초원 어귀의 길은 모두 열어 두었네. 이번엔 어디부터 갈지 자네가 정하게. 네 곳의 우두머리를 모두 쓰러뜨리면 그때 다시 이야기하세.',
   },
 ];
 // 의뢰 대상이 놓이는 구역: 2·3·4구역(미궁은 층). 진행(marks)은 비트: 2구역 1, 3구역 2, 4구역 4
@@ -487,13 +490,25 @@ export const bossHpScale = (count: number) => 1 - QUEST.weaken * count;
 export const questOn = (stage: number, took: boolean) => !STORY[stage].quest.ask || took;
 // 순찰대장이 아직 안 한 이야기: 새 게임이면 OPENING, 아니면 지난 단계를 끝냈을 때의 말(마지막 단계 다음은 회차가 넘어간 것)
 export const captainNews = (stage: number, cycle: number) => (stage === 0 && cycle === 0 ? OPENING : STORY[(stage + STORY.length - 1) % STORY.length].done);
-// 열린 지역: 지금 단계까지
-export const openLands = (stage: number): Land[] => STORY.slice(0, stage + 1).map((s) => s.land);
+// 열린 지역: 1회차는 지금 단계까지, 2회차부터는 모두(순서 자유)
+export const openLands = (stage: number, cycle = 0): Land[] => STORY.slice(0, cycle ? STORY.length : stage + 1).map((s) => s.land);
+// 2회차부터: 임무 줄·순찰대장에게 다시 말을 걸면
+export const FREE_GOAL = '네 지역의 우두머리를 쓰러뜨린다';
+export const FREE_AGAIN = '어디가 먼저든 상관없네. 아직 남은 곳부터 둘러보게.';
+export const beatCount = (beat: number) => STORY.filter((_, i) => beat & (1 << i)).length;
 // 보스를 깬 뒤: 지금 단계의 지역이면 다음 단계(마지막이면 회차 + 1, 이야기는 처음부터). 지난 지역이면 그대로
-export function afterClear(stage: number, cycle: number, land: Land): { stage: number; cycle: number; advanced: boolean; newCycle: boolean } {
-  if (STORY[stage]?.land !== land) return { stage, cycle, advanced: false, newCycle: false };
-  if (stage === STORY.length - 1) return { stage: 0, cycle: cycle + 1, advanced: true, newCycle: true };
-  return { stage: stage + 1, cycle, advanced: true, newCycle: false };
+// 2회차부터(cycle ≥ 1): 순서 없이 이번 회차에 안 깬 지역 보스면 beat에 켜고(advanced), 넷 다 켜지면 다음 회차(이야기 단계는 0)
+export function afterClear(stage: number, cycle: number, land: Land, beat = 0): { stage: number; cycle: number; beat: number; advanced: boolean; newCycle: boolean } {
+  const same = { stage, cycle, beat, advanced: false, newCycle: false };
+  if (cycle) {
+    const bit = 1 << STORY.findIndex((s) => s.land === land);
+    if (bit < 1 || beat & bit) return same;
+    if (beatCount(beat | bit) === STORY.length) return { stage: 0, cycle: cycle + 1, beat: 0, advanced: true, newCycle: true };
+    return { ...same, beat: beat | bit, advanced: true };
+  }
+  if (STORY[stage]?.land !== land) return same;
+  if (stage === STORY.length - 1) return { stage: 0, cycle: cycle + 1, beat: 0, advanced: true, newCycle: true };
+  return { ...same, stage: stage + 1, advanced: true };
 }
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
 export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
@@ -522,6 +537,8 @@ export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: numbe
   tab: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 1, special: true },
   allSkills: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 1, special: true },
   unique: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 0, hi: 0, special: true },
+  socket: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 3, special: true },
+  keyCd: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 0, hi: 100, special: true },
 };
 // 스킬 옵션 굴림: 희귀(옵션 2개)는 tab 확률로 옵션 하나를 탭 +1로, 스킬 +2는 희귀에서 two 확률
 export const SKILL_AFFIX = { tab: 0.15, two: 0.25 };
@@ -816,3 +833,46 @@ export const STATS: Record<Kind, { name: string; hp: number; dmg: [number, numbe
   king: { name: '해골 왕', hp: 260, dmg: [9, 14], interval: 2, speed: 2.2 },
   boss: { name: '미노타우르스', hp: 500, dmg: [15, 24], interval: 1.8, speed: 2.4 },
 };
+
+// 룬. 설계: docs/superpowers/specs/2026-11-19-runes-design.md
+// 지역(이야기 순서 i: 초원 0 · 설원 1 · 미궁 2 · 폐허 3)마다 스탯 룬 둘, 스킬 트리 i번째 줄(1단계·2단계·패시브·궁극기) 스킬 룬, i번째 칸(Q W E R) 칸 룬.
+// 룬 하나 = 옵션 한 줄. 어느 부위에 꽂아도 같다. 이름: 스탯 룬 = STAT_RUNES 키, 스킬 룬 = '가르기+1'의 스킬 id 꼴(`cleave+2`), 칸 룬 = `key:cleave`
+export type Rune = string;
+export const STAT_RUNES: Record<string, { name: string; land: Land; kind: AffixKind; value: number }> = {
+  gale: { name: '질풍', land: 'field', kind: 'move', value: 4 },
+  flurry: { name: '연타', land: 'field', kind: 'speed', value: 5 },
+  icewall: { name: '빙벽', land: 'snow', kind: 'guard', value: 3 },
+  icespike: { name: '얼음 가시', land: 'snow', kind: 'thorns', value: 10 },
+  blood: { name: '피', land: 'dungeon', kind: 'leech', value: 2 },
+  bone: { name: '뼈', land: 'dungeon', kind: 'life', value: 10 },
+  spark: { name: '불씨', land: 'ruins', kind: 'crit', value: 4 },
+  cinder: { name: '잿불', land: 'ruins', kind: 'dmg', value: 8 },
+};
+// cut: 칸 룬 하나의 재사용 대기 감소(%), cutMax: 한 칸의 합계 상한, sockets: 소켓 1·2·3개 확률
+export const RUNE = { cut: 15, cutMax: 50, sockets: [0.6, 0.3, 0.1] };
+// 등급 확률 [흔함(스탯), 보통(스킬 +1), 드묾(스킬 +2)]. mob = 잡몹이 하나 떨어뜨릴 확률, boss = 보스가 떨어뜨리는 수, key = 보스의 칸 룬 확률(의뢰를 다 끝냈으면 확정)
+export const RUNE_DROP = { mob: 0.05, odds: { mob: [0.8, 0.2, 0], elite: [0.4, 0.45, 0.15], boss: [0, 0.6, 0.4] }, boss: 2, key: 0.1 };
+export const RUNE_COLOR = ['#e8e0d0', '#5aa0ff', '#ffd84a', '#ff4fd8']; // 흔함·보통·드묾·아주 드묾
+export const ROW_NAME = ['1단계', '2단계', '패시브', '궁극기'];
+// 룬 그림(src/assets/sprites/runes.png 칸 번호, tools/runes.py): 스탯 룬마다, 칸 룬마다, 스킬 룬은 줄마다 하나
+const RUNE_ICON = { stat: { gale: 5, flurry: 9, icewall: 3, icespike: 18, blood: 7, bone: 6, spark: 2, cinder: 4 } as Record<string, number>, key: { cleave: 10, dash: 11, shout: 12, throw: 13 } as Record<string, number>, row: [17, 1, 0, 19] };
+export function runeIcon(r: Rune): number {
+  const a = runeAffix(r);
+  return !a ? 0 : a.kind === 'keyCd' ? RUNE_ICON.key[a.key!] : a.kind === 'skill' ? RUNE_ICON.row[SKILLS[a.skill!].tier] : RUNE_ICON.stat[r];
+}
+// 지역의 이야기 순서(= 스킬 줄 = 칸). 야영지는 −1(룬 없음)
+export const runeRow = (land: Land) => STORY.findIndex((s) => s.land === land);
+// 룬 → 옵션 한 줄(모르는 룬이면 null)
+export function runeAffix(r: Rune): Affix | null {
+  const st = Object.hasOwn(STAT_RUNES, r) ? STAT_RUNES[r] : undefined;
+  if (st) return { kind: st.kind, value: st.value, r };
+  if (r.startsWith('key:')) return KEYS.includes(r.slice(4) as SkillName) ? { kind: 'keyCd', value: RUNE.cut, key: r.slice(4) as SkillName, r } : null;
+  const m = /^(\w+)\+([12])$/.exec(r);
+  return m && Object.hasOwn(SKILLS, m[1]) ? { kind: 'skill', value: Number(m[2]), skill: m[1] as SkillId, r } : null;
+}
+// 등급: 0 흔함(스탯), 1 보통(+1), 2 드묾(+2), 3 아주 드묾(칸)
+export const runeGrade = (r: Rune) => (Object.hasOwn(STAT_RUNES, r) ? 0 : r.startsWith('key:') ? 3 : Number(r.slice(-1)));
+// 장비 옵션 나누기: 원래 옵션, 소켓 수, 꽂힌 룬 옵션
+export const plainAffixes = (list: Affix[]) => list.filter((a) => !a.r && a.kind !== 'socket');
+export const socketsOf = (list: Affix[]) => list.find((a) => a.kind === 'socket')?.value ?? 0;
+export const runesIn = (list: Affix[]) => list.filter((a) => a.r);

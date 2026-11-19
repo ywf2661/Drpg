@@ -529,7 +529,7 @@ test('장비 드롭: 확률, 네 부위 고르게, 단계는 1..maxTier', () => 
     w.maxTier = 3;
     w.entities[1].hp = 1;
     run(w, 60, [{ type: 'attack', targetId: 1 }]);
-    for (const it of w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion')) {
+    for (const it of w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion' && i.kind !== 'rune')) {
       drops++;
       tiers.add(it.tier);
       kinds.add(it.kind);
@@ -599,13 +599,13 @@ test('보스가 있는 층은 보스가 죽으면 클리어(다른 몬스터 생
   expect(outcome(w)).toBe('clear');
 });
 
-test('보스는 아무것도 떨어뜨리지 않는다', () => {
+test('보스는 장비·금화를 떨어뜨리지 않는다(룬만 — runes.test)', () => {
   for (let seed = 1; seed <= 100; seed++) {
     const w = createWorld(seed, ['HM']);
     w.entities[1].hp = 1;
     run(w, 60, [{ type: 'attack', targetId: 1 }]);
     expect(w.entities[1].state).toBe('dead');
-    expect(w.items).toEqual([]);
+    expect(w.items.filter((i) => i.kind !== 'rune')).toEqual([]);
   }
 });
 
@@ -754,7 +754,7 @@ test('정예 전사(W): 체력 ×3, 데미지 ×ELITE.dmg, 경험치 ×4, 그 �
   w.maxTier = 3;
   slay(w);
   expect([w.level, w.xp]).toEqual([3, 130 - 40 - 70]); // 25 × 1.3 × 4 = 130 → 레벨 2번
-  expect(w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion').map((i) => i.tier)).toEqual([4]);
+  expect(w.items.filter((i) => i.kind !== 'gold' && i.kind !== 'potion' && i.kind !== 'rune').map((i) => i.tier)).toEqual([4]);
   // 데미지: 전사 6–9 × 층 배율(데미지 몫) × 정예 배율 (천옷 감소 0)
   const s = (1 + 0.3 * DMG_SCALE) * MONSTER_DMG * ELITE.dmg;
   const hitter = createWorld(2, ['HW'], 1.3);
@@ -1037,8 +1037,9 @@ test('해골 왕을 잡으면 최고 단계보다 하나 위 장비·금화·물
   w.gear = { weapon: 4, armor: 4, helm: 4, boots: 4 };
   w.potions = 8;
   slay(w);
-  const kinds = w.items.map((i) => i.kind).sort();
-  const gear = w.items.find((i) => i.kind !== 'gold' && i.kind !== 'potion')!;
+  const items = w.items.filter((i) => i.kind !== 'rune'); // 룬은 runes.test
+  const kinds = items.map((i) => i.kind).sort();
+  const gear = items.find((i) => i.kind !== 'gold' && i.kind !== 'potion')!;
   expect(kinds).toEqual(['gold', 'potion', gear.kind].sort());
   expect(gear.tier).toBe(4);
 });

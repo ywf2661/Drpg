@@ -1,6 +1,10 @@
 // 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급(일반·마법·희귀), 지금보다 좋으면 ▲.
 import * as THREE from 'three';
-import { AFFIXES, gearTable, isBetter, quality, UNIQUES, uniqueOf, type Affix, type HeroClass, type Item, type Slot, type World } from '../sim/world';
+import { AFFIXES, gearTable, isBetter, plainAffixes, quality, runeGrade, UNIQUES, uniqueOf, type Affix, type HeroClass, type Item, type Rune, type Slot, type World } from '../sim/world';
+
+// 룬 이름은 스킬 이름표가 있는 hud가 넣어 준다(hud가 이 파일을 import하므로 거꾸로 import하지 않는다)
+let runeName = (r: Rune) => r;
+export const setRuneNamer = (f: (r: Rune) => string) => (runeName = f);
 
 const SHOW = 9; // 주인공에서 이 거리(m) 안의 장비만
 const LIFT = 0.6; // 이름표 높이(m)
@@ -13,13 +17,14 @@ export function gearName(kind: Slot, tier: number, affixes: Affix[], cls: HeroCl
   const base = gearTable(cls)[kind][tier - 1].name;
   const u = uniqueOf({ affixes });
   if (u) return UNIQUES[u].name.replace('%', base);
-  return [...affixes.map((a) => AFFIXES[a.kind].name).filter(Boolean), base].join(' ');
+  return [...plainAffixes(affixes).map((a) => AFFIXES[a.kind].name).filter(Boolean), base].join(' ');
 }
 
 // 바닥 이름표. quality = 등급(0 일반·1 마법·2 희귀·3 전설·4 세트), better = 지금 장착한 것보다 나은가
-export function itemLabel(it: Item, w: World): { text: string; better: boolean; quality: number } | null {
+export function itemLabel(it: Item, w: World): { text: string; better: boolean; quality: number; rune?: number } | null {
   if (it.kind === 'potion') return null;
   if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false, quality: 0 };
+  if (it.kind === 'rune') return { text: runeName(it.rune!), better: false, quality: 0, rune: runeGrade(it.rune!) };
   const affixes = it.affixes ?? [];
   return { text: gearName(it.kind, it.tier, affixes, w.cls), better: isBetter(w, it), quality: quality({ affixes }) };
 }
@@ -43,7 +48,7 @@ export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanva
     const div = pool[n] ?? layer.appendChild(Object.assign(document.createElement('div'), { className: 'label' }));
     pool[n++] = div;
     div.textContent = label.text + (label.better ? ' ▲' : '');
-    div.className = `label q${label.quality}` + (label.better ? ' better' : '');
+    div.className = label.rune !== undefined ? `label rune-label r${label.rune}` : `label q${label.quality}` + (label.better ? ' better' : '');
     div.style.transform = `translate(${r.left + ((v.x + 1) / 2) * r.width}px, ${r.top + ((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
     div.hidden = false;
   }

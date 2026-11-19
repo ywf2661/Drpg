@@ -75,7 +75,7 @@ export function drawAutomap(world: World) {
   for (const p of world.props) if (p.kind === 'brazier' && seen[p.z * w + p.x]) mark(p.x, p.z, COLORS.brazier, 0.8);
   // 전설·세트 장비(본 칸에 있는 것)
   for (const it of world.items) {
-    const q = it.kind === 'potion' || it.kind === 'gold' ? 0 : quality({ affixes: it.affixes ?? [] });
+    const q = it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
     if (q >= 3 && seen[Math.floor(it.z) * w + Math.floor(it.x)]) mark(it.x - 0.5, it.z - 0.5, q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, 1.2);
   }
   mark(hero.x - 0.5, hero.z - 0.5, COLORS.hero, 0.9);

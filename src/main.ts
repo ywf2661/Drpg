@@ -13,7 +13,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, ROW_NAME, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 
@@ -22,10 +22,10 @@ const help = document.querySelector<HTMLDialogElement>('#help')!;
 const bag = document.querySelector<HTMLDialogElement>('#bag')!;
 const tree = document.querySelector<HTMLDialogElement>('#tree')!;
 // 새 판의 시작 상태: 2단계 장비(기사 = 숏소드 + 가죽 갑옷·두건·장화, 마법사 = 마법 막대 + 견습 로브·두건·장화)
-const startOf = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [], autoEquip: true });
-type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean };
+const startOf = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [], runes: {}, autoEquip: true });
+type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; runes: World['runes']; autoEquip: boolean };
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
-const carryOf = (c: Carry): Carry => ({ pity: c.pity, cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, keys: { ...c.keys }, bag: [...c.bag], autoEquip: c.autoEquip });
+const carryOf = (c: Carry): Carry => ({ pity: c.pity, cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, keys: { ...c.keys }, bag: [...c.bag], runes: { ...c.runes }, autoEquip: c.autoEquip });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const slots = loadSlots(); // 저장 슬롯 셋(있으면 시작 화면에 이어하기)
 let name = ''; // 아이디(새 게임에서 입력)
@@ -40,11 +40,14 @@ let stage = 0; // 이야기 단계(STORY). 지금 단계 지역의 보스를 잡
 let marks = 0; // 지금 단계 지역 의뢰의 진행(비트: 2·3·4구역). 죽어도 남고, 단계가 넘어가면 0
 let news = false; // 순찰대장에게 아직 안 들은 이야기(야영지에 오자마자 말을 걸지 않고 머리 위 !)
 let took = false; // 지금 단계 의뢰의 부탁을 주민에게 받았다(부탁이 있는 의뢰만 의미). 단계가 넘어가면 false
+// 2회차부터(순서 자유): beat = 이번 회차에 깬 지역 보스(비트, 이야기 순서), marksBy = 지역마다 의뢰 진행(stage는 마지막으로 고른 지역)
+let beat = 0;
+let marksBy = [0, 0, 0, 0];
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 // 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
 const questHere = () => STORY[stage].land === land;
 const markLetter = () => (questHere() && questOn(stage, took) && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
-const goalLine = () => STORY[stage].goal + (questOn(stage, took) ? ` · ${STORY[stage].quest.name} ${markCount(marks)}/3` : '');
+const goalLine = () => (cycle ? `${FREE_GOAL} ${beatCount(beat)}/${STORY.length}` : STORY[stage].goal) + (questOn(stage, took) ? ` · ${STORY[stage].quest.name} ${markCount(marks)}/3` : '');
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let clearT = 0; // 보스를 쓰러뜨린 뒤 흐른 초. LOOT_TIME 전에는 결과 버튼이 없다(공격하던 연타가 버튼을 누르지 않게)
@@ -65,7 +68,7 @@ function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
   for (const to of ['field', 'snow', 'ruins'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
-    if (cells.length) out.push({ ...middle(cells), text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
+    if (cells.length) out.push({ ...middle(cells), text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}${runeHint(to)}` });
     const shut = w.locked.filter((e) => e.to === to);
     if (shut.length) out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` });
   }
@@ -73,16 +76,18 @@ function signsOf(w: World): Sign[] {
     const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
     if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text, alert: alertOf(c.kind) });
   }
-  if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
+  if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}${runeHint('dungeon')}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took }); // 저장할 진행
+// 다른 지역으로 가는 출구에 그 지역 룬(고를 근거)
+const runeHint = (to: Land) => (to === land ? '' : ` · ${ROW_NAME[runeRow(to)]} 스킬 룬`);
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy] }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, openLands(stage), markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, openLands(stage, cycle), markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.rest = land === 'field' || land === 'camp'; // 초원·야영지 모닥불에서 쉴 수 있다
   w.land = land;
@@ -94,6 +99,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.points = carry.points;
   w.keys = { ...carry.keys };
   w.bag = [...carry.bag];
+  w.runes = { ...carry.runes };
   w.autoEquip = carry.autoEquip;
   w.pity = carry.pity;
   w.maxTier = Math.min(4, Math.max(1, depth) + 1);
@@ -136,6 +142,12 @@ function leave() {
   const ex = exitAt(world);
   const to: Land = ex ? ex.to : 'dungeon';
   next = { land: to, from: ex ? opposite[sideOf(world, ex)] : 'w', floor: nextFloor(to) };
+  // 2회차부터: 다른 지역으로 가면 그 지역이 지금 의뢰 지역(하던 지역의 진행은 따로 둔다)
+  const k = runeRow(to);
+  if (cycle && k >= 0 && k !== stage) {
+    marksBy[stage] = marks;
+    [stage, marks, took] = [k, marksBy[k], true];
+  }
   if (land !== 'camp') return openShop(false);
   ({ land, from } = next);
   enterFloor(next.floor, carryOf(world));
@@ -151,7 +163,7 @@ function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'villager') return say(VILLAGER[chatter++ % VILLAGER.length]);
   if (t === 'asker') return askerTalk();
   if (t === 'elder') {
-    if (!news) return showTalk('순찰대장', STORY[stage].again);
+    if (!news) return showTalk('순찰대장', cycle ? FREE_AGAIN : STORY[stage].again);
     news = false;
     showTalk('순찰대장', captainNews(stage, cycle));
     return changed();
@@ -230,7 +242,7 @@ function openShop(camp: boolean) {
         const c = shopping!;
         shopping = null;
         stayed = true;
-        Object.assign(world, { potions: c.potions, gear: { ...c.gear }, gold: c.gold, bag: [...c.bag], toStairs: false });
+        Object.assign(world, { potions: c.potions, gear: { ...c.gear }, gold: c.gold, bag: [...c.bag], runes: { ...c.runes }, toStairs: false });
       },
       `${LANDS[next.land].name} ${next.floor}${LANDS[next.land].unit}`,
       camp,
@@ -254,10 +266,16 @@ function restart() {
 // 보스를 잡은 뒤 야영지로: 지금 이야기 단계의 보스면 다음 단계(마지막이면 회차 + 1), 순찰대장이 다음 이야기를 한다
 function backToCamp() {
   if (outcome(world) !== 'clear' || clearT < LOOT_TIME) return;
-  const after = afterClear(stage, cycle, land);
-  ({ stage, cycle } = after);
-  if (after.advanced) [marks, took] = [0, false];
-  toCamp(carryOf(world), after.advanced);
+  for (const it of world.items) if (it.kind === 'rune') world.runes[it.rune!] = (world.runes[it.rune!] ?? 0) + 1; // 보스 자리에 남은 룬은 챙겨 간다
+  const was = cycle;
+  const after = afterClear(stage, cycle, land, beat);
+  ({ stage, cycle, beat } = after);
+  if (after.advanced) {
+    [marks, took] = [0, cycle > 0];
+    marksBy[stage] = 0;
+  }
+  if (after.newCycle) marksBy = [0, 0, 0, 0];
+  toCamp(carryOf(world), after.advanced && (!was || after.newCycle)); // 2회차부터 순찰대장은 회차가 넘어갈 때만 새로 말한다
   if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
 }
 
@@ -275,6 +293,15 @@ function renderBag() {
     },
     discard: (i) => {
       discardFromBag(world, i);
+      renderBag();
+    },
+    socket: (t, r) => {
+      const ok = socketRune(world, t, r);
+      if (ok) renderBag();
+      return ok;
+    },
+    unsocket: (t, k) => {
+      unsocketRune(world, t, k);
       renderBag();
     },
     auto: (on) => {
@@ -422,7 +449,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks, news, took] = [0, 0, 'camp', 'w', 0, true, false];
+  [cycle, stage, land, from, marks, news, took, beat, marksBy] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0]];
   begin(0, startOf(cls));
   if (!slots.some(Boolean)) help.showModal();
 };
@@ -451,7 +478,8 @@ initHud({
     useSlot(n);
     name = saved.name;
     stats = { ...saved.stats };
-    ({ cycle, stage, land, from, marks, news, took } = saved);
+    ({ cycle, stage, land, from, marks, news, took, beat } = saved);
+    marksBy = [...saved.marksBy];
     begin(saved.floor, saved);
   },
   pick: pickClass,

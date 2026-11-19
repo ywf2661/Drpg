@@ -2,13 +2,13 @@
 import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
 import type { Side } from './sim/wilds';
-import { LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
+import { runeAffix, type Rune, LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean }; // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
+export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[] }; // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
 const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
 const KEY = 'drpg-save'; // 슬롯 이전의 한 칸 저장. 지금은 KEY-0 ~ KEY-2
 export const SLOT_COUNT = 3;
@@ -16,15 +16,28 @@ export const NAME_MAX = 12;
 let slot = 0; // 지금 판이 저장되는 슬롯
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks, news: r.news, took: r.took });
+  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks, news: r.news, took: r.took, runes: r.runes, beat: r.beat, marksBy: r.marksBy });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
 
 // 한 부위의 옵션 목록: 최대 2개, 서로 다른 종류, 그 부위의 옵션, 값은 범위 안. 스킬 옵션은 그 직업의 스킬·탭 0~2.
 // 고유 장비는 맨 앞의 표식(표에 있고, 부위·직업이 맞음) + 최대 3개(고정 1 + 무작위 2). 아니면 null
-function affixes(v: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
-  if (!Array.isArray(v)) return null;
+// 소켓(하나, 1~3)과 꽂힌 룬(아는 룬, 이 직업 스킬, 소켓 수 이하)은 따로 확인하고 맨 뒤에 붙인다(룬 값은 표에서 다시 만든다)
+function affixes(all: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
+  if (!Array.isArray(all)) return null;
+  const sock = all.filter((a) => a?.kind === 'socket');
+  const runes = all.filter((a) => a?.r !== undefined).map((a) => (typeof a.r === 'string' ? runeAffix(a.r) : null));
+  if (sock.length > 1 || (sock[0] && !int(sock[0].value, 1, 3)) || runes.length > (sock[0]?.value ?? 0)) return null;
+  if (runes.some((a) => !a || (a.skill && SKILLS[a.skill].cls !== cls))) return null;
+  const v = all.filter((a) => a?.kind !== 'socket' && a?.r === undefined);
+  const tail: Affix[] = [...(sock[0] ? [{ kind: 'socket' as const, value: sock[0].value as number }] : []), ...(runes as Affix[])];
+  const out = plain(v, slot, cls);
+  return out && [...out, ...tail];
+}
+// 소켓·룬을 뺀 원래 옵션
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 검증 전의 저장 데이터
+function plain(v: any[], slot: Slot, cls: HeroClass): Affix[] | null {
   const def0 = v[0]?.kind === 'unique' ? UNIQUES[v[0].u as UniqueId] : undefined;
   if (v[0]?.kind === 'unique' && (!def0 || !Object.hasOwn(UNIQUES, v[0].u) || def0.slot !== slot || (def0.cls && def0.cls !== cls) || v[0].value !== 0)) return null;
   if (v.length > (def0 ? 4 : 2)) return null;
@@ -34,7 +47,7 @@ function affixes(v: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
     if (!def || !def.slots.includes(slot) || !int(a.value, def.lo, def.hi) || out.some((o) => o.kind === a.kind)) return null;
     if (a.kind === 'skill' && SKILLS[a.skill as SkillId]?.cls !== cls) return null;
     if (a.kind === 'tab' && !int(a.tab, 0, TREES[cls].length - 1)) return null;
-    if (a.kind === 'unique') return null;
+    if (a.kind === 'unique' || a.kind === 'socket' || a.kind === 'keyCd') return null;
     out.push({ kind: a.kind, value: a.value, ...(a.kind === 'skill' && { skill: a.skill }), ...(a.kind === 'tab' && { tab: a.tab }) });
   }
   return out;
@@ -123,6 +136,18 @@ export function decodeSave(text: string | null): Run | null {
   if (!int(marks, 0, 7)) return null;
   const news = old ? false : (d.news ?? false); // 나중에 생긴 항목
   const took = old ? false : (d.took ?? (marks as number) > 0); // 의뢰를 하던 저장은 부탁을 받은 것으로
+  // 룬(나중에 생긴 항목): 주머니(아는 룬·이 직업 스킬 → 개수 1~999), 2회차 진행
+  const r0 = d.runes ?? {};
+  if (!r0 || typeof r0 !== 'object' || Array.isArray(r0)) return null;
+  const runes: World['runes'] = {};
+  for (const [r, n] of Object.entries(r0)) {
+    const a = runeAffix(r as Rune);
+    if (!a || (a.skill && SKILLS[a.skill].cls !== cls) || !int(n, 1, 999)) return null;
+    runes[r] = n as number;
+  }
+  const beat = d.beat ?? 0;
+  const marksBy = d.marksBy ?? [0, 0, 0, 0];
+  if (!int(beat, 0, 15) || !Array.isArray(marksBy) || marksBy.length !== STORY.length || !marksBy.every((n) => int(n, 0, 7))) return null;
   if (typeof news !== 'boolean' || typeof took !== 'boolean') return null;
   const camp = old || land === 'camp';
   const name = d.name ?? '모험가'; // 아이디(나중에 생긴 항목)
@@ -152,6 +177,9 @@ export function decodeSave(text: string | null): Run | null {
     marks: marks as number,
     news,
     took,
+    runes,
+    beat: beat as number,
+    marksBy: [...(marksBy as number[])],
   };
 }
 

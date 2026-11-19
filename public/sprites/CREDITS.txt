@@ -17,6 +17,10 @@ Modifications: selected frames, saturation and brightness lowered, scaled by 0.6
 Fallen paladin (boss): "8 Directional Greatsword Knight" by Hormelz, itch.io, CC0 - https://hormelz.itch.io/8-directional-great-sword-knight-character
 Modifications: idle frames halved, recolored (32-color palette swap), hit and death frames made by rotating the idle frame, scaled by 0.5, alpha thresholded, reduced to 256 colors.
 
+Runes (rune stones): "FLARE Item Variation 60x60 ONLY", OpenGameArt, CC0 - https://opengameart.org/content/flare-item-variation-60x60-only
+Modifications: 20 rune stones cropped from the 5x4 preview sheet (tools/art/Runes1.png), black background made transparent,
+packed into a one-column 40x40 sheet (tools/runes.py). One stone (row 4, column 2) is not used.
+
 Files used:
   mods/fantasycore/animations/enemies/skeleton_weak.txt
   mods/fantasycore/images/enemies/skeleton_weak.png

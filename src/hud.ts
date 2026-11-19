@@ -6,6 +6,8 @@ import rangerGearIcons from './assets/sprites/ranger_gear_icons.png';
 import rangerSkillIcons from './assets/sprites/ranger_skill_icons.png';
 import necroSkillIcons from './assets/sprites/necro_skill_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
+import runesUrl from './assets/sprites/runes.png';
+import runesInfo from './assets/sprites/runes.json';
 import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
 import shoutIcon from './assets/sprites/shout_icon.png';
@@ -21,9 +23,9 @@ import { drawHeroPortrait, looksOf, paintPortrait, PORTRAIT, setHeroGear } from 
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
-import { gearName } from './render/labels';
+import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -476,7 +478,22 @@ const AFFIX_TEXT: Record<Affix['kind'], (v: number, a: Affix) => string> = {
   tab: (v, a) => `${TREES[cls][a.tab!].name} 스킬 +${v}`,
   allSkills: (v) => `모든 스킬 +${v}`,
   unique: () => '',
+  socket: () => '',
+  keyCd: (v, a) => `${KEY_LABEL[a.key!]} 칸 재사용 대기 −${v}%`,
 };
+
+// 룬 이름: '질풍 룬', '가르기 룬 +2', 'Q 칸 룬'. 효과: 옵션 한 줄과 같은 글
+export function runeName(r: Rune): string {
+  const a = runeAffix(r);
+  if (!a) return '룬';
+  if (a.kind === 'keyCd') return `${KEY_LABEL[a.key!]} 칸 룬`;
+  if (a.kind === 'skill') return `${SKILL_TEXT[a.skill!].name} 룬 +${a.value}`;
+  return `${STAT_RUNES[r].name} 룬`;
+}
+setRuneNamer(runeName);
+const runeEffect = (a: Affix) => (a.kind === 'skill' ? `${SKILL_TEXT[a.skill!].name} +${a.value}${learned[a.skill!] ? '' : ' (배우지 않음)'}` : AFFIX_TEXT[a.kind](a.value, a));
+// 소켓 줄: 꽂힌 룬(◆ 이름: 효과)과 빈 소켓(◇)
+const socketLines = (list: Affix[]) => [...runesIn(list).map((a) => `◆ ${runeName(a.r!)}: ${runeEffect(a)}`), ...Array.from({ length: socketsOf(list) - runesIn(list).length }, () => '◇ 빈 소켓')];
 
 // 정예 사냥꾼 세트 효과 줄(입은 수만큼 ●)
 const SET_LINES: [number, string][] = [
@@ -499,7 +516,8 @@ function gearParts(it: GearItem) {
   return {
     base,
     desc: u ? UNIQUES[u].desc : '',
-    affixes: it.affixes.map((a) => AFFIX_TEXT[a.kind](a.value, a)).filter(Boolean),
+    affixes: plainAffixes(it.affixes).map((a) => AFFIX_TEXT[a.kind](a.value, a)).filter(Boolean),
+    sockets: socketLines(it.affixes),
     set: u && UNIQUES[u].set ? SET_LINES.map(([n, t]): [string, boolean] => [`${n}부위: ${t}`, setNow >= n]) : null,
   };
 }
@@ -508,14 +526,14 @@ function gearParts(it: GearItem) {
 function gearLines(it: GearItem): string[] {
   const p = gearParts(it);
   const set = p.set ? [`정예 사냥꾼 (${setNow}/4)`, ...p.set.map(([t, on]) => `${on ? '●' : '○'} ${t}`)] : [];
-  return [p.base, ...(p.desc ? [`★ ${p.desc}`] : []), ...p.affixes, ...set];
+  return [p.base, ...(p.desc ? [`★ ${p.desc}`] : []), ...p.affixes, ...p.sockets, ...set];
 }
 
 // 장비 그림 색: 아이템마다 다르다(등급은 테두리로만). 고유 장비는 입었을 때와 같은 원색(look), 아니면 첫 옵션의 색, 일반은 원래 색
 const AFFIX_COLOR: Partial<Record<Affix['kind'], string>> = { dmg: '#e8321e', speed: '#f5d020', leech: '#c0103c', crit: '#ff7a10', life: '#2ccf48', guard: '#3d7fe0', regen: '#18d0b4', thorns: '#a33fe0', move: '#30c8ff', skill: '#e04ad8', tab: '#e04ad8', allSkills: '#e04ad8' };
 const iconColor = (it: GearItem) => {
   const u = uniqueOf(it);
-  return (u && UNIQUES[u].look) || it.affixes.map((a) => AFFIX_COLOR[a.kind]).find(Boolean);
+  return (u && UNIQUES[u].look) || plainAffixes(it.affixes).map((a) => AFFIX_COLOR[a.kind]).find(Boolean);
 };
 // 색 하나 = svg 색 필터 하나(처음 쓸 때 #tints에 만든다): 밝기 × 색 × 1.5를 90% + 원래 색 10%. 어두운 아이콘 바탕은 어두운 채로 남는다
 function tint(color?: string): string {
@@ -555,6 +573,11 @@ function fillTip(it: GearItem, note: string, foot: string) {
   if (p.affixes.length) {
     const s = mk('section', 'aff');
     s.append(...p.affixes.map((a) => mk('div', '', a)));
+    parts.push(s);
+  }
+  if (p.sockets.length) {
+    const s = mk('section', 'sock-lines');
+    s.append(...p.sockets.map((a) => mk('div', a.startsWith('◇') ? 'off' : '', a)));
     parts.push(s);
   }
   if (p.set) {
@@ -674,11 +697,72 @@ const bagCount = (bag: BagItem[]) => `${bag.reduce((n, it) => n + gearSize(it)[0
 const area = (x: number, y: number, [gw, gh]: [number, number]) => `${y + 1} / ${x + 1} / span ${gh} / span ${gw}`;
 let selected: number | Slot = -1; // 보관함 창에서 고른 장비: 보관함 번호 또는 입은 부위(아래에 설명·버튼)
 // 인형 위 장비 칸의 가운데(PORTRAIT 영역 픽셀): 머리·무기를 든 손·몸통·발
-const DOLL_AT: Record<Slot, [number, number]> = { helm: [32, 11], weapon: [15, 27], armor: [33, 28], boots: [32, 50] };
+// 인형 칸의 가운데(PORTRAIT 영역 픽셀): 머리·무기를 든 손(왼쪽)·몸통·발. 틀 크기는 그 부위 가장 큰 장비(무기·갑옷 2×3, 투구·신발 2×2)
+const DOLL_AT: Record<Slot, [number, number]> = { helm: [32, 11], weapon: [14, 28], armor: [33, 29], boots: [32, 51] };
+const DOLL_SIZE = (kind: Slot) => GEAR_SIZE[kind].reduce(([a, b], [c, d]) => [Math.max(a, c), Math.max(b, d)], [1, 1]) as [number, number];
 const DOLL_SCALE = 5;
 
+// 룬 아이콘: 룬 돌 그림(runes.png 한 줄 시트) + 등급 색 테두리. 스킬 룬은 왼쪽 위에 스킬 이름 첫 글자, +2는 오른쪽 아래
+function runeEl(r: Rune): HTMLElement {
+  const a = runeAffix(r);
+  const el = Object.assign(document.createElement('span'), { className: 'rune' });
+  el.style.setProperty('--rc', RUNE_COLOR[runeGrade(r)]);
+  el.style.backgroundImage = `url(${runesUrl})`;
+  el.style.backgroundPositionY = `${(runeIcon(r) / (runesInfo.rows - 1)) * 100}%`;
+  el.style.backgroundSize = `100% ${runesInfo.rows * 100}%`;
+  if (a?.kind === 'skill') el.dataset.skill = SKILL_TEXT[a.skill!].name[0];
+  if (a?.kind === 'skill' && a.value > 1) el.dataset.plus = `+${a.value}`;
+  return el;
+}
+
+// 장비 그림(보관함·인형 공용): 등급 테두리, 아이콘(아이템 색), 소켓 동그라미(꽂힌 룬은 그 안에)
+function gearEl(it: GearItem, cell: number, className: string): HTMLElement {
+  const size = gearSize(it);
+  const el = Object.assign(document.createElement('div'), { className });
+  el.dataset.q = String(quality(it));
+  const icon = document.createElement('i');
+  icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
+  icon.style.backgroundPositionX = iconX(it);
+  icon.style.scale = String((Math.min(...size) * cell - 4) / 40);
+  icon.style.filter = tint(iconColor(it));
+  el.append(icon);
+  const n = socketsOf(it.affixes);
+  if (n) {
+    const socks = Object.assign(document.createElement('div'), { className: 'socks' });
+    const runes = runesIn(it.affixes);
+    for (let k = 0; k < n; k++) {
+      const s = Object.assign(document.createElement('span'), { className: 'sock' });
+      if (runes[k]) s.append(runeEl(runes[k].r!));
+      socks.append(s);
+    }
+    el.append(socks);
+  }
+  if (holding) el.classList.add(runesIn(it.affixes).length < n ? 'can-sock' : 'no-sock');
+  return el;
+}
+
+// 손에 든 룬(우클릭·터치로 집는다): 커서 대신 룬이 따라다니고, 장비를 누르면 그 장비의 빈 소켓에 꽂힌다
+let holding: Rune | null = null;
+const heldEl = document.createElement('div');
+heldEl.id = 'held-rune';
+function hold(r: Rune | null) {
+  holding = r;
+  bagDlg.classList.toggle('holding', !!r);
+  heldEl.replaceChildren(...(r ? [runeEl(r)] : []));
+  if (r && !heldEl.isConnected) bagDlg.append(heldEl);
+}
+let bagRedraw = () => {};
+bagDlg.addEventListener('pointermove', (e) => (heldEl.style.translate = `${e.clientX}px ${e.clientY}px`));
+bagDlg.addEventListener('close', () => hold(null));
+bagDlg.addEventListener('cancel', (e) => {
+  if (!holding) return;
+  e.preventDefault(); // Esc: 창을 닫지 않고 든 룬만 내려놓는다
+  hold(null);
+  bagRedraw();
+});
+
 // 인형: 지금 장비를 입은 주인공 위에 부위별 칸. 칸을 누르면 고르고, 보관함 장비를 끌어다 놓으면 입는다
-function showDoll(w: World, onPick: (s: Slot) => void) {
+function showDoll(w: World, cell: number, onPick: (s: Slot) => void) {
   const doll = $('#doll');
   const hero = doll.querySelector('canvas')!;
   void setHeroGear(w.gear, w.cls, looksOf(w)).then(() => drawHeroPortrait(hero, DOLL_SCALE));
@@ -686,17 +770,25 @@ function showDoll(w: World, onPick: (s: Slot) => void) {
     hero,
     ...SLOTS.map((kind) => {
       const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
-      const el = Object.assign(document.createElement('div'), { className: `slot doll-slot${selected === kind ? ' sel' : ''}` });
+      const el = Object.assign(document.createElement('div'), { className: `doll-slot${selected === kind ? ' sel' : ''}` });
       el.dataset.slot = kind;
-      el.dataset.q = String(quality(it));
-      paintSlot(el, it);
-      tipOn(el, () => [it, '입은 장비', '보관함 장비를 여기로 끌어다 놓으면 갈아입기']);
       el.dataset.name = SLOT_NAME[kind];
+      const [fw, fh] = DOLL_SIZE(kind);
       el.style.left = `${(DOLL_AT[kind][0] / PORTRAIT.w) * 100}%`;
       el.style.top = `${(DOLL_AT[kind][1] / PORTRAIT.h) * 100}%`;
-      el.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
-      el.style.backgroundPositionX = iconX(it);
+      el.style.width = `calc(var(--c) * ${fw})`;
+      el.style.height = `calc(var(--c) * ${fh})`;
+      const g = gearEl(it, cell, 'bag-item worn');
+      const [gw, gh] = gearSize(it);
+      g.style.width = `${gw * cell - 1}px`;
+      g.style.height = `${gh * cell - 1}px`;
+      el.append(g);
+      tipOn(el, () => [it, '입은 장비', holding ? '누르면 룬을 꽂는다' : '보관함 장비를 여기로 끌어다 놓으면 갈아입기']);
       el.onclick = () => onPick(kind);
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (holding) (hold(null), bagRedraw());
+      };
       return el;
     }),
   );
@@ -711,7 +803,7 @@ function dollUnder(el: HTMLElement, kind: Slot, x: number, y: number): HTMLEleme
 }
 
 // 보관함 창: 격자에 놓인 장비를 누르면 고르고, 끌면 옮기고(인형 칸에 놓으면 입는다), 우클릭하면 입는다. 고친 뒤에는 다시 불러 갱신한다
-export function showBag(w: World, h: { equip(i: number): boolean; discard(i: number): void; move(i: number, x: number, y: number): void; auto(on: boolean): void }) {
+export function showBag(w: World, h: { equip(i: number): boolean; discard(i: number): void; move(i: number, x: number, y: number): void; auto(on: boolean): void; socket(t: RuneTarget, r: Rune): boolean; unsocket(t: RuneTarget, k: number): void }) {
   learned = w.ranks;
   setNow = setCount(w);
   const mark = (it: GearItem) => {
@@ -729,7 +821,13 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
     bagDlg.showModal(); // 먼저 열어야 칸 크기를 잴 수 있다
   }
   const note = $('#bag-note');
-  note.textContent = '';
+  note.textContent = holding ? `${runeName(holding)} — 꽂을 장비를 누르세요(우클릭·Esc: 내려놓기)` : '';
+  // 든 룬을 그 장비에 꽂는다. 꽂으면 손에서 내려놓는다
+  const putRune = (t: RuneTarget) => {
+    if (!h.socket(t, holding!)) return void (note.textContent = '빈 소켓이 없습니다.');
+    hold(null);
+    showBag(w, h);
+  };
   const equip = (i: number) => {
     if (!h.equip(i)) note.textContent = '벗은 장비를 둘 자리가 없습니다. 먼저 자리를 비우세요.';
   };
@@ -741,18 +839,16 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
     shadow,
     ...w.bag.map((it, i) => {
       const size = gearSize(it);
-      const el = Object.assign(document.createElement('div'), { className: i === selected ? 'bag-item sel' : 'bag-item' });
-      el.dataset.q = String(quality(it));
+      const el = gearEl(it, cell, i === selected ? 'bag-item sel' : 'bag-item');
       el.style.gridArea = area(it.x, it.y, size);
-      const icon = document.createElement('i');
-      icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
-      icon.style.backgroundPositionX = iconX(it);
-      icon.style.scale = String((Math.min(...size) * cell - 4) / 40);
-      icon.style.filter = tint(iconColor(it));
-      el.append(icon);
-      tipOn(el, () => [it, compare(it), '우클릭: 장착 · 끌어서 옮기기']);
+      tipOn(el, () => [it, compare(it), holding ? '누르면 룬을 꽂는다 · 우클릭: 내려놓기' : '우클릭: 장착 · 끌어서 옮기기']);
       el.onpointerdown = (e) => {
         hideTip();
+        if (holding) {
+          if (e.button !== 2) return putRune(i);
+          hold(null);
+          return showBag(w, h);
+        }
         if (e.button === 2) return equip(i);
         if (e.button) return;
         el.setPointerCapture(e.pointerId);
@@ -780,15 +876,19 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
       return el;
     }),
   );
-  showDoll(w, (s) => {
+  bagRedraw = () => showBag(w, h);
+  showDoll(w, cell, (s) => {
+    if (holding) return putRune(s);
     selected = s;
     showBag(w, h);
   });
   const i = selected;
   const sel = typeof i === 'number' ? w.bag[i] : null;
+  // 꽂힌 룬 빼기 버튼(고른 장비의 룬마다)
+  const unsock = (t: RuneTarget, list: Affix[]) => runesIn(list).map((a, k): [string, () => void] => [`${runeName(a.r!)} 빼기`, () => h.unsocket(t, k)]);
   $('#bag-sel').replaceChildren(
     typeof i === 'string'
-      ? gearRow({ kind: i, tier: w.gear[i], affixes: w.mods[i] }, ' — 입은 장비', [])
+      ? gearRow({ kind: i, tier: w.gear[i], affixes: w.mods[i] }, ' — 입은 장비', unsock(i, w.mods[i]))
       : sel
         ? gearRow(sel, mark(sel), [
             ['장착', () => equip(i)],
@@ -796,9 +896,35 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
               selected = -1;
               h.discard(i);
             }],
+            ...unsock(i, sel.affixes),
           ])
         : Object.assign(document.createElement('small'), { textContent: w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 장비를 밟으면 여기로 들어옵니다.' }),
   );
+  // 룬 주머니: 아이콘 + 개수. 올리거나 누르면 아래에 이름·효과, 우클릭(손가락은 누르기)하면 집는다
+  const runes = (Object.keys(w.runes) as Rune[]).filter((r) => w.runes[r]).sort((a, b) => runeGrade(b) - runeGrade(a) || runeName(a).localeCompare(runeName(b)));
+  const info = $('#rune-info');
+  const tell = (r: Rune) => {
+    info.textContent = `${runeName(r)} — ${runeEffect(runeAffix(r)!)}`;
+    info.style.color = RUNE_COLOR[runeGrade(r)];
+  };
+  info.textContent = runes.length ? '룬을 우클릭(모바일은 누르기)해서 집고, 꽂을 장비를 누른다' : '비어 있습니다. 룬은 몬스터가 떨어뜨립니다(지역마다 다른 룬).';
+  info.style.color = '';
+  $('#bag-runes').replaceChildren(
+    ...runes.map((r) => {
+      const b = Object.assign(document.createElement('button'), { className: `rune-slot${holding === r ? ' held' : ''}` });
+      b.append(runeEl(r), Object.assign(document.createElement('b'), { textContent: String(w.runes[r]) }));
+      b.onpointerenter = () => tell(r);
+      b.oncontextmenu = (e) => e.preventDefault();
+      b.onpointerdown = (e) => {
+        tell(r);
+        if (e.button !== 2 && e.pointerType !== 'touch') return;
+        hold(holding === r ? null : r);
+        showBag(w, h);
+      };
+      return b;
+    }),
+  );
+  if (holding) tell(holding);
   $('#bag-count').textContent = bagCount(w.bag);
   const auto = $('#auto-equip') as HTMLInputElement;
   auto.checked = w.autoEquip;
