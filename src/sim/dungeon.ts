@@ -14,11 +14,11 @@ export const cyclePower = (cycle: number) => 1 + cycle;
 // 보스 깊이 배율: 보스 수치(STATS.boss)는 초원 5구역(이야기 깊이 5) 기준이라, 깊은 지역 보스는 그 구역 몬스터 배율만큼 더 세진다(회차 배율은 따로)
 export const bossScale = (depth: number) => Math.max(1, floorPower(depth) / floorPower(FLOORS));
 // 층의 모습(렌더용): 깊은 층은 동굴
-export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins';
+export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins' | 'sanctum';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-export const BLOCKS = '#BocCDYQIEVPLsrJkO'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인, 주민, 단서, 잠긴 출구(설원·폐허), 의뢰 대상(봉화·궤·봉인)
+export const BLOCKS = '#BocCDYQIEVPLsrJkO%$'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인, 주민, 단서, 잠긴 출구(설원·폐허), 의뢰 대상(봉화·궤·봉인)
 export const OPEN = (c: string) => !BLOCKS.includes(c); // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 

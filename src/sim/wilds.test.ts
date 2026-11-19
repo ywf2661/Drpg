@@ -125,18 +125,18 @@ test('초원 1구역 갈림길 잠금: 안 열린 지역 출구는 막히고(s·
   for (let seed = 1; seed <= 15; seed++) {
     const from = (['n', 'e', 's', 'w'] as const)[seed % 4];
     const all = generateWild(seed, 1, 'field', from);
-    expect(generateWild(seed, 1, 'field', from, ['field', 'snow', 'dungeon', 'ruins'])).toEqual(all);
+    expect(generateWild(seed, 1, 'field', from, ['field', 'snow', 'dungeon', 'ruins', 'sanctum'])).toEqual(all);
     const first = generateWild(seed, 1, 'field', from, ['field']);
     expect(count(first, 'SR>')).toBe(0);
     expect([count(first, 's'), count(first, 'r'), count(first, 'F')]).toEqual([3, 3, 3]);
     // 바뀐 칸은 잠긴 출구 자리뿐
     const diff = all.flatMap((r, z) => [...r].flatMap((c, x) => (c !== first[z][x] ? [c + first[z][x]] : [])));
-    expect(diff.sort()).toEqual(['>o', 'Rr', 'Rr', 'Rr', 'Ss', 'Ss', 'Ss']);
+    expect(diff.sort()).toEqual(['*%', '*%', '*%', '*%', '>o', 'Rr', 'Rr', 'Rr', 'Ss', 'Ss', 'Ss']); // 무너진 성소 입구(2×2)도 막힌다
     const ok = reachable(first, find(first, 'H')[0]);
     for (const p of find(first, 'F')) expect(ok(p)).toBe(true);
     const w = createWorld(1, first);
     expect(w.exits.map((e) => e.to)).toEqual(['field', 'field', 'field']);
-    expect(new Set(w.locked.map((e) => e.to))).toEqual(new Set(['snow', 'ruins']));
+    expect(new Set(w.locked.map((e) => e.to))).toEqual(new Set(['snow', 'ruins', 'sanctum']));
     expect(w.stairs).toBeNull();
     // 설원·미궁까지 열림: 폐허만 막힘
     const third = generateWild(seed, 1, 'field', from, ['field', 'snow', 'dungeon']);

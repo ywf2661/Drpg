@@ -37,13 +37,13 @@ export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ r
 
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 // 'D' 사슬 문(닫힌 동안 막음). 기믹: 'Y' 성소, 'Q' 시련의 제단, 'I' 얼어붙은 보물(모두 상자처럼 막고 누른다), 'Z' 잠든 졸개, 'U' 모래 속 새끼 개미귀신(개미지옥 가운데), '~' 개미지옥 모래,
-// 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허), 's'·'r' 잠긴 출구(막음),
+// 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허), 's'·'r' 잠긴 출구(막음), '*' 무너진 성소 입구·'%' 막힌 입구, '$' 성소 5층의 성소,
 // 'E' 순찰대장·'V' 상인·'P' 주민·'q' 의뢰인 주민·'L' 단서(상자처럼 막고 누른다)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
 const SPAWN_SKIN: Record<string, Skin | undefined> = { U: 'antlion_small', T: 'treasure', X: 'grave' }; // 지역 스킨 대신
-const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal' };
-const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins' };
-const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins' };
+const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar' };
+const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins', '*': 'sanctum' };
+const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins', '%': 'sanctum' };
 
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
 
@@ -101,7 +101,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -243,6 +243,11 @@ function pickup(w: World, hero: Entity) {
     }
     if (it.kind === 'rune') {
       w.runes[it.rune!] = (w.runes[it.rune!] ?? 0) + 1;
+      return false;
+    }
+    if (it.kind === 'relic') {
+      w.relics |= 1 << it.relic!;
+      w.relicGot = it.relic!; // main이 알리고 저장한다
       return false;
     }
     if (it.kind === 'potion') {

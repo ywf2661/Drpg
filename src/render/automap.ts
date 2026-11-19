@@ -70,12 +70,12 @@ export function drawAutomap(world: World) {
   };
   const s = world.stairs;
   if (s && seen[s[1] * w + s[0]]) mark(s[0], s[1], COLORS.stairs, 1.6);
-  for (const e of world.exits) if (seen[e.z * w + e.x]) mark(e.x, e.z, { field: '#7ec850', snow: '#cfe6ff', ruins: '#d9a95f' }[e.to], 1.4); // 바깥 출구(갈 지역 색)
+  for (const e of world.exits) if (seen[e.z * w + e.x]) mark(e.x, e.z, { field: '#7ec850', snow: '#cfe6ff', ruins: '#d9a95f', sanctum: '#ff4a3a' }[e.to], 1.4); // 바깥 출구(갈 지역 색)
   for (const c of world.chests) if (c.kind && !c.open && seen[c.z * w + c.x]) mark(c.x, c.z, c.kind === 'shrine' ? '#9cff6a' : c.kind === 'trial' ? '#ff5a4a' : '#9fdcff', 1); // 성소·시련의 제단·얼어붙은 보물
   for (const p of world.props) if (p.kind === 'brazier' && seen[p.z * w + p.x]) mark(p.x, p.z, COLORS.brazier, 0.8);
   // 전설·세트 장비(본 칸에 있는 것)
   for (const it of world.items) {
-    const q = it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
+    const q = it.kind === 'relic' ? 3 : it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
     if (q >= 3 && seen[Math.floor(it.z) * w + Math.floor(it.x)]) mark(it.x - 0.5, it.z - 0.5, q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, 1.2);
   }
   mark(hero.x - 0.5, hero.z - 0.5, COLORS.hero, 0.9);

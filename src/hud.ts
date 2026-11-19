@@ -25,7 +25,8 @@ import { formatTime, type Run, type Stats } from './save';
 import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
-import { runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { RELICS, SANCTUM } from './sim/sanctum';
+import { STORY, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -907,6 +908,10 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
           ])
         : Object.assign(document.createElement('small'), { textContent: w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 장비를 밟으면 여기로 들어옵니다.' }),
   );
+  // 성물: 네 칸(가진 것은 금빛 이름, 없는 것은 떨구는 지역)
+  $('#bag-relics').replaceChildren(
+    ...RELICS.map((name, k) => Object.assign(document.createElement('span'), { className: (w.relics >> k) & 1 ? 'relic got' : 'relic', textContent: (w.relics >> k) & 1 ? name : `${LANDS[STORY[k].land].name} 보스` })),
+  );
   // 룬 주머니: 아이콘 + 개수. 올리거나 누르면 아래에 이름·효과, 우클릭(손가락은 누르기)하면 집는다
   const runes = (Object.keys(w.runes) as Rune[]).filter((r) => w.runes[r]).sort((a, b) => runeGrade(b) - runeGrade(a) || runeName(a).localeCompare(runeName(b)));
   const info = $('#rune-info');
@@ -1107,10 +1112,15 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   if (gimmick[2] && !before[2]) say(`보물 고블린이 도망칩니다! ${TREASURE.run}초 안에 잡으세요`);
   shownGimmick = gimmick.join('|');
   // 상단 체력바: 가까이 있는 보스(미노타우르스) 또는 해골 왕
-  const boss = world.entities.find((e) => (e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE);
+  // 성소 5층은 거리와 상관없이 성기사(빛 고리·깨진 창·바치는 진행이 여기 붙는다)
+  const altar = world.land === 'sanctum' && world.chests.some((c) => c.kind === 'altar');
+  const boss = world.entities.find((e) => (altar ? e.kind === 'boss' : e.kind === 'boss' || e.kind === 'king') && e.state !== 'dead' && (altar || Math.hypot(e.x - hero.x, e.z - hero.z) <= BOSS_BAR_RANGE));
   bossBar.hidden = !boss;
   if (boss) {
-    bossLabel.textContent = monsterName(boss);
+    const lit = world.chests.filter((c) => c.kind === 'altar' && !c.open).length;
+    const ward = !altar ? '' : world.bareT > 0 ? ` — 고리가 깨졌다 ${Math.ceil(world.bareT)}초` : ` — 빛 고리(켜진 성소 ${lit})`;
+    const offer = world.offer ? ` · 성물을 바치는 중 ${Math.min(100, Math.round((world.offer.t / SANCTUM.offer) * 100))}%` : '';
+    bossLabel.textContent = monsterName(boss) + ward + offer;
     bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;
   }
   target.classList.toggle('below', !bossBar.hidden);

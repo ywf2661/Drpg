@@ -227,6 +227,9 @@
       .gear-row { flex-wrap: wrap; }
       .gear-row button { flex: none; padding: 6px 10px; font-size: 13px; }
       #bag-runes { display: flex; flex-wrap: wrap; gap: 6px; }
+      #bag-relics { display: flex; flex-wrap: wrap; gap: 6px; }
+      #bag-relics .relic { padding: 2px 8px; border: 1px solid #3a3230; color: #6f6560; font-size: 12px; }
+      #bag-relics .relic.got { border-color: #c9a24a; color: #f0c870; }
       #rune-info { display: block; min-height: 18px; margin-top: 6px; font-size: 12px; color: var(--ink-dim); }
       /* 룬 아이콘: 어두운 돌 위에 등급 색 글자, +2는 오른쪽 아래 */
       .rune { position: relative; display: block; width: 100%; height: 100%; border-radius: 4px; background-repeat: no-repeat; image-rendering: pixelated; filter: drop-shadow(0 0 3px var(--rc)); pointer-events: none; }
@@ -541,6 +544,8 @@
       <h4>보관함</h4>
       <div id="bag-grid"></div>
       <div id="bag-sel"></div>
+      <h4>성물</h4>
+      <div id="bag-relics"></div>
       <h4>룬 주머니</h4>
       <div id="bag-runes"></div>
       <small id="rune-info"></small>

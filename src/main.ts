@@ -16,6 +16,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, ROW_NAME, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
+import { ALL_RELICS, missAfter, nameSalt, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, SANCTUM_OPEN } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -43,6 +44,11 @@ let took = false; // 지금 단계 의뢰의 부탁을 주민에게 받았다(�
 // 2회차부터(순서 자유): beat = 이번 회차에 깬 지역 보스(비트, 이야기 순서), marksBy = 지역마다 의뢰 진행(stage는 마지막으로 고른 지역)
 let beat = 0;
 let marksBy = [0, 0, 0, 0];
+// 무너진 성소: relics = 모은 성물(비트, STORY 순서, 회차가 넘어가도 남는다), relicMiss = 지역마다 성물을 놓친 횟수(두 번이면 다음은 확정)
+let relics = 0;
+let relicMiss = [0, 0, 0, 0];
+// ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
+let captainLine: string | null = null;
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 // 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
 const questHere = () => STORY[stage].land === land;
@@ -66,28 +72,29 @@ const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'asker' &
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
-  for (const to of ['field', 'snow', 'ruins'] as const) {
+  for (const to of ['field', 'snow', 'ruins', 'sanctum'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
-    if (cells.length) out.push({ ...middle(cells), text: `▶ ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}${runeHint(to)}` });
+    const mark = to === 'sanctum' ? '▼' : '▶';
+    if (cells.length) out.push({ ...middle(cells), text: `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}${runeHint(to)}` });
     const shut = w.locked.filter((e) => e.to === to);
-    if (shut.length) out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` });
+    if (shut.length) out.push({ ...middle(shut), text: to === 'sanctum' ? `${LANDS[to].name} (성물 ${relicCount(relics)}/${RELICS.length})` : `▶ ${LANDS[to].name} (길이 막혔다)` });
   }
   for (const c of w.chests) {
     const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
     if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text, alert: alertOf(c.kind) });
   }
-  if (land !== 'dungeon' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}${runeHint('dungeon')}` });
+  if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}${runeHint('dungeon')}` });
   return out;
 }
 // 다른 지역으로 가는 출구에 그 지역 룬(고를 근거)
-const runeHint = (to: Land) => (to === land ? '' : ` · ${ROW_NAME[runeRow(to)]} 스킬 룬`);
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy] }); // 저장할 진행
+const runeHint = (to: Land) => (to === land || runeRow(to) < 0 ? '' : ` · ${ROW_NAME[runeRow(to)]} 스킬 룬`);
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss] }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, openLands(stage, cycle), markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(relics === ALL_RELICS ? (['sanctum'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.rest = land === 'field' || land === 'camp'; // 초원·야영지 모닥불에서 쉴 수 있다
   w.land = land;
@@ -111,6 +118,15 @@ function makeFloor(n: number, carry: Carry): World {
     for (const e of w.entities) if (e.kind === 'boss') e.hp = e.maxHp = Math.round(e.maxHp * bossHpScale(k));
     w.sureLegend = k === 3;
   }
+  w.relics = relics;
+  // 성물: 그 회차에 그 지역 보스를 처음 깨는 판이면 굴린다(회차·지역·이름으로 정해져 다시 들어가도 같다)
+  const k = runeRow(land);
+  if (n === FLOORS && k >= 0 && afterClear(stage, cycle, land, beat).advanced && relicDue(relics, relicMiss, k, cycle, nameSalt(name))) w.relicDrop = k;
+  // 타락한 성기사: 고리가 깨진 창에만 맞으니 체력을 낮추고, 쓰러뜨리면 전설 확정
+  if (land === 'sanctum' && n === FLOORS) {
+    for (const e of w.entities) if (e.kind === 'boss') e.hp = e.maxHp = Math.round(e.maxHp * SANCTUM.bossHp);
+    w.sureLegend = true;
+  }
   return w;
 }
 
@@ -127,6 +143,7 @@ function enterFloor(n: number, carry: Carry) {
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle, land, goalLine());
+  if (land === 'sanctum' && n === FLOORS) say('성소 넷이 성기사를 감싸고 있다 — 성소를 눌러 성물을 바쳐라');
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -140,7 +157,7 @@ function toCamp(carry: Carry, fresh = false) {
 // 출구·계단에 들어서면: 야영지 출구는 바로 초원 1구역, 그 밖은 떠돌이 상인을 거쳐 다음 구역
 function leave() {
   const ex = exitAt(world);
-  const to: Land = ex ? ex.to : 'dungeon';
+  const to: Land = ex ? ex.to : land === 'sanctum' ? 'sanctum' : 'dungeon'; // 계단: 성소에선 다음 층
   next = { land: to, from: ex ? opposite[sideOf(world, ex)] : 'w', floor: nextFloor(to) };
   // 2회차부터: 다른 지역으로 가면 그 지역이 지금 의뢰 지역(하던 지역의 진행은 따로 둔다)
   const k = runeRow(to);
@@ -165,7 +182,8 @@ function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'elder') {
     if (!news) return showTalk('순찰대장', cycle ? FREE_AGAIN : STORY[stage].again);
     news = false;
-    showTalk('순찰대장', captainNews(stage, cycle));
+    showTalk('순찰대장', captainLine ?? captainNews(stage, cycle));
+    captainLine = null;
     return changed();
   }
   // 흔적의 글은 의뢰 대상을 끝낼 때(markDone) 나온다
@@ -190,6 +208,16 @@ function changed() {
 }
 
 // 의뢰 대상 하나를 끝냈다: 진행을 켜고 이야기 조각(찾은 순서), 셋째면 스킬 포인트. 바로 저장(죽어도 남는다)
+// 성물을 주웠다(바닥에서든 보스를 깨고 야영지로 가며 챙겼든). 넷이 모이면 순찰대장에게 새 이야기
+function gotRelic(k: number) {
+  world.relicGot = -1;
+  if ((relics >> k) & 1) return;
+  relics |= 1 << k;
+  world.relics = relics;
+  say(`성물을 얻었다 — ${RELICS[k]} (${relicCount(relics)}/${RELICS.length})`);
+  if (relics === ALL_RELICS) [news, captainLine] = [true, SANCTUM_OPEN];
+  saveRun(progress());
+}
 function markDone() {
   const bit = markBit(floor);
   if (!questHere() || !bit || marks & bit) return;
@@ -267,14 +295,18 @@ function restart() {
 function backToCamp() {
   if (outcome(world) !== 'clear' || clearT < LOOT_TIME) return;
   for (const it of world.items) if (it.kind === 'rune') world.runes[it.rune!] = (world.runes[it.rune!] ?? 0) + 1; // 보스 자리에 남은 룬은 챙겨 간다
+  for (const it of world.items) if (it.kind === 'relic') gotRelic(it.relic!); // 줍지 않은 성물도
+  const k = runeRow(land);
   const was = cycle;
   const after = afterClear(stage, cycle, land, beat);
   ({ stage, cycle, beat } = after);
+  if (after.advanced) relicMiss = missAfter(relicMiss, k, !!((relics >> k) & 1)); // 회차 첫 처치에 성물이 안 나왔으면 놓친 횟수 +1
   if (after.advanced) {
     [marks, took] = [0, cycle > 0];
     marksBy[stage] = 0;
   }
   if (after.newCycle) marksBy = [0, 0, 0, 0];
+  if (land === 'sanctum') [news, captainLine] = [true, SANCTUM_DONE];
   toCamp(carryOf(world), after.advanced && (!was || after.newCycle)); // 2회차부터 순찰대장은 회차가 넘어갈 때만 새로 말한다
   if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
 }
@@ -449,7 +481,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks, news, took, beat, marksBy] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0]];
+  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0]];
   begin(0, startOf(cls));
   if (!slots.some(Boolean)) help.showModal();
 };
@@ -478,8 +510,9 @@ initHud({
     useSlot(n);
     name = saved.name;
     stats = { ...saved.stats };
-    ({ cycle, stage, land, from, marks, news, took, beat } = saved);
+    ({ cycle, stage, land, from, marks, news, took, beat, relics } = saved);
     marksBy = [...saved.marksBy];
+    relicMiss = [...saved.relicMiss];
     begin(saved.floor, saved);
   },
   pick: pickClass,
@@ -574,6 +607,7 @@ requestAnimationFrame(function frame(now) {
     world.marked = false;
     markDone();
   }
+  if (world.relicGot >= 0) gotRelic(world.relicGot);
   const events = soundEvents(heard, world);
   sound.play(events, world.entities[0].x, world.entities[0].z);
   stats.kills += events.filter((e) => e.name === 'skel_die' || e.name === 'boss_die').length;

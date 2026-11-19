@@ -25,7 +25,8 @@ import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
-import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, setHaloGoal, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { warded } from '../sim/sanctum';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -40,6 +41,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   field: { torch: 0xe8e0b0, range: 12, tint: [1, 0.97, 0.88], sky: 2.2, sun: 3.2, bg: 0x2a3d1e },
   snow: { torch: 0xcfe2ff, range: 12, tint: [0.9, 0.95, 1], sky: 2.2, sun: 2.8, bg: 0xb9c4cf },
   ruins: { torch: 0xffb070, range: 12, tint: [1, 0.86, 0.72], sky: 1.6, sun: 2.4, bg: 0x2b2a24 }, // 해 질 녘
+  sanctum: { torch: 0xe0705a, range: 10, tint: [1, 0.78, 0.72], sky: 0.22, sun: 0, bg: 0x000000 }, // 무너진 성소: 폐허 타일에 칠흑과 핏빛 횃불
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -153,7 +155,7 @@ let castsSeen = 0;
 let comboSeen = -1;
 let restShown = 0; // 모닥불 회복 중 이미 +숫자로 띄운 양
 let restPopT = 0; // 다음 +숫자까지(초): 1초마다 모아서 // 글자를 띄운 마지막 연계 기록 id(id는 늘 커진다)
-const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', back: '등 뒤!', reset: '가르기 준비!', dodge: '회피!' };
+const COMBO_TEXT = { counter: '받아치기!', stunned: '약점!', back: '등 뒤!', reset: '가르기 준비!', dodge: '회피!', ward: '막힘' };
 const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸은 것이 아니라 밀려난 것(가장 빠른 걸음도 0.15m)
 const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
 let floorTex: THREE.Texture;
@@ -188,6 +190,7 @@ export async function initRender(world: World, theme: Theme) {
   tex.field = { floor: ff, wall: fw };
   tex.snow = { floor: sf, wall: sw };
   tex.ruins = { floor: rf, wall: rw };
+  tex.sanctum = tex.ruins;
   setWorld(world, theme);
 }
 
@@ -340,6 +343,8 @@ export function draw(world: World, dt: number) {
   syncFlames(world);
   temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt, fresh);
   syncChests(world);
+  const altars = world.chests.filter((c) => c.kind === 'altar');
+  setHaloGoal(!altars.length ? 1 : warded(world) ? altars.filter((c) => !c.open).length / altars.length : 0);
   syncSpikes(world);
   syncGates(world);
   syncRain(world, frozen ? 0 : dt, stickArrow);
@@ -393,7 +398,7 @@ function buildMap(world: World) {
   const { w, h, blocked } = world.grid;
   // 바닥은 걸을 수 있는 칸과 소품 칸에, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
-  const prop = new Set([...world.props, ...world.gates, ...world.chests].map((p) => p.z * w + p.x)); // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
+  const prop = new Set([...world.props, ...world.gates, ...world.chests, ...world.locked.filter((e) => e.to === 'sanctum')].map((p) => p.z * w + p.x)); // 막힌 성소 입구도 벽 대신 바닥(구덩이 그림) // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
   const road = new Set(world.roads.map(([x, z]) => z * w + x));
   const sand = new Set(world.sand.map(([x, z]) => z * w + x));
   const floorCells: [number, number][][] = Array.from({ length: 3 * FLOOR_VARIANTS }, () => []); // 변형 × [바닥, 길(흙빛), 개미지옥 모래]

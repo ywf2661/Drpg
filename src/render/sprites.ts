@@ -346,11 +346,15 @@ export function attachHalo(s: Sprite, e: Entity) {
 // 머리 자리표(tools/sprites.py knight_heads): 동작 → 방향 → 프레임 → 발 기준 화면 m (x 오른쪽, y 위)
 const HEADS = fallenPaladinHeads as Record<string, number[][][]>;
 
+// 성소 5층: 후광 밝기 = 켜진 성소 비율(고리가 깨지면 0). 그 밖에서는 1
+let haloGoal = 1;
+export const setHaloGoal = (k: number) => (haloGoal = k);
 function updateHalo(h: NonNullable<Sprite['halo']>, dead: boolean, dt: number, anim: Anim, dir: number, f: number) {
   h.t += dt;
   const [hx, hy] = HEADS[anim]?.[dir]?.[f] ?? [0, 1.62];
   h.ring.position.set(hx, hy / COS30, -0.05); // 고리는 머리를 따라간다(쓰러지면 꺼진다)
-  h.k = dead ? Math.max(0, h.k - dt / HALO.fade) : Math.min(1, h.k + dt / HALO.fade);
+  const goal = dead ? 0 : haloGoal;
+  h.k = h.k > goal ? Math.max(goal, h.k - dt / HALO.fade) : Math.min(goal, h.k + dt / HALO.fade);
   const level = haloLevel(h.t) * h.k;
   (h.glow.material as THREE.MeshBasicMaterial).opacity = level;
   (h.ring.material as THREE.MeshBasicMaterial).opacity = level * HALO.ring;

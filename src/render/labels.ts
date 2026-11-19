@@ -1,6 +1,7 @@
 // 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급(일반·마법·희귀), 지금보다 좋으면 ▲.
 import * as THREE from 'three';
 import { AFFIXES, gearTable, isBetter, plainAffixes, quality, runeGrade, UNIQUES, uniqueOf, type Affix, type HeroClass, type Item, type Rune, type Slot, type World } from '../sim/world';
+import { RELICS } from '../sim/sanctum';
 
 // 룬 이름은 스킬 이름표가 있는 hud가 넣어 준다(hud가 이 파일을 import하므로 거꾸로 import하지 않는다)
 let runeName = (r: Rune) => r;
@@ -25,6 +26,7 @@ export function itemLabel(it: Item, w: World): { text: string; better: boolean; 
   if (it.kind === 'potion') return null;
   if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false, quality: 0 };
   if (it.kind === 'rune') return { text: runeName(it.rune!), better: false, quality: 0, rune: runeGrade(it.rune!) };
+  if (it.kind === 'relic') return { text: `성물 · ${RELICS[it.relic!]}`, better: false, quality: 3 };
   const affixes = it.affixes ?? [];
   return { text: gearName(it.kind, it.tier, affixes, w.cls), better: isBetter(w, it), quality: quality({ affixes }) };
 }

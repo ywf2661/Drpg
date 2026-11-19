@@ -119,7 +119,7 @@ export type Slot = 'weapon' | 'armor' | 'helm' | 'boots';
 export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 // amount: 금화 양(금화만)
-export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune }; // rune: 룬(룬만)
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | 'relic' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune; relic?: number }; // rune: 룬(룬만), relic: 성물 번호(STORY 순서, 성물만)
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
 // skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~4), unique = 고유 장비(전설·세트) 표식(u)
 // socket = 소켓 수(장비마다 하나, 맨 뒤 쪽), keyCd = 칸(key)의 재사용 대기 −value%(칸 룬). r = 꽂힌 룬(그 룬이 주는 옵션 한 줄)
@@ -174,7 +174,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal'; wave?: number }; // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar'; wave?: number }; // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -209,7 +209,7 @@ export const SPIKE = { period: 3, warn: 1, up: 0.8, dmg: 5 };
 export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number; back?: boolean; small?: boolean; ricochet?: boolean }; // back: 돌아오는 도끼날로 되돌아오는 중, small: 쪼개진 작은 화염구, ricochet: 매의 눈 두건으로 이미 튕김 // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계·도끼 폭풍), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
-export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge'; age: number }; // back = 공포로 도망치는 적
+export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge' | 'ward'; age: number }; // ward = 빛 고리에 막힘(성기사) // back = 공포로 도망치는 적
 
 // 돌진 '불길'이 남긴 불타는 길(선분). t초 동안, acc가 TRAIL.tick을 넘을 때마다 길 위의 적에게 피해
 // r: 폭(반경), mult: 한 번 피해 배율(× 주인공 굴림). 불바다·잔불·운석은 점(x0 = x1)에 넓은 r
@@ -229,7 +229,7 @@ export type Zone = { id: number; x: number; z: number; r: number; t: number; tot
 export type Gear = Record<Slot, number>;
 
 // 바깥 지역 출구 한 칸: 맨 바깥 줄에 있고, to 지역의 다음 구역으로 이어진다
-export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' };
+export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' | 'sanctum' };
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
 // potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
 // level·xp: 주인공 레벨과 현재 레벨에서 쌓인 경험치
@@ -296,6 +296,14 @@ export type World = {
   bossRaised: boolean; // 폐허 보스가 무덤을 일으켰다
   marked: boolean; // 방금 의뢰 대상 하나를 끝냈다. main이 읽고 지운다
   sureLegend: boolean; // 이 구역 보스는 전설을 반드시 남긴다(지역 의뢰를 다 끝냄)
+  // 무너진 성소: relics = 모은 성물(비트, 입구 화로), relicDrop = 보스가 쓰러지면 떨굴 성물(-1 없음), relicGot = 방금 주운 성물(main이 읽고 -1로)
+  // offer = 성소에 성물을 바치는 중(상자 id, 흐른 초), bareT = 고리가 깨져 성기사가 맞는 남은 시간, knightsUp = 체력 절반에 기사가 일어났다
+  relics: number;
+  relicDrop: number;
+  relicGot: number;
+  offer: { id: number; t: number } | null;
+  bareT: number;
+  knightsUp: boolean;
   calmT: number; // 주인공이 마지막으로 다친 뒤 흐른 시간(초)
   lastHp: number; // 직전 틱의 주인공 체력(다쳤는지 비교)
   rested: number; // 모닥불에서 회복한 양의 누적(소수점 포함, 렌더가 +숫자로 띄운다)
@@ -373,7 +381,7 @@ export const FIERCE: EliteKind[] = ['frenzied', 'rushing', 'unyielding'];
 export const ELITE_KIND_LIST = (Object.keys(ELITE_KINDS) as EliteKind[]).filter((k) => !FIERCE.includes(k)); // 초원에서 나오는 특성
 export const steady = (e: Entity) => e.eliteKind === 'unyielding'; // 기절·공포·밀쳐내기를 받지 않는다
 // 지역(맵의 종류)과 그곳의 몬스터. 스킨 = 전투 원형(졸개·전사·마법사)에 그림·이름을 바꾸고 체력·이동 속도에 배율을 곱한 것
-export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp'; // camp = 야영지(거점, 몬스터 없음)
+export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum'; // camp = 야영지(거점, 몬스터 없음)
 export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin';
 export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = {
   goblin: { name: '고블린', hp: 0.8, speed: 1.25 }, // 약하지만 빠르고 떼로 온다
@@ -399,6 +407,7 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
   snow: { name: '설원', unit: '구역', skins: { minion: 'ice_ant', warrior: 'zombie', boss: 'wyvern' } },
   ruins: { name: '폐허', unit: '구역', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'demon' } },
   camp: { name: '야영지', unit: '', skins: {} },
+  sanctum: { name: '무너진 성소', unit: '층', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', king: 'bone_knight', boss: 'fallen_paladin' } },
 };
 // 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.
 // goal = HUD 임무 줄, again = 순찰대장에게 다시 말을 걸면, quest = 그 지역 의뢰(2·3·4구역에 대상 하나씩, 선택), done = 보스를 깨고 야영지에 왔을 때(다음 단계의 시작 대사)
@@ -512,7 +521,7 @@ export function afterClear(stage: number, cycle: number, land: Land, beat = 0): 
 }
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
 export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
-export const depthOf = (land: Land, n: number) => (land === 'camp' ? 0 : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n);
+export const depthOf = (land: Land, n: number) => (land === 'camp' ? 0 : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25)
 
 // 그림을 그리지 않는(모래 속에 숨은) 몬스터
 export const hidden = (e: Entity) => e.skin === 'antlion_small' && !!e.asleep;

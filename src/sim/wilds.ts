@@ -7,7 +7,9 @@
 import { finish, FLOORS, generateFloor, mulberry, OPEN, SIZE, themeFor, walkDistances, type Theme } from './dungeon';
 import type { Cell } from './path';
 import type { Land } from './rules';
+import { generateArena } from './sanctum';
 
+export const GATE_FIRES = [[-3, -3], [4, -3], [-3, 4], [4, 4]]; // 성소 입구(2×2의 위쪽 모서리 칸)에서 화로 넷
 export const WILD = 72; // 바깥 맵 크기(미궁은 SIZE 48)
 export type Side = 'n' | 'e' | 's' | 'w'; // 가장자리: n = z 0, s = z 끝, w = x 0, e = x 끝
 export const opposite: Record<Side, Side> = { n: 's', s: 'n', e: 'w', w: 'e' };
@@ -17,7 +19,7 @@ type Wild = 'field' | 'snow' | 'ruins';
 // open = 열린 지역(초원 1구역 갈림길에서 갈 수 있는 곳, 없으면 다 열림), mark = 놓을 의뢰 대상 글자(L 흔적·J 봉화·k 궤·O 봉인)
 export function makeMap(seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w', open?: Land[], mark?: string): string[] {
   if (land === 'camp') return generateCamp();
-  const map = land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
+  const map = land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
   return mark ? withMark(map, seed, mark) : map;
 }
 
@@ -73,7 +75,8 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   if (!open.includes('snow')) shut.S = 's';
   if (!open.includes('ruins')) shut.R = 'r';
   if (!open.includes('dungeon')) shut['>'] = 'o';
-  return map.map((row) => row.replace(/[SR>]/g, (c) => shut[c] ?? c));
+  if (!open.includes('sanctum')) shut['*'] = '%';
+  return map.map((row) => row.replace(/[SR>*]/g, (c) => shut[c] ?? c));
 }
 
 // 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o).
@@ -212,6 +215,8 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   }
   const bossAt = at(opposite[from], int(N / 2 - 10, N / 2 + 10), 10);
   if (floor === FLOORS) road(bossAt);
+  const gate: Cell = [N / 2, N / 2]; // 무너진 성소 입구(초원 1구역 한가운데, 길이 이어진다)
+  if (kinds.includes('dungeon')) road(gate);
   cells[hero[1]][hero[0]] = 'H';
 
   // 5. 주인공에서 걸어서 닿는 땅만 남긴다
@@ -235,11 +240,17 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   // 6. 동굴 입구(먼 곳, 둘레 5×5칸은 계단 그림 자리) 또는 보스(7×7 빈터)
   if (kinds.includes('dungeon')) {
     const far = Math.max(...d);
-    const spots = all.filter((p) => dist(p) >= 0.7 * far && !exits.some((e) => near(p, at(e.side, e.t, 0), 10)));
+    const spots = all.filter((p) => dist(p) >= 0.7 * far && !near(p, gate, 10) && !exits.some((e) => near(p, at(e.side, e.t, 0), 10)));
     const cave = spots.length ? spots[int(0, spots.length - 1)] : all.reduce((a, b) => (dist(b) > dist(a) ? b : a));
     clear(cave, 2);
     cells[cave[1]][cave[0]] = '>';
     keep.push(cave);
+    // 무너진 성소 입구: 13×13 빈터 가운데 2×2 입구('*', 안 열렸으면 generateWild가 '%'로 막는다), 네 귀퉁이 화로, 둘레 뼈 무더기
+    clear(gate, 6);
+    for (let z = -4; z <= 4; z++) for (let x = -4; x <= 4; x++) if (Math.hypot(x, z) >= 2.5 && rand() < 0.3) cells[gate[1] + z][gate[0] + x] = ',';
+    for (const [x, z] of [[0, 0], [1, 0], [0, 1], [1, 1]]) cells[gate[1] + z][gate[0] + x] = '*';
+    for (const [x, z] of GATE_FIRES) cells[gate[1] + z][gate[0] + x] = 'B';
+    keep.push(gate);
   }
   if (floor === FLOORS) {
     clear(bossAt, 3);

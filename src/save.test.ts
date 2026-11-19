@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true, runes: { gale: 3, 'fireball+2': 1, 'key:dash': 1 }, beat: 5, marksBy: [1, 0, 7, 0] };
+const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true, runes: { gale: 3, 'fireball+2': 1, 'key:dash': 1 }, beat: 5, marksBy: [1, 0, 7, 0], relics: 5, relicMiss: [0, 2, 0, 1] };
 
 test('소켓·꽂힌 룬·룬 주머니·2회차 진행을 되읽고, 소켓보다 많은 룬·다른 직업 스킬 룬은 버린다', () => {
   const sock = { ...run, mods: { ...run.mods, weapon: [{ kind: 'dmg' as const, value: 20 }, { kind: 'socket' as const, value: 2 }, { kind: 'move' as const, value: 4, r: 'gale' }, { kind: 'skill' as const, value: 1, skill: 'fireball' as const, r: 'fireball+1' }] } };
@@ -147,4 +147,15 @@ test('대장의 새 이야기(news)·받은 부탁(took): 없으면 news는 끄�
   expect(decodeSave(JSON.stringify({ v: 2, ...older, marks: 0 }))).toMatchObject({ news: false, took: false });
   expect(decodeSave(JSON.stringify({ v: 2, ...run, news: 1 }))).toBeNull();
   expect(decodeSave(JSON.stringify({ v: 2, ...run, took: 'y' }))).toBeNull();
+});
+
+test('성물이 생기기 전 저장은 성물 0개, 범위를 벗어난 성물·놓친 횟수는 무시', () => {
+  const { relics: _r, relicMiss: _m, ...old } = run;
+  const r = decodeSave(JSON.stringify({ v: 2, ...old }))!;
+  expect([r.relics, r.relicMiss]).toEqual([0, [0, 0, 0, 0]]);
+  const bad = (patch: object) => decodeSave(JSON.stringify({ v: 2, ...run, ...patch }));
+  expect(bad({ relics: 16 })).toBeNull();
+  expect(bad({ relicMiss: [0, 3, 0, 0] })).toBeNull();
+  expect(bad({ relicMiss: [0, 0] })).toBeNull();
+  expect(decodeSave(encodeSave({ ...run, land: 'sanctum', floor: 4 }))?.land).toBe('sanctum');
 });

@@ -3,6 +3,8 @@ import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
 import { COMET, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
+import { relicCount } from '../sim/sanctum';
+import { GATE_FIRES } from '../sim/wilds';
 import lootInfo from '../assets/sprites/loot.json';
 import runesInfo from '../assets/sprites/runes.json';
 import runesUrl from '../assets/sprites/runes.png';
@@ -53,8 +55,11 @@ export const BRAZIER_RANGE = 4.5; // 화로 빛이 닿는 거리(m)
 const BRAZIER_LIGHT = 18; // 화로 밝기(칸델라)
 const TINT = new THREE.Color(1, 0.82, 0.62); // 판자에 입히는 불빛 색(횃불과 같음)
 // 바닥 아이템 → loot 시트 동작. 방어구(갑옷·투구·신발)는 FLARE처럼 그 단계 세트의 그림(사슬·판금은 같은 그림)
+// ponytail: 성물 전용 그림이 없어 물약 그림에 금빛을 입힌다(빛기둥이 전설처럼 선다). 그림이 생기면 여기서 바꾼다
 const lootClip = (it: Item, cls: HeroClass) =>
-  it.kind === 'gold'
+  it.kind === 'relic'
+    ? 'potion'
+    : it.kind === 'gold'
     ? (it.amount ?? 0) < 15 ? 'coins5' : (it.amount ?? 0) < 50 ? 'coins25' : 'coins100'
     : it.kind === 'potion'
     ? 'potion'
@@ -93,6 +98,13 @@ const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
 const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
 let cards: Card[] = [];
 let group = new THREE.Group();
+// 무너진 성소 입구(초원 1구역): 계단 구덩이 + 석상 + 화로(성물 수만큼 붉게) + 열렸으면 핏빛 안개·불씨·맥동하는 빛
+const DREAD_FIRE = new THREE.Color(1, 0.4, 0.34);
+const DREAD_COLD = new THREE.Color(0.22, 0.2, 0.24); // 꺼진 화로
+const EMBERS = 46;
+let dread: { light: THREE.PointLight; mist: THREE.MeshBasicMaterial; embers: THREE.Points } | null = null;
+// 성소 5층: 켜진 성소에서 성기사로 이어지는 금빛 줄기(성소 순서)
+let beams: { line: THREE.Line; id: number }[] = [];
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 // 전설·세트 장비의 빛기둥(바닥 아이템 id → 기둥). 위로 갈수록 옅은 원기둥, 가산 혼합
 const pillars = new Map<number, THREE.Mesh>();
@@ -407,6 +419,16 @@ export function syncChests(world: World) {
     if (ch.open && c && ch.kind === 'beacon') Object.assign(c.card, { glow: 1, tint: undefined }); // 켜진 봉화
     if (c) c.card.dim = ch.guards?.some((id) => world.entities[id].state !== 'dead') ? 0.4 : 1; // 야영지 무리가 살아 있으면 어둡게(잠김)
   });
+  const boss = world.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
+  for (const b of beams) {
+    const ch = world.chests[b.id];
+    b.line.visible = !!boss && !ch.open && world.bareT <= 0;
+    if (!b.line.visible) continue;
+    const a = b.line.geometry.getAttribute('position') as THREE.BufferAttribute;
+    a.setXYZ(0, ch.x + 0.5, 1, ch.z + 0.5);
+    a.setXYZ(1, boss!.x, 1.4, boss!.z);
+    a.needsUpdate = true;
+  }
 }
 
 // 가시 바닥: 솟기 전 SPIKE.warn초는 붉게 깜빡이고, 솟은 동안은 솟은 그림
@@ -669,7 +691,8 @@ export function syncItems(world: World) {
     group.add(c.mesh);
     const g = it.kind === 'rune' ? runeGrade(it.rune!) : -1;
     if (g >= 0) c.glow = 1; // 룬 돌은 어둠 속에서도 보이게
-    const q = it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
+    if (it.kind === 'relic') Object.assign(c, { glow: 1, tint: KEEPER_GOLD });
+    const q = it.kind === 'relic' ? 3 : it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
     if (q < 3 && g < 2) continue; // 빛기둥: 전설·세트, 드묾 이상 룬
     const mat = new THREE.MeshBasicMaterial({ color: g >= 2 ? RUNE_COLOR[g] : q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
     const p = new THREE.Mesh(PILLAR_GEO, mat);
@@ -719,14 +742,14 @@ export function buildProps(world: World): THREE.Group {
       if (!ch.open) Object.assign(c, { clip: { ...lit, ms: 1e9 }, glow: 0, tint: BEACON_COLD });
       return { card: c, open: lit };
     }
-    const [sheet, name] = ch.kind === 'shrine' || ch.kind === 'seal' ? [ruin, 'shrine'] : ch.kind === 'trial' ? [ruin, 'trial'] : [props, cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest'];
+    const [sheet, name] = ch.kind === 'shrine' || ch.kind === 'seal' || ch.kind === 'altar' ? [ruin, 'shrine'] : ch.kind === 'trial' ? [ruin, 'trial'] : [props, cellHash(ch.x, ch.z) % 2 ? 'chest2' : 'chest'];
     const open = sheet.info.anims[name === 'shrine' ? 'shrine_off' : `${name}_open`];
     const c = card(sheet, name, ch.x + 0.5, ch.z + 0.5, false);
     if (ch.open) c.clip = open;
     if (ch.kind === 'ice') c.tint = ICE_CHEST;
     if (ch.kind === 'seal') c.tint = SEAL_RED;
     if (ch.kind === 'keeper') c.tint = KEEPER_GOLD;
-    if (ch.kind === 'shrine') c.glow = 0.9; // 구슬이 빛난다
+    if (ch.kind === 'shrine' || ch.kind === 'altar') c.glow = 0.9; // 구슬이 빛난다
     return { card: c, open };
   });
   cards.push(...chestCards.map((c) => c.card));
@@ -739,17 +762,64 @@ export function buildProps(world: World): THREE.Group {
   for (const g of world.gates) if (!g.open) gateCards.set(g.id, card(gateFx, `gate_${g.axis}`, g.x + 0.5, g.z + 0.5, false));
   cards.push(...gateCards.values());
   if (world.stairs) cards.push(card(stairs, 'stairs', world.stairs[0] + STAIRS_AT[0], world.stairs[1] + STAIRS_AT[1], true));
-  braziers = world.props.filter((p) => p.kind === 'brazier').map((p) => ({ x: p.x + 0.5, z: p.z + 0.5 }));
+  // 무너진 성소 입구: 2×2 입구 칸(열림 '*' 또는 막힘 '%')의 가운데
+  const gate = [...world.exits, ...world.locked].filter((e) => e.to === 'sanctum');
+  const extra: THREE.Object3D[] = [];
+  const cold = new Set<number>(); // 꺼진 화로(world.props 번호)
+  dread = null;
+  if (gate.length) {
+    const [gx, gz] = [Math.min(...gate.map((e) => e.x)) + 1, Math.min(...gate.map((e) => e.z)) + 1];
+    const open = world.exits.some((e) => e.to === 'sanctum');
+    const near = world.props.flatMap((p, i) => (p.kind === 'brazier' && GATE_FIRES.some(([a, b]) => p.x === gx - 1 + a && p.z === gz - 1 + b) ? [i] : []));
+    near.forEach((i, n) => {
+      const c = cards[i];
+      if (n < relicCount(world.relics)) c.tint = DREAD_FIRE;
+      else (cold.add(i), Object.assign(c, { clip: { ...c.clip, ms: 1e9 }, glow: 0, tint: DREAD_COLD }));
+    });
+    cards.push(Object.assign(card(stairs, 'stairs', gx - 0.5 + STAIRS_AT[0], gz - 0.5 + STAIRS_AT[1], true), { tint: new THREE.Color(0.75, 0.32, 0.3), dim: open ? 1 : 0.45 }));
+    const pit = cards[cards.length - 1].mesh;
+    pit.renderOrder = 2;
+    pit.position.y += 0.01;
+    for (const [ox, oz, n] of [[-3.2, 0.4, 'statue'], [0.4, -3.2, 'statue2']] as const) cards.push(Object.assign(card(props, n, gx + ox, gz + oz, false), { tint: new THREE.Color(0.6, 0.42, 0.45) }));
+    const scorch = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x080103, transparent: true, opacity: 0.75, depthWrite: false }));
+    scorch.scale.setScalar(3.1);
+    scorch.position.set(gx, 0.004, gz);
+    extra.push(scorch);
+    if (open) {
+      const mist = new THREE.MeshBasicMaterial({ map: mistTexture(), color: 0xc01828, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
+      const mistMesh = new THREE.Mesh(discGeo, mist);
+      mistMesh.scale.setScalar(3.4);
+      mistMesh.position.set(gx, 0.05, gz);
+      mistMesh.renderOrder = 1;
+      const pos = new Float32Array(EMBERS * 3);
+      for (let i = 0; i < EMBERS; i++) pos.set([gx + (hash01(i * 7) - 0.5) * 2.4, hash01(i * 13) * 3, gz + (hash01(i * 11) - 0.5) * 2.4], i * 3);
+      const embers = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)), new THREE.PointsMaterial({ color: 0xff4a2a, size: 3, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+      embers.renderOrder = 3;
+      const light = new THREE.PointLight(0xff2418, 0, 8, 1.5);
+      light.position.set(gx, 0.8, gz);
+      extra.push(mistMesh, embers, light);
+      dread = { light, mist, embers };
+    }
+  }
+  // 성소 5층의 금빛 줄기(위치는 syncChests가 매 장면)
+  beams = world.chests.filter((c) => c.kind === 'altar').map((c) => {
+    const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3)), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+    line.renderOrder = 3;
+    extra.push(line);
+    return { line, id: c.id };
+  });
+  braziers = world.props.flatMap((p, i) => (p.kind === 'brazier' && !cold.has(i) ? [{ x: p.x + 0.5, z: p.z + 0.5 }] : []));
   // ponytail: 화로 빛은 그림자가 없어 벽 너머로 조금 샌다. 거슬리면 화로마다 castShadow(점광원 그림자는 6면 렌더)
   lights = braziers.map((b) => {
-    const l = new THREE.PointLight(0xff7a30, BRAZIER_LIGHT, BRAZIER_RANGE, 1.5);
+    const red = gate.length && GATE_FIRES.some(([a, c]) => b.x - 0.5 === Math.min(...gate.map((e) => e.x)) + a && b.z - 0.5 === Math.min(...gate.map((e) => e.z)) + c);
+    const l = new THREE.PointLight(red ? 0xff2a1a : 0xff7a30, BRAZIER_LIGHT, BRAZIER_RANGE, 1.5);
     l.position.set(b.x, 1.2, b.z);
     return l;
   });
   floorAt = (x, z) => walkable(world.grid, Math.floor(x), Math.floor(z));
   coldLight = new THREE.PointLight(0x8cc4ff, 0, ICE.lightRange, 1.5);
   group = new THREE.Group();
-  group.add(...cards.map((c) => c.mesh), ...lights, coldLight, wardFx);
+  group.add(...cards.map((c) => c.mesh), ...lights, coldLight, wardFx, ...extra);
   return group;
 }
 
@@ -759,6 +829,19 @@ export function updateProps(dt: number, light: (x: number, z: number) => number)
   updateFields(dt);
   updateWard(dt);
   lights.forEach((l, k) => (l.intensity = BRAZIER_LIGHT * (1 + 0.08 * Math.sin(time * 9 + k * 2.1) + 0.05 * Math.sin(time * 21.3 + k))));
+  if (dread) {
+    const p = 0.5 + 0.5 * Math.sin(time * 2.2); // 숨 쉬듯 맥동
+    dread.light.intensity = BRAZIER_LIGHT * (0.6 + 0.9 * p);
+    dread.mist.opacity = 0.45 + 0.45 * p;
+    const a = dread.embers.geometry.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < EMBERS; i++) {
+      let y = a.getY(i) + dt * (0.6 + hash01(i * 5) * 0.8);
+      if (y > 3.2) y = 0.1;
+      a.setXYZ(i, a.getX(i) + Math.sin(time * 1.7 + i) * dt * 0.15, y, a.getZ(i));
+    }
+    a.needsUpdate = true;
+  }
+  for (const b of beams) (b.line.material as THREE.LineBasicMaterial).opacity = 0.45 + 0.3 * Math.sin(time * 9 + b.id);
   for (const c of cards) {
     c.t += dt;
     const f = frameAt(c.clip, c.t);

@@ -1,6 +1,7 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
 import { RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -143,7 +144,7 @@ export function gearDiff(w: World, it: GearItem): number {
 
 // 장비가 지금 장착한 것보다 나은가
 export function isBetter(w: World, it: Item | GearItem): boolean {
-  if (it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune') return false;
+  if (it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' || it.kind === 'relic') return false;
   if (uniqueOf({ affixes: it.affixes ?? [] }) || uniqueOf({ affixes: w.mods[it.kind] })) return false; // 고유 장비는 자동 장착이 입히지도 벗기지도 않는다(빌드는 플레이어가 고른다)
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
@@ -267,7 +268,7 @@ function dropRunes(w: World, t: Entity) {
 // 보관함에 자리가 없어 발밑 장비를 못 줍는 중인가
 export function bagBlocked(w: World): boolean {
   const hero = w.entities[0];
-  return w.items.some((it) => it.kind !== 'potion' && it.kind !== 'gold' && it.kind !== 'rune' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
+  return w.items.some((it) => it.kind !== 'potion' && it.kind !== 'gold' && it.kind !== 'rune' && it.kind !== 'relic' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
 }
 
 // 장비 아이템 굴림: 등급(옵션 0·1·2개) → 부위에 맞는 서로 다른 옵션, 값은 범위 안 균등
@@ -408,6 +409,10 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'dodge', age: 0 }); // 구르는 중: 무적
     return 0;
   }
+  if (t.kind === 'boss' && warded(w)) {
+    if (from?.kind === 'hero' || !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 빛 고리: 성소를 꺼야 맞는다
+    return 0;
+  }
   // 궁수의 명사수: 멀리 있는 적에게 더 아프게
   let dmg = from?.kind === 'hero' && t.kind !== 'hero' && w.cls === 'ranger' && dist(from, t) > RANGER.far ? Math.round(raw * RANGER.farMult) : raw;
   // 강령술사의 표식: 구역 안의 적은 모든 피해를 더 받는다(겹치면 가장 센 것. 역병 구역은 0)
@@ -455,6 +460,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     return dealt;
   }
   if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
+  if (t.kind === 'boss' && w.relicDrop >= 0) w.items.push({ id: w.nextItem++, x: t.x, z: t.z + 0.6, kind: 'relic', tier: 0, relic: w.relicDrop }); // 지역 보스의 성물
   if (t.skin === 'treasure') treasureDrop(w, t);
   gainXp(w, Math.round(XP[t.kind] * Math.min(t.power, w.xpCap) * (t.elite ? ELITE.xp : 1)));
   // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)

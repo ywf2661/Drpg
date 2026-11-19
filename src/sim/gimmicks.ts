@@ -3,7 +3,8 @@
 // three.js·Math.random 금지(난수는 rand(w)).
 import { walkable } from './path';
 import { asleep, dist, dress, dropGold, hurt, makeEntity, rand, randSlot, rollGear, wake } from './core';
-import { AGGRO, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
+import { guardOf, SANCTUM } from './sanctum';
+import { AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
 const LETTER: Record<string, Kind> = { m: 'minion', w: 'warrior', a: 'archer', g: 'mage' };
 // 몬스터 피해 배율(층 배율의 DMG_SCALE배 + 공통 배율) — 함정 피해에 곱한다
@@ -36,6 +37,13 @@ export function touchChest(w: World, ch: Chest): boolean {
       w.marked = true;
     }
     w.talk = ch.kind;
+    return true;
+  }
+  if (ch.kind === 'altar') {
+    // 성소 5층: 켜진 성소에 성물을 바치기 시작(서 있는 동안 tickAltars가 센다). 기사가 지키면 막힌다
+    if (ch.open || w.offer) return true;
+    if (guardOf(w, ch)) w.combos.push({ id: w.nextItem++, x: ch.x + 0.5, z: ch.z + 0.5, kind: 'ward', age: 0 });
+    else w.offer = { id: ch.id, t: 0 };
     return true;
   }
   if (ch.kind === 'shrine') {
@@ -107,6 +115,7 @@ export function special(w: World, e: Entity, hero: Entity): boolean {
 // 월드 한 틱의 기믹(몬스터 행동 뒤에)
 export function tickGimmicks(w: World, hero: Entity) {
   if (w.buff && (w.buff.t -= DT) <= 0) w.buff = null;
+  if (w.land === 'sanctum') tickAltars(w, hero);
   // 시련의 제단: 물결을 다 막으면 다음 물결(마지막 뒤엔 상자가 풀린다 — 열기는 주인공이)
   // 봉화도 같은 방식이고, 마지막 물결을 다 막으면 저절로 켜진다(의뢰 하나)
   for (const ch of w.chests) {
@@ -169,3 +178,38 @@ function nearWall(w: World, e: Entity) {
 
 // 개미지옥 안에 있는가(주인공 이동이 느려진다)
 export const inPit = (w: World, e: Entity) => w.pits.some(([x, z]) => Math.hypot(e.x - x, e.z - z) <= PIT.r);
+
+// 성소 5층: 성물 바치기(움직이거나 맞으면 끊긴다) → 넷 다 꺼지면 고리가 깨져 창(bareT) 동안 성기사가 맞는다 → 창이 끝나면 성소 둘이 다시 켜진다.
+// 성기사 체력이 처음 절반 아래가 되면 켜진(없으면 아무) 성소 곁에서 해골 기사 왕이 일어난다
+function tickAltars(w: World, hero: Entity) {
+  const altars = w.chests.filter((c) => c.kind === 'altar');
+  const boss = w.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
+  if (!altars.length) return;
+  if (w.offer) {
+    const ch = w.chests[w.offer.id];
+    w.offer.t += DT;
+    const broke = !boss || hero.state !== 'idle' || hero.path.length > 0 || w.calmT < w.offer.t - DT || Math.hypot(hero.x - ch.x - 0.5, hero.z - ch.z - 0.5) > CHEST.reach + 0.5;
+    if (broke) w.offer = null;
+    else if (w.offer.t >= SANCTUM.offer) {
+      ch.open = true;
+      w.offer = null;
+      w.blasts.push({ id: w.nextItem++, x: ch.x + 0.5, z: ch.z + 0.5, age: 0, kind: 'heal' });
+      if (boss && altars.every((c) => c.open)) {
+        w.bareT = SANCTUM.window;
+        boss.stunT = Math.max(boss.stunT, SANCTUM.stagger);
+        w.blasts.push({ id: w.nextItem++, x: boss.x, z: boss.z, age: 0, kind: 'curse' });
+      }
+    }
+  }
+  if (w.bareT > 0 && (w.bareT -= DT) <= 0) {
+    w.bareT = 0;
+    const off = altars.filter((c) => c.open);
+    for (let i = 0; i < SANCTUM.relight && off.length; i++) off.splice(Math.floor(rand(w) * off.length), 1)[0].open = false;
+  }
+  if (boss && !w.knightsUp && boss.hp <= boss.maxHp / 2) {
+    w.knightsUp = true;
+    const lit = altars.filter((c) => !c.open);
+    const at = (lit.length >= SANCTUM.knights ? lit : altars).slice(0, SANCTUM.knights);
+    for (const c of at) spawnNear(w, 'king', c.x + 0.5, c.z + 0.5, 1.5, -1, 'bone_knight');
+  }
+}
