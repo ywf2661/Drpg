@@ -754,6 +754,13 @@ function hold(r: Rune | null) {
 let bagRedraw = () => {};
 bagDlg.addEventListener('pointermove', (e) => (heldEl.style.translate = `${e.clientX}px ${e.clientY}px`));
 bagDlg.addEventListener('close', () => hold(null));
+// 룬을 든 채 창 어디든 우클릭하면 내려놓는다(룬 칸의 우클릭은 집기라 빼고). 창 안에서는 브라우저 메뉴를 띄우지 않는다
+bagDlg.addEventListener('pointerdown', (e) => {
+  if (e.button !== 2 || !holding || (e.target as Element).closest('.rune-slot')) return;
+  hold(null);
+  bagRedraw();
+});
+bagDlg.addEventListener('contextmenu', (e) => e.preventDefault());
 bagDlg.addEventListener('cancel', (e) => {
   if (!holding) return;
   e.preventDefault(); // Esc: 창을 닫지 않고 든 룬만 내려놓는다
