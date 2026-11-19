@@ -350,7 +350,7 @@ export const skillName = (id: SkillId) => SKILL_TEXT[id].name;
 // ponytail: 트리 스킬 그림이 생기면 ICON을 그 띠로 바꾸고 이름 글자를 뺄 것
 const ICON: Record<SkillId, number> = {
   cleave: 0, whirl: 0, burst: 0, execute: 0, dash: 1, shout: 2, trail: 1, leap: 1, throw: 3, bounce: 3, axes: 3, axeStorm: 3,
-  fireball: 0, firefield: 0, embers: 0, comet: 0, frost: 1, ward: 3, frostArmor: 1, blizzard: 1, lightning: 2, chain: 2, static: 2, tempest: 2, afterimage: 3, swap: 3, lingering: 3, retrace: 3,
+  fireball: 0, firefield: 0, embers: 0, comet: 0, frost: 1, ward: 3, frostArmor: 1, blizzard: 1, lightning: 2, chain: 2, static: 2, tempest: 2, afterimage: 5, swap: 6, lingering: 7, retrace: 8,
   pierce: 0, spread: 0, crit: 0, focus: 3, trap: 1, push: 0, snare: 1, hunt: 1, rain: 2, fireRain: 2, downpour: 2, arrowStorm: 2,
   bones: 0, giant: 1, boneMastery: 0, lord: 3, curse: 2, plague: 2, curseMastery: 2, corpseBlast: 2, spear: 0, boneArmor: 1, drain: 2, prison: 2,
   mark: 0, graze: 1, echo: 0, flash: 1,
@@ -358,11 +358,12 @@ const ICON: Record<SkillId, number> = {
 };
 const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
 const SKILL_STRIPS: Partial<Record<HeroClass, string>> = { wizard: wizardSkillIcons, ranger: rangerSkillIcons, necromancer: necroSkillIcons };
-const ORIGINAL = new Set<SkillId>(['cleave', 'dash', 'shout', 'throw', 'fireball', 'frost', 'lightning', 'ward', 'pierce', 'trap', 'rain', 'focus', 'bones', 'giant', 'curse', 'lord']);
+const STRIP_LEN: Partial<Record<HeroClass, number>> = { wizard: 9, ranger: 5, necromancer: 5 }; // 띠의 아이콘 수(tools/sprites.py의 *_SKILL_ICONS)
+const ORIGINAL = new Set<SkillId>(['cleave', 'dash', 'shout', 'throw', 'fireball', 'frost', 'lightning', 'ward', 'pierce', 'trap', 'rain', 'focus', 'bones', 'giant', 'curse', 'lord', 'afterimage', 'swap', 'lingering', 'retrace']); // 제 그림이 있는 스킬(나머지는 탭 그림 위에 이름 두 글자)
 function paintIcon(el: HTMLElement, id: SkillId | null, size: number) {
   const strip = id && SKILL_STRIPS[SKILLS[id].cls];
   el.style.backgroundImage = id ? `url(${strip ?? KNIGHT_ICONS[ICON[id]]})` : 'none';
-  el.style.backgroundSize = strip ? `${size * 5}px ${size}px` : `${size}px ${size}px`;
+  el.style.backgroundSize = strip ? `${size * STRIP_LEN[SKILLS[id!].cls]!}px ${size}px` : `${size}px ${size}px`;
   el.style.backgroundPosition = strip ? `${-ICON[id!] * size}px 0` : '';
   el.dataset.tag = id && !ORIGINAL.has(id) ? SKILL_TEXT[id].name.replace(/\s/g, '').slice(0, 2) : '';
 }

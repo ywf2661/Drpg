@@ -135,7 +135,7 @@ SOUND_FILES = ['wood_open', 'level_up', 'melee_attack', 'melee_attack_2', 'melee
                'inventory/inventory_potion', 'inventory/inventory_coins', 'inventory/inventory_metal', 'inventory/inventory_maille', 'powers/shoot', 'powers/fireball', 'powers/burn', 'powers/teleport', 'powers/warcry']  # soundfx/ 아래
 GEAR_ICONS = [96, 97, 98, 99, 129, 145, 153, 161, 136, 144, 152, 160, 132, 148, 156, 164]  # 무기 4, 갑옷 4, 투구 4, 신발 4(단계 순)
 WIZARD_GEAR_ICONS = [104, 105, 106, 107, 129, 137, 185, 193, -136, 136, 184, 192, 132, 140, 188, 196]  # 마법사. 음수 = 그 아이콘을 회색으로(천 머리띠)
-WIZARD_SKILL_ICONS = [34, 24, 7, 4, 19]  # 화염구·서리 고리·낙뢰·마나 방패·순간이동
+WIZARD_SKILL_ICONS = [34, 24, 7, 4, 19, 29, 26, 20, 46]  # 화염구·서리 고리·낙뢰·마나 방패·순간이동, 잔상 탭(잔상 남기기 옆얼굴·자리 바꾸기 맞물린 고리·떠난 자리 반짝임·지나온 길 소용돌이)
 RANGER_GEAR_ICONS = [112, 113, 114, 115, 129, 137, 145, 153, -136, 136, 144, 152, 132, 140, 176, 156]  # 궁수(새총·활 3, 천·가죽 조끼·가죽·사슬, 두건 4, 신발 4)
 RANGER_SKILL_ICONS = [41, 38, 8, 16, 9]  # 관통 사격·덫·화살비·집중·구르기
 NECRO_SKILL_ICONS = [12, 25, 27, 4, 9]  # 해골 소환·시체 거인·죽음의 표식·해골 왕 강림·구르기(장비 아이콘은 마법사 것). ponytail: W·R 그림은 옛 스킬(생명 흡수·뼈 갑옷)의 것 그대로
