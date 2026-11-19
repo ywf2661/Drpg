@@ -34,7 +34,7 @@ export function addCut(w: World, segs: Seg[], mult: number, hit: Entity[], src: 
   w.cuts.push({ id: w.nextItem++, segs, t, mult, hit: hit.filter((e) => e.state !== 'dead').map((e) => e.id), src });
 }
 
-function segDist(x: number, z: number, [x0, z0, x1, z1]: Seg): number {
+export function segDist(x: number, z: number, [x0, z0, x1, z1]: Seg): number {
   const [sx, sz] = [x1 - x0, z1 - z0];
   const l2 = sx * sx + sz * sz;
   const k = l2 > 1e-9 ? Math.min(1, Math.max(0, ((x - x0) * sx + (z - z0) * sz) / l2)) : 0;

@@ -14,8 +14,10 @@ const IAIDO_LEARN: SkillId[] = [...IAIDO, 'echo'];
 // 회오리 빌드(dash=회오리)와, 거기에 불 벼림 1점만 얹은 벼림 빌드(throw=불 벼림). 벼림 밸런스 측정용
 const WHIRL: SkillId[] = ['cleave', 'whirl', 'shout', 'throw'];
 const TEMPER: SkillId[] = ['cleave', 'whirl', 'shout', 'flameEdge'];
-export type Build = 'basic' | 'iaido' | 'whirl' | 'temper';
-const SLOTS: Record<Build, SkillId[] | null> = { basic: null, iaido: IAIDO, whirl: WHIRL, temper: TEMPER };
+// 잔상 빌드: 마법사 기본 빌드의 서리 고리(dash 칸)를 잔상 남기기로. 잔상 밸런스 측정용
+const AFTER: SkillId[] = ['fireball', 'afterimage', 'lightning', 'ward'];
+export type Build = 'basic' | 'iaido' | 'whirl' | 'temper' | 'afterimage';
+const SLOTS: Record<Build, SkillId[] | null> = { basic: null, iaido: IAIDO, whirl: WHIRL, temper: TEMPER, afterimage: AFTER };
 const LEARN = (cls: HeroClass, build: Build = 'basic'): SkillId[] => (build === 'iaido' ? IAIDO_LEARN : SLOTS[build] ?? BASIC[cls]).flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 // 빌드 스킬을 다 찍은 뒤 남는 포인트: 그 스킬들이 있는 탭의 패시브까지(칸이 필요 없고, 같은 탭 포인트는 시너지로 피해도 올린다)
 const MORE = (cls: HeroClass, build: Build = 'basic'): SkillId[] => {
@@ -92,7 +94,10 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 8);
     if (skills && t && ready('cleave')) cmds.push({ type: 'skill', x: t.x, z: t.z });
     if (skills && (big ?? t) && ready('shout')) cmds.push({ type: 'shout', x: (big ?? t)!.x, z: (big ?? t)!.z });
-    if (skills && ready('dash') && (near(2.5) >= 2 || (big?.phase === 'windup' && d(big.x, big.z) < 3))) cmds.push({ type: 'dash' });
+    if (build === 'afterimage') {
+      // 잔상: 적이 4m 안에 둘 이상이면 그 자리에 남기고 물러선다(조준 없는 순간이동 = 가까운 적의 반대쪽)
+      if (skills && ready('dash') && near(4) >= 2) cmds.push({ type: 'dash' }, ...(ROLL.on && w.rollCd <= 0 ? [{ type: 'roll' } as Command] : []));
+    } else if (skills && ready('dash') && (near(2.5) >= 2 || (big?.phase === 'windup' && d(big.x, big.z) < 3))) cmds.push({ type: 'dash' });
     if (skills && ready('throw') && (hero.hp < hero.maxHp * 0.7 || near(2) >= 2)) cmds.push({ type: 'throw' });
   } else if (rng) {
     // 궁수: 관통 사격은 가까운 적에게, 다가오는 적 앞에 덫, 화살비는 보스·해골 왕 또는 가까운 적에게, 적이 보이면 집중.

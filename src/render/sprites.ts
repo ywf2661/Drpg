@@ -303,6 +303,18 @@ export function makeSprite(e: Entity): Sprite {
   return s;
 }
 
+// 잔상(마법사): 지금 주인공 시트를 복제한 반투명 판자. 주인공 판자로 기억하지 않고, 후광·고리도 달지 않는다
+export function ghostSprite(hero: Entity): Sprite {
+  const info = SHEETS.hero.info;
+  if (!geometries.has('hero')) geometries.set('hero', cardGeometry(info));
+  const map = textures.get('hero')!.clone();
+  map.repeat.set(1 / info.cols, 1 / info.rows);
+  const mat = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false });
+  const mesh = new THREE.Mesh(geometries.get('hero')!, mat);
+  mesh.rotation.y = Math.PI / 4;
+  return { mesh, mat, info, anim: 'stance', t: 0, hp: hero.hp, maxHp: hero.maxHp, hitT: 0, castT: 0, tint: WHITE };
+}
+
 // 후광 그림 두 장(64×64, 테스트 환경엔 캔버스가 없어 픽셀을 직접 계산): 검붉은 빛무리, 금 간 금빛 고리
 const haloTextures = { glow: null as THREE.DataTexture | null, ring: null as THREE.DataTexture | null };
 function haloTexture(paint: (u: number, v: number) => [number, number, number, number]): THREE.DataTexture {

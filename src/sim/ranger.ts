@@ -174,7 +174,7 @@ export function tickVolleys(w: World, hero: Entity) {
     blast(w, v.blast, v.x, v.z, v.r);
     const dmg = Math.round(roll(w, hero) * v.mult);
     for (const e of foes(w, hero)) if (Math.hypot(e.x - v.x, e.z - v.z) <= v.r) skillHit(w, e, dmg);
-    if (v.burn) w.fires.push({ id: w.nextItem++, x0: v.x, z0: v.z, x1: v.x, z1: v.z, t: TRAIL.time, acc: 0, r: v.burn, mult: TRAIL.mult });
+    if (v.burn) w.fires.push({ id: w.nextItem++, x0: v.x, z0: v.z, x1: v.x, z1: v.z, t: TRAIL.time, acc: 0, r: v.burn, mult: TRAIL.mult * (v.scale ?? 1) });
     v.left--;
     v.t = DOWNPOUR.every;
     v.mult = v.later;

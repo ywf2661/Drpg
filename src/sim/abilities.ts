@@ -444,7 +444,7 @@ export function fly(w: World, hero: Entity) {
     if (wall || s.left <= 0) {
       if (fire) explode(w, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
       if (s.kind === 'axe' || s.kind === 'fireball' || s.kind === 'bolt' || s.kind === 'shaft' || s.kind === 'pierce') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼·마법이 사슬 문에 맞으면 열린다
-      if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg, s.small);
+      if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg, s.small, s.scale);
       if (s.kind === 'axe' && !s.back && boomerang(w, s)) {
         // 돌아오는 도끼날: 주인공에게 되돌아온다(맞힌 적도 다시 맞는다)
         const d = Math.hypot(hero.x - s.x, hero.z - s.z) || 1;

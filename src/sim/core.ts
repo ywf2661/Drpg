@@ -427,7 +427,7 @@ export function roll(w: World, a: Entity) {
   const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + worn(w, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
   const crit = a.kind === 'hero' ? worn(w, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
-  return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale) * twice;
+  return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale * (a.kind === 'hero' ? w.ghostScale : 1)) * twice; // 잔상 몫이면 줄인다
 }
 
 // 통솔하는 정예가 가까이 있는 (다른) 몬스터인가

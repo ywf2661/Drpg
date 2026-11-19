@@ -13,7 +13,8 @@ export type SkillId =
   | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
   | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
   | 'mark' | 'graze' | 'echo' | 'flash'
-  | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash';
+  | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash'
+  | 'afterimage' | 'swap' | 'lingering' | 'retrace';
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
@@ -27,6 +28,7 @@ export const TREES: Record<HeroClass, Tab[]> = {
     { name: '화염', skills: ['fireball', 'firefield', 'embers', 'comet'] },
     { name: '냉기', skills: ['frost', 'ward', 'frostArmor', 'blizzard'] },
     { name: '번개', skills: ['lightning', 'chain', 'static', 'tempest'] },
+    { name: '잔상', skills: ['afterimage', 'swap', 'lingering', 'retrace'] },
   ],
   ranger: [
     { name: '사격', skills: ['pierce', 'spread', 'crit', 'focus'] },
@@ -210,7 +212,7 @@ export const SPIKE = { period: 3, warn: 1, up: 0.8, dmg: 5 };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
 // 주인공 것(몬스터만 맞음): axe = 도끼, bolt = 마법사 마력탄(평타), fireball = 마법사 화염구
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number; back?: boolean; small?: boolean; ricochet?: boolean }; // back: 돌아오는 도끼날로 되돌아오는 중, small: 쪼개진 작은 화염구, ricochet: 매의 눈 두건으로 이미 튕김 // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계·도끼 폭풍), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce'; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number; back?: boolean; small?: boolean; ricochet?: boolean; scale?: number }; // back: 돌아오는 도끼날로 되돌아오는 중, small: 쪼개진 작은 화염구, scale: 잔상이 쏜 것(터지며 생기는 잔불에 곱한다), ricochet: 매의 눈 두건으로 이미 튕김 // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계·도끼 폭풍), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
 export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge' | 'ward'; age: number }; // ward = 빛 고리에 막힘(성기사) // back = 공포로 도망치는 적
@@ -340,9 +342,13 @@ export type World = {
   allies: Ally[]; // 강령술사의 해골 병사(entities 밖, id는 음수. 몬스터가 노리고 때린다)
   curses: { id: number; x: number; z: number; r: number; t: number; acc: number; amp: number; plague: number }[]; // 표식·역병 구역(t초 남음). amp = 받는 피해 증가(0 = 역병, 소환수가 노리지 않는다), plague = 0.5초마다 피해 배율, acc = 그 누적
   raised: number[]; // 저주(5단계)로 이미 일으킨 시체 id
-  volleys: { x: number; z: number; r: number; t: number; left: number; mult: number; later: number; blast: 'rain' | 'fire'; burn?: number }[]; // 떨어질 화살비·운석(t초 뒤, left번 남음, 처음엔 굴림 × mult, 그 뒤로는 × later). burn: 떨어진 자리가 이 반경으로 불탄다
+  volleys: { x: number; z: number; r: number; t: number; left: number; mult: number; later: number; blast: 'rain' | 'fire'; burn?: number; scale?: number }[]; // 떨어질 화살비·운석(t초 뒤, left번 남음, 처음엔 굴림 × mult, 그 뒤로는 × later). burn: 떨어진 자리가 이 반경으로 불탄다, scale: 잔상이 쓴 것(그 불에 곱한다)
   shouts: number; // 함성 횟수(렌더·소리용)
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
+  ghosts: Ghost[]; // 잔상(마법사 잔상 탭). 오래된 것부터
+  memos: Memo[]; // 지나온 길이 기억하는 주인공 주문(오래된 것부터)
+  ghostScale: number; // 잔상 몫으로 쓰는 동안 주인공 굴림에 곱하는 배율(평소 1)
+  swaps: { id: number; x0: number; z0: number; x1: number; z1: number; age: number }[]; // 자리 바꾸기 빛줄기(렌더용)
   throwCd: number; // 도끼 던지기 재사용까지(초)
   rollCd: number; // 구르기 재사용까지(초)
   pity: number; // 고유 장비 운 보정: 정예를 잡고 못 얻을 때마다 쌓이는 확률(얻으면 0). 층·저장으로 넘긴다
@@ -796,6 +802,14 @@ export const EMBERS = { radius: 1, time: 2, mult: 0.3 };
 export const COMET = { cd: 12, range: 9, delay: 1, radius: 2.2, mult: 3, burn: 3 };
 // 순간이동(스페이스): 재사용, 거리, 무적 시간(초)
 export const BLINK = { cd: 3, dist: 5, guard: 0.25 };
+// 잔상(마법사 넷째 탭): 잔상은 주인공이 쓰는 주문을 제 자리에서 똑같이 따라 쓴다.
+// cd·time·mult·max 잔상 남기기(대기, 남는 시간, 따라 쓰는 피해 배율, 한도), swapCd·width·swap·stun 자리 바꾸기(대기, 빛줄기 폭, 배율, 기절),
+// linger 떠난 자리 시간, retraceCd·memory·retrace 지나온 길(대기, 기억하는 시간, 배율), group 묶는 거리, spread 펼치는 시간, stay 다 쓴 뒤 남는 시간, flash 따라 쓴 반짝임(렌더), swapAge 빛줄기 그림 시간
+export const AFTERIMAGE = { cd: 10, time: 6, mult: 0.5, max: 1, swapCd: 6, width: 0.6, swap: 1.5, stun: 0.5, linger: 2, retraceCd: 16, memory: 4, retrace: 0.8, group: 1, spread: 1, stay: 1.5, flash: 0.25, swapAge: 0.5 };
+// 잔상: leave = 잔상 남기기, linger = 떠난 자리, retrace = 지나온 길. t 남은 시간, full 처음 시간, aura·auraAcc 잔상 몫 눈보라,
+// flash 따라 쓴 반짝임 남은 시간, wait·queue 지나온 길 잔상이 설 때까지와 그때 다시 쓸 기록(서기 전엔 queue가 차 있다)
+export type Ghost = { id: number; x: number; z: number; facing: number; kind: 'leave' | 'linger' | 'retrace'; t: number; full: number; aura: number; auraAcc: number; flash: number; wait: number; queue: Memo[] };
+export type Memo = { id: SkillId; x: number; z: number; ax?: number; az?: number; age: number }; // 주인공이 쓴 주문: 쓴 자리, 조준점(없으면 없음), 흐른 시간
 
 // 궁수. 화살(평타): 사거리, 속도, 비행 거리, 맞는 반경. 명사수: far m 넘게 떨어진 적에게 주는 피해 ×farMult
 export const RANGER = { range: 7.5, speed: 14, flight: 9, hit: 0.4, far: 5, farMult: 1.25 };

@@ -9,6 +9,7 @@ import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, fros
 import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
 import { clearEdge, flameEdge, frostEdge, temper, tickEdge, unleash } from './temper';
+import { afterimage, copyBolt, copyCast, linger, remember, retrace, swap, tickGhosts, type Recast } from './afterimage';
 import { BLOCKS } from './dungeon';
 import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
 import { PALADIN } from './sanctum';
@@ -16,6 +17,7 @@ import { paladin } from './paladin';
 import { FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
+export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
 export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
 export { boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
@@ -103,7 +105,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -160,6 +162,7 @@ export function step(w: World, cmds: Command[]): void {
   if (w.wardT > 0 || w.wardBroke) tickWard(w, hero);
   if (w.storm.length) tickStorm(w, hero);
   if (w.auraT > 0) tickAura(w, hero);
+  if (w.ghosts.length || w.memos.length || w.swaps.length) tickGhosts(w, hero, recast);
   if (w.traps.length) tickTraps(w, hero);
   if (w.volleys.length) tickVolleys(w, hero);
   if (w.curses.length) tickCurses(w, hero);
@@ -312,7 +315,7 @@ export function respec(w: World) {
   const spent = Object.values(w.ranks).reduce((s, r) => s + (r ?? 0), 0) - 1;
   if (w.gold < RESPEC || spent <= 0) return;
   w.gold -= RESPEC;
-  Object.assign(w, newSkills(w.cls), { points: w.points + spent, spinT: 0, auraT: 0 });
+  Object.assign(w, newSkills(w.cls), { points: w.points + spent, spinT: 0, auraT: 0, ghosts: [], memos: [] });
   clearEdge(w);
 }
 
@@ -383,23 +386,33 @@ function command(w: World, hero: Entity, c: Command) {
 type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
 const CASTS: Partial<Record<SkillId, Cast>> = {
   cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe, axeStorm,
-  fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest,
+  fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest, afterimage, swap, retrace,
   pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,
   bones, giant, lord, curse, plague, corpseBlast, spear, boneArmor, prison,
 };
+const recast: Recast = (w, id, p, x, z) => CASTS[id]?.(w, p, x, z) ?? 0; // 잔상이 주문을 다시 쓰는 길
 const CMD_KEY: Partial<Record<Command['type'], SkillName>> = { skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' };
 
 // 명령 skill·dash·shout·throw = 칸 Q W E R에 끼운 스킬. 재사용 대기는 칸마다(KEY_CD). 가던 길·상자·계단은 쓴 뒤에 이어 간다
 function cast(w: World, hero: Entity, c: Command) {
-  if (c.type === 'roll') return w.cls === 'wizard' ? blink(w, hero, c.x, c.z) : rollStart(w, hero, c.x, c.z);
+  if (c.type === 'roll') {
+    if (w.cls !== 'wizard') return rollStart(w, hero, c.x, c.z);
+    const [x0, z0, ready] = [hero.x, hero.z, w.rollCd <= 0];
+    blink(w, hero, c.x, c.z);
+    if (ready && w.rollCd > 0) linger(w, hero, x0, z0); // 떠난 자리
+    return;
+  }
   const key = CMD_KEY[c.type];
   const id = key && w.keys[key];
   if (!key || !id || !rank(w, id) || w[KEY_CD[key]] > 0) return; // 빈 칸·재사용 대기 중
   if (!canAfford(w, id)) return; // 기력·마나 부족
-  const cd = echoCast(w, id, () => CASTS[id]?.(w, hero, 'x' in c ? c.x : undefined, 'z' in c ? c.z : undefined) ?? 0);
+  const [x, z] = ['x' in c ? c.x : undefined, 'z' in c ? c.z : undefined];
+  const cd = echoCast(w, id, () => CASTS[id]?.(w, hero, x, z) ?? 0);
   if (cd > 0) {
     w[KEY_CD[key]] = w.cdFull[key] = cd * keyCut(w, key); // 칸 룬
     pay(w, id); // 나갔을 때만 비용
+    if (w.ghosts.length) copyCast(w, hero, id, x, z, recast); // 잔상이 따라 쓴다
+    remember(w, id, hero, x, z); // 지나온 길
   }
 }
 
@@ -565,7 +578,10 @@ function swing(w: World, e: Entity, t: Entity | null) {
   const hitNow = before < hitAt && e.attackT >= hitAt;
   if (e.skill && hitNow) (w.slash === 'mark' ? markSlash : cleave)(w, e);
   else if (t && hitNow && canHit(w, e, t)) {
-    if (e.kind === 'hero' && (w.cls === 'wizard' || w.cls === 'necromancer')) bolt(w, e, t); // 강령술사의 뼈 화살도 마력탄
+    if (e.kind === 'hero' && (w.cls === 'wizard' || w.cls === 'necromancer')) {
+      bolt(w, e, t); // 강령술사의 뼈 화살도 마력탄
+      if (w.ghosts.length) copyBolt(w, e, t); // 잔상도 쏜다
+    }
     else if (e.kind === 'hero' && w.cls === 'ranger') shaft(w, e, t);
     else if (e.kind === 'archer') shoot(w, e, t, 'arrow');
     else if (e.kind === 'mage') shoot(w, e, t, 'fire');

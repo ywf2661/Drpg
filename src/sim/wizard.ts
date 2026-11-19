@@ -32,7 +32,8 @@ export const staticStat = (w: World) => ({ count: rank(w, 'static') >= 3 ? 2 : 1
 export const tempestStat = (w: World) => ({ cd: TEMPEST.cd - 0.5 * ext(w, 'tempest'), strikes: TEMPEST.strikes + ext(w, 'tempest'), mult: (TEMPEST.mult + 0.2 * ext(w, 'tempest')) * syn(w, 'tempest') });
 
 const ORB_GAP = 0.8; // 작은 화염구가 폭발 중심에서 떨어져 나오는 거리(m): 맞은 적에게서 바로 다시 터지지 않게
-export const foes = (w: World, hero: Entity) => w.entities.filter((e) => e !== hero && e.state !== 'dead');
+// 주인공이 아닌 산 것. 종류로 거른다: 잔상 자리에 선 주인공 사본(afterimage.ts)을 넘겨도 주인공이 적으로 잡히지 않게
+export const foes = (w: World, _hero: Entity) => w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead');
 export const nearest = (w: World, hero: Entity, r: number) =>
   foes(w, hero)
     .filter((e) => dist(e, hero) <= r)
@@ -84,12 +85,13 @@ export function fireball(w: World, hero: Entity, x?: number, z?: number): number
 
 // 화염구 폭발: 반경 안 적 모두 피해·밀어냄. 잔불(화염 패시브)이면 그 자리가 잠시 탄다.
 // 쪼개지는 구슬(전설): 작은 화염구 LEGEND_FX.orbs개가 사방으로(작은 것은 다시 쪼개지지 않는다)
-export function fireBurst(w: World, hero: Entity, x: number, z: number, dmg: number, small = false) {
+// scale: 잔상이 쏜 화염구(잔불·작은 화염구에도 곱한다)
+export function fireBurst(w: World, hero: Entity, x: number, z: number, dmg: number, small = false, scale = 1) {
   if (!small && hasUnique(w, 'splitOrb'))
     for (let k = 0; k < LEGEND_FX.orbs; k++) {
       const a = (k / LEGEND_FX.orbs) * Math.PI * 2 + hero.facing;
       const [dx, dz] = [Math.sin(a), Math.cos(a)];
-      w.shots.push({ id: w.nextItem++, x: x + dx * ORB_GAP, z: z + dz * ORB_GAP, dx, dz, dmg: Math.round(dmg * LEGEND_FX.orbMult), left: FIREBALL.flight / 3, kind: 'fireball', small: true });
+      w.shots.push({ id: w.nextItem++, x: x + dx * ORB_GAP, z: z + dz * ORB_GAP, dx, dz, dmg: Math.round(dmg * LEGEND_FX.orbMult), left: FIREBALL.flight / 3, kind: 'fireball', small: true, scale });
     }
   blast(w, 'fire', x, z);
   const r = fireStat(w).radius;
@@ -101,7 +103,7 @@ export function fireBurst(w: World, hero: Entity, x: number, z: number, dmg: num
   }
   if (rank(w, 'embers')) {
     const st = embersStat(w);
-    w.fires.push({ id: w.nextItem++, x0: x, z0: z, x1: x, z1: z, t: st.time, acc: 0, r: EMBERS.radius, mult: st.mult });
+    w.fires.push({ id: w.nextItem++, x0: x, z0: z, x1: x, z1: z, t: st.time, acc: 0, r: EMBERS.radius, mult: st.mult * scale });
   }
 }
 
@@ -131,7 +133,7 @@ export function magicHit(w: World, hero: Entity, s: Shot): boolean {
   const r = s.kind === 'bolt' ? WIZ.hit : FIREBALL.hit;
   const t = foes(w, hero).find((e) => Math.hypot(e.x - s.x, e.z - s.z) <= r);
   if (!t) return true;
-  if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg, s.small);
+  if (s.kind === 'fireball') fireBurst(w, hero, s.x, s.z, s.dmg, s.small, s.scale);
   else {
     hurt(w, t, s.dmg, hero);
     if (rank(w, 'static')) {
@@ -180,11 +182,16 @@ export function tickAura(w: World, hero: Entity) {
   if (hero.state === 'dead') return void (w.auraT = 0);
   if ((w.auraAcc += DT) < BLIZZARD.tick - 1e-9) return;
   w.auraAcc = 0;
+  auraHit(w, hero);
+}
+
+// 눈보라 한 번: at 둘레 적에게 피해 + 잠깐 얼림(잔상 몫 눈보라도 쓴다)
+export function auraHit(w: World, at: Entity) {
   const st = blizzardStat(w);
-  blast(w, 'frost', hero.x, hero.z, st.radius);
-  for (const e of foes(w, hero)) {
-    if (dist(e, hero) > st.radius) continue;
-    skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+  blast(w, 'frost', at.x, at.z, st.radius);
+  for (const e of foes(w, at)) {
+    if (dist(e, at) > st.radius) continue;
+    skillHit(w, e, Math.round(roll(w, at) * st.mult));
     stun(e, BLIZZARD.freeze);
   }
 }

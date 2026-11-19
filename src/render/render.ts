@@ -23,6 +23,7 @@ import { clearRain, rainGroup, syncRain } from './rain';
 import { leapFx, rollFx, rollGroup } from './roll';
 import { cutsFx, flashFx, iaidoGroup, resetIaido } from './iaido';
 import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
+import { ghostFx, ghostGroup, resetGhosts } from './ghost';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
@@ -182,7 +183,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -221,6 +222,7 @@ export function setWorld(world: World, theme: Theme) {
   fx = [];
   resetIaido();
   resetTemper(world);
+  resetGhosts(world);
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
   castsSeen = world.casts;
@@ -346,6 +348,7 @@ export function draw(world: World, dt: number) {
   syncJudge(world, time);
   syncFlames(world);
   temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt, fresh);
+  ghostFx(world, time, frozen ? 0 : dt); // 잔상(마법사)
   syncChests(world);
   const altars = world.chests.filter((c) => c.kind === 'altar');
   setHaloGoal(!altars.length ? 1 : warded(world) ? altars.filter((c) => !c.open).length / altars.length : 0);
