@@ -277,10 +277,10 @@ function dropRunes(w: World, t: Entity) {
   else if (runeRand(w) < RUNE_DROP.mob) put(rollRune(w, RUNE_DROP.odds.mob));
 }
 
-// 보관함에 자리가 없어 발밑 장비를 못 줍는 중인가
+// 보관함에 자리가 없어 주우러 간 발밑 장비를 못 줍는 중인가
 export function bagBlocked(w: World): boolean {
   const hero = w.entities[0];
-  return w.items.some((it) => it.kind !== 'potion' && it.kind !== 'gold' && it.kind !== 'rune' && it.kind !== 'relic' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
+  return w.items.some((it) => it.id === w.taking && it.kind !== 'potion' && it.kind !== 'gold' && it.kind !== 'rune' && it.kind !== 'relic' && Math.hypot(it.x - hero.x, it.z - hero.z) <= POTION.pickup && !bagSpot(w.bag, { kind: it.kind, tier: it.tier }));
 }
 
 // 장비 아이템 굴림: 등급(옵션 0·1·2개) → 부위에 맞는 서로 다른 옵션, 값은 범위 안 균등

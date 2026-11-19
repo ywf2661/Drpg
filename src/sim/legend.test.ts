@@ -165,12 +165,12 @@ test('자동 장착은 고유 장비를 입히지도 벗기지도 않는다', ()
   const w = createWorld(1, ['H....']);
   const hero = w.entities[0];
   w.items.push({ id: 99, x: hero.x, z: hero.z, kind: 'weapon', tier: 4, affixes: [{ kind: 'unique', value: 0, u: 'boomerang' }, { kind: 'dmg', value: 30 }] });
-  step(w, []);
+  step(w, [{ type: 'take', itemId: 99 }]);
   expect(w.mods.weapon).toEqual([]);
   expect(w.bag).toHaveLength(1);
   w.mods.armor = [{ kind: 'unique', value: 0, u: 'crownless' }];
   w.items.push({ id: 100, x: hero.x, z: hero.z, kind: 'armor', tier: 4, affixes: [{ kind: 'life', value: 30 }, { kind: 'guard', value: 10 }] });
-  step(w, []);
+  step(w, [{ type: 'take', itemId: 100 }]);
   expect(uniqueOf({ affixes: w.mods.armor })).toBe('crownless');
 });
 

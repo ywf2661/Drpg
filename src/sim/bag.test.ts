@@ -2,8 +2,11 @@ import { expect, test } from 'vitest';
 import { BAG, bagBlocked, bagFits, bagSpot, createWorld, discardFromBag, equipFromBag, gearDiff, isBetter, moveGear, moveInBag, setLevel, STASH, step, type Affix, type BagItem, type GearItem, type World } from './world';
 
 const make = () => createWorld(1, ['H....']); // 기본 장비: 롱소드(3)·천옷(1)
-const drop = (w: World, kind: 'weapon' | 'armor', tier: number, affixes: Affix[] = []) =>
+// 발밑에 떨어뜨리고 주우러 간 상태(장비는 밟기만 해서는 줍지 않는다)
+const drop = (w: World, kind: 'weapon' | 'armor', tier: number, affixes: Affix[] = []) => {
+  w.taking = w.nextItem;
   w.items.push({ id: w.nextItem++, x: w.entities[0].x, z: w.entities[0].z, kind, tier, affixes });
+};
 const dagger = (x: number, y: number): BagItem => ({ kind: 'weapon', tier: 1, affixes: [], x, y }); // 1×2
 // 단검 20자루로 격자(10×4)를 빈틈없이 채운다. 0·1번이 첫 열(위·아래)
 const full = (): BagItem[] => Array.from({ length: BAG.w * 2 }, (_, i) => dagger(i >> 1, (i & 1) * 2));
@@ -21,8 +24,11 @@ test('줍는 자리: 왼쪽 열부터 위에서 아래로, 장비 크기만큼 �
   const w = make();
   w.autoEquip = false;
   drop(w, 'weapon', 2); // 1×3 → (0,0)
+  step(w, []);
   drop(w, 'weapon', 1); // 1×2: 첫 열에 한 칸만 남아 다음 열 (1,0)
+  step(w, []);
   drop(w, 'armor', 3); // 2×3: (1,0)이 막혀 (2,0)
+  step(w, []);
   drop(w, 'weapon', 1); // 1×2 → (1,2)
   step(w, []);
   expect(w.bag.map((it) => [it.x, it.y])).toEqual([[0, 0], [1, 0], [2, 0], [1, 2]]);
@@ -115,19 +121,21 @@ test('발밑에 떨어진 장비는 옵션을 유지하고, 자리가 나면 옵
   expect(w.items[0].affixes).toEqual([{ kind: 'crit', value: 10 }]);
   discardFromBag(w, 0);
   discardFromBag(w, 0); // 첫 열을 다 비워야 1×3이 들어간다
-  step(w, []);
+  step(w, [{ type: 'take', itemId: w.items[0].id }]);
   expect(w.items).toEqual([]);
   expect(w.bag.at(-1)).toEqual({ kind: 'weapon', tier: 3, affixes: [{ kind: 'crit', value: 10 }], x: 0, y: 0 });
 });
 
-test('한 틱에 두 장비를 밟아도 들어가는 것만 줍고 나머지는 남는다', () => {
+test('보관함이 차면 주우러 간 장비는 남고 막힘을 알린다', () => {
   const w = make();
   w.bag = full().slice(0, -1);
   drop(w, 'weapon', 1);
-  drop(w, 'armor', 1);
   step(w, []);
   expect(w.bag).toHaveLength(20);
+  drop(w, 'armor', 1);
+  step(w, []);
   expect(w.items.map((i) => i.kind)).toEqual(['armor']);
+  expect(bagBlocked(w)).toBe(true);
 });
 
 test('직접 장착: 벗은 장비가 그 자리에 놓인다(점수가 낮아도, 크기가 달라도)', () => {

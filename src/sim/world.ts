@@ -107,7 +107,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -239,7 +239,7 @@ function rest(w: World, hero: Entity) {
   w.lastHp = hero.hp;
 }
 
-// 주인공 발밑(POTION.pickup 이내)의 물약은 허리띠가, 장비는 보관함 격자에 자리가 있으면 줍는다.
+// 주인공 발밑(POTION.pickup 이내)의 금화·룬·성물·물약은 밟으면 줍고, 장비는 주우러 간 것(w.taking)만 보관함 격자에 자리가 있으면 줍는다.
 // 자동 장착이면 더 좋은 장비는 바로 입는다. 벗은 장비는 보관함으로, 자리가 없으면 발밑에(사라지는 장비는 없다)
 function pickup(w: World, hero: Entity) {
   if (hero.state === 'dead') return;
@@ -265,16 +265,21 @@ function pickup(w: World, hero: Entity) {
       w.potions++;
       return false;
     }
+    if (it.id !== w.taking) return true; // 밟기만 한 장비는 그대로
     const gear = { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] };
     const better = w.autoEquip && isBetter(w, gear);
     const got = better ? wear(w, gear) : gear; // 보관함에 넣을 것(자동 장착이면 벗은 장비)
     const at = bagSpot(w.bag, got);
     if (at) w.bag.push({ ...got, x: at[0], y: at[1] });
     else if (better) fallen.push({ id: w.nextItem++, x: hero.x, z: hero.z, ...got });
-    else return true;
+    else return true; // 보관함이 차서 못 주웠다: taking을 남겨 막힘을 알린다
+    w.taking = null;
     return false;
   });
   w.items.push(...fallen);
+  // 길이 끝났는데 닿지 못했거나 장비가 사라졌으면 포기
+  const t = w.taking === null ? null : w.items.find((i) => i.id === w.taking);
+  if (w.taking !== null && (!t || (!hero.path.length && Math.hypot(t.x - hero.x, t.z - hero.z) > POTION.pickup))) w.taking = null;
 }
 
 // 배울 수 없는 까닭(배울 수 있으면 null): 다른 직업, 최고 단계, 레벨, 같은 탭 아래 단계, 포인트
@@ -354,7 +359,7 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'bind') return bind(w, c.key, c.skill);
   if (c.type === 'respec') return respec(w);
   if (hero.state === 'dead') return;
-  const going = c.type === 'move' || c.type === 'amove' || c.type === 'attack' || c.type === 'open';
+  const going = c.type === 'move' || c.type === 'amove' || c.type === 'attack' || c.type === 'open' || c.type === 'take';
   if (hero.phase !== 'none' || (going && (w.castT > 0 || (hero.state === 'attack' && hero.skill)))) {
     // 돌진·구르기 중에는 물약 말고는 못 하고, 스킬 시전 중에는 못 움직인다. 이동·공격은 마지막 것을 기억했다가 끝나면 따른다
     if (going) w.queued = c;
@@ -368,8 +373,10 @@ function command(w: World, hero: Entity, c: Command) {
     return;
   }
   w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
+  w.taking = null; // 주우러 가던 장비도
   w.amove = null; // 공격 이동도
   if (c.type === 'open') return goToChest(w, hero, c.chestId);
+  if (c.type === 'take') return goToItem(w, hero, c.itemId);
   w.toStairs = false; // 다른 명령은 계단으로 가려던 의도를 취소한다
   if (c.type === 'attack') {
     const t = w.entities[c.targetId];
@@ -471,6 +478,18 @@ function unstick(g: Grid, it: Item) {
     if (!best || Math.hypot(p[0] - it.x, p[1] - it.z) < Math.hypot(best[0] - it.x, best[1] - it.z)) best = p;
   }
   if (best) [it.x, it.z] = best;
+}
+
+// 바닥 장비로 걸어간다(닿으면 pickup이 줍는다). 이미 발밑이면 걷지 않는다
+function goToItem(w: World, hero: Entity, id: number) {
+  const it = w.items.find((i) => i.id === id);
+  if (!it) return;
+  if (Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) {
+    const p = pathTo(w, hero, it.x, it.z);
+    if (!p) return;
+    Object.assign(hero, { path: p, target: null, state: 'move', attackT: 0, skill: false });
+  }
+  w.taking = id;
 }
 
 // 상자 옆 걸을 수 있는 칸 중 가장 가까운 곳으로 간다

@@ -1,4 +1,4 @@
-// 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급(일반·마법·희귀), 지금보다 좋으면 ▲.
+// 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급, 지금보다 좋으면 크게 + 튀는 ▲, 아니면 흐리게. 장비 이름표는 누르면 주우러 간다(input.ts)
 import * as THREE from 'three';
 import { AFFIXES, gearTable, isBetter, plainAffixes, quality, runeGrade, UNIQUES, uniqueOf, type Affix, type HeroClass, type Item, type Rune, type Slot, type World } from '../sim/world';
 import { RELICS } from '../sim/sanctum';
@@ -49,8 +49,11 @@ export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanva
     v.set(it.x, LIFT, it.z).project(camera);
     const div = pool[n] ?? layer.appendChild(Object.assign(document.createElement('div'), { className: 'label' }));
     pool[n++] = div;
-    div.textContent = label.text + (label.better ? ' ▲' : '');
-    div.className = label.rune !== undefined ? `label rune-label r${label.rune}` : `label q${label.quality}` + (label.better ? ' better' : '');
+    const gear = it.kind !== 'gold' && it.kind !== 'rune' && it.kind !== 'relic';
+    div.textContent = label.text;
+    div.className = label.rune !== undefined ? `label rune-label r${label.rune}` : `label q${label.quality}` + (label.better ? ' better' : gear && label.quality < 3 ? ' worse' : '') + (gear ? ' gear' : '');
+    if (gear) div.dataset.item = String(it.id);
+    else delete div.dataset.item;
     div.style.transform = `translate(${r.left + ((v.x + 1) / 2) * r.width}px, ${r.top + ((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
     div.hidden = false;
   }
@@ -61,6 +64,7 @@ export function drawLabels(world: World, camera: THREE.Camera, canvas: HTMLCanva
     pool[n++] = div;
     div.textContent = s.text;
     div.className = s.alert ? 'label sign alert' : 'label sign';
+    delete div.dataset.item;
     div.style.transform = `translate(${r.left + ((v.x + 1) / 2) * r.width}px, ${r.top + ((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
     div.hidden = false;
   }

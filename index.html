@@ -15,7 +15,7 @@
         --gold: #c9a14a; --gold-hi: #f2d68a; --gold-lo: #6e5424;
         --leather: #241811; --leather-hi: #3b281b; --iron: #120e0b; --iron-hi: #2b231c;
         --blood: #9c1f16; --blood-hi: #e04a36;
-        --magic: #7d9bff; --rare: #f0c040; --legend: #ff8c1a; --set: #3fdc5a; --boost: #6fe07a;
+        --magic: #7d9bff; --rare: #ffe94a; --legend: #ff5e14; --set: #b86bff; --boost: #6fe07a;
         --serif: 'Noto Serif KR', 'Noto Serif CJK KR', Batang, 바탕, AppleMyungjo, serif;
         /* 패널: 위가 밝은 가죽 + 잔 결 */
         --panel-bg: radial-gradient(ellipse at 50% 0%, #3d2a1c 0%, transparent 70%), repeating-linear-gradient(135deg, #0000 0 3px, #00000012 3px 4px), linear-gradient(#22170f, #140d09);
@@ -363,7 +363,13 @@
       @keyframes snowfall { to { background-position: -37px 41px, -48px 60px, 0 0; } }
       #blizzard-warn { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; color: #e3ecf7; font-family: var(--serif); font-size: 20px; letter-spacing: 4px; text-shadow: 0 2px 4px #000; }
       .label { position: absolute; left: 0; top: 0; font-size: 11px; color: #8a8070; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
-      .label.better { font-weight: bold; } /* 지금보다 좋음 ▲ */
+      .label.q1 { color: var(--magic); } .label.q2 { color: var(--rare); } /* .label 회색이 .q1·.q2보다 뒤라 덮고 있었다 */
+      .label.gear { pointer-events: auto; cursor: pointer; padding: 2px 6px; } /* 누르면 주우러 간다(손가락 판정을 넓게) */
+      .label.better { font-weight: bold; font-size: 13px; background: #0d2410d8; outline: 1px solid var(--boost); border-radius: 2px; } /* 지금보다 좋음 */
+      .label.better::after { content: '▲'; position: absolute; left: 50%; bottom: 100%; margin-left: -6px; color: var(--boost); font-size: 15px; text-shadow: 0 0 6px var(--boost); animation: better-bob 0.9s ease-in-out infinite; }
+      @keyframes better-bob { 50% { transform: translateY(-5px); } }
+      .label.worse { opacity: 0.5; } /* 지금보다 못하거나 같음: 흐리게 */
+      .label.gear:hover { opacity: 1; filter: brightness(1.3); }
       .label.sign { font-size: 14px; color: var(--gold); letter-spacing: 1px; padding: 2px 8px; background: #000a; border: 1px solid var(--gold-lo); border-radius: 3px; } /* 출구 이름표 */
       .label.sign.alert::before { content: '! '; color: #ffd84a; font-weight: bold; } /* 할 말이 있는 NPC */
       .pips { position: absolute; left: 0; top: 0; font-size: 13px; font-weight: bold; line-height: 1; letter-spacing: 2px; color: #ffd66b; white-space: nowrap; pointer-events: none; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; } /* 칼의 여운: 기사 머리 위 칸 */
@@ -521,7 +527,7 @@
     <dialog id="bag">
       <div id="bag-head"><b>보관함</b> <span id="bag-count"></span><form method="dialog"><button>닫기</button></form></div>
       <div id="doll"><canvas></canvas></div>
-      <label><input id="auto-equip" type="checkbox" /> 더 좋은 장비는 밟으면 바로 장착</label>
+      <label><input id="auto-equip" type="checkbox" /> 더 좋은 장비는 주우면 바로 장착</label>
       <div id="stash-box" hidden><h4 id="stash-h">창고</h4><div id="stash-grid"></div></div>
       <h4>보관함</h4>
       <div id="bag-grid"></div>

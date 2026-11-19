@@ -22,6 +22,7 @@ let hasPointer = false; // 마우스가 캔버스 위를 움직인 적이 있는
 let clicked = false;
 let repeatT = 0;
 let pickRadius = PICK_RADIUS; // 마지막 입력이 터치면 PICK_TOUCH
+let takeLabel: number | null = null; // 누른 바닥 장비 이름표(data-item)
 
 export const commands: Command[] = [];
 export let hovered: number | null = null;
@@ -88,6 +89,11 @@ export function dragAim(el: HTMLElement, cmd: AimCmd, canAim: () => boolean) {
 
 export function initInput() {
   const el = renderer.domElement;
+  // 장비 이름표를 누르면 주우러 간다(휴대폰에서 작은 그림보다 누르기 쉽다)
+  document.getElementById('labels')?.addEventListener('pointerdown', (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>('[data-item]');
+    if (e.button === 0 && t && !aiming) takeLabel = Number(t.dataset.item);
+  });
   el.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'mouse') hasPointer = true;
     if (!dragging) setPointer(e); // 버튼을 끄는 동안 다른 손가락이 조준점을 옮기지 않게
@@ -127,6 +133,7 @@ function setPointer(e: PointerEvent) {
 export function pollInput(world: World, dt: number, paused: boolean) {
   if (paused) {
     held = clicked = fire = amoving = false;
+    takeLabel = null;
     aiming = null;
     hovered = hoveredAt = null;
     dragging = false;
@@ -141,6 +148,11 @@ export function pollInput(world: World, dt: number, paused: boolean) {
     fireAim();
     return;
   }
+  if (takeLabel !== null) {
+    commands.push({ type: 'take', itemId: takeLabel });
+    takeLabel = null;
+    return;
+  }
   if (clicked) {
     // 프레임 사이에 눌렀다 뗀 짧은 클릭도 한 번은 처리한다
     clicked = false;
@@ -148,10 +160,12 @@ export function pollInput(world: World, dt: number, paused: boolean) {
     ray.setFromCamera(clickAt, camera);
     const id = pick(world);
     const chest = id === null ? pickChest(world) : null;
+    const item = id === null && chest === null && !amoving ? pickItem(world) : null;
     if (id !== null) commands.push({ type: 'attack', targetId: id });
     else if (chest !== null) commands.push({ type: 'open', chestId: chest });
+    else if (item !== null) commands.push({ type: 'take', itemId: item });
     else if (moveToRay(amoving ? 'amove' : 'move') && walkable(world.grid, Math.floor(hit.x), Math.floor(hit.z))) markMove(hit.x, hit.z); // 누른 순간 그 자리에 표시(끌고 있는 동안은 다시 띄우지 않는다)
-    if (id !== null || chest !== null || amoving) held = false; // 몬스터·상자 클릭·공격 이동은 이동 반복을 시작하지 않는다
+    if (id !== null || chest !== null || item !== null || amoving) held = false; // 몬스터·상자 클릭·공격 이동은 이동 반복을 시작하지 않는다
     amoving = false;
   } else if (held && (repeatT -= dt) <= 0) {
     repeatT = REPEAT;
@@ -172,6 +186,21 @@ function moveToRay(type: 'move' | 'amove' = 'move'): boolean {
   if (!ray.ray.intersectPlane(ground, hit)) return false;
   commands.push({ type, x: hit.x, z: hit.z });
   return true;
+}
+
+// 바닥 장비(금화·물약·룬·성물은 밟으면 주우므로 빼고)를 낮은 세로 선분으로 보고 마우스 광선에 가장 가까운 것
+function pickItem(world: World): number | null {
+  let best: number | null = null;
+  let bestD = pickRadius ** 2;
+  for (const it of world.items) {
+    if (it.kind === 'gold' || it.kind === 'potion' || it.kind === 'rune' || it.kind === 'relic') continue;
+    const d = ray.ray.distanceSqToSegment(a.set(it.x, 0, it.z), b.set(it.x, 0.4, it.z));
+    if (d < bestD) {
+      bestD = d;
+      best = it.id;
+    }
+  }
+  return best;
 }
 
 // 각 몬스터를 세로 선분(발목~머리)으로 보고, 마우스 광선과 가장 가까운 것을 고른다

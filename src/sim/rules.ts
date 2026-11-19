@@ -64,6 +64,7 @@ export type Command =
   | { type: 'drink' }
   | { type: 'skill'; x?: number; z?: number } // 가르기. (x, z)가 있으면 그쪽으로
   | { type: 'open'; chestId: number } // 상자 열기(걸어가서)
+  | { type: 'take'; itemId: number } // 바닥 장비 줍기(걸어가서). 장비는 밟기만 해서는 줍지 않는다
   | { type: 'dash'; x?: number; z?: number } // 돌진 베기. (x, z)가 있으면 그쪽으로
   | { type: 'shout'; x?: number; z?: number } // 전투의 함성(기사) · 낙뢰(마법사, (x, z)가 있으면 그 지점)
   | { type: 'roll'; x?: number; z?: number } // 구르기(무적). (x, z)가 있으면 그쪽으로, 없으면 가까운 적의 반대쪽
@@ -151,7 +152,7 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
 };
 export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
 // 등급 색(index.html의 --legend·--set과 같다): 빛기둥·지도 점
-export const UNIQUE_COLOR = { legend: '#ff8c1a', set: '#3fdc5a' };
+export const UNIQUE_COLOR = { legend: '#ff5e14', set: '#b86bff' };
 // 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
 export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100 };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
@@ -272,6 +273,7 @@ export type World = {
   gates: Gate[];
   skins?: Partial<Record<Kind, Skin>>; // 이 맵의 몬스터 스킨(없으면 해골)
   opening: number | null; // 주인공이 열러 가는 상자 id
+  taking: number | null; // 주인공이 주우러 가는 바닥 장비 id
   items: Item[];
   shots: Shot[];
   blasts: Blast[];

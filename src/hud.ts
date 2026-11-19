@@ -553,10 +553,10 @@ function gearLines(it: GearItem): string[] {
 }
 
 // 장비 그림 색: 아이템마다 다르다(등급은 테두리로만). 고유 장비는 입었을 때와 같은 원색(look), 아니면 첫 옵션의 색, 일반은 원래 색
-const AFFIX_COLOR: Partial<Record<Affix['kind'], string>> = { dmg: '#e8321e', speed: '#f5d020', leech: '#c0103c', crit: '#ff7a10', life: '#2ccf48', guard: '#3d7fe0', regen: '#18d0b4', thorns: '#a33fe0', move: '#30c8ff', skill: '#e04ad8', tab: '#e04ad8', allSkills: '#e04ad8' };
+// 아이콘 색: 고유 장비의 제 색만. 옵션 색은 입히지 않는다(치명 주황·생명 초록이 등급 색과 겹쳐 마법이 전설처럼 보였다)
 const iconColor = (it: GearItem) => {
   const u = uniqueOf(it);
-  return (u && UNIQUES[u].look) || plainAffixes(it.affixes).map((a) => AFFIX_COLOR[a.kind]).find(Boolean);
+  return (u && UNIQUES[u].look) || undefined;
 };
 // 색 하나 = svg 색 필터 하나(처음 쓸 때 #tints에 만든다): 밝기 × 색 × 1.5를 90% + 원래 색 10%. 어두운 아이콘 바탕은 어두운 채로 남는다
 function tint(color?: string): string {
@@ -961,7 +961,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
             }],
             ...unsock(i, sel.affixes),
           ])
-        : Object.assign(document.createElement('small'), { textContent: stash ? '우클릭하면 보관함 ↔ 창고 빈자리로, 끌면 원하는 칸으로 옮깁니다.' : w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 장비를 밟으면 여기로 들어옵니다.' }),
+        : Object.assign(document.createElement('small'), { textContent: stash ? '우클릭하면 보관함 ↔ 창고 빈자리로, 끌면 원하는 칸으로 옮깁니다.' : w.bag.length ? '장비를 누르면 설명, 인형의 칸으로 끌거나 우클릭하면 장착.' : '비어 있습니다. 바닥의 장비를 누르면 주워서 여기로 들어옵니다.' }),
   );
   // 귀중품(성물·목마): 가진 것만 이름으로. 몇 개인지·어디서 나오는지는 보여 주지 않는다. 없으면 칸째 숨김. 버릴 수 없다(가방 칸이 아니다)
   // 올리거나 누르면 아래에 생김새 한 줄(RELIC_TEXT) — 어디에 쓰는지는 말하지 않는다

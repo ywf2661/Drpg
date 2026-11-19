@@ -122,7 +122,7 @@ test('점수가 더 높은 장비만 밟으면 장착(옵션 포함), 옵션도 
   expect(isBetter(w, sharp3)).toBe(true);
   expect(defenseScore(w.gear, { ...w.mods, helm: [{ kind: 'life', value: 30 }] })).toBeGreaterThan(defenseScore(w.gear, w.mods));
   w.items.push(plain3, sharp3);
-  for (let i = 0; i < 90; i++) step(w, i ? [] : [{ type: 'move', x: 4.5, z: 0.5 }]);
+  for (const id of [1, 2]) for (let i = 0; i < 60; i++) step(w, i ? [] : [{ type: 'take', itemId: id }]);
   expect(w.gear.weapon).toBe(3);
   expect(w.mods.weapon).toEqual([{ kind: 'dmg', value: 30 }]);
   expect(w.items).toEqual([]);

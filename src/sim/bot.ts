@@ -148,7 +148,7 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
   const wanted = w.items.find((i) => ok(i.x, i.z) && (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : isBetter(w, i)));
   if (foes.length && (d(foes[0].x, foes[0].z) < 9 || !wanted)) {
     if (hero.target !== foes[0].id) cmds.push({ type: 'attack', targetId: foes[0].id });
-  } else if (wanted) cmds.push({ type: 'move', x: wanted.x, z: wanted.z });
+  } else if (wanted) cmds.push(wanted.kind === 'gold' || wanted.kind === 'potion' ? { type: 'move', x: wanted.x, z: wanted.z } : { type: 'take', itemId: wanted.id });
   else if (closed.length && !ok(w.stairs ? w.stairs[0] : -1, w.stairs ? w.stairs[1] : -1)) {
     // 갈 곳이 문으로 막혔다(계단, 또는 문 뒤의 보스·적): 닿을 수 있는 가장 가까운 문 앞으로 가서 도끼로 연다
     const doors = closed

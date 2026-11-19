@@ -541,14 +541,23 @@ test('장비 드롭: 확률, 네 부위 고르게, 단계는 1..maxTier', () => 
   expect([...kinds].sort()).toEqual(['armor', 'boots', 'helm', 'weapon']);
 });
 
-test('더 좋은 장비만 밟으면 장착하고, 같거나 낮은 것은 보관함으로', () => {
+test('장비는 밟기만 해서는 줍지 않는다', () => {
+  const w = createWorld(1, ['H.....']);
+  w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'weapon', tier: 4 });
+  run(w, 90, [{ type: 'move', x: 5.5, z: 0.5 }]);
+  expect(w.items).toHaveLength(1);
+  expect(w.gear.weapon).toBe(3);
+});
+
+test('주우러 가면(take) 걸어가서 줍고, 더 좋은 것만 장착하고 같거나 낮은 것은 보관함으로', () => {
   const w = createWorld(1, ['H.....']);
   w.gear = { ...w.gear, weapon: 2, armor: 2 };
   w.items.push({ id: w.nextItem++, x: 1.5, z: 0.5, kind: 'weapon', tier: 2 });
   w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'weapon', tier: 4 });
   w.items.push({ id: w.nextItem++, x: 3.5, z: 0.5, kind: 'armor', tier: 1 });
   w.items.push({ id: w.nextItem++, x: 4.5, z: 0.5, kind: 'armor', tier: 3 });
-  run(w, 90, [{ type: 'move', x: 5.5, z: 0.5 }]);
+  for (const it of [...w.items]) run(w, 60, [{ type: 'take', itemId: it.id }]);
+  expect(w.taking).toBeNull();
   expect(w.gear).toMatchObject({ weapon: 4, armor: 3 });
   expect(w.items).toEqual([]);
   expect(w.bag.map((i) => [i.kind, i.tier])).toEqual([['weapon', 2], ['weapon', 2], ['armor', 1], ['armor', 2]]);
