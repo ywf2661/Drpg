@@ -26,7 +26,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -707,7 +707,10 @@ function gearRow(it: GearItem, mark: string, buttons: [string, () => void][]) {
 }
 
 // 보관함에서 장비가 차지한 칸 수 / 전체 칸 수
-const bagCount = (bag: BagItem[]) => `${bag.reduce((n, it) => n + gearSize(it)[0] * gearSize(it)[1], 0)}/${BAG.w * BAG.h}`;
+const bagCount = (bag: BagItem[], grid = BAG) => `${bag.reduce((n, it) => n + gearSize(it)[0] * gearSize(it)[1], 0)}/${grid.w * grid.h}`;
+// 보관함 창에 함께 여는 야영지 창고. move: a 격자의 i번을 b 격자의 at 칸(없으면 첫 빈자리)으로 옮기고 다시 그린다. 옮겼으면 true
+type Box = 'bag' | 'stash';
+export type Stash = { items: BagItem[]; move(a: Box, i: number, b: Box, at?: [number, number]): boolean };
 const area = (x: number, y: number, [gw, gh]: [number, number]) => `${y + 1} / ${x + 1} / span ${gh} / span ${gw}`;
 let selected: number | Slot = -1; // 보관함 창에서 고른 장비: 보관함 번호 또는 입은 부위(아래에 설명·버튼)
 // 인형 위 장비 칸의 가운데(PORTRAIT 영역 픽셀): 머리·무기를 든 손·몸통·발
@@ -824,7 +827,9 @@ function dollUnder(el: HTMLElement, kind: Slot, x: number, y: number): HTMLEleme
 }
 
 // 보관함 창: 격자에 놓인 장비를 누르면 고르고, 끌면 옮기고(인형 칸에 놓으면 입는다), 우클릭하면 입는다. 고친 뒤에는 다시 불러 갱신한다
-export function showBag(w: World, h: { equip(i: number): boolean; discard(i: number): void; move(i: number, x: number, y: number): void; auto(on: boolean): void; socket(t: RuneTarget, r: Rune): boolean; unsocket(t: RuneTarget, k: number): void }) {
+// stash가 있으면(야영지 창고를 눌러 열었다) 창고 격자도 보이고, 우클릭은 장착 대신 반대편 빈자리로, 끌면 두 격자 사이를 오간다
+export function showBag(w: World, h: { equip(i: number): boolean; discard(i: number): void; move(i: number, x: number, y: number): void; auto(on: boolean): void; socket(t: RuneTarget, r: Rune): boolean; unsocket(t: RuneTarget, k: number): void }, stash?: Stash) {
+  const again = () => showBag(w, h, stash);
   learned = w.ranks;
   setNow = setCount(w);
   const mark = (it: GearItem) => {
@@ -847,61 +852,89 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
   const putRune = (t: RuneTarget) => {
     if (!h.socket(t, holding!)) return void (note.textContent = '빈 소켓이 없습니다.');
     hold(null);
-    showBag(w, h);
+    again();
   };
   const equip = (i: number) => {
     if (!h.equip(i)) note.textContent = '벗은 장비를 둘 자리가 없습니다. 먼저 자리를 비우세요.';
   };
   const grid = $('#bag-grid');
   const cell = grid.clientWidth / BAG.w;
+  const grids = { bag: grid, stash: $('#stash-grid') };
+  const lists = { bag: w.bag, stash: stash?.items ?? [] };
+  const sizes = { bag: BAG, stash: STASH };
+  $('#stash-box').hidden = !stash;
+  $('#stash-h').textContent = `창고 ${bagCount(lists.stash, STASH)}`;
+  // 손가락 아래의 격자(창고는 열렸을 때만)
+  const gridAt = (x: number, y: number) =>
+    (stash ? (['bag', 'stash'] as const) : (['bag'] as const)).find((b) => {
+      const r = grids[b].getBoundingClientRect();
+      return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+    });
   const shadow = Object.assign(document.createElement('div'), { id: 'bag-shadow', hidden: true }); // 끄는 동안 놓일 자리
-  grid.oncontextmenu = (e) => e.preventDefault();
-  grid.replaceChildren(
-    shadow,
-    ...w.bag.map((it, i) => {
-      const size = gearSize(it);
-      const el = gearEl(it, cell, i === selected ? 'bag-item sel' : 'bag-item');
-      el.style.gridArea = area(it.x, it.y, size);
-      tipOn(el, () => [it, compare(it), holding ? '누르면 룬을 꽂는다 · 우클릭: 내려놓기' : '우클릭: 장착 · 끌어서 옮기기']);
-      el.onpointerdown = (e) => {
-        hideTip();
-        if (holding) {
-          if (e.button !== 2) return putRune(i);
-          hold(null);
-          return showBag(w, h);
+  const piece = (box: Box) => (it: BagItem, i: number) => {
+    const size = gearSize(it);
+    const el = gearEl(it, cell, box === 'bag' && i === selected ? 'bag-item sel' : 'bag-item');
+    el.style.gridArea = area(it.x, it.y, size);
+    const other: Box = box === 'bag' ? 'stash' : 'bag';
+    const right = stash ? `우클릭: ${other === 'bag' ? '보관함으로' : '창고로'}` : '우클릭: 장착';
+    tipOn(el, () => [it, compare(it), holding ? (box === 'bag' ? '누르면 룬을 꽂는다 · 우클릭: 내려놓기' : '우클릭: 내려놓기') : `${right} · 끌어서 옮기기`]);
+    el.onpointerdown = (e) => {
+      hideTip();
+      if (holding) {
+        if (e.button !== 2 && box === 'bag') return putRune(i);
+        hold(null);
+        return again();
+      }
+      if (e.button === 2) {
+        if (!stash) return equip(i);
+        selected = -1;
+        if (!stash.move(box, i, other)) note.textContent = `${other === 'bag' ? '보관함' : '창고'}에 빈자리가 없습니다.`;
+        return;
+      }
+      if (e.button) return;
+      el.setPointerCapture(e.pointerId);
+      const r0 = el.getBoundingClientRect();
+      let to: Box | undefined = box;
+      let [tx, ty] = [it.x, it.y];
+      let target: HTMLElement | null = null; // 놓으면 입을 인형 칸(보관함 장비만)
+      el.onpointermove = (m) => {
+        const [dx, dy] = [m.clientX - e.clientX, m.clientY - e.clientY];
+        el.classList.add('drag');
+        el.style.translate = `${dx}px ${dy}px`;
+        to = gridAt(m.clientX, m.clientY);
+        if (to) {
+          const g = grids[to].getBoundingClientRect();
+          [tx, ty] = [Math.round((r0.left + dx - g.left) / cell), Math.round((r0.top + dy - g.top) / cell)];
+          if (shadow.parentElement !== grids[to]) grids[to].append(shadow);
         }
-        if (e.button === 2) return equip(i);
-        if (e.button) return;
-        el.setPointerCapture(e.pointerId);
-        let [tx, ty] = [it.x, it.y];
-        let target: HTMLElement | null = null; // 놓으면 입을 인형 칸
-        el.onpointermove = (m) => {
-          el.classList.add('drag');
-          el.style.translate = `${m.clientX - e.clientX}px ${m.clientY - e.clientY}px`;
-          tx = it.x + Math.round((m.clientX - e.clientX) / cell);
-          ty = it.y + Math.round((m.clientY - e.clientY) / cell);
-          target = dollUnder(el, it.kind, m.clientX, m.clientY);
-          for (const s of document.querySelectorAll('.doll-slot')) s.classList.toggle('drop', s === target);
-          shadow.hidden = !!target || tx < 0 || ty < 0 || tx + size[0] > BAG.w || ty + size[1] > BAG.h;
-          shadow.style.gridArea = area(tx, ty, size);
-          shadow.classList.toggle('bad', !bagFits(w.bag, it, tx, ty, i));
-        };
-        el.onpointercancel = () => showBag(w, h);
-        el.onpointerup = () => {
-          if (target) return equip(i);
-          if (tx !== it.x || ty !== it.y) return h.move(i, tx, ty); // 못 놓는 자리면 제자리로
-          selected = i;
-          showBag(w, h);
-        };
+        target = box === 'bag' ? dollUnder(el, it.kind, m.clientX, m.clientY) : null;
+        for (const s of document.querySelectorAll('.doll-slot')) s.classList.toggle('drop', s === target);
+        shadow.hidden = !!target || !to || tx < 0 || ty < 0 || tx + size[0] > sizes[to].w || ty + size[1] > sizes[to].h;
+        shadow.style.gridArea = area(tx, ty, size);
+        shadow.classList.toggle('bad', !to || !bagFits(lists[to], it, tx, ty, to === box ? i : -1, sizes[to]));
       };
-      return el;
-    }),
-  );
-  bagRedraw = () => showBag(w, h);
+      el.onpointercancel = again;
+      el.onpointerup = () => {
+        if (target) return equip(i);
+        if (to && (to !== box || tx !== it.x || ty !== it.y)) {
+          if (to === 'bag' && box === 'bag') return h.move(i, tx, ty); // 못 놓는 자리면 제자리로
+          if (to !== box) selected = -1;
+          return void stash!.move(box, i, to, [tx, ty]);
+        }
+        if (box === 'bag' && to) selected = i;
+        again();
+      };
+    };
+    return el;
+  };
+  grid.oncontextmenu = grids.stash.oncontextmenu = (e) => e.preventDefault();
+  grid.replaceChildren(shadow, ...w.bag.map(piece('bag')));
+  grids.stash.replaceChildren(...lists.stash.map(piece('stash')));
+  bagRedraw = again;
   showDoll(w, cell, (s) => {
     if (holding) return putRune(s);
     selected = s;
-    showBag(w, h);
+    again();
   });
   const i = selected;
   const sel = typeof i === 'number' ? w.bag[i] : null;
@@ -953,7 +986,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
         tell(r);
         if (e.button !== 2 && e.pointerType !== 'touch') return;
         hold(holding === r ? null : r);
-        showBag(w, h);
+        again();
       };
       return b;
     }),

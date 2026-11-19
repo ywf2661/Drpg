@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { BAG, bagBlocked, bagFits, bagSpot, createWorld, discardFromBag, equipFromBag, gearDiff, isBetter, moveInBag, setLevel, step, type Affix, type BagItem, type GearItem, type World } from './world';
+import { BAG, bagBlocked, bagFits, bagSpot, createWorld, discardFromBag, equipFromBag, gearDiff, isBetter, moveGear, moveInBag, setLevel, STASH, step, type Affix, type BagItem, type GearItem, type World } from './world';
 
 const make = () => createWorld(1, ['H....']); // 기본 장비: 롱소드(3)·천옷(1)
 const drop = (w: World, kind: 'weapon' | 'armor', tier: number, affixes: Affix[] = []) =>
@@ -298,4 +298,19 @@ test('줍는 범위 밖의 장비는 그대로 있고 막힘으로 치지 않는
   w.bag = [];
   step(w, []);
   expect(w.items).toHaveLength(1);
+});
+
+test('창고(moveGear): 보관함 ↔ 창고는 첫 빈자리나 고른 칸으로, 못 놓으면 그대로. 같은 격자 안에서도 옮긴다', () => {
+  const bag = [dagger(0, 0), dagger(3, 1)];
+  const stash: BagItem[] = [];
+  expect(moveGear(bag, 0, stash, STASH)).toBe(true); // 첫 빈자리
+  expect([bag, stash]).toEqual([[dagger(3, 1)], [dagger(0, 0)]]);
+  expect(moveGear(bag, 0, stash, STASH, [9, 6])).toBe(true); // 창고 맨 아래 줄(10×8)
+  expect(stash[1]).toEqual(dagger(9, 6));
+  expect(moveGear(stash, 0, bag, BAG, [9, 3])).toBe(false); // 보관함(4줄) 밖
+  expect(moveGear(stash, 0, stash, STASH, [9, 5])).toBe(false); // 9,6에 놓인 단검과 겹친다
+  expect(moveGear(stash, 1, stash, STASH, [9, 5])).toBe(true); // 자기 자신과는 겹쳐도 된다
+  const packed = full();
+  expect(moveGear(stash, 0, packed, BAG)).toBe(false); // 꽉 찬 보관함
+  expect([stash.length, packed.length]).toEqual([2, BAG.w * 2]);
 });

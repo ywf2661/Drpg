@@ -19,7 +19,7 @@ export * from './rules';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
 export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
 export { boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
-export { keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 직업마다 예전 스킬 넷(트리 이전의 Q W E R). 테스트·봇의 기본 장비이고, createWorld가 기사 것을 넣는다
 export const BASIC: Record<HeroClass, [SkillId, SkillId, SkillId, SkillId]> = {
@@ -40,10 +40,10 @@ export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ r
 // 맵 글자: '#' 벽, '.' 바닥, '>' 계단, 'H' 주인공, 'm' 졸개, 'w' 전사, 'a' 궁수, 'g' 마법사, 'N'·'W'·'A'·'G' 정예(졸개·전사·궁수·마법사), 'K' 해골 왕, 'M' 보스, 'c' 상자, 'B' 화로·'o' 큰 소품(막음), ',' 잔해(지나감)
 // 'D' 사슬 문(닫힌 동안 막음). 기믹: 'Y' 성소, 'Q' 시련의 제단, 'I' 얼어붙은 보물(모두 상자처럼 막고 누른다), 'Z' 잠든 졸개, 'U' 모래 속 새끼 개미귀신(개미지옥 가운데), '~' 개미지옥 모래,
 // 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허), 's'·'r' 잠긴 출구(막음), '*' 무너진 성소 입구·'%' 아직 안 열린 입구 자리(지나감), '$' 성소 5층의 성소,
-// 'E' 순찰대장·'V' 상인·'P' 주민·'q' 의뢰인 주민·'L' 단서(상자처럼 막고 누른다)
+// 'E' 순찰대장·'V' 상인·'P' 주민·'q' 의뢰인 주민·'L' 단서·'h' 창고(상자처럼 막고 누른다)
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
 const SPAWN_SKIN: Record<string, Skin | undefined> = { U: 'antlion_small', T: 'treasure', X: 'grave' }; // 지역 스킨 대신
-const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar' };
+const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar', h: 'stash' };
 const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins', '*': 'sanctum' };
 const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins', '%': 'sanctum' };
 

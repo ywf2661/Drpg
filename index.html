@@ -187,7 +187,8 @@
       .doll-slot .bag-item { margin: 0; cursor: pointer; }
       .doll-slot:hover, .doll-slot.sel { border-color: var(--gold-hi); box-shadow: inset 0 0 6px #000, 0 0 8px var(--gold); }
       .doll-slot.drop { border-color: #7fd07f; box-shadow: inset 0 0 6px #000, 0 0 12px #7fd07f; }
-      #bag-grid { display: grid; grid-template: repeat(4, var(--c)) / repeat(10, var(--c)); width: max-content; margin: 0 auto; border: solid #3a2a1a; border-width: 0 1px 1px 0; outline: 1px solid var(--gold-lo); outline-offset: 2px; background: linear-gradient(#3a2a1a 1px, transparent 1px) 0 0 / var(--c) var(--c), linear-gradient(90deg, #3a2a1a 1px, transparent 1px) 0 0 / var(--c) var(--c), radial-gradient(ellipse at center, #1a120c, #0a0706); user-select: none; -webkit-user-select: none; }
+      #bag-grid, #stash-grid { display: grid; grid-template: repeat(4, var(--c)) / repeat(10, var(--c)); width: max-content; margin: 0 auto; border: solid #3a2a1a; border-width: 0 1px 1px 0; outline: 1px solid var(--gold-lo); outline-offset: 2px; background: linear-gradient(#3a2a1a 1px, transparent 1px) 0 0 / var(--c) var(--c), linear-gradient(90deg, #3a2a1a 1px, transparent 1px) 0 0 / var(--c) var(--c), radial-gradient(ellipse at center, #1a120c, #0a0706); user-select: none; -webkit-user-select: none; }
+      #stash-grid { grid-template-rows: repeat(8, var(--c)); }
       .bag-item { position: relative; margin: 1px 0 0 1px; overflow: hidden; background: linear-gradient(#33241a, #1a120c); border: 1px solid #4a3a26; cursor: grab; touch-action: none; }
       .bag-item[data-q='1'] { border-color: var(--magic); }
       .bag-item[data-q='2'] { border-color: var(--rare); }
@@ -521,6 +522,7 @@
       <div id="bag-head"><b>보관함</b> <span id="bag-count"></span><form method="dialog"><button>닫기</button></form></div>
       <div id="doll"><canvas></canvas></div>
       <label><input id="auto-equip" type="checkbox" /> 더 좋은 장비는 밟으면 바로 장착</label>
+      <div id="stash-box" hidden><h4 id="stash-h">창고</h4><div id="stash-grid"></div></div>
       <h4>보관함</h4>
       <div id="bag-grid"></div>
       <div id="bag-sel"></div>

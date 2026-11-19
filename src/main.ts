@@ -13,7 +13,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 import { hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
@@ -21,6 +21,7 @@ import { hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PR
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
 const bag = document.querySelector<HTMLDialogElement>('#bag')!;
+bag.addEventListener('close', () => (stashOpen = false));
 const tree = document.querySelector<HTMLDialogElement>('#tree')!;
 // 새 판의 시작 상태: 2단계 장비(기사 = 숏소드 + 가죽 갑옷·두건·장화, 마법사 = 마법 막대 + 견습 로브·두건·장화)
 const startOf = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [], runes: {}, autoEquip: true });
@@ -47,6 +48,9 @@ let marksBy = [0, 0, 0, 0];
 // 무너진 성소: relics = 모은 성물(비트, STORY 순서, 회차가 넘어가도 남는다), relicMiss = 지역마다 성물을 놓친 횟수(두 번이면 다음은 확정)
 let relics = 0;
 let relicMiss = [0, 0, 0, 0];
+// 야영지 창고(캐릭터마다). 창고를 눌러 연 보관함 창에서만 넣고 뺀다(stashOpen)
+let stash: BagItem[] = [];
+let stashOpen = false;
 // ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
 let captainLine: string | null = null;
 // 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
@@ -69,7 +73,7 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민' };
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
 const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
@@ -89,7 +93,7 @@ function signsOf(w: World): Sign[] {
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss] }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
@@ -187,6 +191,7 @@ let chatter = 0;
 // NPC·단서를 누르면(sim이 w.talk를 남긴다)
 function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'merchant') return openShop(true);
+  if (t === 'stash') return (stashOpen = true), renderBag();
   if (t === 'villager') return say(chat());
   if (t === 'clue' && land === 'sanctum' && TRACES[floor - 1]) {
     signs = signsOf(world); // 읽은 흔적은 이름표를 뗀다
@@ -353,7 +358,19 @@ function renderBag() {
       world.autoEquip = entry.autoEquip = on;
       saveRun(progress());
     },
-  });
+  }, stashOpen ? {
+    items: stash,
+    // 보관함 ↔ 창고. 야영지(죽지 않는 곳)라 지금 상태를 입구 기록으로 삼아 함께 저장한다(새로고침으로 장비가 둘이 되지 않게)
+    move: (a, i, b, at) => {
+      const ok = moveGear(a === 'bag' ? world.bag : stash, i, b === 'bag' ? world.bag : stash, b === 'bag' ? BAG : STASH, at);
+      if (ok) {
+        entry = carryOf(world);
+        saveRun(progress());
+      }
+      renderBag();
+      return ok;
+    },
+  } : undefined);
 }
 
 // 보관함·스킬 창을 열 수 있나: 죽은 때만 빼고(보스를 깬 뒤에도 가방을 비워 전리품을 줍고, 포인트를 쓴다)
@@ -493,7 +510,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0]];
+  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], []];
   begin(0, startOf(cls));
   if (!slots.some(Boolean)) help.showModal();
 };
@@ -525,6 +542,7 @@ initHud({
     ({ cycle, stage, land, from, marks, news, took, beat, relics } = saved);
     marksBy = [...saved.marksBy];
     relicMiss = [...saved.relicMiss];
+    stash = [...saved.stash];
     begin(saved.floor, saved);
   },
   pick: pickClass,

@@ -186,9 +186,9 @@ export function moveInBag(w: World, i: number, x: number, y: number) {
 export const gearSize = (it: Pick<GearItem, 'kind' | 'tier'>) => GEAR_SIZE[it.kind][it.tier - 1];
 
 // (x, y)에 놓을 수 있는가: 격자 안이고 다른 장비(skip번 제외)와 겹치지 않는다
-export function bagFits(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>, x: number, y: number, skip = -1): boolean {
+export function bagFits(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>, x: number, y: number, skip = -1, grid = BAG): boolean {
   const [w, h] = gearSize(it);
-  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x + w > BAG.w || y + h > BAG.h) return false;
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x + w > grid.w || y + h > grid.h) return false;
   return bag.every((o, k) => {
     const [ow, oh] = gearSize(o);
     return k === skip || x >= o.x + ow || o.x >= x + w || y >= o.y + oh || o.y >= y + h;
@@ -196,9 +196,21 @@ export function bagFits(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>, x: 
 }
 
 // 놓을 수 있는 첫 자리(왼쪽 열부터 위에서 아래로). 없으면 null
-export function bagSpot(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>): [number, number] | null {
-  for (let x = 0; x < BAG.w; x++) for (let y = 0; y < BAG.h; y++) if (bagFits(bag, it, x, y)) return [x, y];
+export function bagSpot(bag: BagItem[], it: Pick<GearItem, 'kind' | 'tier'>, grid = BAG): [number, number] | null {
+  for (let x = 0; x < grid.w; x++) for (let y = 0; y < grid.h; y++) if (bagFits(bag, it, x, y, -1, grid)) return [x, y];
   return null;
+}
+
+// 보관함 ↔ 창고(또는 같은 격자 안): from의 i번을 to(grid 크기)의 at 칸으로. at이 없으면 첫 빈자리. 못 놓으면 그대로(false)
+export function moveGear(from: BagItem[], i: number, to: BagItem[], grid: { w: number; h: number }, at?: [number, number]): boolean {
+  const it = from[i];
+  const same = from === to;
+  const spot = !it ? null : at ? (bagFits(to, it, at[0], at[1], same ? i : -1, grid) ? at : null) : bagSpot(to, it, grid);
+  if (!spot) return false;
+  const moved = { ...it, x: spot[0], y: spot[1] };
+  if (same) from[i] = moved;
+  else from.splice(i, 1), to.push(moved);
+  return true;
 }
 
 export function discardFromBag(w: World, i: number) {

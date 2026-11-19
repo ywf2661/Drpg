@@ -185,7 +185,7 @@ test('고유 장비 이름·등급·판매 가격', () => {
 });
 
 test('저장: 스킬 옵션·고유 장비·운 보정 왕복, 이상한 고유·남의 직업 전설·다른 직업 스킬 옵션은 저장을 버린다', () => {
-  const run = (patch: object) => ({ name: '용사', marks: 0, news: false, took: false, runes: {}, beat: 0, marksBy: [0, 0, 0, 0], relics: 0, relicMiss: [0, 0, 0, 0], cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, stage: 0, ...patch });
+  const run = (patch: object) => ({ name: '용사', marks: 0, news: false, took: false, runes: {}, beat: 0, marksBy: [0, 0, 0, 0], relics: 0, relicMiss: [0, 0, 0, 0], stash: [], cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: null, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, stage: 0, ...patch });
   const good = run({ pity: 0.015, mods: { weapon: [{ kind: 'unique', value: 0, u: 'boomerang' }, skill('throw', 2), { kind: 'dmg', value: 20 }], armor: [{ kind: 'tab', value: 1, tab: 2 }], helm: [], boots: [] } });
   expect(decodeSave(encodeSave(good))).toEqual(good);
   expect(decodeSave(encodeSave(run({ mods: { weapon: [{ kind: 'unique', value: 0, u: 'nope' }], armor: [], helm: [], boots: [] } })))).toBeNull();

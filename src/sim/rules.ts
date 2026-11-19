@@ -162,6 +162,7 @@ export type GearItem = { kind: Slot; tier: number; affixes: Affix[] };
 // 보관함 격자에 놓인 장비. (x, y) = 왼쪽 위 칸
 export type BagItem = GearItem & { x: number; y: number };
 export const BAG = { w: 10, h: 4 };
+export const STASH = { w: 10, h: 8 }; // 야영지 창고(캐릭터마다)
 // 장비가 차지하는 칸 [가로, 세로], 단계 순
 export const GEAR_SIZE: Record<GearItem['kind'], [number, number][]> = {
   weapon: [[1, 2], [1, 3], [1, 3], [2, 3]],
@@ -177,7 +178,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar'; wave?: number }; // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar' | 'stash'; wave?: number }; // stash = 야영지 창고(열리지 않고 누르면 창고 창) // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -245,7 +246,7 @@ export type World = {
   toStairs: boolean;
   exits: Exit[]; // 바깥 지역 가장자리의 출구 칸(들어서면 다음 구역)
   locked: Exit[]; // 아직 안 열린 지역으로 가는 출구 칸(막혀 있다, 이름표만)
-  talk: 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
+  talk: 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'stash' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
   roads: Cell[]; // 바깥 지역의 길 칸(그림만 다르다)
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
   queued: Command | null; // 구르기·돌진·스킬 시전 중에 받은 이동·공격 명령(끝나면 따른다)
