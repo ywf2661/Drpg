@@ -445,7 +445,7 @@ export function damage(w: World, a: Entity, t: Entity) {
 // 피해 적용: 주인공은 갑옷(+단단한)으로 줄이되 최소 1. from이 주인공이면 흡혈, 근접(from)이 주인공을 치면 가시 반사.
 // 몬스터가 죽으면 경험치·드롭. 실제로 준 피해를 돌려준다
 export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
-  if (t.kind === 'hero' && (t.phase === 'roll' || t.phase === 'leap' || t.phase === 'flash' || t.phase === 'graze')) {
+  if (t.kind === 'hero' && (t.phase === 'roll' || t.phase === 'leap' || t.phase === 'flash' || t.phase === 'graze' || t.phase === 'ride')) {
     w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'dodge', age: 0 }); // 구르는 중: 무적
     return 0;
   }

@@ -14,7 +14,8 @@ export type SkillId =
   | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
   | 'mark' | 'graze' | 'echo' | 'flash'
   | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash'
-  | 'afterimage' | 'swap' | 'lingering' | 'retrace';
+  | 'afterimage' | 'swap' | 'lingering' | 'retrace'
+  | 'swoop' | 'ride' | 'assist' | 'flock';
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
@@ -34,6 +35,7 @@ export const TREES: Record<HeroClass, Tab[]> = {
     { name: '사격', skills: ['pierce', 'spread', 'crit', 'focus'] },
     { name: '사냥', skills: ['trap', 'push', 'snare', 'hunt'] },
     { name: '하늘', skills: ['rain', 'fireRain', 'downpour', 'arrowStorm'] },
+    { name: '매', skills: ['swoop', 'ride', 'assist', 'flock'] },
   ],
   necromancer: [
     { name: '소환', skills: ['bones', 'giant', 'boneMastery', 'lord'] },
@@ -98,7 +100,7 @@ export type Entity = {
   eliteKind?: EliteKind; // 정예의 특성(createWorld가 정한다)
   skin?: Skin; // 초원·설원의 몬스터: 원형(kind)은 그대로, 그림·이름·수치가 다르다
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
-  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'graze' | 'flash' | 'raise' | 'pray'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
+  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'graze' | 'flash' | 'raise' | 'pray' | 'ride'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간), ride = 매 타기(phaseT 남은 시간)
   phaseT: number;
   cd: number;
   dx: number;
@@ -225,7 +227,7 @@ export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number;
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
 // 벼림 강화 효과를 받은 적 하나(연출용, 저장하지 않는다). dmg = 불로 실제 줄어든 체력, freeze = 이번에 얼었는지
 export type EdgeHit = { id: number; ent: number; x: number; z: number; kind: 'flame' | 'frost' | 'both'; dmg: number; freeze: boolean; age: number };
-export type Blast = { id: number; x: number; z: number; r?: number; age: number; n?: number; kind: 'slash' | 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' };
+export type Blast = { id: number; x: number; z: number; r?: number; age: number; n?: number; kind: 'slash' | 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' | 'feather' }; // feather = 매가 덮친 자리(깃털 조각)
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
@@ -346,6 +348,9 @@ export type World = {
   shouts: number; // 함성 횟수(렌더·소리용)
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
   ghosts: Ghost[]; // 잔상(마법사 잔상 탭). 오래된 것부터
+  hawk: Hawk | null; // 궁수의 매(덮쳐라를 배우면). 매 떼의 다른 매는 flock
+  flock: Hawk[];
+  rideHit: number[]; // 이번 매 타기에서 화살을 맞은 적 id
   memos: Memo[]; // 지나온 길이 기억하는 주인공 주문(오래된 것부터)
   ghostScale: number; // 잔상 몫으로 쓰는 동안 주인공 굴림에 곱하는 배율(평소 1)
   swaps: { id: number; x0: number; z0: number; x1: number; z1: number; age: number }[]; // 자리 바꾸기 빛줄기(렌더용)
@@ -831,6 +836,15 @@ export const RAIN = { cd: 8, range: 8, radius: 1.8, delay: 0.6, mult: 1.6, big: 
 export const FIRE_RAIN = { cd: 9, mult: 1.2 };
 export const DOWNPOUR = { every: 0.6, mult: 0.5 };
 // 화살 폭풍(하늘 궁극): 재사용, 화살비 수, 퍼지는 반경(주인공 둘레), 걸리는 시간, 하나의 반경·배율
+// 매(궁수 넷째 탭): 매는 늘 곁에서 알아서 싸우고, 스킬은 매에게 내리는 명령이다. 매는 하늘을 난다(벽 무시, 적이 노리지 않는다)
+// r·h 맴도는 반지름·높이, spin 각속도, peck·speed 쪼기(속도), dive 덮칠 때 속도, low 덮칠 때 높이, reach 닿은 것으로 보는 거리,
+// every·near·aim 쪼기 간격·가까운 적 거리·주인공이 공격 중인 적 거리, pecks 쪼기 배율,
+// cd·mult·stun·range·pick·around 덮쳐라(대기, 배율, 기절, 찾는 거리, 조준점 둘레, 5단계 둘레 기절),
+// rideCd·dist·time·width·arrow 매 타기(대기, 거리, 시간, 화살 폭, 배율), landNear 5단계 착지 덮치기 거리,
+// assist·assistCd 협공(덮쳐라 피해 비율, 간격), flockCd·count·dives·radius·flockMult·flockStun·sky 매 떼(대기, 수, 덮치기 수, 범위, 배율, 기절, 내려오는 높이)
+export const HAWK = { r: 1.3, h: 1.9, spin: 1.1, peck: 10, dive: 14, low: 0.4, reach: 0.35, every: 1.5, near: 6, aim: 8, pecks: 0.3, cd: 5, mult: 2, stun: 1, range: 9, pick: 1.5, around: 1.5, rideCd: 8, dist: 6, time: 0.6, width: 1, arrow: 1, landNear: 4, assist: 0.5, assistCd: 1, flockCd: 16, count: 5, dives: 2, radius: 8, flockMult: 1.2, flockStun: 0.5, sky: 6 };
+// 매 하나: 자리(x, z, 높이 y), 하는 일, 대상 id, 피해 배율·기절(덮치기), 다음 쪼기까지·협공 대기(내 매), 남은 덮치기(매 떼)
+export type Hawk = { x: number; z: number; y: number; mode: 'orbit' | 'peck' | 'dive' | 'carry' | 'leave'; target: number; mult: number; stun: number; around: boolean; peckT: number; assistT: number; dives: number; angle: number; cand: number }; // cand: 이번 틱 스킬 화살에 맞은 적 중 협공할 적(-1 없음)
 export const ARROW_STORM = { cd: 16, count: 10, spread: 6, time: 2, radius: 1.5, mult: 1 };
 // 집중(사격 궁극): 재사용, 시간, 공격 속도 증가, 화살 두 발의 각도(라디안), 5단계 처치당 재사용 감소(초)
 export const FOCUS = { cd: 14, time: 6, speed: 0.4, spread: 0.15, kill: 1 };

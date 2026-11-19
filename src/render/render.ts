@@ -24,6 +24,7 @@ import { leapFx, rollFx, rollGroup } from './roll';
 import { cutsFx, flashFx, iaidoGroup, resetIaido } from './iaido';
 import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
 import { ghostFx, ghostGroup, resetGhosts } from './ghost';
+import { hawkFx, hawkGroup, resetHawk, rideLift } from './hawk';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
@@ -183,7 +184,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -223,6 +224,7 @@ export function setWorld(world: World, theme: Theme) {
   resetIaido();
   resetTemper(world);
   resetGhosts(world);
+  resetHawk(world);
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
   castsSeen = world.casts;
@@ -306,6 +308,7 @@ export function draw(world: World, dt: number) {
     // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts). 마법사의 순간이동도 sim에선 'roll'(잠깐 무적)이지만 예전처럼 몸만 낮춘다
     if (e === hero && world.cls === 'wizard') s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
     else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt)); // 발도: 일섬·스쳐 베기 질주(iaido.ts, 멈춤은 안에서 따진다)
+    if (e === hero && e.phase === 'ride') s.mesh.position.y = rideLift(e.phaseT); // 매 타기: 매가 들어 올린다
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
@@ -349,6 +352,7 @@ export function draw(world: World, dt: number) {
   syncFlames(world);
   temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt, fresh);
   ghostFx(world, time, frozen ? 0 : dt); // 잔상(마법사)
+  hawkFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt); // 궁수의 매
   syncChests(world);
   const altars = world.chests.filter((c) => c.kind === 'altar');
   setHaloGoal(!altars.length ? 1 : warded(world) ? altars.filter((c) => !c.open).length / altars.length : 0);

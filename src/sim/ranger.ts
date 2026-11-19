@@ -4,6 +4,7 @@ import { walkable } from './path';
 import { ARROW_STORM, CRIT, DOWNPOUR, DT, FIRE_RAIN, FOCUS, HUNT, KNOCK, PIERCE, PUSH, RAIN, RANGER, SNARE, SPREAD, TRAIL, TRAP, type Entity, type Shot, type World } from './rules';
 import { ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
 import { aimDir, blast, foes, nearest, spot, stun } from './wizard';
+import { assist } from './hawk';
 
 // 스킬 단계별 수치(1단계 = 기본값). 피해 배율에는 시너지가 붙는다
 export const pierceStat = (w: World) => ({ cd: PIERCE.cd - 0.3 * ext(w, 'pierce'), mult: (PIERCE.mult + 0.25 * ext(w, 'pierce')) * syn(w, 'pierce') });
@@ -53,6 +54,7 @@ export function arrowHit(w: World, hero: Entity, s: Shot): boolean {
   }
   hit.push(t.id);
   skillHit(w, t, s.dmg);
+  assist(w, t); // 협공(매)
   knock(w, t, s.dx, s.dz, s.push ? PUSH.dist : KNOCK.axe);
   if (s.push && !walkable(w.grid, Math.floor(t.x + s.dx * 0.5), Math.floor(t.z + s.dz * 0.5))) stun(t, PUSH.stun);
   return true;
@@ -173,7 +175,11 @@ export function tickVolleys(w: World, hero: Entity) {
     if ((v.t -= DT) > 0) continue;
     blast(w, v.blast, v.x, v.z, v.r);
     const dmg = Math.round(roll(w, hero) * v.mult);
-    for (const e of foes(w, hero)) if (Math.hypot(e.x - v.x, e.z - v.z) <= v.r) skillHit(w, e, dmg);
+    for (const e of foes(w, hero))
+      if (Math.hypot(e.x - v.x, e.z - v.z) <= v.r) {
+        skillHit(w, e, dmg);
+        if (v.blast === 'rain') assist(w, e); // 협공(매): 화살비만(운석은 아니다)
+      }
     if (v.burn) w.fires.push({ id: w.nextItem++, x0: v.x, z0: v.z, x1: v.x, z1: v.z, t: TRAIL.time, acc: 0, r: v.burn, mult: TRAIL.mult * (v.scale ?? 1) });
     v.left--;
     v.t = DOWNPOUR.every;

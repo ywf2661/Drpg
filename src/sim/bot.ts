@@ -16,8 +16,10 @@ const WHIRL: SkillId[] = ['cleave', 'whirl', 'shout', 'throw'];
 const TEMPER: SkillId[] = ['cleave', 'whirl', 'shout', 'flameEdge'];
 // 잔상 빌드: 마법사 기본 빌드의 서리 고리(dash 칸)를 잔상 남기기로. 잔상 밸런스 측정용
 const AFTER: SkillId[] = ['fireball', 'afterimage', 'lightning', 'ward'];
-export type Build = 'basic' | 'iaido' | 'whirl' | 'temper' | 'afterimage';
-const SLOTS: Record<Build, SkillId[] | null> = { basic: null, iaido: IAIDO, whirl: WHIRL, temper: TEMPER, afterimage: AFTER };
+// 매 빌드: 궁수 기본 빌드의 집중(throw 칸)을 덮쳐라로(봇은 throw 칸을 적이 보이면 쓴다 → 가까운 적). 매 밸런스 측정용
+const HAWK_BUILD: SkillId[] = ['pierce', 'trap', 'rain', 'swoop'];
+export type Build = 'basic' | 'iaido' | 'whirl' | 'temper' | 'afterimage' | 'hawk';
+const SLOTS: Record<Build, SkillId[] | null> = { basic: null, iaido: IAIDO, whirl: WHIRL, temper: TEMPER, afterimage: AFTER, hawk: HAWK_BUILD };
 const LEARN = (cls: HeroClass, build: Build = 'basic'): SkillId[] => (build === 'iaido' ? IAIDO_LEARN : SLOTS[build] ?? BASIC[cls]).flatMap((id) => { const t = TREES[cls].find((t) => t.skills.includes(id))!; return t.skills.slice(0, t.skills.indexOf(id) + 1); });
 // 빌드 스킬을 다 찍은 뒤 남는 포인트: 그 스킬들이 있는 탭의 패시브까지(칸이 필요 없고, 같은 탭 포인트는 시너지로 피해도 올린다)
 const MORE = (cls: HeroClass, build: Build = 'basic'): SkillId[] => {

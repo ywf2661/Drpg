@@ -19,8 +19,8 @@ const run = (patch: object = {}) => ({ name: '용사', marks: 0, news: false, to
 test('기사는 탭 넷째가 발도, 다른 직업은 셋', () => {
   expect(TREES.knight.map((t) => t.name).slice(0, 4)).toEqual(['검술', '돌격', '투척', '발도']);
   expect(TREES.knight[3].skills).toEqual(['mark', 'graze', 'echo', 'flash']);
-  for (const c of ['ranger', 'necromancer'] as HeroClass[]) expect(TREES[c]).toHaveLength(3);
-  expect(TREES.wizard).toHaveLength(4);
+  expect(TREES.necromancer).toHaveLength(3);
+  for (const c of ['wizard', 'ranger'] as HeroClass[]) expect(TREES[c]).toHaveLength(4);
   expect(SKILLS.echo).toEqual({ cls: 'knight', tab: 3, tier: 2 });
   expect([skillCost('knight', 'mark'), skillCost('knight', 'graze'), skillCost('knight', 'flash')]).toEqual([12, 24, 36]);
 });

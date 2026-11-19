@@ -573,6 +573,10 @@ export function syncEffects(world: World) {
       rumble(0.08); // 화살비의 그림(예고 원·빛줄기·꽂힌 화살)은 rain.ts
       continue;
     }
+    if (b.kind === 'feather') {
+      rumble(0.06); // 매가 덮친 자리: 깃털 조각은 hawk.ts
+      continue;
+    }
     if (b.kind === 'thunder') flash(b.x, b.z, b.r ? b.r * 1.1 : 1.1); // 낙뢰는 맞는 범위만큼, 천둥의 잇따른 벼락은 작게
     const flat = b.kind === 'slam';
     const c = flat

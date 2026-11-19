@@ -94,6 +94,7 @@ test('모든 직업의 모든 액티브 스킬이 칸에서 나가고 재사용 
       if (id === 'corpseBlast') Object.assign(w.entities[1], { state: 'dead' }); // 시체가 있어야
       if (id === 'swap') w.ghosts.push({ id: -1, x: 0.5, z: 1.5, facing: 0, kind: 'leave', t: 5, full: 5, aura: 0, auraAcc: 0, flash: 0, wait: 0, queue: [] }); // 잔상이 있어야
       if (id === 'retrace') w.memos.push({ id: 'fireball', x: 1.5, z: 1.5, age: 0 }); // 기억이 있어야
+      if (id === 'ride' || id === 'flock') w.ranks.swoop = 1; // 매가 있어야(덮쳐라를 배워야 배울 수 있다)
       step(w, [{ type: 'skill', x: 3.5, z: 1.5 }]);
       expect(w[KEY_CD.cleave], `${cls} ${id}`).toBeGreaterThan(0);
       expect(w.cdFull.cleave).toBe(w.skillCd);
