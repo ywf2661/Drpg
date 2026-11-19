@@ -398,7 +398,7 @@ function buildMap(world: World) {
   const { w, h, blocked } = world.grid;
   // 바닥은 걸을 수 있는 칸과 소품 칸에, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
-  const prop = new Set([...world.props, ...world.gates, ...world.chests, ...world.locked.filter((e) => e.to === 'sanctum')].map((p) => p.z * w + p.x)); // 막힌 성소 입구도 벽 대신 바닥(구덩이 그림) // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
+  const prop = new Set([...world.props, ...world.gates, ...world.chests].map((p) => p.z * w + p.x)); // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
   const road = new Set(world.roads.map(([x, z]) => z * w + x));
   const sand = new Set(world.sand.map(([x, z]) => z * w + x));
   const floorCells: [number, number][][] = Array.from({ length: 3 * FLOOR_VARIANTS }, () => []); // 변형 × [바닥, 길(흙빛), 개미지옥 모래]

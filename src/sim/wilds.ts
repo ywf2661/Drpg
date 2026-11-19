@@ -76,7 +76,12 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   if (!open.includes('ruins')) shut.R = 'r';
   if (!open.includes('dungeon')) shut['>'] = 'o';
   if (!open.includes('sanctum')) shut['*'] = '%';
-  return map.map((row) => row.replace(/[SR>*]/g, (c) => shut[c] ?? c));
+  const out = map.map((row) => row.replace(/[SR>*]/g, (c) => shut[c] ?? c));
+  // 성소가 안 열렸으면 입구 자리는 그냥 빈터(화로·뼈 없이, 밟고 지나간다). 갈라지는 금은 render가 성물 수로 그린다
+  const gz = out.findIndex((row) => row.includes('%'));
+  if (gz < 0) return out;
+  const gx = out[gz].indexOf('%');
+  return out.map((row, z) => (Math.abs(z - gz - 0.5) > 5 ? row : row.replace(/[B,]/g, (c, x: number) => (Math.abs(x - gx - 0.5) > 5 ? c : '.'))));
 }
 
 // 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o).
@@ -245,7 +250,7 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
     clear(cave, 2);
     cells[cave[1]][cave[0]] = '>';
     keep.push(cave);
-    // 무너진 성소 입구: 13×13 빈터 가운데 2×2 입구('*', 안 열렸으면 generateWild가 '%'로 막는다), 네 귀퉁이 화로, 둘레 뼈 무더기
+    // 무너진 성소 입구: 13×13 빈터 가운데 2×2 입구('*', 안 열렸으면 generateWild가 '%' 빈터로 바꾸고 화로·뼈를 치운다), 네 귀퉁이 화로, 둘레 뼈 무더기
     clear(gate, 6);
     for (let z = -4; z <= 4; z++) for (let x = -4; x <= 4; x++) if (Math.hypot(x, z) >= 2.5 && rand() < 0.3) cells[gate[1] + z][gate[0] + x] = ',';
     for (const [x, z] of [[0, 0], [1, 0], [0, 1], [1, 1]]) cells[gate[1] + z][gate[0] + x] = '*';

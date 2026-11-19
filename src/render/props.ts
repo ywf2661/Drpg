@@ -100,9 +100,8 @@ let cards: Card[] = [];
 let group = new THREE.Group();
 // 무너진 성소 입구(초원 1구역): 계단 구덩이 + 석상 + 화로(성물 수만큼 붉게) + 열렸으면 핏빛 안개·불씨·맥동하는 빛
 const DREAD_FIRE = new THREE.Color(1, 0.4, 0.34);
-const DREAD_COLD = new THREE.Color(0.22, 0.2, 0.24); // 꺼진 화로
 const EMBERS = 46;
-let dread: { light: THREE.PointLight; mist: THREE.MeshBasicMaterial; embers: THREE.Points } | null = null;
+let dread: { stage: number; glow: THREE.MeshBasicMaterial; mist: THREE.MeshBasicMaterial | null; embers: THREE.Points | null; light: THREE.PointLight | null } | null = null; // 성소 입구 자리(금이 숨 쉬듯 빛난다)
 // 성소 5층: 켜진 성소에서 성기사로 이어지는 금빛 줄기(성소 순서)
 let beams: { line: THREE.Line; id: number }[] = [];
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
@@ -211,6 +210,40 @@ function mistTexture(): THREE.CanvasTexture {
   mistTex = new THREE.CanvasTexture(c);
   mistTex.colorSpace = THREE.SRGBColorSpace;
   return mistTex;
+}
+// 성소 입구 자리의 금(성물 수 = 단계 1~4). 가운데서 뻗는 갈래들: 단계가 오를수록 갈래가 늘고 길어지고 넓어진다(앞 단계의 금이 그대로 자란다).
+// glow면 틈 속 붉은 빛(가는 선), 아니면 검은 틈
+const CRACK = { size: 256, branches: [0, 1, 3, 6, 7], reach: [0, 0.25, 0.5, 0.85, 1], width: [0, 2.2, 3.2, 4.5, 5.5] };
+const crackTex = new Map<string, THREE.CanvasTexture>();
+function crackTexture(stage: number, glow: boolean): THREE.CanvasTexture {
+  const key = `${stage}${glow}`;
+  if (crackTex.has(key)) return crackTex.get(key)!;
+  const S = CRACK.size;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.lineCap = g.lineJoin = 'round';
+  g.strokeStyle = glow ? 'rgba(255,60,30,1)' : 'rgba(6,2,2,0.92)';
+  const R = S / 2 - 4;
+  const grow = (x: number, y: number, ang: number, d: number, seed: number, w: number) => {
+    for (; d < CRACK.reach[stage] * R && w > 0.4; seed += 7) {
+      const step = 6 + hash01(seed) * 6;
+      ang += (hash01(seed + 1) - 0.5) * 0.9;
+      const [nx, ny] = [x + Math.cos(ang) * step, y + Math.sin(ang) * step];
+      g.lineWidth = (glow ? 0.45 : 1) * w * (1 - d / R) + (glow ? 0.3 : 0.8);
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(nx, ny);
+      g.stroke();
+      if (hash01(seed + 2) < 0.18) grow(nx, ny, ang + (hash01(seed + 3) < 0.5 ? -1 : 1) * (0.6 + hash01(seed + 4) * 0.5), d + step, seed * 3 + 11, w * 0.6); // 곁가지
+      [x, y, d] = [nx, ny, d + step];
+    }
+  };
+  for (let b = 0; b < CRACK.branches[stage]; b++) grow(S / 2, S / 2, b * 2.39996 + hash01(b + 50) * 0.5, 0, 1000 + b * 97, CRACK.width[stage]);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  crackTex.set(key, t);
+  return t;
 }
 const discGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
 const ICE_TINT = new THREE.Color(0.85, 0.95, 1);
@@ -762,44 +795,54 @@ export function buildProps(world: World): THREE.Group {
   for (const g of world.gates) if (!g.open) gateCards.set(g.id, card(gateFx, `gate_${g.axis}`, g.x + 0.5, g.z + 0.5, false));
   cards.push(...gateCards.values());
   if (world.stairs) cards.push(card(stairs, 'stairs', world.stairs[0] + STAIRS_AT[0], world.stairs[1] + STAIRS_AT[1], true));
-  // 무너진 성소 입구: 2×2 입구 칸(열림 '*' 또는 막힘 '%')의 가운데
+  // 무너진 성소 입구 자리: 성물이 모일수록 땅이 갈라지고(1~3: 금만, 밟고 지나간다), 넷이면 꺼져서 계단 구덩이·석상·화로(화로·뼈는 맵 글자로 그때만 생긴다)
   const gate = [...world.exits, ...world.locked].filter((e) => e.to === 'sanctum');
   const extra: THREE.Object3D[] = [];
-  const cold = new Set<number>(); // 꺼진 화로(world.props 번호)
   dread = null;
-  if (gate.length) {
+  const stage = relicCount(world.relics);
+  if (gate.length && stage > 0) {
     const [gx, gz] = [Math.min(...gate.map((e) => e.x)) + 1, Math.min(...gate.map((e) => e.z)) + 1];
     const open = world.exits.some((e) => e.to === 'sanctum');
-    const near = world.props.flatMap((p, i) => (p.kind === 'brazier' && GATE_FIRES.some(([a, b]) => p.x === gx - 1 + a && p.z === gz - 1 + b) ? [i] : []));
-    near.forEach((i, n) => {
-      const c = cards[i];
-      if (n < relicCount(world.relics)) c.tint = DREAD_FIRE;
-      else (cold.add(i), Object.assign(c, { clip: { ...c.clip, ms: 1e9 }, glow: 0, tint: DREAD_COLD }));
-    });
-    cards.push(Object.assign(card(stairs, 'stairs', gx - 0.5 + STAIRS_AT[0], gz - 0.5 + STAIRS_AT[1], true), { tint: new THREE.Color(0.75, 0.32, 0.3), dim: open ? 1 : 0.45 }));
-    const pit = cards[cards.length - 1].mesh;
-    pit.renderOrder = 2;
-    pit.position.y += 0.01;
-    for (const [ox, oz, n] of [[-3.2, 0.4, 'statue'], [0.4, -3.2, 'statue2']] as const) cards.push(Object.assign(card(props, n, gx + ox, gz + oz, false), { tint: new THREE.Color(0.6, 0.42, 0.45) }));
-    const scorch = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x080103, transparent: true, opacity: 0.75, depthWrite: false }));
-    scorch.scale.setScalar(3.1);
-    scorch.position.set(gx, 0.004, gz);
-    extra.push(scorch);
+    const decal = (glow: boolean, y: number) => {
+      const m = new THREE.MeshBasicMaterial({ map: crackTexture(stage, glow), transparent: true, depthWrite: false, ...(glow && { toneMapped: false, blending: THREE.AdditiveBlending }) });
+      const mesh = new THREE.Mesh(discGeo, m);
+      mesh.scale.setScalar(5.5);
+      mesh.position.set(gx, y, gz);
+      mesh.rotation.y = 0.7;
+      extra.push(mesh);
+      return m;
+    };
+    decal(false, 0.003);
+    const glow = stage >= 2 ? decal(true, 0.006) : null;
+    let [embers, light, mist]: [THREE.Points | null, THREE.PointLight | null, THREE.MeshBasicMaterial | null] = [null, null, null];
+    if (stage >= 3) {
+      const n = open ? EMBERS : 12; // 셋이면 불씨가 몇 개만
+      const pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) pos.set([gx + (hash01(i * 7) - 0.5) * 2.4, hash01(i * 13) * 3, gz + (hash01(i * 11) - 0.5) * 2.4], i * 3);
+      embers = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)), new THREE.PointsMaterial({ color: 0xff4a2a, size: 3, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+      embers.renderOrder = 3;
+      light = new THREE.PointLight(0xff2418, 0, open ? 8 : 5, 1.5);
+      light.position.set(gx, 0.8, gz);
+      extra.push(embers, light);
+    }
     if (open) {
-      const mist = new THREE.MeshBasicMaterial({ map: mistTexture(), color: 0xc01828, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
+      world.props.forEach((p, i) => p.kind === 'brazier' && GATE_FIRES.some(([a, b]) => p.x === gx - 1 + a && p.z === gz - 1 + b) && (cards[i].tint = DREAD_FIRE));
+      cards.push(Object.assign(card(stairs, 'stairs', gx - 0.5 + STAIRS_AT[0], gz - 0.5 + STAIRS_AT[1], true), { tint: new THREE.Color(0.75, 0.32, 0.3) }));
+      const pit = cards[cards.length - 1].mesh;
+      pit.renderOrder = 2;
+      pit.position.y += 0.01;
+      for (const [ox, oz, n] of [[-3.2, 0.4, 'statue'], [0.4, -3.2, 'statue2']] as const) cards.push(Object.assign(card(props, n, gx + ox, gz + oz, false), { tint: new THREE.Color(0.6, 0.42, 0.45) }));
+      const scorch = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x080103, transparent: true, opacity: 0.75, depthWrite: false }));
+      scorch.scale.setScalar(3.1);
+      scorch.position.set(gx, 0.004, gz);
+      mist = new THREE.MeshBasicMaterial({ map: mistTexture(), color: 0xc01828, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
       const mistMesh = new THREE.Mesh(discGeo, mist);
       mistMesh.scale.setScalar(3.4);
       mistMesh.position.set(gx, 0.05, gz);
       mistMesh.renderOrder = 1;
-      const pos = new Float32Array(EMBERS * 3);
-      for (let i = 0; i < EMBERS; i++) pos.set([gx + (hash01(i * 7) - 0.5) * 2.4, hash01(i * 13) * 3, gz + (hash01(i * 11) - 0.5) * 2.4], i * 3);
-      const embers = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)), new THREE.PointsMaterial({ color: 0xff4a2a, size: 3, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
-      embers.renderOrder = 3;
-      const light = new THREE.PointLight(0xff2418, 0, 8, 1.5);
-      light.position.set(gx, 0.8, gz);
-      extra.push(mistMesh, embers, light);
-      dread = { light, mist, embers };
+      extra.push(scorch, mistMesh);
     }
+    if (glow) dread = { stage, glow, mist, embers, light };
   }
   // 성소 5층의 금빛 줄기(위치는 syncChests가 매 장면)
   beams = world.chests.filter((c) => c.kind === 'altar').map((c) => {
@@ -808,7 +851,7 @@ export function buildProps(world: World): THREE.Group {
     extra.push(line);
     return { line, id: c.id };
   });
-  braziers = world.props.flatMap((p, i) => (p.kind === 'brazier' && !cold.has(i) ? [{ x: p.x + 0.5, z: p.z + 0.5 }] : []));
+  braziers = world.props.flatMap((p) => (p.kind === 'brazier' ? [{ x: p.x + 0.5, z: p.z + 0.5 }] : []));
   // ponytail: 화로 빛은 그림자가 없어 벽 너머로 조금 샌다. 거슬리면 화로마다 castShadow(점광원 그림자는 6면 렌더)
   lights = braziers.map((b) => {
     const red = gate.length && GATE_FIRES.some(([a, c]) => b.x - 0.5 === Math.min(...gate.map((e) => e.x)) + a && b.z - 0.5 === Math.min(...gate.map((e) => e.z)) + c);
@@ -831,15 +874,16 @@ export function updateProps(dt: number, light: (x: number, z: number) => number)
   lights.forEach((l, k) => (l.intensity = BRAZIER_LIGHT * (1 + 0.08 * Math.sin(time * 9 + k * 2.1) + 0.05 * Math.sin(time * 21.3 + k))));
   if (dread) {
     const p = 0.5 + 0.5 * Math.sin(time * 2.2); // 숨 쉬듯 맥동
-    dread.light.intensity = BRAZIER_LIGHT * (0.6 + 0.9 * p);
-    dread.mist.opacity = 0.45 + 0.45 * p;
-    const a = dread.embers.geometry.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < EMBERS; i++) {
+    dread.glow.opacity = [0, 0, 0.55, 0.8, 1][dread.stage] * (0.4 + 0.6 * p); // 틈 속 붉은 빛: 단계가 오를수록 짙게
+    if (dread.light) dread.light.intensity = BRAZIER_LIGHT * (dread.mist ? 0.6 + 0.9 * p : 0.25 + 0.35 * p);
+    if (dread.mist) dread.mist.opacity = 0.45 + 0.45 * p;
+    const a = dread.embers?.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    for (let i = 0; a && i < a.count; i++) {
       let y = a.getY(i) + dt * (0.6 + hash01(i * 5) * 0.8);
       if (y > 3.2) y = 0.1;
       a.setXYZ(i, a.getX(i) + Math.sin(time * 1.7 + i) * dt * 0.15, y, a.getZ(i));
     }
-    a.needsUpdate = true;
+    if (a) a.needsUpdate = true;
   }
   for (const b of beams) (b.line.material as THREE.LineBasicMaterial).opacity = 0.45 + 0.3 * Math.sin(time * 9 + b.id);
   for (const c of cards) {

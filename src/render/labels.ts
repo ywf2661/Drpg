@@ -26,7 +26,7 @@ export function itemLabel(it: Item, w: World): { text: string; better: boolean; 
   if (it.kind === 'potion') return null;
   if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false, quality: 0 };
   if (it.kind === 'rune') return { text: runeName(it.rune!), better: false, quality: 0, rune: runeGrade(it.rune!) };
-  if (it.kind === 'relic') return { text: `성물 · ${RELICS[it.relic!]}`, better: false, quality: 3 };
+  if (it.kind === 'relic') return { text: RELICS[it.relic!], better: false, quality: 3 };
   const affixes = it.affixes ?? [];
   return { text: gearName(it.kind, it.tier, affixes, w.cls), better: isBetter(w, it), quality: quality({ affixes }) };
 }

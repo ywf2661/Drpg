@@ -16,7 +16,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, ROW_NAME, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, spawnNear } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ALL_RELICS, missAfter, nameSalt, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, SANCTUM_OPEN } from './sim/sanctum';
+import { ALL_RELICS, missAfter, nameSalt, relicDue, RELICS, SANCTUM, SANCTUM_DONE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -77,7 +77,7 @@ function signsOf(w: World): Sign[] {
     const mark = to === 'sanctum' ? '▼' : '▶';
     if (cells.length) out.push({ ...middle(cells), text: `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}${runeHint(to)}` });
     const shut = w.locked.filter((e) => e.to === to);
-    if (shut.length) out.push({ ...middle(shut), text: to === 'sanctum' ? `${LANDS[to].name} (성물 ${relicCount(relics)}/${RELICS.length})` : `▶ ${LANDS[to].name} (길이 막혔다)` });
+    if (shut.length && to !== 'sanctum') out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` }); // 성소 입구 자리는 이름표 없이 땅만 갈라진다
   }
   for (const c of w.chests) {
     const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
@@ -208,14 +208,13 @@ function changed() {
 }
 
 // 의뢰 대상 하나를 끝냈다: 진행을 켜고 이야기 조각(찾은 순서), 셋째면 스킬 포인트. 바로 저장(죽어도 남는다)
-// 성물을 주웠다(바닥에서든 보스를 깨고 야영지로 가며 챙겼든). 넷이 모이면 순찰대장에게 새 이야기
+// 성물을 주웠다(바닥에서든 보스를 깨고 야영지로 가며 챙겼든)
 function gotRelic(k: number) {
   world.relicGot = -1;
   if ((relics >> k) & 1) return;
   relics |= 1 << k;
   world.relics = relics;
-  say(`성물을 얻었다 — ${RELICS[k]} (${relicCount(relics)}/${RELICS.length})`);
-  if (relics === ALL_RELICS) [news, captainLine] = [true, SANCTUM_OPEN];
+  say(`${RELICS[k]}${(RELICS[k].charCodeAt(RELICS[k].length - 1) - 0xac00) % 28 ? '을' : '를'} 얻었다`); // 무엇에 쓰는지·몇 개인지는 말하지 않는다(초원 땅이 갈라지는 걸 보고 눈치채게)
   saveRun(progress());
 }
 function markDone() {

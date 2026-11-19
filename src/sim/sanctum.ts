@@ -37,6 +37,5 @@ export const warded = (w: World) => w.land === 'sanctum' && w.bareT <= 0 && w.ch
 // 성소 곁에 살아 있는 해골 기사 왕(지키는 중이라 바칠 수 없다)
 export const guardOf = (w: World, ch: Chest) => w.entities.find((e) => e.kind === 'king' && e.state !== 'dead' && Math.hypot(e.x - ch.x - 0.5, e.z - ch.z - 0.5) <= SANCTUM.guard);
 
-// 순찰대장: 성물 넷이 모였을 때, 성기사를 쓰러뜨리고 돌아왔을 때
-export const SANCTUM_OPEN = "성물 넷을 다 모았군. …방금 초원에서 전갈이 왔네. 초원 한가운데 땅이 갈라지고, 그 밑으로 붉은 빛이 새어 나온다더군. 폐허 제단에 적혀 있던 말 기억하나? '그분이 깨어나신다.' 그 갈라진 자리가 그분에게 가는 문일 걸세. 성물을 단단히 챙겨 가게. 그분 앞에서 쓸 일이 있을 게야.";
+// 순찰대장: 성기사를 쓰러뜨리고 돌아왔을 때(성물이 무엇이었는지 그제야 말해 준다)
 export const SANCTUM_DONE = '타락한 성기사… 한때는 이 땅을 지키던 이였다네. 자네가 모은 성물도 그가 쓰던 물건이었지. 이제 초원 밑의 붉은 빛도 잦아들었네. 자네 덕일세. 다만 그 입구는 닫히지 않았어. 언젠가 다시 깨어날지 모르니, 생각나면 들여다봐 주게.';

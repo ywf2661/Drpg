@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { bossName, createWorld, LANDS, step } from './world';
 import { FLOORS, OPEN, SIZE, walkDistances } from './dungeon';
-import { exitsFor, generateCamp, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
+import { exitsFor, GATE_FIRES, generateCamp, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
 
 const count = (map: string[], chars: string) => map.join('').split('').filter((c) => chars.includes(c)).length;
 const find = (map: string[], ch: string): [number, number][] => map.flatMap((r, z) => [...r].flatMap((c, x) => (c === ch ? [[x, z] as [number, number]] : [])));
@@ -131,7 +131,12 @@ test('초원 1구역 갈림길 잠금: 안 열린 지역 출구는 막히고(s·
     expect([count(first, 's'), count(first, 'r'), count(first, 'F')]).toEqual([3, 3, 3]);
     // 바뀐 칸은 잠긴 출구 자리뿐
     const diff = all.flatMap((r, z) => [...r].flatMap((c, x) => (c !== first[z][x] ? [c + first[z][x]] : [])));
-    expect(diff.sort()).toEqual(['*%', '*%', '*%', '*%', '>o', 'Rr', 'Rr', 'Rr', 'Ss', 'Ss', 'Ss']); // 무너진 성소 입구(2×2)도 막힌다
+    // 무너진 성소 입구(2×2)는 '%' 빈터가 되고, 그 둘레 화로·뼈는 치운다
+    expect(diff.filter((d) => !/^[B,]\.$/.test(d)).sort()).toEqual(['*%', '*%', '*%', '*%', '>o', 'Rr', 'Rr', 'Rr', 'Ss', 'Ss', 'Ss']);
+    expect(diff.filter((d) => d === 'B.').length).toBeGreaterThanOrEqual(GATE_FIRES.length);
+    expect(first.join('').includes('%')).toBe(true);
+    const gz = first.findIndex((r) => r.includes('%'));
+    expect(createWorld(1, first).grid.blocked[gz * first.length + first[gz].indexOf('%')]).toBe(0); // 밟고 지나간다
     const ok = reachable(first, find(first, 'H')[0]);
     for (const p of find(first, 'F')) expect(ok(p)).toBe(true);
     const w = createWorld(1, first);
