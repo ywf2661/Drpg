@@ -1,6 +1,8 @@
 // 바닥의 위험 구역(예고 공격): 붉은 테두리 + 안에서 차오르는 원(다 차면 터진다). world.zones와 평타 준비 중인 적을 읽기만 한다.
 import * as THREE from 'three';
 import { TELL, type World } from '../sim/world';
+import { PALADIN } from '../sim/sanctum';
+import { litBeams, paladinOf } from '../sim/paladin';
 
 const flat = (color: number, opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false });
 const RING = new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2);
@@ -63,4 +65,91 @@ export function syncFires(world: World, time: number) {
     m.material.dispose();
     fires.delete(id);
   }
+}
+
+// 성기사 빛의 사슬: 성기사 → 켜진 성소 바닥에 데는 폭(2 × beamR)만큼 금빛 띠(일렁인다). 공중의 가는 줄은 props.ts
+const beamStrips = new Map<number, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
+export function syncBeams(world: World, time: number) {
+  const b = paladinOf(world);
+  const lit = b ? litBeams(world) : [];
+  for (const c of lit) {
+    let m = beamStrips.get(c.id);
+    if (!m) {
+      m = new THREE.Mesh(STRIP, new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+      m.renderOrder = 1;
+      zoneGroup.add(m);
+      beamStrips.set(c.id, m);
+    }
+    const [x1, z1] = [c.x + 0.5, c.z + 0.5];
+    const [dx, dz] = [x1 - b!.x, z1 - b!.z];
+    m.position.set((b!.x + x1) / 2, 0.04, (b!.z + z1) / 2);
+    m.rotation.y = Math.atan2(dx, dz);
+    m.scale.set(2 * PALADIN.beamR, 1, Math.hypot(dx, dz));
+    m.material.opacity = 0.3 + 0.12 * Math.sin(time * 9 + c.id);
+  }
+  for (const [id, m] of beamStrips) {
+    if (lit.some((c) => c.id === id)) continue;
+    m.removeFromParent();
+    m.material.dispose();
+    beamStrips.delete(id);
+  }
+}
+
+// 꽂힌 성검: 바닥에 선 대검(날 + 금빛 가로대, 칸 하나). 사라지기 전 0.5초 동안 흐려진다
+const BLADE = new THREE.BoxGeometry(0.1, 1.3, 0.24);
+const GUARD = new THREE.BoxGeometry(0.56, 0.07, 0.12);
+const swordMeshes = new Map<number, { g: THREE.Group; mats: THREE.MeshBasicMaterial[] }>();
+export function syncSwords(world: World) {
+  for (const s of world.swords) {
+    let v = swordMeshes.get(s.id);
+    if (!v) {
+      const mats = [new THREE.MeshBasicMaterial({ color: 0xcfd3da, transparent: true }), new THREE.MeshBasicMaterial({ color: 0xd9b45a, transparent: true })];
+      const g = new THREE.Group();
+      const blade = new THREE.Mesh(BLADE, mats[0]);
+      blade.position.y = 0.55;
+      const guard = new THREE.Mesh(GUARD, mats[1]);
+      guard.position.y = 1.0;
+      g.add(blade, guard);
+      g.position.set(s.x + 0.5, 0, s.z + 0.5);
+      g.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽으로 가로대가 보이게
+      zoneGroup.add(g);
+      swordMeshes.set(s.id, (v = { g, mats }));
+    }
+    for (const m of v.mats) m.opacity = Math.min(1, s.t / 0.5);
+  }
+  for (const [id, v] of swordMeshes) {
+    if (world.swords.some((s) => s.id === id)) continue;
+    v.g.removeFromParent();
+    for (const m of v.mats) m.dispose();
+    swordMeshes.delete(id);
+  }
+}
+
+// 심판: 기도하는 동안 성기사 곁(judgeSafe) 밖 바닥이 붉게 차오르고, 곁에 금빛 고리. 터지면 바깥이 잠깐 번쩍인다
+const JUDGE_OUT = new THREE.RingGeometry(PALADIN.judgeSafe, 30, 64).rotateX(-Math.PI / 2);
+const JUDGE_EDGE = new THREE.RingGeometry(PALADIN.judgeSafe - 0.08, PALADIN.judgeSafe, 64).rotateX(-Math.PI / 2);
+const judgeOut = new THREE.Mesh(JUDGE_OUT, flat(0xff3a22, 0));
+const judgeEdge = new THREE.Mesh(JUDGE_EDGE, flat(0xffd27a, 0.9));
+judgeOut.renderOrder = judgeEdge.renderOrder = 1;
+judgeOut.visible = judgeEdge.visible = false;
+zoneGroup.add(judgeOut, judgeEdge);
+let judgeWas = false;
+let judgeFlash = 0;
+let judgeLast = 0;
+export function syncJudge(world: World, time: number) {
+  const dt = Math.min(0.1, Math.max(0, time - judgeLast));
+  judgeLast = time;
+  const b = paladinOf(world);
+  const praying = b?.phase === 'pray';
+  if (judgeWas && !praying && b && b.stunT <= 0) judgeFlash = 0.35; // 기도가 끝까지 갔다(끊긴 게 아니다)
+  judgeWas = praying;
+  judgeFlash = Math.max(0, judgeFlash - dt);
+  judgeOut.visible = praying || judgeFlash > 0;
+  judgeEdge.visible = praying;
+  if (!judgeOut.visible || !b) return;
+  judgeOut.position.set(b.x, 0.045, b.z);
+  judgeEdge.position.set(b.x, 0.05, b.z);
+  const k = praying ? 1 - b.phaseT / PALADIN.judgeWindup : 0;
+  judgeOut.material.color.setHex(praying ? 0xff3a22 : 0xffc070);
+  judgeOut.material.opacity = praying ? 0.1 + 0.35 * k : (judgeFlash / 0.35) * 0.8;
 }

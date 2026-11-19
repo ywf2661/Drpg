@@ -15,7 +15,7 @@ import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
 import { hitstop, impact, popNumber, rumble, updateFeel } from './feel';
 import { BRAZIER_RANGE, braziers, buildProps, floorVariant, stickArrow, wallVariant, loadProps, syncChests, syncEffects, syncFires as syncFlames, syncComets, syncGates, syncItems, syncShots, syncSpikes, updateProps } from './props';
-import { syncFires, syncZones, zoneGroup } from './zones';
+import { syncBeams, syncFires, syncJudge, syncSwords, syncZones, zoneGroup } from './zones';
 import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
@@ -340,6 +340,9 @@ export function draw(world: World, dt: number) {
   cutsFx(world, dt); // 발도: 바닥의 칼선
   syncZones(world);
   syncFires(world, time);
+  syncBeams(world, time);
+  syncSwords(world);
+  syncJudge(world, time);
   syncFlames(world);
   temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt, fresh);
   syncChests(world);

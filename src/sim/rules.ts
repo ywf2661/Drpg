@@ -96,7 +96,7 @@ export type Entity = {
   eliteKind?: EliteKind; // 정예의 특성(createWorld가 정한다)
   skin?: Skin; // 초원·설원의 몬스터: 원형(kind)은 그대로, 그림·이름·수치가 다르다
   // 보스 돌진: phase 예고·돌진, phaseT 예고 남은 시간 또는 돌진 남은 거리, cd 재사용 대기, (dx, dz) 돌진 방향
-  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'graze' | 'flash'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
+  phase: 'none' | 'windup' | 'charge' | 'roll' | 'leap' | 'graze' | 'flash' | 'raise' | 'pray'; // roll = 주인공 구르기(phaseT 남은 거리), leap = 대지 강타 체공(phaseT 남은 시간)
   phaseT: number;
   cd: number;
   dx: number;
@@ -223,7 +223,7 @@ export type Blast = { id: number; x: number; z: number; r?: number; age: number;
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
-export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number; kind?: 'ice' }; // ice = 고드름(떨어지면 얼음 그림)
+export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number; kind?: 'ice' | 'sword' }; // ice = 고드름(떨어지면 얼음 그림), sword = 성검의 비(꽂히면 잠시 벽)
 
 // 장착 장비 단계(1~4). WEAPONS·ARMORS·HELMS·BOOTS[단계 − 1]
 export type Gear = Record<Slot, number>;
@@ -304,6 +304,9 @@ export type World = {
   offer: { id: number; t: number } | null;
   bareT: number;
   knightsUp: boolean;
+  // 성기사 전용 기술(paladin.ts): rain = 다음 성검의 비까지, judge = 다음 심판까지(-1 = 아직 잠김), quiet = 빛줄이 꺼져 있을 남은 시간, burn = 대상 id → 다시 데일 수 있을 때까지(초)
+  pal: { rain: number; judge: number; quiet: number; burn: Record<number, number> };
+  swords: { id: number; x: number; z: number; t: number }[]; // 꽂힌 성검(칸 정수, t = 벽 남은 시간)
   calmT: number; // 주인공이 마지막으로 다친 뒤 흐른 시간(초)
   lastHp: number; // 직전 틱의 주인공 체력(다쳤는지 비교)
   rested: number; // 모닥불에서 회복한 양의 누적(소수점 포함, 렌더가 +숫자로 띄운다)

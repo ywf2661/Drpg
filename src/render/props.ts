@@ -4,6 +4,7 @@ import { slashBurst } from './iaido';
 import * as THREE from 'three';
 import { COMET, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import { relicCount } from '../sim/sanctum';
+import { litBeams, paladinOf } from '../sim/paladin';
 import { GATE_FIRES } from '../sim/wilds';
 import lootInfo from '../assets/sprites/loot.json';
 import runesInfo from '../assets/sprites/runes.json';
@@ -452,10 +453,11 @@ export function syncChests(world: World) {
     if (ch.open && c && ch.kind === 'beacon') Object.assign(c.card, { glow: 1, tint: undefined }); // 켜진 봉화
     if (c) c.card.dim = ch.guards?.some((id) => world.entities[id].state !== 'dead') ? 0.4 : 1; // 야영지 무리가 살아 있으면 어둡게(잠김)
   });
-  const boss = world.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
+  const boss = paladinOf(world);
+  const lit = litBeams(world); // 기절·성검의 비 동안은 꺼진다(paladin.ts)
   for (const b of beams) {
     const ch = world.chests[b.id];
-    b.line.visible = !!boss && !ch.open && world.bareT <= 0;
+    b.line.visible = lit.includes(ch);
     if (!b.line.visible) continue;
     const a = b.line.geometry.getAttribute('position') as THREE.BufferAttribute;
     a.setXYZ(0, ch.x + 0.5, 1, ch.z + 0.5);

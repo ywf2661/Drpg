@@ -3,6 +3,7 @@ import { findPath, walkable, type Cell } from './path';
 import { steady, ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
+import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
 import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
@@ -525,7 +526,7 @@ export function tickZones(w: World) {
     const owner = z.owner < 0 ? null : w.entities[z.owner];
     if (owner && (owner.state === 'dead' || owner.phase !== 'windup')) return false;
     if ((z.t -= DT) > 0) return true;
-    if (!owner) explode(w, z.x, z.z, z.dmg, z.kind);
+    if (!owner) z.kind === 'sword' ? landSword(w, z) : explode(w, z.x, z.z, z.dmg, z.kind);
     else {
       owner.phase = 'none';
       w.blasts.push({ id: w.nextItem++, x: z.x, z: z.z, age: 0, kind: 'slam' });

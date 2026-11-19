@@ -7,7 +7,13 @@ import type { Chest, World } from './rules';
 // offer: 성물 바치기(초), window: 고리가 깨진 뒤 피해가 들어가는 시간, relight: 창이 끝나면 다시 켜는 성소 수,
 // guard: 기사가 지키는 거리(m), stagger: 고리가 깨질 때 성기사 기절(초), bossHp: 성기사 체력 배율(창에만 맞으므로 낮춘다),
 // depth: 이야기 깊이(폐허 다음, 21~25), chance·pity: 성물이 떨어질 확률, 놓친 횟수가 이만큼이면 다음은 확정
-export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.5, depth: 20, chance: 0.5, pity: 2, knights: 2 };
+export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 0.5, pity: 2, knights: 2 };
+// 성기사 전용 기술(설계: docs/superpowers/specs/2026-11-19-paladin-skills-design.md). 피해 = 성기사 평타 굴림 × *Mult
+// 빛의 사슬: beamR(m) 안이면 데이고 같은 대상은 beamEvery초에 한 번.
+// 성검의 비: rainFirst초 뒤 처음, rainCd마다. raise초 치켜든 뒤 표식 rainCount개(주인공 발밑·곁 하나 + 성기사 rainRange m 안, 서로 rainGap, 성소에서 altarGap 떨어짐)
+//   → rainDelay초 뒤 반경 swordR에 꽂히고 swordWall초 동안 그 칸이 벽.
+// 심판: 체력 절반 아래가 된 뒤 judgeFirst초, 그다음 judgeCd마다. judgeWindup초 기도 → 성기사에게서 judgeSafe m 밖 전부
+export const PALADIN = { beamR: 0.4, beamEvery: 1, beamMult: 0.5, rainFirst: 6, rainCd: 12, raise: 0.8, rainDelay: 1, rainCount: 8, rainRange: 12, rainGap: 1.5, altarGap: 2, swordR: 0.7, swordMult: 1.5, swordWall: 6, judgeFirst: 3, judgeCd: 18, judgeWindup: 2.5, judgeSafe: 3, judgeMult: 3 };
 export const RELICS = ['금 간 성배', '서리 낀 기도서', '부러진 성검 자루', '그을린 성유물함']; // STORY 순서(초원·설원·미궁·폐허)
 export const ALL_RELICS = 0b1111;
 export const relicCount = (relics: number) => [1, 2, 4, 8].filter((b) => relics & b).length;

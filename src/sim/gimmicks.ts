@@ -4,6 +4,7 @@
 import { walkable } from './path';
 import { asleep, dist, dress, dropGold, hurt, makeEntity, rand, randSlot, rollGear, wake } from './core';
 import { guardOf, SANCTUM } from './sanctum';
+import { tickPaladin } from './paladin';
 import { AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
 const LETTER: Record<string, Kind> = { m: 'minion', w: 'warrior', a: 'archer', g: 'mage' };
@@ -116,6 +117,7 @@ export function special(w: World, e: Entity, hero: Entity): boolean {
 export function tickGimmicks(w: World, hero: Entity) {
   if (w.buff && (w.buff.t -= DT) <= 0) w.buff = null;
   if (w.land === 'sanctum') tickAltars(w, hero);
+  tickPaladin(w); // 성기사 기술(?test 소환이면 성소 밖에서도)
   // 시련의 제단: 물결을 다 막으면 다음 물결(마지막 뒤엔 상자가 풀린다 — 열기는 주인공이)
   // 봉화도 같은 방식이고, 마지막 물결을 다 막으면 저절로 켜진다(의뢰 하나)
   for (const ch of w.chests) {
@@ -196,7 +198,7 @@ function tickAltars(w: World, hero: Entity) {
       w.blasts.push({ id: w.nextItem++, x: ch.x + 0.5, z: ch.z + 0.5, age: 0, kind: 'heal' });
       if (boss && altars.every((c) => c.open)) {
         w.bareT = SANCTUM.window;
-        boss.stunT = Math.max(boss.stunT, SANCTUM.stagger);
+        Object.assign(boss, { stunT: Math.max(boss.stunT, SANCTUM.stagger), phase: 'none' }); // 치켜들던 칼·기도도 끊긴다
         w.blasts.push({ id: w.nextItem++, x: boss.x, z: boss.z, age: 0, kind: 'curse' });
       }
     }

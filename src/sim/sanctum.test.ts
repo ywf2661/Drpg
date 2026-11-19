@@ -1,9 +1,11 @@
 import { expect, test } from 'vitest';
 import { generateFloor, walkDistances } from './dungeon';
 import { createWorld, DT, LANDS, step } from './world';
-import { hurt } from './core';
-import { touchChest } from './gimmicks';
-import { ALL_RELICS, ARENA, generateArena, missAfter, relicCount, relicDue, relicRoll, SANCTUM } from './sanctum';
+import { clearLine, hurt } from './core';
+import { spawnNear, touchChest } from './gimmicks';
+import { landSword, litBeams, paladin, tickPaladin } from './paladin';
+import { ALL_RELICS, ARENA, generateArena, missAfter, PALADIN, relicCount, relicDue, relicRoll, SANCTUM } from './sanctum';
+import { stun } from './wizard';
 
 // 회차 c마다 네 보스를 처음 깬다고 치고 성물을 모은다. 돌려주는 값 = 넷이 다 모인 회차(0부터)
 function collect(salt: number) {
@@ -126,4 +128,131 @@ test('지역 보스가 성물을 떨구고, 주우면 relics·relicGot', () => {
   step(w, []);
   expect(w.relics).toBe(0b1000);
   expect(w.relicGot).toBe(3);
+});
+
+test('빛의 사슬: 줄 수 = 켜진 성소 수, 기절·성검의 비 동안 0, 성소 밖이면 0', () => {
+  const { w, boss, altars } = arena();
+  boss.stunT = 0;
+  expect(litBeams(w).length).toBe(4);
+  altars[0].open = true;
+  expect(litBeams(w).length).toBe(3);
+  w.pal.quiet = 1;
+  expect(litBeams(w).length).toBe(0);
+  w.pal.quiet = 0;
+  boss.stunT = 1;
+  expect(litBeams(w).length).toBe(0);
+  const out = createWorld(3, generateFloor(3, 5), 1, 1, LANDS.ruins.skins);
+  spawnNear(out, 'boss', out.entities[0].x, out.entities[0].z, 3, -1, 'fallen_paladin');
+  expect(litBeams(out).length).toBe(0);
+});
+
+test('빛의 사슬: 줄 위에 서면 데이고, 1초에 한 번만', () => {
+  const { w, boss, altars, hero } = arena();
+  boss.stunT = 0;
+  const [ax, az] = [altars[0].x + 0.5, altars[0].z + 0.5];
+  Object.assign(hero, { x: boss.x + (ax - boss.x) * 0.25, z: boss.z + (az - boss.z) * 0.25 });
+  const hp0 = hero.hp;
+  tickPaladin(w);
+  const hp1 = hero.hp;
+  expect(hp1).toBeLessThan(hp0);
+  tickPaladin(w);
+  expect(hero.hp).toBe(hp1);
+  for (let i = 0; i < Math.round(PALADIN.beamEvery / DT); i++) tickPaladin(w);
+  expect(hero.hp).toBeLessThan(hp1);
+  Object.assign(hero, { x: altars[2].x + 0.5, z: altars[2].z + 2.5, hp: hero.maxHp }); // 줄에서 먼 곳
+  for (let i = 0; i < 30; i++) tickPaladin(w);
+  expect(hero.hp).toBe(hero.maxHp);
+});
+
+test('성검의 비: 0.8초 치켜든 뒤 표식 8개, 하나는 주인공 발밑, 성소 2m 안에는 없음', () => {
+  const { w, boss, altars, hero } = arena();
+  boss.stunT = 0;
+  Object.assign(hero, { x: 24.5, z: 27.5 });
+  w.pal.rain = 0;
+  expect(paladin(w, boss, hero)).toBe(true);
+  expect(boss.phase).toBe('raise');
+  expect(litBeams(w).length).toBe(0);
+  for (let i = 0; i < Math.round(PALADIN.raise / DT); i++) paladin(w, boss, hero);
+  const marks = w.zones.filter((z) => z.kind === 'sword');
+  expect(marks.length).toBe(PALADIN.rainCount);
+  expect(marks.some((z) => Math.floor(z.x) === 24 && Math.floor(z.z) === 27)).toBe(true);
+  for (const z of marks) for (const c of altars) expect(Math.hypot(z.x - c.x - 0.5, z.z - c.z - 0.5)).toBeGreaterThanOrEqual(PALADIN.altarGap);
+  expect(boss.phase).toBe('none');
+});
+
+test('성검: 빈 칸은 6초 벽(돌진 시야도 막음), 사람이 선 칸은 피해만, 성기사가 죽어도 벽은 풀린다', () => {
+  const { w, boss, hero } = arena();
+  boss.stunT = 0;
+  Object.assign(hero, { x: 24.5, z: 26.5 });
+  const zone = (x: number, z: number) => ({ id: w.nextItem++, x: x + 0.5, z: z + 0.5, r: PALADIN.swordR, t: 0, total: PALADIN.rainDelay, dmg: 50, owner: -1, kind: 'sword' as const });
+  landSword(w, zone(24, 24));
+  expect(w.grid.blocked[24 * w.grid.w + 24]).toBe(1);
+  expect(clearLine(w, boss, hero)).toBe(false);
+  const hp0 = hero.hp;
+  landSword(w, zone(24, 26));
+  expect(hero.hp).toBeLessThan(hp0);
+  expect(w.grid.blocked[26 * w.grid.w + 24]).toBe(0);
+  boss.state = 'dead'; // 고리 때문에 hurt로는 못 죽이니 바로 죽은 것으로
+  for (let i = 0; i < Math.round(PALADIN.swordWall / DT) + 1; i++) tickPaladin(w);
+  expect(w.grid.blocked[24 * w.grid.w + 24]).toBe(0);
+  expect(w.swords.length).toBe(0);
+});
+
+test('심판: 체력 절반 전에는 잠겨 있고, 절반 아래면 3초 뒤 첫 사용', () => {
+  const { w, boss } = arena();
+  boss.stunT = 0;
+  tickPaladin(w);
+  expect(w.pal.judge).toBe(-1);
+  boss.hp = Math.floor(boss.maxHp / 2);
+  tickPaladin(w);
+  expect(w.pal.judge).toBe(PALADIN.judgeFirst);
+});
+
+test('심판: 3m 안은 무사, 밖은 맞는다. 성검의 비가 진행 중이면 기다린다', () => {
+  const { w, boss, hero } = arena();
+  boss.stunT = 0;
+  Object.assign(w.pal, { judge: 0, rain: 99, quiet: 1 });
+  Object.assign(hero, { x: boss.x + 2, z: boss.z });
+  paladin(w, boss, hero);
+  expect(boss.phase).toBe('none');
+  w.pal.quiet = 0;
+  paladin(w, boss, hero);
+  expect(boss.phase).toBe('pray');
+  const hp0 = hero.hp;
+  for (let i = 0; i < Math.round(PALADIN.judgeWindup / DT) + 1; i++) paladin(w, boss, hero);
+  expect(hero.hp).toBe(hp0);
+  Object.assign(w.pal, { judge: 0 });
+  Object.assign(hero, { x: boss.x + 5, z: boss.z });
+  paladin(w, boss, hero);
+  for (let i = 0; i < Math.round(PALADIN.judgeWindup / DT) + 1; i++) paladin(w, boss, hero);
+  expect(hero.hp).toBeLessThan(hp0);
+});
+
+test('기도 중 기절하거나 고리가 깨지면 심판이 끊긴다', () => {
+  const { w, boss, altars, hero, stand, run } = arena();
+  boss.stunT = 0;
+  Object.assign(w.pal, { judge: 0, rain: 99 });
+  paladin(w, boss, hero);
+  expect(boss.phase).toBe('pray');
+  stun(boss, 1);
+  expect(boss.phase).toBe('none');
+  boss.phase = 'pray';
+  boss.stunT = 1e9; // 고리 깨짐 경로: tickAltars
+  for (const c of altars) { stand(c); w.offer = { id: c.id, t: 0 }; run(SANCTUM.offer + 0.1); }
+  expect(boss.phase).toBe('none');
+});
+
+test('성기사가 곁에서 쉬지 않고 휘두르는 중이어도 성검의 비·심판을 쓴다', () => {
+  const { w, boss, hero } = arena();
+  boss.stunT = 0;
+  Object.assign(boss, { state: 'attack', attackT: 0.3 });
+  w.pal.rain = 0;
+  expect(paladin(w, boss, hero)).toBe(true);
+  expect(boss.phase).toBe('raise');
+  const r = arena();
+  r.boss.stunT = 0;
+  Object.assign(r.boss, { state: 'attack', attackT: 0.3 });
+  Object.assign(r.w.pal, { judge: 0, rain: 99 });
+  paladin(r.w, r.boss, r.hero);
+  expect(r.boss.phase).toBe('pray');
 });
