@@ -26,8 +26,8 @@ test('성물은 늦어도 3회차에 다 모이고, 1·2회차 안에 다 모이
   const at = Array.from({ length: 400 }, (_, i) => collect(i * 7919 + 13));
   expect(Math.max(...at)).toBe(2);
   const by2 = at.filter((c) => c <= 1).length / at.length;
-  expect(by2).toBeGreaterThan(0.2); // 이론값 32%
-  expect(by2).toBeLessThan(0.45);
+  expect(by2).toBeGreaterThan(0.45); // 이론값 59%(1회차 50%, 2회차부터 75%)
+  expect(by2).toBeLessThan(0.72);
 });
 
 test('이미 가진 성물은 다시 안 떨어지고, 두 번 놓치면 확정', () => {

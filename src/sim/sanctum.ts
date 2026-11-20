@@ -8,7 +8,7 @@ import type { Chest, World } from './rules';
 // guard: 기사가 지키는 거리(m), stagger: 고리가 깨질 때 성기사 기절(초), bossHp: 성기사 체력 배율(창에만 맞으므로 낮춘다),
 // depth: 이야기 깊이(폐허 다음, 21~25), chance·pity: 성물이 떨어질 확률, 놓친 횟수가 이만큼이면 다음은 확정
 // haloAgain: 다시 쓰러뜨릴 때 「금 간 빛 고리」가 나올 확률(처음엔 확정), fallTalk: 쓰러진 뒤 대화창까지(초, 쓰러지는 모습)
-export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 0.5, pity: 2, knights: 2, haloAgain: 0.1, fallTalk: 2 };
+export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 0.5, chance2: 0.75, pity: 2, knights: 2, haloAgain: 0.1, fallTalk: 2 };
 // 성기사 전용 기술(설계: docs/superpowers/specs/2026-11-19-paladin-skills-design.md). 피해 = 성기사 평타 굴림 × *Mult
 // 빛의 사슬: beamR(m) 안이면 데이고 같은 대상은 beamEvery초에 한 번.
 // 성검의 비: rainFirst초 뒤 처음, rainCd마다. raise초 치켜든 뒤 표식 rainCount개(주인공 발밑·곁 하나 + 성기사 rainRange m 안, 서로 rainGap, 성소에서 altarGap 떨어짐)
@@ -26,7 +26,7 @@ export const nameSalt = (s: string) => [...s].reduce((h, c) => Math.imul(h ^ c.c
 // 회차·지역마다 정해진 굴림(죽고 다시 들어가도 같다 — 재도전으로 확률을 다시 굴리지 못하게)
 export const relicRoll = (cycle: number, k: number, salt: number) => mulberry(salt ^ Math.imul(cycle * 4 + k + 1, 0x9e3779b1))();
 // 지역 k(STORY 순서) 보스가 이번에 성물을 떨구나. 이미 가졌으면 아니고, pity번 놓쳤으면 확정
-export const relicDue = (relics: number, miss: number[], k: number, cycle: number, salt: number) => k >= 0 && !((relics >> k) & 1) && (miss[k] >= SANCTUM.pity || relicRoll(cycle, k, salt) < SANCTUM.chance);
+export const relicDue = (relics: number, miss: number[], k: number, cycle: number, salt: number) => k >= 0 && !((relics >> k) & 1) && (miss[k] >= SANCTUM.pity || relicRoll(cycle, k, salt) < (cycle >= 1 ? SANCTUM.chance2 : SANCTUM.chance));
 // 회차 첫 처치였는데 성물이 안 나왔으면 놓친 횟수 +1
 export const missAfter = (miss: number[], k: number, got: boolean) => (got || k < 0 ? miss : miss.map((n, i) => (i === k ? Math.min(SANCTUM.pity, n + 1) : n)));
 
