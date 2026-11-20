@@ -25,6 +25,7 @@ import { cutsFx, flashFx, iaidoGroup, resetIaido } from './iaido';
 import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
 import { ghostFx, ghostGroup, resetGhosts } from './ghost';
 import { hawkFx, hawkGroup, resetHawk, rideLift } from './hawk';
+import { legendFx, legendGroup, resetLegendFx } from './legendfx';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
@@ -53,6 +54,7 @@ const SUN_AT = new THREE.Vector3(-6, 14, -3); // 주인공에서 해 쪽
 const SUN_BOX = 20; // 그림자를 그리는 범위(m, 화면보다 넉넉히)
 const WINDUP = new THREE.Color(2.2, 0.2, 0.12); // 공격 준비(평타·내려찍기·돌진 예고) 색
 const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
+const BLOOD = new THREE.Color(3, 0.25, 0.2); // 종언: 체력을 내준 순간 주인공이 붉게
 const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -184,7 +186,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -225,6 +227,7 @@ export function setWorld(world: World, theme: Theme) {
   resetTemper(world);
   resetGhosts(world);
   resetHawk(world);
+  resetLegendFx(world);
   impactsSeen = world.impacts;
   shoutsSeen = world.shouts;
   castsSeen = world.casts;
@@ -320,6 +323,7 @@ export function draw(world: World, dt: number) {
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0 || e.asleep) s.mat.color.lerp(STUNNED, 0.5); // 잠든(얼어붙은) 몬스터도 푸르게
     if (e.fearT > 0 && e.skin !== 'treasure') s.mat.color.lerp(SCARED, 0.5); // 보물 고블린은 도망쳐도 금빛
+    if (e === hero && world.finales.some((f) => f.age < 0.15)) s.mat.color.lerp(BLOOD, 0.6);
   }
   // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
   dropAllies(new Set(world.allies.map((a) => a.id)));
@@ -332,6 +336,7 @@ export function draw(world: World, dt: number) {
       scene.add(s.mesh);
     }
     updateSprite(s, a, dt, a.interval);
+    s.mesh.visible = a.from !== 'graveKing'; // 무덤 왕은 3D 모형(legendfx.ts)
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(light(a.x, a.z) * (0.45 + (0.55 * a.hp) / a.maxHp)); // 맞을수록 어두워진다
   }
   markT -= dt;
@@ -353,6 +358,7 @@ export function draw(world: World, dt: number) {
   temperFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt, fresh);
   ghostFx(world, time, frozen ? 0 : dt); // 잔상(마법사)
   hawkFx(world, sprites[0].mesh.position, time, frozen ? 0 : dt); // 궁수의 매
+  legendFx(world, frozen ? 0 : dt, time); // 전설 무기: 무덤 왕·종언 검기·천둥새
   syncChests(world);
   const altars = world.chests.filter((c) => c.kind === 'altar');
   setHaloGoal(!altars.length ? 1 : warded(world) ? altars.filter((c) => !c.open).length / altars.length : 0);

@@ -149,6 +149,7 @@
       #tree .tabbar button.on { color: #1a1006; background: var(--gold-hi); }
       #tree .sk { display: flex; gap: 8px; padding: 6px; margin-bottom: 6px; background: #0004; border: 1px solid #4a3a26; border-radius: 3px; }
       #tree .sk.unlearned .ic { filter: grayscale(1) brightness(0.55); }
+      #tree .sk.legend { border-color: var(--legend); box-shadow: inset 0 0 0 1px #ff5e1433; } /* 전설 무기가 주는 스킬 */
       #tree .ic { position: relative; flex: none; width: 32px; height: 32px; image-rendering: pixelated; border: 1px solid #000; background-color: var(--iron); }
       #tree .body { flex: 1; min-width: 0; }
       #tree .head { display: flex; align-items: center; gap: 6px; }
@@ -461,7 +462,7 @@
     <canvas id="automap"></canvas>
     <div id="floor"></div>
     <div id="quest"></div>
-    <div id="tester" hidden><button id="test-level" title="경험치를 채워 레벨 +5 (스킬 포인트 +5, 체력 회복)">레벨 +5</button><button id="test-floor" title="상점을 건너뛰고 바로 다음 층으로">다음 층 ▼</button><button id="test-land" title="같은 층 번호의 다른 지역으로: 미궁 → 초원 → 설원">다음 지역 ▶</button><button id="test-knight" title="주인공 근처에 타락한 성기사를 불러낸다(야영지, 계단·출구·보스가 없는 구역 제외)">기사 소환</button></div>
+    <div id="tester" hidden><button id="test-level" title="경험치를 채워 레벨 +5 (스킬 포인트 +5, 체력 회복)">레벨 +5</button><button id="test-floor" title="상점을 건너뛰고 바로 다음 층으로">다음 층 ▼</button><button id="test-land" title="같은 층 번호의 다른 지역으로: 미궁 → 초원 → 설원">다음 지역 ▶</button><button id="test-knight" title="주인공 근처에 타락한 성기사를 불러낸다(야영지, 계단·출구·보스가 없는 구역 제외)">기사 소환</button><button id="test-legend" title="지금 직업의 전설 무기(칼리버X·엘리멘탈 스태프·갇힌 왕의 두개골·천둥새의 장궁)를 4단계로 만들어 바로 입는다. 입던 무기는 가방으로">전설 무기</button></div>
     <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="next-cycle" hidden>야영지로</button><button id="restart" hidden>야영지로 (R)</button></div>
     <div id="title" hidden>

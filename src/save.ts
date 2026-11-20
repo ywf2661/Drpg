@@ -2,7 +2,7 @@
 import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
 import type { Side } from './sim/wilds';
-import { runeAffix, type Rune, LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, BAG, STASH, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
+import { GEAR_SKILLS, runeAffix, type Rune, LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, BAG, STASH, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
@@ -85,7 +85,7 @@ function skillTree(d: Record<string, unknown>, cls: HeroClass): Pick<Run, 'ranks
     if (SKILLS[id as SkillId]?.cls !== cls || !int(n, 1, RANK_MAX)) return null;
     ranks[id as SkillId] = n as number;
   }
-  const keys = Object.fromEntries(KEYS.map((key) => [key, k[key] ?? null])) as Keys;
+  const keys = Object.fromEntries(KEYS.map((key) => [key, GEAR_SKILLS[k[key] as SkillId] ? null : (k[key] ?? null)])) as Keys; // 전설 스킬 칸은 비운다(입고 있으면 gearKeys가 다시 끼운다)
   const used = KEYS.map((key) => keys[key]).filter((id): id is SkillId => id !== null);
   if (used.some((id) => !ranks[id] || isPassive(id)) || new Set(used).size !== used.length) return null;
   return { ranks, points: d.points as number, keys };

@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -25,7 +25,8 @@ export const pay = (w: World, id: SkillId) => void (w.res -= skillCost(w.cls, id
 
 // 스킬 단계(0 = 안 배움) = 포인트로 찍은 기본 단계 + 장비 보너스(배운 스킬만, 초월 상한 RANK_MAX + RANK_OVER).
 // 1단계에서 더 올린 단계 수(수치 표의 기본값 = 1단계), 5단계 완성 효과
-export const baseRank = (w: World, id: SkillId) => w.ranks[id] ?? 0;
+// 기본 단계: 배운 단계. 전설이 주는 스킬(GEAR_SKILLS)은 그 전설을 입은 동안 1
+export const baseRank = (w: World, id: SkillId) => (GEAR_SKILLS[id] ? (hasUnique(w, GEAR_SKILLS[id]!.u) ? 1 : 0) : (w.ranks[id] ?? 0));
 // 한 옵션이 그 스킬에 주는 단계 보너스
 const bonusOf = (a: Affix, id: SkillId) => (a.kind === 'skill' ? (a.skill === id ? a.value : 0) : a.kind === 'tab' ? (a.tab === SKILLS[id].tab ? a.value : 0) : a.kind === 'allSkills' ? a.value : 0);
 export const gearBonus = (w: World, id: SkillId) => SLOTS.reduce((s, sl) => s + w.mods[sl].reduce((t, a) => t + bonusOf(a, id), 0), 0);
@@ -42,6 +43,21 @@ export function syn(w: World, id: SkillId) {
 }
 // 그 스킬을 끼운 칸(없으면 undefined)과, 그 칸의 재사용 대기를 by초 줄이기(Infinity = 바로 준비)
 export const keyOf = (w: World, id: SkillId) => KEYS.find((k) => w.keys[k] === id);
+// 전설이 주는 스킬의 칸 정리(매 틱): 벗었으면 그 칸을 그 탭의 1단계 스킬로(배웠고 다른 칸에 없을 때, 아니면 비운다), 입었으면 빈 칸에 끼운다
+export function gearKeys(w: World) {
+  for (const k of KEYS) {
+    const id = w.keys[k];
+    const g = id ? GEAR_SKILLS[id] : undefined;
+    if (!g || rank(w, id!)) continue;
+    const first = TREES[w.cls][g.tab]?.skills[0];
+    w.keys[k] = first && rank(w, first) && !keyOf(w, first) ? first : null;
+  }
+  for (const id of GEAR_SKILL_LIST) {
+    if (SKILLS[id].cls !== w.cls || keyOf(w, id) || !rank(w, id)) continue;
+    const free = KEYS.find((k) => !w.keys[k]);
+    if (free) w.keys[free] = id;
+  }
+}
 export function cutCd(w: World, id: SkillId, by: number) {
   const k = keyOf(w, id);
   if (k) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - by);
@@ -78,8 +94,23 @@ export const reforgeStat = (w: World) => ({ radius: TEMPER.reforgeR, mult: (TEMP
 export const unleashStat = (w: World) => ({ cd: TEMPER.cd - 0.5 * ext(w, 'unleash'), time: TEMPER.time + 0.5 * ext(w, 'unleash'), mult: TEMPER.slash * syn(w, 'unleash') });
 export const flashStat = (w: World) => ({ cd: FLASH.cd - 0.5 * ext(w, 'flash'), max: FLASH.max + ext(w, 'flash'), mult: FLASH.hit * syn(w, 'flash'), cut: FLASH.cut * syn(w, 'flash') });
 
+export const finaleStat = (w: World) => ({ cd: FINALE.cd - 0.5 * ext(w, 'finale'), mult: (FINALE.mult + 0.5 * ext(w, 'finale')) * syn(w, 'finale') });
+
 // 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
 export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));
+
+// 엘리멘탈 스태프: 스킬 피해의 ELEM_STAFF.extra를 마지막에 쓴 탭의 속성으로 한 번 더. 냉기 = 멈칫, 번개 = 가까운 다른 적 하나에게
+// ponytail: 속성은 "맞힌 스킬"이 아니라 "마지막에 쓴 스킬"의 탭 — 날아가던 화염구가 냉기를 쓴 뒤 맞으면 냉기. 스킬별로 갈라야 하면 Shot에 탭을 싣는다
+function elemHit(w: World, e: Entity, raw: number) {
+  const extra = Math.max(1, Math.round(raw * ELEM_STAFF.extra));
+  const hero = w.entities[0];
+  if (w.elem === 2) {
+    const next = w.entities.filter((o) => o !== hero && o !== e && o.state !== 'dead' && dist(o, e) <= ELEM_STAFF.jump).sort((a, b) => dist(a, e) - dist(b, e))[0];
+    if (next) return void hurt(w, next, extra, hero);
+  }
+  hurt(w, e, extra, hero);
+  if (w.elem === 1 && e.kind !== 'boss' && e.kind !== 'king') e.stunT = Math.max(e.stunT, ELEM_STAFF.freeze);
+}
 
 // 스킬 피해(가르기·돌진·도끼). 연계: 예고 중인 적은 받아치기 ×2, 기절한 적은 약점 ×1.5, 공포로 도망치는 적은 등 뒤 ×2(기록을 남겨 화면에 글자가 뜬다)
 // 광전사의 손잡이: 스킬 피해 × (1 + 분노). 결투자의 투구: 받아치기면 모든 칸 재사용 대기 −1초, 자원 +15
@@ -88,6 +119,7 @@ export function skillHit(w: World, e: Entity, raw: number) {
   if (kind) w.combos.push({ id: w.nextItem++, x: e.x, z: e.z, kind, age: 0 });
   const r = 1 + rage(w);
   hurt(w, e, kind ? Math.round(raw * r * COMBO[kind]) : r === 1 ? raw : Math.round(raw * r), w.entities[0]);
+  if (w.elem >= 0 && hasUnique(w, 'elemStaff')) elemHit(w, e, raw);
   if (kind === 'counter' && hasUnique(w, 'duelist')) {
     for (const k of KEYS) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - LEGEND_FX.duelCd);
     w.res = Math.min(resMax(w), w.res + LEGEND_FX.duelRes);
@@ -511,6 +543,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     return dealt;
   }
   // 기도하는 자: 「금 간 빛 고리」(haloDrop 확률, 아니면 평소 전설)·작은 목마(처음)
+  if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < LEGEND_DROP.prayer) toBagOrFloor(w, makeUnique(w, PRAYER_WEAPON[w.cls], t.x, t.z, w.maxTier)); // 따로 굴려 전설 무기(그가 지키던 무기)
   if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < w.haloDrop) toBagOrFloor(w, makeUnique(w, 'crackedHalo', t.x, t.z, w.maxTier));
   else if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
   if (t.kind === 'boss' && w.horseDrop) w.items.push({ id: w.nextItem++, x: t.x - 0.6, z: t.z + 0.3, kind: 'relic', tier: 0, relic: HORSE });

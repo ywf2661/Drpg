@@ -26,7 +26,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -344,6 +344,9 @@ const SKILL_TEXT: Record<SkillId, SkillText> = {
   spear: { name: '뼈 창', desc: '지나는 길의 적을 모두 꿰뚫는 뼈 창을 던진다', stat: (w) => { const s = spearStat(w); return `${wd(s.mult)}${cd(s.cd)}`; } },
   boneArmor: { name: '뼈 갑옷', desc: '피해를 흡수하는 뼈 갑옷을 두른다', stat: (w) => { const s = boneArmorStat(w); return `${BONE_ARMOR.time}초 동안 최대 체력의 ${pct(s.absorb)}까지 흡수${cd(s.cd)}`; } },
   drain: { name: '생명 흡수', desc: '패시브 — 나와 해골이 준 피해의 일부만큼 체력을 회복한다', stat: (w) => `준 피해의 ${pct(DRAIN.per * Math.max(1, w.ranks.drain ?? 0))}` },
+  // 전설 무기가 주는 스킬(GEAR_SKILLS) — 수치 줄은 효과를 넣을 때
+  finale: { name: '종언', desc: '최대 체력의 일부를 잃고(체력 1은 남는다) 앞쪽 넓은 부채꼴로 불길한 검붉은 검기를 날린다', stat: (w) => { const s = finaleStat(w); return `최대 체력 ${pct(FINALE.hp)}를 잃고 반경 ${m(FINALE.radius)} · ${FINALE.arc}° 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  graveKing: { name: '무덤 왕의 귀환', desc: '땅을 가르고 거대한 해골 왕의 상반신을 불러낸다. 곁을 따라다니며 다가오는 적을 양팔로 번갈아 내리친다', stat: (w) => { const s = graveKingStat(w); return `${sec(GRAVE_KING.life)} 동안 따라다님 · 체력 ${s.hp} · 둘레 ${m(GRAVE_KING.reach)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
   prison: { name: '뼈 감옥', desc: '지정한 곳 주변의 적을 뼈 감옥에 가둔다', stat: (w) => { const s = prisonStat(w); return `반경 ${m(s.radius)} 안의 적에게 ${wd(s.mult)} · ${sec(s.time)} 속박(보스 ${sec(PRISON.big)})${cd(s.cd)}`; } },
 };
 export const skillName = (id: SkillId) => SKILL_TEXT[id].name;
@@ -357,6 +360,7 @@ const ICON: Record<SkillId, number> = {
   bones: 0, giant: 1, boneMastery: 0, lord: 3, curse: 2, plague: 2, curseMastery: 2, corpseBlast: 2, spear: 0, boneArmor: 1, drain: 2, prison: 2,
   mark: 0, graze: 1, echo: 0, flash: 1,
   flameEdge: 0, frostEdge: 0, reforge: 0, unleash: 1,
+  finale: 0, graveKing: 3, // 가르기·해골 왕 그림 + 이름 두 글자
 };
 const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
 const SKILL_STRIPS: Partial<Record<HeroClass, string>> = { wizard: wizardSkillIcons, ranger: rangerSkillIcons, necromancer: necroSkillIcons };
@@ -434,15 +438,18 @@ export function showTree(w: World, h: { learn(id: SkillId): void; bind(key: Skil
     bar,
     ...[TREES[w.cls][treeTab]].map((tab) => {
       const col = el('section');
-      for (const id of tab.skills) {
-        const r = w.ranks[id] ?? 0;
-        const block = learnBlock(w, id);
-        const card = el('div', `sk${r ? '' : ' unlearned'}`);
+      // 탭의 스킬 4개 + 입은 전설이 이 탭에 주는 스킬(주황 테두리, 포인트로 못 올린다)
+      const gear = GEAR_SKILL_LIST.filter((id) => SKILLS[id].cls === w.cls && SKILLS[id].tab === treeTab && rank(w, id));
+      for (const id of [...tab.skills, ...gear]) {
+        const legend = !!GEAR_SKILLS[id];
+        const r = legend ? 1 : (w.ranks[id] ?? 0);
+        const block = legend ? '최고 단계' : learnBlock(w, id); // 전설 스킬은 + 버튼·잠금 줄 없이
+        const card = el('div', `sk${r ? '' : ' unlearned'}${legend ? ' legend' : ''}`);
         const icon = el('div', 'ic');
         paintIcon(icon, id, 32);
         const body = el('div', 'body');
         const head = el('div', 'head');
-        const lv = el('span', 'lv', `${r}/${RANK_MAX}`);
+        const lv = el('span', 'lv', legend ? '전설' : `${r}/${RANK_MAX}`);
         const extra = r ? rank(w, id) - r : 0;
         if (extra) lv.append(el('em', rank(w, id) > RANK_MAX ? 'over' : 'boost', ` +${extra} → ${rank(w, id)}`)); // 장비 보너스(초록), 초월(금색)
         head.append(el('b', '', SKILL_TEXT[id].name), lv);
@@ -657,7 +664,9 @@ function tipOn(target: HTMLElement, get: () => [GearItem, string, string]) {
 }
 
 // 장비 아이콘 위치(gear_icons.png = 무기 4 + 갑옷 4 + 투구 4 + 신발 4)
-const iconX = (it: GearItem) => `${-(SLOTS.indexOf(it.kind) * 4 + it.tier - 1) * 40}px`;
+// 강령술사는 마법사 아이콘 띠를 빌리되 무기는 완드(1·2단계)·로드(3·4단계)만 — 스태프는 마법사 전용
+const iconTier = (it: GearItem) => (cls === 'necromancer' && it.kind === 'weapon' ? (it.tier + 1) >> 1 : it.tier);
+const iconX = (it: GearItem) => `${-(SLOTS.indexOf(it.kind) * 4 + iconTier(it) - 1) * 40}px`;
 
 // 장비 칸: 아이콘과 이름·수치·옵션(툴팁)
 function showGear(w: World) {

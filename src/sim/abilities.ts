@@ -1,12 +1,12 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { steady, ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { FINALE, steady, ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
-import { emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
+import { finaleStat, emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
 
@@ -56,6 +56,28 @@ export function execute(w: World, hero: Entity, x?: number, z?: number): number 
     for (const e of w.entities)
       if (e !== hero && e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king' && !steady(e) && dist(e, t) <= EXECUTE.fearR) Object.assign(e, { fearT: EXECUTE.fear, state: 'idle', attackT: 0, path: [], phase: 'none' });
   }
+  return st.cd;
+}
+
+// 종언(칼리버X): 최대 체력의 FINALE.hp를 잃고(1은 남는다) 조준 쪽(없으면 가까운 적 쪽) 넓은 부채꼴의 적 모두에게 큰 피해
+export function finale(w: World, hero: Entity, x?: number, z?: number): number {
+  if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
+  else {
+    const near = w.entities.filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= FINALE.radius).sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+    if (near) face(hero, near);
+  }
+  const st = finaleStat(w);
+  hero.hp = Math.max(1, hero.hp - Math.round(hero.maxHp * FINALE.hp));
+  const [fx, fz, cos] = [Math.sin(hero.facing), Math.cos(hero.facing), Math.cos(((FINALE.arc / 2) * Math.PI) / 180)];
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead') continue;
+    const [dx, dz] = [e.x - hero.x, e.z - hero.z];
+    const d = Math.hypot(dx, dz);
+    if (d > FINALE.radius || (d > 1e-6 && (dx * fx + dz * fz) / d < cos) || !clearLine(w, hero, e)) continue;
+    skillHit(w, e, Math.round(roll(w, hero) * st.mult));
+    knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
+  }
+  w.finales.push({ id: w.nextItem++, x: hero.x, z: hero.z, dir: hero.facing, age: 0 });
   return st.cd;
 }
 

@@ -1,7 +1,7 @@
 // FLARE 8방향 도트 스프라이트로 캐릭터를 그린다. 캐릭터마다 카메라를 향한 세로 판자(빌보드) 1장.
 import { EDGE_COLOR } from './edge';
 import * as THREE from 'three';
-import { ELITE_KINDS, SLOTS, STATS, UNIQUES, uniqueOf, type Entity, type Gear, type HeroClass, type Kind, type Skin, type Slot, type World } from '../sim/world';
+import { ELITE_KINDS, SLOTS, STATS, UNIQUES, uniqueOf, type Entity, type Gear, type HeroClass, type Kind, type Skin, type Slot, type UniqueId, type World } from '../sim/world';
 import heroInfo from '../assets/sprites/hero.json';
 import heroOrder from '../assets/sprites/hero_layers.json';
 import minionInfo from '../assets/sprites/minion.json';
@@ -170,14 +170,23 @@ function pixelated<T extends THREE.Texture>(tex: T): T {
   return tex;
 }
 
-// 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색
-export type Looks = Partial<Record<Slot, string>>;
+// 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색. layers: 전설 무기가 바꾸는 레이어 → 시트 이름(null = 그리지 않음)
+export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null> };
+const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → wizard_main_elem<색>(tools/sprites.py LEGEND_LAYERS)
+// 전설 무기의 레이어(설계 2026-11-20): 칼리버X = 츠바이헨더·방패 없음, 엘리멘탈 스태프 = 마지막 속성 색, 두개골 = 4단계 로드 + 해골 구슬, 천둥새 = 번개 장궁
+const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
+  caliburx: () => ({ main: 'hero_main_caliburx', off: null }),
+  elemStaff: (e) => ({ main: `wizard_main_elem${ELEM_SHEET[e] ?? 'base'}` }),
+  graveSkull: () => ({ main: 'necromancer_main_4', off: 'necromancer_off_skull' }),
+  stormBow: () => ({ main: 'ranger_main_storm' }),
+};
 // 벼림으로 칼을 강화한 동안은 무기 색이 강화 색(전설 원색보다 먼저)
-export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge'>>): Looks {
+export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'elem'>>): Looks {
   const out: Looks = {};
   for (const s of SLOTS) {
     const u = uniqueOf({ affixes: w.mods[s] });
     if (u && UNIQUES[u].look) out[s] = UNIQUES[u].look;
+    if (u && LEGEND_LAYERS[u]) out.layers = { ...out.layers, ...LEGEND_LAYERS[u]!(w.elem ?? -1) };
   }
   if (w.edge?.kind) out.weapon = EDGE_COLOR[w.edge.kind];
   return out;
@@ -213,8 +222,9 @@ async function heroSheet(g: Gear, cls: HeroClass, looks: Looks): Promise<THREE.T
   const imgs: Record<string, CanvasImageSource> = {};
   await Promise.all(
     Object.keys(HERO_LAYERS).map(async (l) => {
-      const url = layerUrl(l, g, cls);
-      if (!url) return; // 그 직업에 없는 레이어
+      const over = looks.layers?.[l];
+      const url = over === undefined ? layerUrl(l, g, cls) : over ? HERO_URLS[`../assets/sprites/${over}.png`] : undefined;
+      if (!url) return; // 그 직업에 없는 레이어(또는 전설 무기가 지운 방패)
       if (!layerImages.has(url)) layerImages.set(url, new THREE.ImageLoader().loadAsync(url));
       const color = looks[HERO_LAYERS[l]];
       imgs[l] = color ? await tinted(url, color) : await layerImages.get(url)!;

@@ -2,11 +2,11 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
 import type { Side } from './wilds';
-import { keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
+import { gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
-import { boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
+import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
-import { axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
+import { finale, axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
 import { clearEdge, flameEdge, frostEdge, temper, tickEdge, unleash } from './temper';
 import { flock, ride, rideStep, swoop, tickHawks } from './hawk';
@@ -15,15 +15,15 @@ import { BLOCKS } from './dungeon';
 import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
-import { FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
 export { assistStat, flockStat, rideStat, swoopStat } from './hawk';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
 export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
-export { boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
-export { keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { graveKingStat, boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
+export { wear, makeUnique, finaleStat, gearKeys, keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 직업마다 예전 스킬 넷(트리 이전의 Q W E R). 테스트·봇의 기본 장비이고, createWorld가 기사 것을 넣는다
 export const BASIC: Record<HeroClass, [SkillId, SkillId, SkillId, SkillId]> = {
@@ -107,7 +107,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -145,6 +145,7 @@ function unseal(w: World) {
 
 export function step(w: World, cmds: Command[]): void {
   const hero = w.entities[0];
+  gearKeys(w); // 전설 스킬: 장비를 바꾸는 길이 여럿이라 여기 한 곳에서 칸을 맞춘다
   w.skillCd = Math.max(0, w.skillCd - DT);
   w.dashCd = Math.max(0, w.dashCd - DT);
   w.shoutCd = Math.max(0, w.shoutCd - DT);
@@ -157,6 +158,7 @@ export function step(w: World, cmds: Command[]): void {
   recordPast(w, hero);
   if (hero.state !== 'dead') w.res = Math.min(resMax(w), w.res + resRegen(w) * DT);
   w.castT = Math.max(0, w.castT - DT);
+  w.finales = w.finales.filter((f) => (f.age += DT) <= FINALE.age);
   w.blasts = w.blasts.filter((b) => (b.age += DT) <= MAGE.blastAge);
   w.combos = w.combos.filter((c) => (c.age += DT) <= COMBO.age);
   w.edgeHits = w.edgeHits.filter((h) => (h.age += DT) <= TEMPER.hitAge);
@@ -288,6 +290,7 @@ function pickup(w: World, hero: Entity) {
 export function learnBlock(w: World, id: SkillId): string | null {
   const { cls, tab, tier } = SKILLS[id];
   if (cls !== w.cls) return '다른 직업의 스킬';
+  if (GEAR_SKILLS[id]) return '전설 장비가 주는 스킬';
   if (baseRank(w, id) >= RANK_MAX) return '최고 단계';
   if (w.level < TIER_LEVEL[tier]) return `레벨 ${TIER_LEVEL[tier]}부터 배울 수 있음`;
   const below = tier ? TREES[cls][tab].skills[tier - 1] : null;
@@ -398,6 +401,7 @@ function command(w: World, hero: Entity, c: Command) {
 type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
 const CASTS: Partial<Record<SkillId, Cast>> = {
   cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe, axeStorm,
+  finale, graveKing,
   fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest, afterimage, swap, retrace, swoop, ride, flock,
   pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,
   bones, giant, lord, curse, plague, corpseBlast, spear, boneArmor, prison,
@@ -423,6 +427,7 @@ function cast(w: World, hero: Entity, c: Command) {
   if (cd > 0) {
     w[KEY_CD[key]] = w.cdFull[key] = cd * keyCut(w, key); // 칸 룬
     pay(w, id); // 나갔을 때만 비용
+    if (w.cls === 'wizard') w.elem = SKILLS[id].tab; // 엘리멘탈 스태프의 색·추가 피해 속성
     if (w.ghosts.length) copyCast(w, hero, id, x, z, recast); // 잔상이 따라 쓴다
     remember(w, id, hero, x, z); // 지나온 길
   }

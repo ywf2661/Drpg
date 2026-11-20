@@ -2,7 +2,7 @@
 // 뼈(뼈 창·뼈 갑옷·생명 흡수·뼈 감옥). 스페이스는 기사 구르기. 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다.
 // 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
-import { LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
+import { GRAVE_KING, LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
 import { hasUnique, clearLine, dist, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
 import { burst, openGate } from './abilities';
 import { aimDir, blast, foes, spot, stun } from './wizard';
@@ -110,6 +110,18 @@ export function lord(w: World, hero: Entity): number {
 // 소환수 한 틱: 표식 안의 적이 먼저, 아니면 주인공 가까이(BONES.aggro 안)의 적을 쫓아 공격, 적이 없으면 주인공 뒤를 따른다. 시간이 다 되거나 맞아 죽으면 사라진다.
 // 소환수에게 맞은 몬스터는 주인공 대신 그 소환수를 노린다(보스·해골 왕은 한눈팔지 않는다)
 // ponytail: 소환수끼리·몬스터와는 겹치지 않게 소환수만 밀린다(separate는 entities만 본다)
+export const graveKingStat = (w: World) => ({ cd: GRAVE_KING.cd - ext(w, 'graveKing'), hp: Math.round(heroMax(w) * GRAVE_KING.hp), mult: (GRAVE_KING.mult + 0.25 * ext(w, 'graveKing')) * syn(w, 'graveKing') });
+// 무덤 왕의 귀환(갇힌 왕의 두개골): 주인공 앞(조준점 쪽)에 거대한 해골 왕의 상반신이 솟아, 주인공을 따라다니며 곁의 적을 모두 내리친다
+export function graveKing(w: World, hero: Entity, x?: number, z?: number): number {
+  const st = graveKingStat(w);
+  if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
+  let [gx, gz] = [hero.x + Math.sin(hero.facing) * GRAVE_KING.ahead, hero.z + Math.cos(hero.facing) * GRAVE_KING.ahead];
+  if (!walkable(w.grid, Math.floor(gx), Math.floor(gz))) [gx, gz] = [hero.x, hero.z];
+  dismiss(w, 'graveKing');
+  spawn(w, gx, gz, 'king', { life: GRAVE_KING.life, hp: st.hp, mult: st.mult, reach: GRAVE_KING.reach, interval: GRAVE_KING.interval }, (a) => a.from === 'graveKing', 1, { from: 'graveKing', escort: true });
+  return st.cd;
+}
+
 export function tickAllies(w: World, hero: Entity) {
   const aura = w.allies.some((a) => a.kind === 'king') ? LORD.aura : 1;
   const marked = (e: Entity) => w.curses.some((c) => c.amp > 0 && Math.hypot(e.x - c.x, e.z - c.z) <= c.r);
@@ -122,6 +134,7 @@ export function tickAllies(w: World, hero: Entity) {
     if (!t || t.state === 'dead' || (dist(t, hero) > BONES.aggro + 2 && !marked(t))) t = null; // 주인공에게서 너무 멀어지면 놓는다
     if (!t || !marked(t)) t = near(a, foes(w, hero).filter(marked)) ?? t; // 죽음의 표식: 하던 싸움을 두고 달려든다
     t ??= near(a, foes(w, hero).filter((e) => dist(e, hero) <= BONES.aggro && clearLine(w, a, e)));
+    if (a.escort) t = near(a, foes(w, hero).filter((e) => dist(e, a) <= a.reach)); // 무덤 왕: 적을 쫓지 않고 닿는 적만 친다(없으면 아래에서 주인공 곁으로)
     a.target = t?.id ?? null;
     if (a.state === 'attack') {
       const before = a.attackT;
@@ -132,7 +145,7 @@ export function tickAllies(w: World, hero: Entity) {
         const d = dist(a, t) || 1;
         const at = t;
         if (a.kind === 'archer') w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg, left: WIZ.flight, kind: 'bolt' }); // 뼈 화살(주인공 평타와 같은 탄)
-        else for (const e of a.splash ? foes(w, hero).filter((e) => dist(e, at) <= a.splash!) : [t]) hurt(w, e, dmg, hero);
+        else for (const e of a.escort ? foes(w, hero).filter((e) => dist(e, a) <= a.reach) : a.splash ? foes(w, hero).filter((e) => dist(e, at) <= a.splash!) : [t]) hurt(w, e, dmg, hero);
         if (a.kind === 'mage') blast(w, 'spark', t.x, t.z);
         if (t.target === hero.id && t.kind !== 'boss' && t.kind !== 'king') t.target = a.id;
       }

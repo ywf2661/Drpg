@@ -13,7 +13,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { PRAYER_WEAPON, wear as wearGear, makeUnique, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 import { hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
@@ -611,6 +611,17 @@ if (new URLSearchParams(location.search).has('test')) {
   // 최종 보스: 주인공 근처에 기도하는 자(그 회차 성소 5층과 같은 수치, 야영지 제외)
   $('#test-knight').addEventListener('click', () => {
     if (playing() && canSummonKnight(world)) summonKnight(world, cycle); // 그 회차의 성소 5층 기도하는 자와 같은 수치
+  });
+  // 전설 무기: 지금 직업의 전설 무기를 4단계로 만들어 가방에 넣고 바로 입는다(입던 무기는 가방으로). 가방이 꽉 차면 그냥 입는다(입던 무기는 사라진다)
+  $('#test-legend').addEventListener('click', () => {
+    if (!playing()) return;
+    const hero = world.entities[0];
+    const it = makeUnique(world, PRAYER_WEAPON[world.cls], hero.x, hero.z, 4);
+    const gear = { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! };
+    const at = bagSpot(world.bag, gear);
+    if (!at) return void wearGear(world, gear);
+    world.bag.push({ ...gear, x: at[0], y: at[1] });
+    equipFromBag(world, world.bag.length - 1);
   });
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기

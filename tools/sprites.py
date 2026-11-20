@@ -11,7 +11,9 @@ import shutil
 import urllib.request
 from pathlib import Path
 
-from PIL import Image, ImageEnhance, ImageOps
+import random
+
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 COMMIT = 'af6eee6d339ac98011864bfe89da837fe7769c28'
 BASE = f'https://raw.githubusercontent.com/flareteam/flare-game/{COMMIT}/'
@@ -106,20 +108,40 @@ RANGER_LAYERS = {
     'chest': [['cloth_shirt'], ['leather_chest'], ['leather_chest'], ['chain_cuirass']],
 }
 # 강령술사: necromancer_<레이어>_<단계>.png(방패 없음). 긴 치마 위에 단계 1 = 창백한 맨몸, 2 = 검은 가죽, 3 = 사슬, 4 = 판금.
-# 이름 끝의 @necro = NECRO_TINTS로 다시 칠한 그림(Sheet가 처리). 지팡이는 원본 그대로
+# 이름 끝의 @necro = NECRO_TINTS로 다시 칠한 그림(Sheet가 처리). 무기는 완드·로드만(스태프는 마법사 전용), 2·4단계는 같은 그림을 강령술사 색으로
 NECRO_LAYERS = {
-    'main': [['wand'], ['rod'], ['staff'], ['greatstaff']],
+    'main': [['wand'], ['wand@necro'], ['rod'], ['rod@necro']],
     'head': [['head_bald@necro'], ['leather_hood@necro'], ['mage_hood@necro'], ['plate_helm@necro']],
     'feet': [['cloth_sandals@necro'], ['leather_boots@necro'], ['chain_boots@necro'], ['plate_boots@necro']],
     'lower': [['mage_skirt@necro', 'cloth_gloves@necro'], ['mage_skirt@necro', 'leather_gloves@necro'], ['mage_skirt@necro', 'chain_gloves@necro'], ['mage_skirt@necro', 'plate_gauntlets@necro']],
     'chest': [['default_chest@necro'], ['leather_chest@necro'], ['chain_cuirass@necro'], ['plate_cuirass@necro']],
 }
 # (이름 앞머리들, 회색으로 섞는 정도, RGB 배율): 살갗은 창백하게, 천은 짙은 보라, 가죽은 검게, 쇠는 차갑게
-NECRO_TINTS = [(('head_bald', 'default_'), 0.8, (1.15, 1.25, 1.2)), (('mage_', 'cloth_'), 0.85, (0.5, 0.38, 0.68)), (('leather_',), 0.8, (0.72, 0.64, 0.95)), (('chain_', 'plate_'), 0.4, (0.6, 0.66, 0.78))]
+NECRO_TINTS = [(('head_bald', 'default_'), 0.8, (1.15, 1.25, 1.2)), (('mage_', 'cloth_'), 0.85, (0.5, 0.38, 0.68)), (('leather_',), 0.8, (0.72, 0.64, 0.95)), (('chain_', 'plate_'), 0.4, (0.6, 0.66, 0.78)), (('wand', 'rod'), 0.45, (0.85, 0.62, 1.15))]
 # 마법사의 공격 = 시전, 궁수 = 활쏘기(둘 다 4프레임·400ms로 베기와 같아 hero.json을 함께 쓴다)
 CLASS_SHEETS = {'hero': (HERO_LAYERS, ANIMS), 'wizard': (WIZARD_LAYERS, {**ANIMS, 'attack': 'cast'}), 'ranger': (RANGER_LAYERS, {**ANIMS, 'attack': 'shoot'}),
                 'necromancer': (NECRO_LAYERS, {**ANIMS, 'attack': 'cast'})}
 PORTRAIT_GEAR = {'hero': 2, 'wizard': 2, 'ranger': 2, 'necromancer': 2}  # 시작 화면 초상의 장비 단계(시작 장비)
+# 전설 무기 레이어(docs/superpowers/specs/2026-11-20-legend-weapons-design.md): 시트 이름 → (직업, 원본@색 또는 None, 덧그리기)
+# 덧그리기 (종류, 색): edge = 무기 둘레 빛 띠, gem = 보석 둘레만, storm = 빛 띠 + 프레임마다 다른 번개, orb = 왼손 위 해골 구슬.
+# 강령술사 전설의 로드는 4단계 그림(rod@necro) 그대로라 시트를 따로 굽지 않는다
+LEGEND_LAYERS = {
+    'hero_main_caliburx': ('hero', 'zweihander@holy', ('edge', (255, 190, 90)), 1.35),  # 넷째 = 칼날을 늘리는 배율(stretch)
+    'wizard_main_elembase': ('wizard', 'greatstaff@base', ('gem', (90, 120, 255))),
+    'wizard_main_elemfire': ('wizard', 'greatstaff@fire', ('gem', (255, 110, 30))),
+    'wizard_main_elemfrost': ('wizard', 'greatstaff@frost', ('gem', (120, 220, 255))),
+    'wizard_main_elembolt': ('wizard', 'greatstaff@bolt', ('gemstorm', (150, 200, 255))),
+    'wizard_main_elemvoid': ('wizard', 'greatstaff@void', ('gem', (190, 80, 255))),
+    'necromancer_off_skull': ('necromancer', None, ('orb', (60, 255, 170))),
+    'ranger_main_storm': ('ranger', 'longbow@storm', ('storm', (110, 190, 255))),
+}
+# 엘리멘탈 스태프 색(시안 staffs.py): 보석 색조(0~255)·밝기 배율, 자루 회색 섞기·RGB 배율. base = 색은 원본, 보석 표식만
+STAFF_TINTS = {'base': None, 'fire': (8, 1.15, 0.2, (1.1, 0.75, 0.6)), 'frost': (133, 1.2, 0.5, (0.85, 1.0, 1.25)),
+               'bolt': (158, 1.35, 0.5, (0.8, 0.9, 1.2)), 'void': (199, 0.9, 0.5, (0.45, 0.35, 0.6))}
+GLOW = {'outer': 4, 'inner': 2, 'dim': 0.55}  # 빛 띠 두께(원본 px, 게임에선 ×SCALE). 주인공 재질이 알파 0.5 아래를 버려 부드러운 번짐 대신 또렷한 띠
+BOLT = {'n': 3, 'core': 3, 'glow': 7, 'jitter': 6, 'out': (10, 22)}  # 번개: 프레임마다 줄 수, 심·번짐 두께, 꺾임, 밖으로 튀는 길이
+ORB = {'r': 12, 'lift': 14}  # 해골 구슬 반지름, 손 위로 띄우는 높이(원본 px)
+TORSO = (256, 284)  # 합성 캔버스의 가슴 자리(발 FOOT에서 약 100px 위): 무기 손잡이 = 무기 픽셀 중 여기에 가장 가까운 곳
 LOWER_SLOTS = ['legs', 'hands']
 LOOT_ITEMS = {'potion': 'hp_potion', 'dagger': 'dagger', 'shortsword': 'shortsword', 'longsword': 'longsword', 'greatsword': 'greatsword',
               'clothes': 'clothes', 'leather_armor': 'leather_armor', 'steel_armor': 'steel_armor',
@@ -192,6 +214,43 @@ def necro_tint(im, name):
     return rgb
 
 
+def staff_tint(im, key):
+    """보석(채도·밝기 높고 갈색 나무가 아닌 픽셀)과 자루를 따로 칠한다. 보석은 알파 254로 표시해 덧그리기가 찾는다"""
+    a = im.getchannel('A')
+    rgb = im.convert('RGB')
+    h, s, v = rgb.convert('HSV').split()
+    gem = ImageChops.multiply(ImageChops.multiply(s.point(lambda p: 255 if p > 115 else 0), v.point(lambda p: 255 if p > 64 else 0)), h.point(lambda p: 0 if p <= 41 else 255))
+    gem = ImageChops.multiply(gem, a.point(lambda p: 255 if p else 0))
+    if t := STAFF_TINTS[key]:
+        hue, gain, gray, mult = t
+        jewel = Image.merge('HSV', (Image.new('L', im.size, hue), s, v.point(lambda p: min(255, round(p * gain))))).convert('RGB')
+        shaft = Image.blend(rgb, ImageOps.grayscale(rgb).convert('RGB'), gray)
+        shaft = Image.merge('RGB', [ch.point(lambda p, m=m: min(255, round(p * m))) for ch, m in zip(shaft.split(), mult)])
+        rgb = Image.composite(jewel, shaft, gem)
+    mark = ImageChops.multiply(gem, a.point(lambda p: 255 if p > ALPHA_CUT else 0))
+    rgb.putalpha(Image.composite(Image.new('L', im.size, 254), a, mark))
+    return rgb
+
+
+def storm_tint(im, _):
+    """장궁: 밝기만 남겨 남보라 → 하늘색"""
+    l = ImageOps.grayscale(im.convert('RGB')).point(lambda p: min(255, round(p * 1.6)))
+    rgb = Image.merge('RGB', [l.point(lambda p, lo=lo, hi=hi: round(lo + (hi - lo) * p / 255)) for lo, hi in zip((20, 30, 90), (150, 230, 255))])
+    rgb.putalpha(im.getchannel('A'))
+    return rgb
+
+
+def holy_tint(im, _):
+    """칼리버X: 쇠를 밝은 금빛 강철로(빛 띠 안이 어두우면 게임 크기에서 속 빈 테두리로 보인다)"""
+    l = ImageOps.grayscale(im.convert('RGB')).point(lambda p: min(255, round(80 + p * 0.9)))
+    rgb = Image.merge('RGB', [l.point(lambda p, m=m: min(255, round(p * m))) for m in (1.05, 0.95, 0.72)])
+    rgb.putalpha(im.getchannel('A'))
+    return rgb
+
+
+RECOLOR = {'necro': necro_tint, 'storm': storm_tint, 'holy': holy_tint, **{k: (lambda im, _, k=k: staff_tint(im, k)) for k in STAFF_TINTS}}
+
+
 class Sheet:
     """FLARE 이미지 + 정의 파일(frame=번호,방향,x,y,w,h,기준x,기준y[,이미지 이름]).
     정의에 image=경로,이름 줄이 있으면 동작마다 다른 이미지(미노타우르스), 없으면 images/<name>.png 한 장."""
@@ -233,7 +292,7 @@ class Sheet:
         if not self.images:
             self.images[None] = Image.open(fetch(f'mods/{mod}/images/{name}.png')).convert('RGBA')
         if tint:
-            self.images = {k: necro_tint(im, name.rsplit('/', 1)[-1]) for k, im in self.images.items()}
+            self.images = {k: RECOLOR[tint](im, name.rsplit('/', 1)[-1]) for k, im in self.images.items()}
         self.img = next(iter(self.images.values()))
 
     def draw(self, canvas, anim, i, d):
@@ -271,6 +330,118 @@ def frames_of(layers, anims=ANIMS):
                 c = Image.new('RGBA', (CANVAS, CANVAS))
                 for slot in order:
                     sheets[slot].draw(c, src, i, d)
+                bb = c.getbbox() or (FOOT[0], FOOT[1], FOOT[0] + 1, FOOT[1] + 1)
+                frames[(anim, d, i)] = (c.crop(bb), bb[:2])
+    return frames, meta
+
+
+def glow_band(c, mask, color):
+    """마스크 둘레의 또렷한 빛 띠 두 겹(바깥은 어둡게) — 그림 아래에 깐다"""
+    out = Image.new('RGBA', c.size)
+    for width, k in ((GLOW['outer'], GLOW['dim']), (GLOW['inner'], 1)):
+        band = Image.new('RGBA', c.size, tuple(round(v * k) for v in color) + (255,))
+        band.putalpha(mask.filter(ImageFilter.MaxFilter(width * 2 + 1)))
+        out.alpha_composite(band)
+    out.alpha_composite(c)
+    return out
+
+
+def bolts(c, mask, color, seed):
+    """마스크 위 점들 사이·밖으로 튀는 꺾인 번개(프레임마다 seed가 달라 동작이 돌면 깜빡인다)"""
+    pts = [(x, y) for y in range(0, c.height, 3) for x in range(0, c.width, 3) if mask.getpixel((x, y))]
+    if not pts:
+        return c
+    rnd = random.Random(seed)
+    glow, core = Image.new('L', c.size), Image.new('L', c.size)
+    for _ in range(BOLT['n']):
+        ax, ay = rnd.choice(pts)
+        if rnd.random() < 0.5:
+            bx, by = rnd.choice(pts)
+        else:
+            ang, ln = rnd.random() * math.tau, rnd.uniform(*BOLT['out'])
+            bx, by = ax + math.cos(ang) * ln, ay + math.sin(ang) * ln
+        nx, ny = -(by - ay), bx - ax
+        ln = math.hypot(nx, ny) or 1
+        seg = rnd.randint(4, 6)
+        line = [(ax, ay)] + [(ax + (bx - ax) * k / seg + nx / ln * rnd.uniform(-1, 1) * BOLT['jitter'], ay + (by - ay) * k / seg + ny / ln * rnd.uniform(-1, 1) * BOLT['jitter']) for k in range(1, seg)] + [(bx, by)]
+        ImageDraw.Draw(glow).line(line, fill=255, width=BOLT['glow'])
+        ImageDraw.Draw(core).line(line, fill=255, width=BOLT['core'])
+    for m, col in ((glow, color), (core, (235, 250, 255))):
+        layer = Image.new('RGBA', c.size, col + (255,))
+        layer.putalpha(m)
+        c = Image.alpha_composite(c, layer)
+    return c
+
+
+@functools.lru_cache(maxsize=None)
+def skull_orb(color):
+    """해골이 비치는 구슬(또렷한 도트): 테두리 어둡게, 속은 color, 해골, 반사광, 둘레 빛 띠"""
+    r = ORB['r']
+    n = r * 2 + GLOW['outer'] * 2 + 4
+    im = Image.new('RGBA', (n, n))
+    d = ImageDraw.Draw(im)
+    c0 = n / 2
+    d.ellipse((c0 - r, c0 - r, c0 + r, c0 + r), fill=tuple(round(v * 0.25) for v in color) + (255,))
+    d.ellipse((c0 - r * 0.82, c0 - r * 0.82, c0 + r * 0.82, c0 + r * 0.82), fill=tuple(round(v * 0.6) for v in color) + (255,))
+    d.ellipse((c0 - r * 0.55, c0 - r * 0.6, c0 + r * 0.45, c0 + r * 0.4), fill=color + (255,))
+    s = r * 0.3
+    bone = (228, 232, 214, 255)
+    d.ellipse((c0 - s * 1.5, c0 - s * 1.4, c0 + s * 1.5, c0 + s * 1.1), fill=bone)
+    d.rectangle((c0 - s * 0.8, c0 + s * 0.5, c0 + s * 0.8, c0 + s * 1.5), fill=bone)
+    for ex in (-0.6, 0.6):
+        d.ellipse((c0 + s * ex - s * 0.45, c0 - s * 0.45, c0 + s * ex + s * 0.45, c0 + s * 0.3), fill=(10, 0, 20, 255))
+    d.ellipse((c0 - r * 0.62, c0 - r * 0.7, c0 - r * 0.3, c0 - r * 0.4), fill=(255, 255, 255, 255))
+    return glow_band(im, im.getchannel('A'), color)
+
+
+def stretch(c, k):
+    """무기를 손잡이(가슴에 가장 가까운 픽셀)에서 칼끝(가장 먼 픽셀) 방향으로만 k배 늘린다 — 굵기는 그대로"""
+    a = c.getchannel('A')
+    pts = [(x, y) for y in range(0, c.height, 2) for x in range(0, c.width, 2) if a.getpixel((x, y)) > 60]
+    if len(pts) < 2:
+        return c
+    hx, hy = min(pts, key=lambda p: (p[0] - TORSO[0]) ** 2 + (p[1] - TORSO[1]) ** 2)
+    tx, ty = max(pts, key=lambda p: (p[0] - hx) ** 2 + (p[1] - hy) ** 2)
+    ln = math.hypot(tx - hx, ty - hy) or 1
+    ux, uy = (tx - hx) / ln, (ty - hy) / ln
+    g = 1 / k - 1  # 거꾸로 매핑(출력 → 입력): I + (1/k − 1)·u·uᵀ, 손잡이 고정
+    m11, m12, m21, m22 = 1 + g * ux * ux, g * ux * uy, g * ux * uy, 1 + g * uy * uy
+    return c.transform(c.size, Image.AFFINE, (m11, m12, hx - m11 * hx - m12 * hy, m21, m22, hy - m21 * hx - m22 * hy), Image.BICUBIC)
+
+
+def legend_frames(cls, src, fx, grow=1):
+    """전설 무기 레이어 한 장의 프레임(frames_of와 같은 꼴). src = 원본@색(None = 그림 없이 덧그리기만), fx = (종류, 색), grow = 칼날 배율"""
+    anims = CLASS_SHEETS[cls][1]
+    base = sheet(f'avatar/male/{src}') if src else None
+    ref = base or sheet('avatar/male/buckler')
+    kind, color = fx
+    frames, meta = {}, {}
+    for anim, s in anims.items():
+        a = ref.anims[s]
+        n = int(a['frames'])
+        meta[anim] = (n, int(a['duration'].removesuffix('ms')), 'play_once' if anim == 'die' else a.get('type', 'play_once'))
+        for d in range(len(DIRS)):
+            for i in range(n):
+                c = Image.new('RGBA', (CANVAS, CANVAS))
+                seed = list(anims).index(anim) * 1000 + d * 50 + i  # 번개 모양을 고정(다시 구워도 시트가 같다)
+                if kind == 'orb':  # 왼손 자리 = 버클러 그림의 프레임별 중심
+                    sheet('avatar/male/buckler').draw(c, s, i, d)
+                    bb = c.getchannel('A').point(lambda p: 255 if p > 60 else 0).getbbox()
+                    c = Image.new('RGBA', (CANVAS, CANVAS))
+                    if bb:
+                        orb = skull_orb(color)
+                        c.alpha_composite(orb, (round((bb[0] + bb[2]) / 2 - orb.width / 2), round((bb[1] + bb[3]) / 2 - ORB['lift'] - orb.height / 2)))
+                else:
+                    base.draw(c, s, i, d)
+                    if grow != 1:
+                        c = stretch(c, grow)
+                    a_ = c.getchannel('A')
+                    gem = a_.point(lambda p: 255 if p == 254 else 0)
+                    c.putalpha(a_.point(lambda p: 255 if p == 254 else p))
+                    mask = gem if kind.startswith('gem') else a_.point(lambda p: 255 if p > 60 else 0)
+                    c = glow_band(c, mask, color)
+                    if kind.endswith('storm'):
+                        c = bolts(c, mask, color, seed)
                 bb = c.getbbox() or (FOOT[0], FOOT[1], FOOT[0] + 1, FOOT[1] + 1)
                 frames[(anim, d, i)] = (c.crop(bb), bb[:2])
     return frames, meta
@@ -409,9 +580,18 @@ def pack(name, frames, meta, scale, dirs, bbox=None, json_name=None):
     print(f'{name}: cell {cw}x{ch}, sheet {cols * cw}x{rows * ch}')
 
 
-def hero():
-    layers = {(cls, slot, t + 1): hero_layer(names) for cls, (table, _) in CLASS_SHEETS.items() for slot, tiers in table.items() for t, names in enumerate(tiers)}
-    # 공통 칸: 모든 직업 모든 레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)
+def legend_layers(bbox):
+    """전설 무기 레이어: 직업 레이어와 같은 칸(bbox)에 굽는다 — 칸 밖으로 번진 빛은 잘린다"""
+    for name, (cls, src, fx, *grow) in LEGEND_LAYERS.items():
+        pack(name, *legend_frames(cls, src, fx, *grow), SCALE, 8, bbox=bbox, json_name='hero')
+
+
+def hero_layers():
+    return {(cls, slot, t + 1): hero_layer(names) for cls, (table, _) in CLASS_SHEETS.items() for slot, tiers in table.items() for t, names in enumerate(tiers)}
+
+
+def hero_bbox(layers):
+    """공통 칸: 모든 직업 모든 레이어·프레임 사각형의 합집합(합성하지 않고 정의만으로 계산)"""
     x0 = y0 = 10**9
     x1 = y1 = -10**9
     for (cls, _, _), srcs in layers.items():
@@ -420,8 +600,15 @@ def hero():
                 for _, _, rw, rh, ox, oy in sheet(name).anims[src]['rects'].values():
                     x0, y0 = min(x0, FOOT[0] - ox), min(y0, FOOT[1] - oy)
                     x1, y1 = max(x1, FOOT[0] - ox + rw), max(y1, FOOT[1] - oy + rh)
+    return x0, y0, x1, y1
+
+
+def hero():
+    layers = hero_layers()
+    x0, y0, x1, y1 = hero_bbox(layers)
     for (cls, slot, t), srcs in layers.items():
         pack(f'{cls}_{slot}_{t}', *frames_of(srcs, CLASS_SHEETS[cls][1]), SCALE, 8, bbox=(x0, y0, x1, y1), json_name='hero')
+    legend_layers((x0, y0, x1, y1))
     # 시작 화면 초상: 정면(S)으로 선 시작 장비 모습, 2배
     for cls, (table, _) in CLASS_SHEETS.items():
         c = Image.new('RGBA', (CANVAS, CANVAS))

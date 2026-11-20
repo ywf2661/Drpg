@@ -74,7 +74,13 @@ test('loot 시트: 물약이 떨어지는 6프레임(1회 재생)', () => {
 test('주인공 시트: 레이어 6종 × 4단계가 모두 있다(칸 정보는 hero.json 공유)', () => {
   const files = Object.keys(import.meta.glob('../assets/sprites/hero_*.png')).map((p) => p.split('/').pop());
   const want = ['main', 'head', 'feet', 'lower', 'chest', 'off'].flatMap((l) => [1, 2, 3, 4].map((t) => `hero_${l}_${t}.png`));
-  expect(files.sort()).toEqual(want.sort());
+  expect(files.sort()).toEqual([...want, 'hero_main_caliburx.png'].sort());
+});
+
+test('전설 무기 레이어 시트(tools/sprites.py LEGEND_LAYERS): 칼리버X·엘리멘탈 다섯 색·해골 구슬·천둥새', () => {
+  const files = Object.keys(import.meta.glob('../assets/sprites/*.png')).map((p) => p.split('/').pop());
+  const want = ['hero_main_caliburx', ...['base', 'fire', 'frost', 'bolt', 'void'].map((e) => `wizard_main_elem${e}`), 'necromancer_off_skull', 'ranger_main_storm'];
+  for (const n of want) expect(files).toContain(`${n}.png`);
 });
 
 test('loot 시트: 물약과 장비(기사·마법사·궁수) 바닥 그림', () => {

@@ -1,8 +1,8 @@
 // 궁수 스킬: 화살(평타), 사격(관통 사격·세 갈래·치명·집중), 사냥(덫·밀쳐내기 사격·덫 숙련·사냥터), 하늘(화살비·불화살·폭우·화살 폭풍). 스페이스는 기사 구르기.
 // 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 명사수는 core의 hurt. 떨어지는 화살비·운석(tickVolleys)은 직업과 무관하게 돈다
 import { walkable } from './path';
-import { ARROW_STORM, CRIT, DOWNPOUR, DT, FIRE_RAIN, FOCUS, HUNT, KNOCK, PIERCE, PUSH, RAIN, RANGER, SNARE, SPREAD, TRAIL, TRAP, type Entity, type Shot, type World } from './rules';
-import { ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
+import { STORM_BOW, ARROW_STORM, CRIT, DOWNPOUR, DT, FIRE_RAIN, FOCUS, HUNT, KNOCK, PIERCE, PUSH, RAIN, RANGER, SNARE, SPREAD, TRAIL, TRAP, type Entity, type Shot, type World } from './rules';
+import { hasUnique, ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
 import { aimDir, blast, foes, nearest, spot, stun } from './wizard';
 import { assist } from './hawk';
 
@@ -42,6 +42,16 @@ export function shaft(w: World, hero: Entity, t: Entity) {
   }
 }
 
+// 천둥새의 장궁: 화살이 맞힌 적 둘레의 다른 모든 적에게 번개(다시 튀지 않는다)
+function storm(w: World, hero: Entity, t: Entity, dmg: number) {
+  if (!hasUnique(w, 'stormBow')) return;
+  for (const e of foes(w, hero)) {
+    if (e === t || Math.hypot(e.x - t.x, e.z - t.z) > STORM_BOW.radius) continue;
+    hurt(w, e, Math.max(1, Math.round(dmg * STORM_BOW.mult)), hero);
+    w.blasts.push({ id: w.nextItem++, x: e.x, z: e.z, age: 0, kind: 'spark', fx: t.x, fz: t.z });
+  }
+}
+
 // 비행 중인 화살(fly가 부른다): 처음 닿는 몬스터에게 피해. 계속 날아가면 true
 // 관통 사격·뼈 창은 맞은 적마다 한 번씩 피해·밀어냄을 주며 꿰뚫고 지나간다(밀쳐내기 사격: 멀리 밀고, 벽에 닿으면 기절)
 export function arrowHit(w: World, hero: Entity, s: Shot): boolean {
@@ -50,10 +60,12 @@ export function arrowHit(w: World, hero: Entity, s: Shot): boolean {
   if (!t) return true;
   if (s.kind === 'shaft') {
     hurt(w, t, s.dmg, hero);
+    storm(w, hero, t, s.dmg);
     return false;
   }
   hit.push(t.id);
   skillHit(w, t, s.dmg);
+  storm(w, hero, t, s.dmg);
   assist(w, t); // 협공(매)
   knock(w, t, s.dx, s.dz, s.push ? PUSH.dist : KNOCK.axe);
   if (s.push && !walkable(w.grid, Math.floor(t.x + s.dx * 0.5), Math.floor(t.z + s.dz * 0.5))) stun(t, PUSH.stun);

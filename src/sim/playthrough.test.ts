@@ -10,8 +10,8 @@ test('봇이 구르고 받아치면 5층 보스까지 깨지만 여러 번 죽�
   const standing = play(true, false); // 스킬은 쓰지만 구르지도, 바닥의 예고를 피하지도 않는다
   expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(4); // 지금 7. MONSTER_DMG 3.25(사용자: 너무 쉽다) 뒤. 봇은 층마다 4번 죽으면 포기해 사망 수가 포화한다 — 그 전 수치는 git 기록
   for (const r of withSkills.filter((r) => r.cleared)) expect(r.level).toBeGreaterThanOrEqual(5); // 성장 루프가 실제로 돈다
-  expect(deaths(withSkills)).toBeLessThanOrEqual(165); // 지금 95(기력·마나 뒤. 비용 없을 때 97, 구르기 끈 때 136)
-  expect(deaths(withSkills)).toBeGreaterThanOrEqual(95); // 너무 쉬워지면 걸린다
+  expect(deaths(withSkills)).toBeLessThanOrEqual(165); // 지금 94(장비 단계 tierOf 뒤. 그 전 95, 기력·마나 뒤. 비용 없을 때 97, 구르기 끈 때 136)
+  expect(deaths(withSkills)).toBeGreaterThanOrEqual(90); // 너무 쉬워지면 걸린다
   expect(without.filter((r) => r.cleared).length).toBeLessThanOrEqual(6); // 받아치기 없이는 거의 못 깬다. 지금 5(봉인 문 뒤: 문지기를 잡으면 도끼 없이도 계단 방이 열린다. 그 전 0)
   expect(standing.filter((r) => r.cleared).length).toBeLessThanOrEqual(2); // 바닥의 예고도 안 피하면 진다. 지금 0
 });

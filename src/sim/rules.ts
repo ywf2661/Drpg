@@ -15,7 +15,8 @@ export type SkillId =
   | 'mark' | 'graze' | 'echo' | 'flash'
   | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash'
   | 'afterimage' | 'swap' | 'lingering' | 'retrace'
-  | 'swoop' | 'ride' | 'assist' | 'flock';
+  | 'swoop' | 'ride' | 'assist' | 'flock'
+  | 'finale' | 'graveKing'; // 전설 무기가 주는 스킬(GEAR_SKILLS, 트리 밖)
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
@@ -44,9 +45,17 @@ export const TREES: Record<HeroClass, Tab[]> = {
   ],
 };
 // 스킬 → 직업·탭·단계(0~3). 단계 2는 패시브(칸에 끼우지 않고 배우기만 하면 늘 켜져 있다)
-export const SKILLS = Object.fromEntries(
-  (Object.keys(TREES) as HeroClass[]).flatMap((cls) => TREES[cls].flatMap((t, tab) => t.skills.map((id, tier) => [id, { cls, tab, tier }]))),
-) as Record<SkillId, { cls: HeroClass; tab: number; tier: number }>;
+// 전설 무기가 주는 스킬: 그 전설(u)을 입은 동안만 1단계(+장비 보너스), 포인트로 못 배운다. 스킬 창에서는 그 탭(tab) 끝에 보인다.
+// 칸 정리는 gearKeys(입으면 빈 칸에, 벗으면 그 탭 1단계 스킬로). 설계: docs/superpowers/specs/2026-11-20-legend-weapons-design.md
+export const GEAR_SKILLS: Partial<Record<SkillId, { cls: HeroClass; tab: number; u: UniqueId }>> = {
+  finale: { cls: 'knight', tab: 0, u: 'caliburx' },
+  graveKing: { cls: 'necromancer', tab: 0, u: 'graveSkull' },
+};
+export const GEAR_SKILL_LIST = Object.keys(GEAR_SKILLS) as SkillId[];
+export const SKILLS = Object.fromEntries([
+  ...(Object.keys(TREES) as HeroClass[]).flatMap((cls) => TREES[cls].flatMap((t, tab) => t.skills.map((id, tier) => [id, { cls, tab, tier }]))),
+  ...GEAR_SKILL_LIST.map((id) => [id, { cls: GEAR_SKILLS[id]!.cls, tab: GEAR_SKILLS[id]!.tab, tier: 3 }]), // 비용은 궁극기(3단계)만큼
+]) as Record<SkillId, { cls: HeroClass; tab: number; tier: number }>;
 export const isPassive = (id: SkillId) => SKILLS[id].tier === 2;
 // 단계별로 배울 수 있는 레벨. 아래 단계(같은 탭)를 1 이상 배워야 다음 단계가 열린다
 export const TIER_LEVEL = [1, 4, 8, 12];
@@ -114,7 +123,7 @@ export type Entity = {
 };
 
 // 강령술사의 소환수(해골 검사·궁수·법사, 시체 거인, 해골 왕): life초 뒤 사라진다
-export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId }; // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
+export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId; escort?: true }; // escort: 적을 쫓지 않고 주인공 곁을 따라다니며 reach 안의 적 모두를 친다(무덤 왕) // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris'; x: number; z: number };
@@ -132,7 +141,7 @@ export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 
 export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId; key?: SkillName; r?: Rune };
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
-export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots';
+export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots' | 'caliburx' | 'elemStaff' | 'graveSkull' | 'stormBow';
 // name의 %는 그 단계의 기본 이름. cls: 그 직업일 때만 떨어진다. fixed: 고정 옵션(tab = 탭 하나 +1, tier1 = 1단계 스킬 하나 +1을 드롭 때 굴림).
 // look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER). only: 무작위 전설에 안 나온다(정해진 보스만)
 export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; only?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
@@ -145,6 +154,11 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   emberStep: { name: '불꽃 걸음', slot: 'boots', fixed: ['tab'], desc: '구른 길에 2초 동안 불길이 남는다' },
   berserker: { name: '광전사의 손잡이', slot: 'weapon', fixed: ['tier1'], desc: '잃은 체력만큼 공격 속도·스킬 피해 증가(최대 +40%)' },
   crownless: { name: '왕관 없는 왕의 망토', slot: 'armor', fixed: [{ kind: 'allSkills', value: 1 }], look: '#f5c400', desc: '모든 스킬 +1, 대신 최대 체력 −15%' },
+  // 전설 무기(2026-11-20): 그림이 바뀌는 무기, 기도하는 자만 떨군다(PRAYER_WEAPON, LEGEND_DROP.prayer). 효과는 GEAR_SKILLS·각 직업 파일
+  caliburx: { name: '칼리버X', slot: 'weapon', cls: 'knight', only: true, fixed: [{ kind: 'tab', value: 1, tab: 0 }], desc: '무너진 왕국에서 기도하는 자가 구해 낸 마검. 검술 탭에 「종언」이 생긴다' }, // 기도하는 자만
+  elemStaff: { name: '엘리멘탈 스태프', slot: 'weapon', cls: 'wizard', only: true, fixed: [{ kind: 'allSkills', value: 1 }], desc: '마지막에 쓴 스킬의 속성으로 빛나고, 스킬이 맞히면 그 속성으로 한 번 더 피해를 준다' },
+  graveSkull: { name: '갇힌 왕의 두개골', slot: 'weapon', cls: 'necromancer', only: true, fixed: [{ kind: 'tab', value: 1, tab: 0 }], desc: '소환 탭에 「무덤 왕의 귀환」이 생긴다' },
+  stormBow: { name: '천둥새의 장궁', slot: 'weapon', cls: 'ranger', only: true, fixed: [{ kind: 'skill', value: 2, skill: 'pierce' }], desc: '화살이 맞힌 적 근처의 모든 적에게 번개가 튄다' },
   hunterWeapon: { name: '정예 사냥꾼의 %', slot: 'weapon', set: true, fixed: [{ kind: 'dmg', value: 20 }], desc: '' },
   hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: true, fixed: [{ kind: 'life', value: 25 }], desc: '' },
   hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: true, fixed: ['tab'], desc: '' },
@@ -155,12 +169,24 @@ export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
 export const UNIQUE_COLOR = { legend: '#ff5e14', set: '#b86bff' };
 export const GRADE_COLOR = { magic: '#7d9bff', rare: '#ffe94a' }; // 바닥 고리·짧은 기둥(index.html --magic·--rare와 같게)
 // 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
-export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100 };
+// prayer: 기도하는 자를 쓰러뜨리면 평소 드롭과 따로 이 확률로 지금 직업의 전설 무기(PRAYER_WEAPON)
+export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100, prayer: 0.4 };
+export const PRAYER_WEAPON: Record<HeroClass, UniqueId> = { knight: 'caliburx', wizard: 'elemStaff', necromancer: 'graveSkull', ranger: 'stormBow' };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
 export const SET_HUNTER = { frenzy: 1.3, rush: 1.3, steady: 0.7, dmg: 1.25, res: 30, time: 20, leech: 0.1, blastR: 1.2, blastMult: 1.5, aura: 1.3, allyLife: 10, allyMax: 3 };
 // 전설 효과 수치
 // 「금 간 빛 고리」 되감기: back초 전으로(틱마다 기록), 한 번 쓰면 cd초
 export const REWIND = { back: 3, cd: 120 };
+// 전설 무기(2026-11-20 설계) 수치 — 시작값, 봇으로 조정
+// 종언: 최대 체력 hp만큼 잃고(1은 남김) 반경 radius·각 arc°의 부채꼴에 무기 피해 × mult, 재사용 대기 cd. 검기 그림은 age초
+export const FINALE = { hp: 0.2, radius: 6, arc: 140, mult: 4, cd: 10, age: 0.6 };
+// 엘리멘탈 스태프: 스킬 피해의 extra를 마지막에 쓴 탭의 속성으로 한 번 더. 냉기는 freeze초 멈칫, 번개는 jump m 안의 다른 적 하나에게
+export const ELEM_STAFF = { extra: 0.25, freeze: 0.3, jump: 4 };
+// 무덤 왕의 귀환: 주인공 앞 ahead m에 솟아 life초 동안 주인공을 따라다니며 곁(reach m)의 적 모두를 interval초마다 내리친다(× mult).
+// 체력 = 최대 체력 × hp. 시간이 다 되거나 쓰러지면 가라앉는다. 다시 부르면 먼저 부른 왕은 가라앉고 새로 솟는다
+export const GRAVE_KING = { cd: 25, life: 15, hp: 3, mult: 2, reach: 3.2, interval: 1.2, ahead: 1.5 };
+// 천둥새의 장궁: 화살이 맞힌 적 둘레 radius m 안의 다른 모든 적에게 화살 피해 × mult(다시 튀지 않는다)
+export const STORM_BOW = { radius: 3, mult: 0.4 };
 export const LEGEND_FX = { orbs: 3, orbMult: 0.4, bones: 2, boneBlastR: 1.2, boneBlast: 1.5, duelCd: 1, duelRes: 15, emberTime: 2, rage: 0.4, cloakHp: 0.85 };
 
 // 장비 하나(부위·단계·옵션)
@@ -229,7 +255,7 @@ export type Fire = { id: number; x0: number; z0: number; x1: number; z1: number;
 // slam = 전사 내려찍기가 떨어진 자리, 나머지는 마법사: thunder 낙뢰, spark 연쇄 번개, frost 서리 고리(시전자), ice 얼어붙은 적, blink 순간이동, heal 치유, nova 방패 폭발
 // 벼림 강화 효과를 받은 적 하나(연출용, 저장하지 않는다). dmg = 불로 실제 줄어든 체력, freeze = 이번에 얼었는지
 export type EdgeHit = { id: number; ent: number; x: number; z: number; kind: 'flame' | 'frost' | 'both'; dmg: number; freeze: boolean; age: number };
-export type Blast = { id: number; x: number; z: number; r?: number; age: number; n?: number; kind: 'slash' | 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' | 'feather' }; // feather = 매가 덮친 자리(깃털 조각)
+export type Blast = { id: number; x: number; z: number; r?: number; age: number; n?: number; fx?: number; fz?: number; kind: 'slash' | 'fire' | 'slam' | 'thunder' | 'spark' | 'frost' | 'ice' | 'blink' | 'heal' | 'nova' | 'trap' | 'rain' | 'curse' | 'feather' }; // feather = 매가 덮친 자리(깃털 조각). fx·fz: 번개가 튀어 온 자리(천둥새의 장궁, 렌더가 줄기를 그린다)
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
@@ -353,6 +379,8 @@ export type World = {
   casts: number; // 마법사 스킬 시전 횟수(렌더용: 시전 동작)
   ghosts: Ghost[]; // 잔상(마법사 잔상 탭). 오래된 것부터
   hawk: Hawk | null; // 궁수의 매(덮쳐라를 배우면). 매 떼의 다른 매는 flock
+  elem: number; // 엘리멘탈 스태프: 마지막에 쓴 마법사 스킬의 탭(0 화염 1 냉기 2 번개 3 잔상, -1 = 아직)
+  finales: { id: number; x: number; z: number; dir: number; age: number }[]; // 종언 검기(렌더용, FINALE.age초)
   flock: Hawk[];
   rideHit: number[]; // 이번 매 타기에서 화살을 맞은 적 id
   memos: Memo[]; // 지나온 길이 기억하는 주인공 주문(오래된 것부터)
@@ -772,12 +800,12 @@ export const CLASSES: Record<HeroClass, ClassDef> = {
     helms: named(HELMS, ['천 두건', '사냥꾼 두건', '가죽 두건', '사슬 두건']),
     boots: named(BOOTS, ['샌들', '가죽 장화', '사냥꾼 장화', '사슬 장화']),
   },
-  // 강령술사: 마법사와 같은 지팡이·로브 수치(해골이 따로 친다), 체력은 조금 더
+  // 강령술사: 마법사와 같은 무기·로브 수치(해골이 따로 친다), 체력은 조금 더. 무기는 완드·로드만(스태프는 마법사 전용)
   necromancer: {
     name: '강령술사',
     hp: 75,
     perLevel: 7,
-    weapons: named([{ dmg: [4, 7], interval: 0.7 }, { dmg: [5, 9], interval: 0.8 }, { dmg: [7, 11], interval: 0.9 }, { dmg: [9, 14], interval: 1.0 }] as typeof WEAPONS, ['뼈 완드', '해골 막대', '강령 지팡이', '죽음의 대지팡이']),
+    weapons: named([{ dmg: [4, 7], interval: 0.7 }, { dmg: [5, 9], interval: 0.8 }, { dmg: [7, 11], interval: 0.9 }, { dmg: [9, 14], interval: 1.0 }] as typeof WEAPONS, ['뼈 완드', '저주받은 완드', '해골 막대', '죽음의 막대']),
     armors: named([{ reduce: 0 }, { reduce: 0.05 }, { reduce: 0.12 }, { reduce: 0.2 }] as typeof ARMORS, ['수의', '강령 로브', '묘지기 로브', '죽음의 로브']),
     helms: named(HELMS, ['천 머리띠', '강령 두건', '묘지기 두건', '죽음의 두건']),
     boots: named(BOOTS, ['샌들', '강령 장화', '묘지기 장화', '죽음의 장화']),
@@ -872,7 +900,7 @@ export const CURSE_MASTERY = { radius: 0.08, amp: 0.05 };
 // 시체 폭발(저주 궁극): 재사용, 사거리, 고르는 반경, 시체 하나가 터지는 반경, 피해(시체 최대 체력 비율)
 export const CORPSE = { cd: 10, range: 8, radius: 3, blast: 2, hp: 0.4 };
 // 해골 왕 강림(소환 궁극): 재사용, 유지, 체력(주인공 최대 체력 비율), 배율, 공격 간격, 닿는 거리, 휘두르는 둘레, 왕이 있는 동안 다른 소환수 피해 배수, 5단계 함께 오는 해골 수
-export const LORD = { cd: 30, life: 12, hp: 1.5, mult: 1, interval: 1.4, reach: 1.5, splash: 1.5, aura: 1.3, guard: 2 };
+export const LORD = { cd: 30, life: 15, hp: 1.5, mult: 1, interval: 1.4, reach: 1.5, splash: 1.5, aura: 1.3, guard: 2 };
 // 뼈 창(뼈 1): 재사용, 배율. 뼈 갑옷(뼈 2): 재사용, 시간, 흡수(최대 체력 비율). 생명 흡수(뼈 패시브): 단계마다 준 피해의 2% 회복
 export const SPEAR = { cd: 2.5, mult: 1.6 };
 export const BONE_ARMOR = { cd: 15, time: 10, absorb: 0.25 };
