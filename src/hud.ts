@@ -18,7 +18,7 @@ import rangerPortrait from './assets/sprites/portrait_ranger.png';
 import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
 import { edgeLeft } from './render/edge';
-import { door } from './render/door';
+import { prayer } from './render/prayer';
 import { drawHeroPortrait, looksOf, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
@@ -216,7 +216,7 @@ const nameInput = $('#pick-name') as HTMLInputElement;
 let slotList: (Run | null)[] = [];
 let slotMode: 'new' | 'load' = 'new';
 let chosenSlot = 0;
-let scene: ReturnType<typeof door> | null = null;
+let scene: ReturnType<typeof prayer> | null = null;
 
 // 직업 선택: 고른 판이 넓어지며 설명이 나오고, 아래 버튼으로 시작한다
 function selectClass(c: HeroClass) {
@@ -252,7 +252,7 @@ function showSlots(mode: 'new' | 'load') {
   showScreen('slots');
 }
 
-// 첫 화면: 제목·메뉴와 열린 문틈. 저장이 있으면 이어하기를 맨 위에
+// 첫 화면: 제목·메뉴와 기도하는 자. 저장이 있으면 이어하기를 맨 위에
 export function showTitle(open: boolean, slots: (Run | null)[] = slotList) {
   title.hidden = !open;
   scene?.stop();
@@ -265,7 +265,7 @@ export function showTitle(open: boolean, slots: (Run | null)[] = slotList) {
   continueBtn.classList.toggle('primary', !!saved);
   $('#title-new').classList.toggle('primary', !saved);
   showScreen('main', false);
-  scene = door($('#door') as HTMLCanvasElement);
+  scene = prayer($('#prayer') as HTMLCanvasElement);
 }
 
 const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [dashBtn, 'dash'], [shoutBtn, 'shout'], [throwBtn, 'throw']];

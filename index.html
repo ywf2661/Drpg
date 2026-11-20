@@ -262,8 +262,8 @@
       #title::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 60% 55%, transparent 45%, #000c 100%); }
       #title-main, #title-slots, #title-pick { position: absolute; inset: 0; }
       #title button { font-family: inherit; cursor: pointer; background: none; border: none; text-align: left; }
-      /* 첫 화면: 위 가운데 제목, 가운데 열린 문(render/door.ts), 오른쪽 메뉴. 세로 화면이면 메뉴는 문 아래 가운데 */
-      #door { position: absolute; inset: 0; width: 100%; height: 100%; }
+      /* 첫 화면: 위 가운데 제목, 가운데 기도하는 자(render/prayer.ts), 오른쪽 메뉴. 세로 화면이면 메뉴는 아래 가운데 */
+      #prayer { position: absolute; inset: 0; width: 100%; height: 100%; }
       #title-menu { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
       #title-menu > * { pointer-events: auto; }
       #title h1 { position: absolute; left: 0; right: 0; top: 5vh; margin: 0; text-align: center; font: 900 clamp(40px, 7vw, 96px)/1.1 'Cinzel', var(--serif); letter-spacing: 0.14em; padding-left: 0.14em; text-transform: uppercase; white-space: nowrap; color: #d8bc80; text-shadow: 0 4px 0 #000, 0 0 32px #ffb06a44; }
@@ -467,7 +467,7 @@
     <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="next-cycle" hidden>야영지로</button><button id="restart" hidden>야영지로 (R)</button></div>
     <div id="title" hidden>
       <div id="title-main">
-        <canvas id="door" aria-hidden="true"></canvas>
+        <canvas id="prayer" aria-hidden="true"></canvas>
         <div id="title-menu">
           <h1>The Prayer</h1>
           <nav aria-label="메인 메뉴">
