@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
-import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, exitAt, MONSTER_DMG, outcome, sideOf, RADIUS, setLevel, STATS, step, TELL, WEAPONS, winding, xpToNext, type Command, type World } from './world';
+import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, exitAt, MONSTER_DMG, outcome, sideOf, RADIUS, setLevel, STATS, step, TELL, tierOf, WEAPONS, winding, xpToNext, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
 const MAP = [
@@ -1127,4 +1127,8 @@ test('벽 칸에 떨어진 금화는 옆의 걸을 수 있는 칸으로 옮겨�
   expect(walkable(w.grid, Math.floor(g.x), Math.floor(g.z))).toBe(true);
   for (let t = 0; t < 200 && w.gold === 0; t++) step(w, t === 0 ? [{ type: 'move', x: g.x, z: g.z }] : []);
   expect(w.gold).toBe(15);
+});
+
+test('장비 최고 단계는 지역마다 하나씩: 초원 2, 설원 3, 그다음 4', () => {
+  expect([0, 1, 5, 6, 10, 11, 20, 25].map(tierOf)).toEqual([2, 2, 2, 3, 3, 4, 4, 4]);
 });

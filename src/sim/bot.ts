@@ -2,7 +2,7 @@
 import { bossScale, FLOORS, floorPower } from './dungeon';
 import { makeMap, opposite, type Side } from './wilds';
 import { buy, deathGold, sell } from '../shop';
-import { depthOf, isPassive, MARK_LETTER, markBit, openLands, STORY } from './rules';
+import { depthOf, tierOf, isPassive, MARK_LETTER, markBit, openLands, STORY } from './rules';
 import { toughenBoss, uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
@@ -29,7 +29,7 @@ const MORE = (cls: HeroClass, build: Build = 'basic'): SkillId[] => {
 const THINK = Math.round(0.25 / DT); // 봇은 0.25초마다 판단
 
 function makeFloor(seed: number, n: number, c: Carry, land: Land, from: Side): World {
-  return loadCarry(createWorld(seed, makeMap(seed, n, land, from), floorPower(n), 1, LANDS[land].skins), c, land, Math.min(4, n + 1));
+  return loadCarry(createWorld(seed, makeMap(seed, n, land, from), floorPower(n), 1, LANDS[land].skins), c, land, tierOf(depthOf(land, n)));
 }
 function loadCarry(w: World, c: Carry, land: Land, maxTier: number): World {
   w.cls = c.cls;
@@ -250,7 +250,7 @@ export function story(seed: number, cls: HeroClass = 'knight', build: Build = 'b
       for (;;) {
         const s = seed * 1_000_003 + k++ * 7919; // 멀리 띄운다: 지도 생성이 실패하면 시드 + 1로 다시 만들어 이웃 시드는 같은 지도가 된다
         const w = createWorld(s, makeMap(s, n, land, from, openLands(stage), goal === land && markBit(n) ? MARK_LETTER[STORY[stage].quest.kind] : undefined), floorPower(depthOf(land, n), 0, extra), 1, LANDS[land].skins, depthOf(land, n) > FLOORS);
-        loadCarry(w, c, land, Math.min(4, depthOf(land, n) + 1));
+        loadCarry(w, c, land, tierOf(depthOf(land, n)));
         toughenBoss(w, bossScale(depthOf(land, n)));
         const target = land === 'field' && goal !== 'field' ? goal : land; // 초원 1구역에선 그 지역 출구로
         let o: ReturnType<typeof outcome> = null;

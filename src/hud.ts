@@ -18,7 +18,7 @@ import rangerPortrait from './assets/sprites/portrait_ranger.png';
 import necroPortrait from './assets/sprites/portrait_necromancer.png';
 import { renderer } from './render/render';
 import { edgeLeft } from './render/edge';
-import { campfire } from './render/campfire';
+import { door } from './render/door';
 import { drawHeroPortrait, looksOf, paintPortrait, PORTRAIT, setHeroGear } from './render/sprites';
 import type { SoundSettings } from './audio/sound';
 import { formatTime, type Run, type Stats } from './save';
@@ -120,8 +120,10 @@ export function initHud(h: Handlers) {
   sfx.addEventListener('input', () => h.sound({ sfx: +sfx.value / 100 }));
   music.addEventListener('input', () => h.sound({ music: +music.value / 100 }));
   mute.addEventListener('change', () => h.sound({ muted: mute.checked }));
-  continueBtn.addEventListener('click', () => showSlots('load'));
-  $('#title-new').addEventListener('click', () => showSlots('new'));
+  // 첫 화면에서 고르면 문이 활짝 열린 뒤 슬롯 화면으로
+  const through = (mode: 'new' | 'load') => () => { if (!scene) return showSlots(mode); title.inert = true; scene.open().then(() => { title.inert = false; showSlots(mode); }); };
+  continueBtn.addEventListener('click', through('load'));
+  $('#title-new').addEventListener('click', through('new'));
   $('#slots-back').addEventListener('click', () => showScreen('main'));
   $('#title-slots').addEventListener('keydown', (e) => e.key === 'Escape' && showScreen('main'));
   $('#slot-list').addEventListener('click', (e) => {
@@ -208,14 +210,13 @@ export function showLoadError(err: unknown) {
 }
 
 const PORTRAITS: Record<HeroClass, string> = { knight: knightPortrait, wizard: wizardPortrait, ranger: rangerPortrait, necromancer: necroPortrait };
-const CLASS_ORDER: HeroClass[] = ['knight', 'wizard', 'ranger', 'necromancer'];
 const classCards = () => title.querySelectorAll<HTMLElement>('.class-card');
 let picked: HeroClass = 'knight';
 const nameInput = $('#pick-name') as HTMLInputElement;
 let slotList: (Run | null)[] = [];
 let slotMode: 'new' | 'load' = 'new';
 let chosenSlot = 0;
-let stopFire: (() => void) | null = null;
+let scene: ReturnType<typeof door> | null = null;
 
 // 직업 선택: 고른 판이 넓어지며 설명이 나오고, 아래 버튼으로 시작한다
 function selectClass(c: HeroClass) {
@@ -251,11 +252,11 @@ function showSlots(mode: 'new' | 'load') {
   showScreen('slots');
 }
 
-// 첫 화면: 제목·메뉴와 모닥불. 저장이 있으면 이어하기를 맨 위에, 첫 저장의 직업을 불 앞에 세운다
+// 첫 화면: 제목·메뉴와 열린 문틈. 저장이 있으면 이어하기를 맨 위에
 export function showTitle(open: boolean, slots: (Run | null)[] = slotList) {
   title.hidden = !open;
-  stopFire?.();
-  stopFire = null;
+  scene?.stop();
+  scene = null;
   if (!open) return;
   banner.hidden = true;
   slotList = slots;
@@ -263,11 +264,8 @@ export function showTitle(open: boolean, slots: (Run | null)[] = slotList) {
   continueBtn.hidden = !saved;
   continueBtn.classList.toggle('primary', !!saved);
   $('#title-new').classList.toggle('primary', !saved);
-  const lead = saved?.cls ?? 'knight';
-  const rest = CLASS_ORDER.filter((c) => c !== lead);
-  for (const [slot, c] of [['fl', lead], ['bl', rest[0]], ['br', rest[1]], ['fr', rest[2]]] as const) $(`#camp-scene .slot-${slot}`).setAttribute('src', PORTRAITS[c]);
   showScreen('main', false);
-  stopFire = campfire($('#campfire') as HTMLCanvasElement);
+  scene = door($('#door') as HTMLCanvasElement);
 }
 
 const SKILL_BUTTONS = (): [HTMLElement, SkillName][] => [[skillBtn, 'cleave'], [dashBtn, 'dash'], [shoutBtn, 'shout'], [throwBtn, 'throw']];

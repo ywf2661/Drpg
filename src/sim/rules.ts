@@ -550,6 +550,8 @@ export function afterClear(stage: number, cycle: number, land: Land, beat = 0): 
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
 export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
 export const depthOf = (land: Land, n: number) => (land === 'camp' ? 0 : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25)
+// 장비 최고 단계는 지역마다 하나씩 열린다: 초원 2, 설원 3, 그다음부터 4(정예·상자·시련은 +1). 깊이 0(야영지)은 초원과 같다
+export const tierOf = (depth: number) => Math.min(4, 2 + Math.floor(Math.max(0, depth - 1) / 5));
 
 // 그림을 그리지 않는(모래 속에 숨은) 몬스터
 export const hidden = (e: Entity) => e.skin === 'antlion_small' && !!e.asleep;
