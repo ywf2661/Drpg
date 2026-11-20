@@ -121,6 +121,21 @@ export function initInput() {
   addEventListener('pointerup', () => (held = false));
   addEventListener('pointercancel', () => (held = false)); // 시스템 제스처 등으로 터치가 취소된 경우
   addEventListener('blur', () => (held = false));
+  // iOS 사파리는 CSS touch-action: manipulation을 늘 지키지 않는다(스킬 연타에 두 번 탭 확대).
+  // 300ms 안의 두 번째 탭은 기본 동작(확대)을 막고, 막히는 click만 대신 보낸다
+  let lastTap = 0;
+  addEventListener(
+    'touchend',
+    (e) => {
+      const t = e.target as HTMLElement;
+      if (e.timeStamp - lastTap < 300 && !t.closest('input, textarea, select')) {
+        e.preventDefault();
+        t.click?.();
+      }
+      lastTap = e.timeStamp;
+    },
+    { passive: false },
+  );
 }
 
 function setPointer(e: PointerEvent) {
