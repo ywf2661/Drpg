@@ -135,11 +135,21 @@ const SKILL_SCORE = 0.08;
 const skillFactor = (w: World, list: Affix[]) => 1 + SKILL_SCORE * Object.keys(w.ranks).reduce((s, id) => s + (baseRank(w, id as SkillId) ? list.reduce((t, a) => t + bonusOf(a, id as SkillId), 0) : 0), 0);
 const armorMods = (m: World['mods']) => [...m.armor, ...m.helm, ...m.boots];
 
+// [이 장비를 입었을 때 점수, 지금 점수]. 무기는 공격, 방어구는 생존(갑옷·투구·신발 합)
+function gearScores(w: World, it: GearItem): [number, number] {
+  if (it.kind === 'weapon') return [weaponScore(it.tier, it.affixes, w.cls) * skillFactor(w, it.affixes), weaponScore(w.gear.weapon, w.mods.weapon, w.cls) * skillFactor(w, w.mods.weapon)];
+  const m = { ...w.mods, [it.kind]: it.affixes };
+  return [defenseScore({ ...w.gear, [it.kind]: it.tier }, m, w.cls) * skillFactor(w, armorMods(m)), defenseScore(w.gear, w.mods, w.cls) * skillFactor(w, armorMods(w.mods))];
+}
 // 장비 점수 − 입은 장비의 점수(양수면 더 좋다)
 export function gearDiff(w: World, it: GearItem): number {
-  if (it.kind === 'weapon') return weaponScore(it.tier, it.affixes, w.cls) * skillFactor(w, it.affixes) - weaponScore(w.gear.weapon, w.mods.weapon, w.cls) * skillFactor(w, w.mods.weapon);
-  const m = { ...w.mods, [it.kind]: it.affixes };
-  return defenseScore({ ...w.gear, [it.kind]: it.tier }, m, w.cls) * skillFactor(w, armorMods(m)) - defenseScore(w.gear, w.mods, w.cls) * skillFactor(w, armorMods(w.mods));
+  const [a, b] = gearScores(w, it);
+  return a - b;
+}
+// 입으면 몇 배 강해지나 − 1 (0.18 = 18% 강해짐). 줍는 순간 카드에 쓴다
+export function gearGain(w: World, it: GearItem): number {
+  const [a, b] = gearScores(w, it);
+  return b > 0 ? a / b - 1 : 0;
 }
 
 // 장비가 지금 장착한 것보다 나은가

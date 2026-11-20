@@ -153,6 +153,7 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
 export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
 // 등급 색(index.html의 --legend·--set과 같다): 빛기둥·지도 점
 export const UNIQUE_COLOR = { legend: '#ff5e14', set: '#b86bff' };
+export const GRADE_COLOR = { magic: '#7d9bff', rare: '#ffe94a' }; // 바닥 고리·짧은 기둥(index.html --magic·--rare와 같게)
 // 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
 export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100 };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
@@ -274,6 +275,7 @@ export type World = {
   skins?: Partial<Record<Kind, Skin>>; // 이 맵의 몬스터 스킨(없으면 해골)
   opening: number | null; // 주인공이 열러 가는 상자 id
   taking: number | null; // 주인공이 주우러 가는 바닥 장비 id
+  picked: (GearItem & { up: number; worn: boolean }) | null; // 방금 주운 더 좋은 장비(up = gearGain, worn = 자동 장착으로 입었다). main이 카드로 알리고 지운다
   items: Item[];
   shots: Shot[];
   blasts: Blast[];

@@ -541,6 +541,18 @@ test('장비 드롭: 확률, 네 부위 고르게, 단계는 1..maxTier', () => 
   expect([...kinds].sort()).toEqual(['armor', 'boots', 'helm', 'weapon']);
 });
 
+test('더 좋은 장비를 주우면 picked에 강해지는 비율을 남긴다(못한 것은 남기지 않는다)', () => {
+  const w = createWorld(1, ['H.....']);
+  w.autoEquip = false;
+  w.items.push({ id: 7, x: 2.5, z: 0.5, kind: 'weapon', tier: 4 }, { id: 8, x: 3.5, z: 0.5, kind: 'weapon', tier: 1 });
+  run(w, 60, [{ type: 'take', itemId: 7 }]);
+  expect(w.picked).toMatchObject({ kind: 'weapon', tier: 4, worn: false });
+  expect(w.picked!.up).toBeGreaterThan(0.1);
+  w.picked = null;
+  run(w, 60, [{ type: 'take', itemId: 8 }]);
+  expect(w.picked).toBeNull();
+});
+
 test('장비는 밟기만 해서는 줍지 않는다', () => {
   const w = createWorld(1, ['H.....']);
   w.items.push({ id: w.nextItem++, x: 2.5, z: 0.5, kind: 'weapon', tier: 4 });

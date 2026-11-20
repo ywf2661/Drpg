@@ -2,13 +2,15 @@
 import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
-import { COMET, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
+import { COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import { relicCount } from '../sim/sanctum';
 import { litBeams, paladinOf } from '../sim/paladin';
 import { GATE_FIRES } from '../sim/wilds';
 import lootInfo from '../assets/sprites/loot.json';
 import runesInfo from '../assets/sprites/runes.json';
 import runesUrl from '../assets/sprites/runes.png';
+import floorGearInfo from '../assets/sprites/floor_gear.json';
+import floorGearUrl from '../assets/sprites/floor_gear.png';
 import lootUrl from '../assets/sprites/loot.png';
 import arrowInfo from '../assets/sprites/arrow.json';
 import arrowUrl from '../assets/sprites/arrow.png';
@@ -83,6 +85,7 @@ const NPC_DIR = 6;
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
 const loot: Sheet = { info: lootInfo as SheetInfo, url: lootUrl };
 const runeSheet: Sheet = { info: runesInfo as SheetInfo, url: runesUrl }; // 바닥 룬(tools/runes.py)
+const floorGear: Sheet = { info: floorGearInfo as SheetInfo, url: floorGearUrl }; // 바닥 투구·신발(tools/floor_gear.py)
 const arrow: Sheet = { info: arrowInfo as SheetInfo, url: arrowUrl };
 const cleaveFx: Sheet = { info: cleaveInfo as SheetInfo, url: cleaveUrl };
 const fireballFx: Sheet = { info: fireballInfo as SheetInfo, url: fireballUrl };
@@ -109,6 +112,9 @@ const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 // 전설·세트 장비의 빛기둥(바닥 아이템 id → 기둥). 위로 갈수록 옅은 원기둥, 가산 혼합
 const pillars = new Map<number, THREE.Mesh>();
 const PILLAR = { h: 5, stop: 0.3, shake: 0.25 };
+// 등급 표시: 마법 = 바닥 고리, 희귀 = 짧은 기둥(SHORT배), 전설·세트 = 긴 기둥. 색만이 아니라 높이로도 갈린다
+const GRADE = { short: 0.3, ring: 0.55, faint: 0.4 };
+const RING_GEO = new THREE.RingGeometry(0.2, 0.3, 24).rotateX(-Math.PI / 2).translate(0, 0.02, 0);
 const PILLAR_GEO = new THREE.CylinderGeometry(0.1, 0.28, PILLAR.h, 12, 1, true).translate(0, PILLAR.h / 2, 0);
 {
   // 아래가 진하고 위가 옅도록 꼭짓점 색으로 바랜다
@@ -413,7 +419,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [...Object.values(npcs), ruin, props, stairs, loot, runeSheet, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
+  for (const s of [...Object.values(npcs), ruin, props, stairs, loot, runeSheet, floorGear, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -721,7 +727,8 @@ export function syncItems(world: World) {
   }
   for (const it of world.items) {
     if (items.has(it.id)) continue;
-    const c = it.kind === 'rune' ? card(runeSheet, `rune${runeIcon(it.rune!)}`, it.x, it.z, false) : card(loot, lootClip(it, world.cls), it.x, it.z, false);
+    const head = it.kind === 'helm' || it.kind === 'boots' ? `${world.cls === 'necromancer' ? 'wizard' : world.cls}_${it.kind}${it.tier}` : null; // 투구·신발은 보관함 아이콘 그림
+    const c = it.kind === 'rune' ? card(runeSheet, `rune${runeIcon(it.rune!)}`, it.x, it.z, false) : head ? card(floorGear, head, it.x, it.z, false) : card(loot, lootClip(it, world.cls), it.x, it.z, false);
     c.t = 0;
     c.glow = LOOT_MIN_LIGHT;
     c.mesh.renderOrder = 2; // 아이템은 늘 시체 위에 떨어진다. 시체(깊이 안 씀)보다 나중에 그려야 가려지지 않는다
@@ -732,13 +739,17 @@ export function syncItems(world: World) {
     if (g >= 0) c.glow = 1; // 룬 돌은 어둠 속에서도 보이게
     if (it.kind === 'relic') Object.assign(c, { glow: 1, tint: KEEPER_GOLD });
     const q = it.kind === 'relic' ? 3 : it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
-    if (q < 3 && g < 2) continue; // 빛기둥: 전설·세트, 드묾 이상 룬
-    const mat = new THREE.MeshBasicMaterial({ color: g >= 2 ? RUNE_COLOR[g] : q === 3 ? UNIQUE_COLOR.legend : UNIQUE_COLOR.set, vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
-    const p = new THREE.Mesh(PILLAR_GEO, mat);
+    if (q < 1 && g < 2) continue; // 일반 장비·흔한 룬은 표시 없음
+    const big = q >= 3 || g >= 2; // 긴 빛기둥: 전설·세트, 드묾 이상 룬
+    const color = g >= 2 ? RUNE_COLOR[g] : q === 4 ? UNIQUE_COLOR.set : q === 3 ? UNIQUE_COLOR.legend : q === 2 ? GRADE_COLOR.rare : GRADE_COLOR.magic;
+    const mat = new THREE.MeshBasicMaterial({ color, vertexColors: q !== 1 || big, transparent: true, opacity: big ? 0.55 : q === 2 ? GRADE.faint : GRADE.ring, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+    const p = new THREE.Mesh(!big && q === 1 ? RING_GEO : PILLAR_GEO, mat);
     p.position.set(it.x, 0, it.z);
+    if (!big && q === 2) p.scale.y = GRADE.short;
     p.renderOrder = 3;
     pillars.set(it.id, p);
     group.add(p);
+    if (!big) continue;
     pause(PILLAR.stop); // 떨어진 순간 잠깐 멈춘다
     rumble(PILLAR.shake);
   }

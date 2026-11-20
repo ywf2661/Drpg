@@ -675,6 +675,39 @@ function showGear(w: World) {
   }
 }
 
+// 줍는 순간 카드: 더 좋은 장비를 주우면 오른쪽에 PICK_SHOW초. 이미 입었으면 알리기만, 아니면 누르면 입는다(wear가 입었으면 true)
+const PICK_SHOW = 3.5;
+const pickCard = $('#pick-card');
+let pickTimer = 0;
+let pickSaid = false; // 카드를 띄운 프레임: 같은 내용의 장착·줍기 알림은 생략(updateHud)
+export function showPick(p: GearItem & { up: number; worn: boolean }, wear: () => boolean) {
+  const q = quality(p);
+  const icon = Object.assign(document.createElement('div'), { className: 'slot' });
+  icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
+  icon.style.backgroundPositionX = iconX(p);
+  icon.dataset.q = String(q);
+  paintSlot(icon, p);
+  const name = Object.assign(document.createElement('b'), { className: `q${q}`, textContent: nameOf(p.kind, p.tier, p.affixes) });
+  const sub = Object.assign(document.createElement('small'), { textContent: `${Q_NAME[q]} ${SLOT_NAME[p.kind]} · ${p.tier}단계` });
+  const head = document.createElement('div');
+  head.append(name, sub);
+  const gain = Object.assign(document.createElement('strong'), { textContent: `${p.kind === 'weapon' ? '공격' : '생존'} +${Math.max(1, Math.round(p.up * 100))}%` });
+  const foot = Object.assign(document.createElement('small'), { textContent: p.worn ? '입었습니다' : '눌러서 입기 · 두면 보관함에' });
+  pickCard.replaceChildren(icon, head, gain, foot);
+  pickCard.style.setProperty('--q', Q_COLOR[q]);
+  pickCard.classList.toggle('can-wear', !p.worn);
+  pickCard.onclick = p.worn ? null : () => {
+    if (wear()) foot.textContent = '입었습니다';
+    pickCard.onclick = null;
+    pickCard.classList.remove('can-wear');
+  };
+  pickCard.hidden = false;
+  pickSaid = true;
+  replay(pickCard);
+  clearTimeout(pickTimer);
+  pickTimer = window.setTimeout(() => (pickCard.hidden = true), PICK_SHOW * 1000);
+}
+
 export function say(text: string) {
   toast.textContent = text;
   replay(toast);
@@ -741,8 +774,9 @@ function runeEl(r: Rune): HTMLElement {
   return el;
 }
 
-// 장비 그림(보관함·인형 공용): 등급 테두리, 아이콘(아이템 색), 소켓 동그라미(꽂힌 룬은 그 안에)
-function gearEl(it: GearItem, cell: number, className: string): HTMLElement {
+// 장비 그림(보관함·인형 공용): 등급 색 바탕·테두리, 아이콘(고유 장비 색), 소켓 동그라미(꽂힌 룬은 그 안에),
+// 왼쪽 아래 단계 점(1~4), cmp(입은 것과 비교: 양수 ▲ 음수 ▼)가 있으면 오른쪽 위 배지
+function gearEl(it: GearItem, cell: number, className: string, cmp = 0): HTMLElement {
   const size = gearSize(it);
   const el = Object.assign(document.createElement('div'), { className });
   el.dataset.q = String(quality(it));
@@ -763,6 +797,10 @@ function gearEl(it: GearItem, cell: number, className: string): HTMLElement {
     }
     el.append(socks);
   }
+  const pips = Object.assign(document.createElement('div'), { className: 'pips' });
+  for (let t = 1; t <= 4; t++) pips.append(Object.assign(document.createElement('b'), { className: t <= it.tier ? 'on' : '' }));
+  el.append(pips);
+  if (Math.abs(cmp) > 1e-9) el.append(Object.assign(document.createElement('em'), { className: cmp > 0 ? 'up' : 'down', textContent: cmp > 0 ? '▲' : '▼' }));
   if (holding) el.classList.add(runesIn(it.affixes).length < n ? 'can-sock' : 'no-sock');
   return el;
 }
@@ -882,7 +920,7 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
   const shadow = Object.assign(document.createElement('div'), { id: 'bag-shadow', hidden: true }); // 끄는 동안 놓일 자리
   const piece = (box: Box) => (it: BagItem, i: number) => {
     const size = gearSize(it);
-    const el = gearEl(it, cell, box === 'bag' && i === selected ? 'bag-item sel' : 'bag-item');
+    const el = gearEl(it, cell, box === 'bag' && i === selected ? 'bag-item sel' : 'bag-item', gearDiff(w, it));
     el.style.gridArea = area(it.x, it.y, size);
     const other: Box = box === 'bag' ? 'stash' : 'bag';
     const right = stash ? `우클릭: ${other === 'bag' ? '보관함으로' : '창고로'}` : '우클릭: 장착';
@@ -1143,7 +1181,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
       for (const k of SLOTS) {
         if (!changed(k)) continue;
         worn = true;
-        say(`${nameOf(k, world.gear[k], world.mods[k])} 장착`);
+        if (!pickSaid) say(`${nameOf(k, world.gear[k], world.mods[k])} 장착`);
       }
     }
     shownGear = key;
@@ -1152,7 +1190,8 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   }
   // 장착 알림이 없을 때만 줍기 알림(자동 장착은 벗은 장비가 보관함으로 들어온다)
   const got = world.bag.at(-1);
-  if (got && world.bag.length > shownBag && !worn) say(`${nameOf(got.kind, got.tier, got.affixes)} — 보관함으로`);
+  if (got && world.bag.length > shownBag && !worn && !pickSaid) say(`${nameOf(got.kind, got.tier, got.affixes)} — 보관함으로`);
+  pickSaid = false;
   shownBag = world.bag.length;
   const blocked = bagBlocked(world);
   if (blocked && !shownBlocked && !worn) say('보관함에 자리가 없습니다');

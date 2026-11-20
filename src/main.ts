@@ -1,7 +1,7 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, say, sayLocked, sayShort, showBag, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud } from './hud';
+import { $, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud } from './hud';
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
@@ -594,12 +594,14 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
 });
-// 테스터 모드: 주소 끝에 ?test를 붙이면 왼쪽 위에 레벨 +1·다음 층 버튼(배포판에서도 폰으로 시험할 수 있게)
+// 테스터 모드: 주소 끝에 ?test를 붙이면 왼쪽 위에 레벨 +5·다음 층 버튼(배포판에서도 폰으로 시험할 수 있게)
 // ponytail: 진행 저장에도 그대로 남는다(테스트로 올린 레벨·층). 섞이는 게 싫으면 테스터 모드에서는 saveRun을 건너뛸 것
 if (new URLSearchParams(location.search).has('test')) {
   $('#tester').hidden = false;
   const playing = () => !choosing && !shopping && !outcome(world);
-  $('#test-level').addEventListener('click', () => playing() && gainXp(world, xpToNext(world.level) - world.xp));
+  $('#test-level').addEventListener('click', () => {
+    if (playing()) for (let i = 0; i < 5; i++) gainXp(world, xpToNext(world.level) - world.xp); // 5레벨씩
+  });
   $('#test-floor').addEventListener('click', () => playing() && floor < FLOORS && enterFloor(floor + 1, carryOf(world)));
   $('#test-land').addEventListener('click', () => {
     if (!playing()) return;
@@ -637,6 +639,15 @@ requestAnimationFrame(function frame(now) {
     markDone();
   }
   if (world.relicGot >= 0) gotRelic(world.relicGot);
+  if (world.picked) {
+    // 줍는 순간 카드. 보관함에 들어간 것은 카드를 누르면 입는다(그 사이 옮겼어도 옵션 배열로 찾는다)
+    const p = world.picked;
+    world.picked = null;
+    showPick(p, () => {
+      const i = world.bag.findIndex((b) => b.affixes === p.affixes);
+      return i >= 0 && equipFromBag(world, i);
+    });
+  }
   const events = soundEvents(heard, world);
   sound.play(events, world.entities[0].x, world.entities[0].z);
   stats.kills += events.filter((e) => e.name === 'skel_die' || e.name === 'boss_die').length;
