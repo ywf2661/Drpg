@@ -97,13 +97,24 @@ test('바치는 도중 움직이거나 맞으면 끊긴다', () => {
   run(0.5);
   hero.hp -= 5;
   run(0.2);
-  expect(w.offer).toBe(null);
+  expect(w.offer?.t ?? 0).toBeLessThan(0.3); // 끊겼다(그 자리에 서 있으면 처음부터 다시 찬다)
   expect(altars[0].open).toBe(false);
   w.offer = { id: altars[0].id, t: 0 };
   hero.path = [[24, 30]];
   hero.state = 'move';
   run(0.1);
   expect(w.offer).toBe(null);
+});
+
+test('켜진 성소에 바짝 붙어 멈춰 서면 저절로 바친다(걷는 중에는 시작하지 않는다)', () => {
+  const { w, altars, hero, run } = arena();
+  const c = altars[0];
+  Object.assign(hero, { x: c.x + 0.5, z: c.z + 1.4, path: [[c.x + 0.5, c.z + 3]], state: 'move' as const });
+  step(w, []);
+  expect(w.offer).toBe(null);
+  Object.assign(hero, { x: c.x + 0.5, z: c.z + 1.4, path: [], state: 'idle' as const });
+  run(SANCTUM.offer + 0.1);
+  expect(c.open).toBe(true);
 });
 
 test('체력 절반 아래에서 해골 기사 왕 둘이 일어나 곁의 성소를 지킨다', () => {

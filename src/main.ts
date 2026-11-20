@@ -16,7 +16,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { PRAYER_WEAPON, wear as wearGear, makeUnique, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
+import { ALL_RELICS, hasAllRelics,hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -622,6 +622,19 @@ if (new URLSearchParams(location.search).has('test')) {
     if (!at) return void wearGear(world, gear);
     world.bag.push({ ...gear, x: at[0], y: at[1] });
     equipFromBag(world, world.bag.length - 1);
+  });
+  // 결전 준비: 레벨 40(스킬 포인트 포함) + 정예 사냥꾼 세트 4부위(4단계, 입던 것은 사라진다) → 성소 5층
+  $('#test-prayer').addEventListener('click', () => {
+    if (!playing()) return;
+    for (let i = 0; i < 40 && world.level < 40; i++) gainXp(world, xpToNext(world.level) - world.xp);
+    const hero = world.entities[0];
+    for (const u of ['hunterWeapon', 'hunterArmor', 'hunterHelm', 'hunterBoots'] as const) {
+      const it = makeUnique(world, u, hero.x, hero.z, 4);
+      wearGear(world, { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! });
+    }
+    relics |= ALL_RELICS; // 성물 넷(작은 목마는 처음 쓰러뜨릴 때 받게 둔다)
+    land = 'sanctum';
+    enterFloor(FLOORS, carryOf(world));
   });
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기

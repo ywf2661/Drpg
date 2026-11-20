@@ -200,6 +200,11 @@ function tickAltars(w: World, hero: Entity) {
   const altars = w.chests.filter((c) => c.kind === 'altar');
   const boss = w.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
   if (!altars.length) return;
+  // 켜진 성소에 바짝 붙어 멈춰 서면 저절로 바치기 시작(눌러서 걸어오면 도착해 멈추는 순간). 기사가 지키면 안 된다
+  if (!w.offer && boss && hero.state === 'idle' && !hero.path.length) {
+    const ch = altars.find((c) => !c.open && Math.hypot(hero.x - c.x - 0.5, hero.z - c.z - 0.5) <= CHEST.reach && !guardOf(w, c));
+    if (ch) w.offer = { id: ch.id, t: 0 };
+  }
   if (w.offer) {
     const ch = w.chests[w.offer.id];
     w.offer.t += DT;

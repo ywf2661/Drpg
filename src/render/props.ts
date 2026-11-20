@@ -2,8 +2,8 @@
 import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
-import { COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
-import { relicCount } from '../sim/sanctum';
+import { CHEST, COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
+import { relicCount, SANCTUM } from '../sim/sanctum';
 import { litBeams, paladinOf } from '../sim/paladin';
 import { GATE_FIRES } from '../sim/wilds';
 import lootInfo from '../assets/sprites/loot.json';
@@ -107,7 +107,10 @@ const DREAD_FIRE = new THREE.Color(1, 0.4, 0.34);
 const EMBERS = 46;
 let dread: { stage: number; glow: THREE.MeshBasicMaterial; mist: THREE.MeshBasicMaterial | null; embers: THREE.Points | null; light: THREE.PointLight | null } | null = null; // 성소 입구 자리(금이 숨 쉬듯 빛난다)
 // 성소 5층: 켜진 성소에서 성기사로 이어지는 금빛 줄기(성소 순서)
-let beams: { line: THREE.Line; id: number }[] = [];
+let beams: { line: THREE.Line; id: number; zone: THREE.Mesh; fill: THREE.Mesh }[] = [];
+// 성소 둘레 원: 켜진 동안 옅게(여기 서면 바친다), 바치는 동안 밝은 띠가 한 바퀴 차오른다(drawRange = 조각 × 색인 6)
+const ALTAR_SEGS = 48;
+const ALTAR_ZONE = new THREE.RingGeometry(CHEST.reach - 0.05, CHEST.reach, ALTAR_SEGS).rotateX(-Math.PI / 2);
 const items = new Map<number, Card>(); // 바닥 아이템 id → 판자
 // 전설·세트 장비의 빛기둥(바닥 아이템 id → 기둥). 위로 갈수록 옅은 원기둥, 가산 혼합
 const pillars = new Map<number, THREE.Mesh>();
@@ -463,6 +466,10 @@ export function syncChests(world: World) {
   const lit = litBeams(world); // 기절·성검의 비 동안은 꺼진다(paladin.ts)
   for (const b of beams) {
     const ch = world.chests[b.id];
+    const offering = world.offer?.id === ch.id;
+    b.zone.visible = !!boss && !ch.open && !offering;
+    b.fill.visible = offering;
+    if (offering) b.fill.geometry.setDrawRange(0, 6 * Math.ceil(ALTAR_SEGS * Math.min(1, world.offer!.t / SANCTUM.offer)));
     b.line.visible = lit.includes(ch);
     if (!b.line.visible) continue;
     const a = b.line.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -865,8 +872,12 @@ export function buildProps(world: World): THREE.Group {
   beams = world.chests.filter((c) => c.kind === 'altar').map((c) => {
     const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3)), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
     line.renderOrder = 3;
-    extra.push(line);
-    return { line, id: c.id };
+    const ringMat = (opacity: number) => new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
+    const zone = new THREE.Mesh(ALTAR_ZONE, ringMat(0.35));
+    const fill = new THREE.Mesh(new THREE.RingGeometry(CHEST.reach - 0.2, CHEST.reach, ALTAR_SEGS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2), ringMat(0.9));
+    for (const m of [zone, fill]) Object.assign(m.position, { x: c.x + 0.5, y: 0.03, z: c.z + 0.5 }), (m.renderOrder = 2);
+    extra.push(line, zone, fill);
+    return { line, id: c.id, zone, fill };
   });
   braziers = world.props.flatMap((p) => (p.kind === 'brazier' ? [{ x: p.x + 0.5, z: p.z + 0.5 }] : []));
   // ponytail: 화로 빛은 그림자가 없어 벽 너머로 조금 샌다. 거슬리면 화로마다 castShadow(점광원 그림자는 6면 렌더)
