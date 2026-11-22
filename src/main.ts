@@ -7,7 +7,7 @@ import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
-import { camera, draw, headOf, initRender, renderer, setAim, setWorld } from './render/render';
+import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setWorld } from './render/render';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
@@ -16,7 +16,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { PRAYER_WEAPON, wear as wearGear, makeUnique, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ALL_RELICS, hasAllRelics,hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
+import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -55,6 +55,11 @@ let stashOpen = false;
 let captainLine: string | null = null;
 // 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
 let [risen, fell] = [false, false];
+// 5층 첫 만남 연출: wait = 통로를 빠져나오길 기다림 → walk = 레터박스, 남쪽 두 성소 사이까지 저절로 걷기 → look = 기도하는 자를 바라봄 → talk = 대화. 대화가 끝나면 기도하는 자가 주인공을 노린다
+let intro: 'wait' | 'walk' | 'look' | 'talk' | null = null;
+let introT = 0;
+const INTRO_LOOK = 1.5; // 바라보는 시간(초)
+const letterbox = (on: boolean) => $('#letterbox').classList.toggle('on', on);
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 // 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
 const questHere = () => STORY[stage].land === land;
@@ -151,10 +156,9 @@ function enterFloor(n: number, carry: Carry) {
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle, land, goalLine());
   [risen, fell] = [false, false];
-  if (land === 'sanctum' && n === FLOORS) {
-    say('성소 넷이 기도하는 자를 감싸고 있다');
-    showTalks(prayerMeet(!hasHorse(relics))); // 열려 있는 동안 싸움은 멈춘다
-  }
+  intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
+  letterbox(false);
+  setGaze(null);
   sound.playMusic(sound.musicFor(n));
 }
 
@@ -640,6 +644,35 @@ if (new URLSearchParams(location.search).has('test')) {
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
 if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; } } });
 
+// 5층 첫 만남 연출 한 프레임(intro 참고). 연출 중엔 플레이어 명령을 버린다
+function introStep(dt: number, cut: boolean) {
+  const hero = world.entities[0];
+  const [cx, cz] = ARENA.center;
+  const spot = { type: 'move', x: cx + 0.5, z: ARENA.altars[2][1] + 1.5 } as const; // 남쪽 두 성소를 잇는 줄 조금 앞(기도하는 자가 알아채는 거리 밖)
+  if (cut) commands.length = 0;
+  if (intro === 'wait' && hero.z < cz + ARENA.r - 0.5) {
+    intro = 'walk';
+    letterbox(true);
+    commands.length = 0;
+  }
+  if (intro === 'walk' && Math.hypot(hero.x - spot.x, hero.z - spot.z) > 0.3) {
+    if (!hero.path.length) commands.push(spot); // 아직 안 걸었으면(이번 프레임에 sim이 안 돌았어도 다음 프레임에 다시)
+  } else if (intro === 'walk') {
+    [intro, introT] = ['look', 0];
+    setGaze({ x: (hero.x + cx + 0.5) / 2, z: (hero.z + cz + 0.5) / 2 });
+    say('성소 넷이 기도하는 자를 감싸고 있다');
+  } else if (intro === 'look' && (introT += dt) >= INTRO_LOOK) {
+    intro = 'talk';
+    showTalks(prayerMeet(!hasHorse(relics))); // 열려 있는 동안 싸움은 멈춘다
+  } else if (intro === 'talk' && !talking()) {
+    intro = null;
+    letterbox(false);
+    setGaze(null);
+    const boss = world.entities.find((e) => e.kind === 'boss' && e.state !== 'dead');
+    if (boss) Object.assign(boss, { target: hero.id, repathT: 0 }); // 멀리서 성소만 끄지 못하게 바로 노린다
+  }
+}
+
 let heard = snapshot(world); // 직전 프레임 상태(효과음 비교용)
 let acc = 0;
 let last = performance.now();
@@ -647,7 +680,9 @@ requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
   const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
-  pollInput(world, dt, paused);
+  const cut = intro === 'walk' || intro === 'look';
+  pollInput(world, dt, paused || cut);
+  if (intro) introStep(dt, cut);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : null);
   renderer.domElement.classList.toggle('aiming', !!aiming || amoving);

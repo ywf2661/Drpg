@@ -126,6 +126,12 @@
       canvas.attack { cursor: url(sprites/cursor_attack.png) 0 0, crosshair; }
       canvas.aiming { cursor: crosshair; } /* 스킬 조준 중 */
 
+      /* 연출 레터박스(성소 5층 첫 만남): 위아래 검은 띠가 밀려 들어온다 */
+      #letterbox::before, #letterbox::after { content: ''; position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 50; pointer-events: none; transition: height 0.6s ease; }
+      #letterbox::before { top: 0; }
+      #letterbox::after { bottom: 0; }
+      #letterbox.on::before, #letterbox.on::after { height: 12vh; }
+
       /* 대화상자: 금테 두른 가죽 패널, 제목은 금빛 */
       #credits, #help, #shop, #bag, #talk { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); padding: 18px 20px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.6; }
       #credits::backdrop, #help::backdrop, #shop::backdrop, #talk::backdrop, #bag::backdrop, #tree::backdrop { background: radial-gradient(ellipse at center, #0008, #000c); }
@@ -515,6 +521,7 @@
       <button id="shop-stay" title="Esc">◀ 여기 남기</button>
       <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
     </dialog>
+    <div id="letterbox"></div>
     <dialog id="talk">
       <p><b id="talk-who"></b></p>
       <p id="talk-text" style="white-space: pre-line"></p>

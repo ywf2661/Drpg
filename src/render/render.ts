@@ -63,6 +63,9 @@ const scene = new THREE.Scene();
 let torchBase = 0xff9a4d; // 지역의 횃불 색(벼림 중엔 강화 색 쪽으로 30% 섞는다)
 const torch = new THREE.PointLight(0xff9a4d, TORCH, TORCH_RANGE, 1.5); // 주인공이 든 횃불
 const focus = new THREE.Vector3();
+// 연출 중 카메라가 바라볼 곳(null = 주인공)
+let gaze: { x: number; z: number } | null = null;
+export const setGaze = (g: typeof gaze) => (gaze = g);
 const tmp = new THREE.Vector3();
 const right = new THREE.Vector3();
 const up = new THREE.Vector3();
@@ -367,7 +370,7 @@ export function draw(world: World, dt: number) {
   syncGates(world);
   syncRain(world, frozen ? 0 : dt, stickArrow);
   updateProps(dt, light);
-  focus.lerp(tmp.set(hero.x, 0, hero.z), 1 - Math.exp(-8 * dt));
+  focus.lerp(tmp.set(gaze?.x ?? hero.x, 0, gaze?.z ?? hero.z), 1 - Math.exp((gaze ? -2 : -8) * dt));
   camera.position.copy(focus).add(CAM_OFFSET);
   camera.lookAt(focus);
   updateFeel(dt, camera);
