@@ -349,7 +349,7 @@ export type World = {
   past: [number, number, number][];
   haloCd: number;
   // 성기사 전용 기술(paladin.ts): rain = 다음 성검의 비까지, judge = 다음 심판까지(-1 = 아직 잠김), quiet = 빛줄이 꺼져 있을 남은 시간, burn = 대상 id → 다시 데일 수 있을 때까지(초)
-  pal: { rain: number; judge: number; quiet: number; burn: Record<number, number> };
+  pal: { rain: number; judge: number; quiet: number; burn: Record<number, number>; link: Record<number, number> }; // link: 성소 id → 빛줄이 이어지기까지 남은 예고 시간(0 = 이어짐, 데인다)
   swords: { id: number; x: number; z: number; t: number }[]; // 꽂힌 성검(칸 정수, t = 벽 남은 시간)
   calmT: number; // 주인공이 마지막으로 다친 뒤 흐른 시간(초)
   lastHp: number; // 직전 틱의 주인공 체력(다쳤는지 비교)

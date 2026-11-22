@@ -30,7 +30,11 @@ export function tickPaladin(w: World) {
   for (const id in w.pal.burn) w.pal.burn[id] = Math.max(0, w.pal.burn[id] - DT);
   const b = paladinOf(w);
   if (b && w.pal.judge < 0 && b.hp <= b.maxHp / 2) w.pal.judge = PALADIN.judgeFirst; // 체력 절반 아래: 심판이 풀린다
-  const beams = litBeams(w);
+  const lit = litBeams(w);
+  // 새로 잇는 빛줄은 beamWarn초 동안 바닥에 예고만(데지 않는다). 끊긴 줄은 잊는다(다시 이으면 또 예고)
+  for (const id in w.pal.link) if (!lit.some((c) => c.id === +id)) delete w.pal.link[id];
+  for (const c of lit) w.pal.link[c.id] = c.id in w.pal.link ? Math.max(0, w.pal.link[c.id] - DT) : PALADIN.beamWarn;
+  const beams = lit.filter((c) => w.pal.link[c.id] <= 0);
   if (!b || !beams.length) return;
   for (const f of friends(w)) {
     if ((w.pal.burn[f.id] ?? 0) > 0) continue;

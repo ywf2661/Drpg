@@ -470,7 +470,7 @@ export function syncChests(world: World) {
     b.zone.visible = !!boss && !ch.open && !offering;
     b.fill.visible = offering;
     if (offering) b.fill.geometry.setDrawRange(0, 6 * Math.ceil(ALTAR_SEGS * Math.min(1, world.offer!.t / SANCTUM.offer)));
-    b.line.visible = lit.includes(ch);
+    b.line.visible = lit.includes(ch) && !(world.pal.link[ch.id] > 0); // 바닥 예고(zones.ts)가 끝나야 공중 줄이 이어진다
     if (!b.line.visible) continue;
     const a = b.line.geometry.getAttribute('position') as THREE.BufferAttribute;
     a.setXYZ(0, ch.x + 0.5, 1, ch.z + 0.5);

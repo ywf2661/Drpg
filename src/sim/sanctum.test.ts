@@ -164,6 +164,8 @@ test('빛의 사슬: 줄 위에 서면 데이고, 1초에 한 번만', () => {
   const [ax, az] = [altars[0].x + 0.5, altars[0].z + 0.5];
   Object.assign(hero, { x: boss.x + (ax - boss.x) * 0.25, z: boss.z + (az - boss.z) * 0.25 });
   const hp0 = hero.hp;
+  for (let i = 0; i < Math.round(PALADIN.beamWarn / DT); i++) tickPaladin(w); // 새로 잇는 줄: 예고 동안은 데지 않는다
+  expect(hero.hp).toBe(hp0);
   tickPaladin(w);
   const hp1 = hero.hp;
   expect(hp1).toBeLessThan(hp0);
@@ -173,6 +175,14 @@ test('빛의 사슬: 줄 위에 서면 데이고, 1초에 한 번만', () => {
   expect(hero.hp).toBeLessThan(hp1);
   Object.assign(hero, { x: altars[2].x + 0.5, z: altars[2].z + 2.5, hp: hero.maxHp }); // 줄에서 먼 곳
   for (let i = 0; i < 30; i++) tickPaladin(w);
+  expect(hero.hp).toBe(hero.maxHp);
+  // 기절로 끊겼다가 다시 이으면 또 예고부터
+  Object.assign(hero, { x: boss.x + (ax - boss.x) * 0.25, z: boss.z + (az - boss.z) * 0.25 });
+  boss.stunT = 0.5;
+  tickPaladin(w);
+  boss.stunT = 0;
+  tickPaladin(w);
+  expect(w.pal.link[altars[0].id]).toBeGreaterThan(0);
   expect(hero.hp).toBe(hero.maxHp);
 });
 

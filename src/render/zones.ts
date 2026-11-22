@@ -85,7 +85,9 @@ export function syncBeams(world: World, time: number) {
     m.position.set((b!.x + x1) / 2, 0.04, (b!.z + z1) / 2);
     m.rotation.y = Math.atan2(dx, dz);
     m.scale.set(2 * PALADIN.beamR, 1, Math.hypot(dx, dz));
-    m.material.opacity = 0.3 + 0.12 * Math.sin(time * 9 + c.id);
+    const warn = world.pal.link[c.id] ?? 0; // 잇는 중: 붉게 빠르게 깜빡(가시 바닥 예고처럼), 이어지면 금빛
+    m.material.color.setHex(warn > 0 ? 0xff3a1a : 0xffd27a);
+    m.material.opacity = warn > 0 ? 0.25 + 0.25 * (Math.sin(time * 24) > 0 ? 1 : 0) : 0.3 + 0.12 * Math.sin(time * 9 + c.id);
   }
   for (const [id, m] of beamStrips) {
     if (lit.some((c) => c.id === id)) continue;
