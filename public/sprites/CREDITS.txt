@@ -14,6 +14,8 @@ Items: drop animations scaled by 0.32 (potion by 0.5), item icons cropped from t
 Demon (ruins boss): "Demon - Flare sprite sheets", OpenGameArt, CC0 - https://opengameart.org/content/demon-flare-sprite-sheets
 Modifications: selected frames, saturation and brightness lowered, scaled by 0.64, alpha thresholded, reduced to 256 colors.
 
+Time witch (ending): female avatar mage hood, vest, skirt, sleeves and boots recolored black and purple; kneeling frame made by cutting the knees out of the idle frame.
+
 Fallen paladin (boss): "8 Directional Greatsword Knight" by Hormelz, itch.io, CC0 - https://hormelz.itch.io/8-directional-great-sword-knight-character
 Modifications: idle frames halved, recolored (32-color palette swap), hit and death frames made by rotating the idle frame, scaled by 0.5, alpha thresholded, reduced to 256 colors.
 
@@ -22,6 +24,16 @@ Modifications: 20 rune stones cropped from the 5x4 preview sheet (tools/art/Rune
 packed into a one-column 40x40 sheet (tools/runes.py). One stone (row 4, column 2) is not used.
 
 Files used:
+  mods/fantasycore/animations/avatar/female/mage_boots.txt
+  mods/fantasycore/images/avatar/female/mage_boots.png
+  mods/fantasycore/animations/avatar/female/mage_skirt.txt
+  mods/fantasycore/images/avatar/female/mage_skirt.png
+  mods/fantasycore/animations/avatar/female/mage_sleeves.txt
+  mods/fantasycore/images/avatar/female/mage_sleeves.png
+  mods/fantasycore/animations/avatar/female/mage_vest.txt
+  mods/fantasycore/images/avatar/female/mage_vest.png
+  mods/fantasycore/animations/avatar/female/mage_hood.txt
+  mods/fantasycore/images/avatar/female/mage_hood.png
   mods/fantasycore/animations/enemies/skeleton_weak.txt
   mods/fantasycore/images/enemies/skeleton_weak.png
   mods/fantasycore/animations/enemies/skeleton.txt

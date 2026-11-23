@@ -2,7 +2,7 @@
 import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
-import { CHEST, COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, type HeroClass, type Item, type Prop, type World } from '../sim/world';
+import { CHEST, COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, uniqueOf, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import { relicCount, SANCTUM } from '../sim/sanctum';
 import { litBeams, paladinOf } from '../sim/paladin';
 import { GATE_FIRES } from '../sim/wilds';
@@ -717,6 +717,9 @@ export function syncShots(world: World) {
 }
 
 // 바닥 아이템 판자를 world.items에 맞춘다. 새 아이템은 떨어지는 애니메이션부터
+// 엔딩: 「금 간 빛 고리」는 마녀 앞에서 떨어질 때까지 바닥에 그리지 않는다(떨어지는 순간 빛기둥·멈칫이 함께)
+let holdHalo = false;
+export const setHoldHalo = (on: boolean) => (holdHalo = on);
 export function syncItems(world: World) {
   const live = new Set(world.items.map((it) => it.id));
   for (const [id, p] of pillars) {
@@ -733,7 +736,7 @@ export function syncItems(world: World) {
     cards.splice(cards.indexOf(c), 1);
   }
   for (const it of world.items) {
-    if (items.has(it.id)) continue;
+    if (items.has(it.id) || (holdHalo && it.affixes && uniqueOf({ affixes: it.affixes }) === 'crackedHalo')) continue;
     const head = it.kind === 'helm' || it.kind === 'boots' ? `${world.cls === 'necromancer' ? 'wizard' : world.cls}_${it.kind}${it.tier}` : null; // 투구·신발은 보관함 아이콘 그림
     const c = it.kind === 'rune' ? card(runeSheet, `rune${runeIcon(it.rune!)}`, it.x, it.z, false) : head ? card(floorGear, head, it.x, it.z, false) : card(loot, lootClip(it, world.cls), it.x, it.z, false);
     c.t = 0;

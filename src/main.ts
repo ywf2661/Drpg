@@ -8,15 +8,17 @@ import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setWorld } from './render/render';
+import { OUTRO, setOutro } from './render/ending';
+import { setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { PRAYER_WEAPON, wear as wearGear, makeUnique, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES } from './sim/sanctum';
+import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINE, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -59,7 +61,11 @@ let [risen, fell] = [false, false];
 let intro: 'wait' | 'walk' | 'look' | 'talk' | null = null;
 let introT = 0;
 const INTRO_LOOK = 1.5; // 바라보는 시간(초)
-const letterbox = (on: boolean) => $('#letterbox').classList.toggle('on', on);
+// 엔딩 1(처음 쓰러뜨릴 때): 쓰러진 뒤 대사를 닫으면 흐르는 연출 시간(render/ending.ts OUTRO). 대화창이 열린 동안은 멈춘다. null = 없음
+let outro: number | null = null;
+const outroOn = () => outro !== null && outro < OUTRO.end;
+let ending = false; // 엔딩 2(검은 화면·후일담·크레딧)를 보는 중
+const letterbox = (on: boolean) => ($('#letterbox').classList.toggle('on', on), document.body.classList.toggle('cine', on)); // 연출: 띠 + UI 숨김
 let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장비·레벨(사망 후 다시 시작하면 이것으로)
 // 지역 의뢰: 지금 이야기 단계의 지역에서만. 이 구역에 놓을 대상 글자(2·3·4구역, 아직 안 끝낸 구역)
 const questHere = () => STORY[stage].land === land;
@@ -157,6 +163,9 @@ function enterFloor(n: number, carry: Carry) {
   showFloor(n, cycle, land, goalLine());
   [risen, fell] = [false, false];
   intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
+  outro = null;
+  setOutro(null);
+  setHoldHalo(world.horseDrop); // 처음 쓰러뜨리는 판: 빛 고리는 마녀 앞에서 떨어질 때 나타난다
   letterbox(false);
   setGaze(null);
   sound.playMusic(sound.musicFor(n));
@@ -314,7 +323,47 @@ function restart() {
 
 // 보스를 잡은 뒤 야영지로: 지금 이야기 단계의 보스면 다음 단계(마지막이면 회차 + 1), 순찰대장이 다음 이야기를 한다
 function backToCamp() {
-  if (outcome(world) !== 'clear' || clearT < LOOT_TIME) return;
+  if (outcome(world) !== 'clear' || clearT < LOOT_TIME || ending) return;
+  if (land !== 'sanctum' || !world.horseDrop) return goCamp();
+  // 처음 쓰러뜨린 판: 줍지 않은 고유 장비는 가방(자리가 없으면 창고)에 넣고, 어두워진 뒤 야영지로 → 후일담·크레딧
+  for (const it of world.items) {
+    if (!it.affixes || !uniqueOf({ affixes: it.affixes })) continue;
+    const g = { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes };
+    const [box, at] = bagSpot(world.bag, g) ? [world.bag, bagSpot(world.bag, g)!] : [stash, bagSpot(stash, g, STASH)];
+    if (at) box.push({ ...g, x: at[0], y: at[1] });
+  }
+  void epilogue(goCamp);
+}
+
+// 엔딩 2: 화면이 어두워지면 go(야영지로) → 후일담 한 줄씩 → 크레딧이 올라간다(아무 키나 누르면 건너뜀) → 밝아진다
+async function epilogue(go: () => void) {
+  const wait = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
+  const [box, line, roll] = [$('#ending'), $('#ending-line'), $('#ending-roll')];
+  ending = true;
+  box.classList.add('on');
+  await wait(1.2);
+  go();
+  for (const text of EPILOGUE) {
+    line.textContent = text;
+    line.classList.add('show');
+    await wait(2.4);
+    line.classList.remove('show');
+    await wait(0.9);
+  }
+  roll.innerHTML = `<h2>The Prayer</h2>${[...$('#credits').querySelectorAll('p')].map((p) => p.outerHTML).join('')}`;
+  roll.classList.add('go');
+  await Promise.race([
+    new Promise((r) => roll.addEventListener('animationend', r, { once: true })),
+    new Promise((r) => addEventListener('keydown', r, { once: true })),
+    new Promise((r) => box.addEventListener('pointerdown', r, { once: true })),
+  ]);
+  box.classList.remove('on');
+  await wait(1);
+  roll.classList.remove('go');
+  ending = false;
+}
+
+function goCamp() {
   for (const it of world.items) if (it.kind === 'rune') world.runes[it.rune!] = (world.runes[it.rune!] ?? 0) + 1; // 보스 자리에 남은 룬은 챙겨 간다
   for (const it of world.items) if (it.kind === 'relic') gotRelic(it.relic!); // 줍지 않은 성물도
   const k = runeRow(land);
@@ -642,7 +691,7 @@ if (new URLSearchParams(location.search).has('test')) {
   });
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; } } });
 
 // 5층 첫 만남 연출 한 프레임(intro 참고). 연출 중엔 플레이어 명령을 버린다
 function introStep(dt: number, cut: boolean) {
@@ -679,9 +728,10 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
-  const cut = intro === 'walk' || intro === 'look';
+  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null || ending; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  const cut = intro === 'walk' || intro === 'look' || outroOn();
   pollInput(world, dt, paused || cut);
+  if (cut) commands.length = 0;
   if (intro) introStep(dt, cut);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : null);
@@ -718,17 +768,33 @@ requestAnimationFrame(function frame(now) {
     entry = { ...entry, gold: deathGold(entry.gold) };
     saveRun({ ...progress(), land: 'camp', floor: 0, from: 'w' });
   }
-  if (o === 'clear' && !talking()) clearT += dt;
+  if (o === 'clear' && !talking() && !outroOn()) clearT += dt; // 엔딩 1이면 레터박스가 걷힌 뒤부터
   // 성소 5층: 체력 절반에 기사가 일어날 때 한 줄, 쓰러지는 모습이 끝나면 대화(전리품 시간은 대화를 닫은 뒤부터)
   if (land === 'sanctum' && floor === FLOORS) {
     if (world.knightsUp && !risen) {
       risen = true;
       say(PRAYER_RISE);
     }
+    const boss = world.entities.find((e) => e.kind === 'boss');
     if (o === 'clear' && !fell && clearT >= SANCTUM.fallTalk) {
       [fell, clearT] = [true, 0];
-      showTalks(prayerFall(world.horseDrop)); // 처음 쓰러뜨린 판(목마를 떨군 판)이면 긴 대화
+      showTalks(prayerFall(world.horseDrop)); // 처음 쓰러뜨린 판(목마를 떨군 판)이면 긴 대화 → 엔딩 1
+      if (world.horseDrop && boss) {
+        outro = 0;
+        letterbox(true);
+        setGaze({ x: boss.x, z: boss.z });
+      }
     }
+    if (outroOn() && !talking()) {
+      const was = outro!;
+      outro = Math.min(OUTRO.end, was + dt);
+      if (was < OUTRO.say && outro >= OUTRO.say) showTalks([WITCH_LINE]);
+      if (outro >= OUTRO.end) {
+        letterbox(false);
+        setGaze(null);
+      }
+    }
+    if (outro !== null && boss) setOutro({ t: outro, x: boss.x, z: boss.z, face: boss.facing, hx: world.entities[0].x, hz: world.entities[0].z });
   } // 저장은 지우지 않는다(야영지로 가기 전에 탭을 닫아도 캐릭터가 남는다)
   const [hero, st] = [world.entities[0], world.stairs];
   if (stayed && (!st || Math.hypot(hero.x - st[0] - 0.5, hero.z - st[1] - 0.5) > STAIRS_AWAY) && !exitAt(world)) stayed = false; // 계단·출구에서 벗어나야 상점이 다시 열린다

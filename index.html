@@ -93,6 +93,7 @@
       .slot[data-q='3'] { border-color: var(--legend); box-shadow: 0 0 6px var(--legend); }
       .slot[data-q='4'] { border-color: var(--set); box-shadow: 0 0 6px var(--set); }
       .slot { background-size: 640px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
+      .slot.art, .bag-item i.art { background-size: contain; background-position: center; image-rendering: auto; mix-blend-mode: normal; } /* 기도하는 자의 전설 그림(hud.ts LEGEND_ART): 칸에 맞춰 통째로 */
       #potion img { width: 32px; height: 32px; image-rendering: pixelated; vertical-align: middle; }
       #potion span { position: absolute; right: 2px; bottom: 0; font-size: 12px; color: var(--ink); text-shadow: 0 1px 2px #000; }
       #potion.empty { opacity: 0.4; }
@@ -131,6 +132,24 @@
       #letterbox::before { top: 0; }
       #letterbox::after { bottom: 0; }
       #letterbox.on::before, #letterbox.on::after { height: 12vh; }
+      /* 연출 중: 화면 그림·레터박스·대화창·자막(#toast)만 남기고 UI를 숨긴다 */
+      body.cine > :not(canvas, #letterbox, dialog, #toast, #still) { visibility: hidden !important; }
+      body.cine #toast { bottom: calc(12vh + 16px); z-index: 51; }
+      /* 엔딩 1: 시체 둘레만 색이 빠진다(--at·--r은 render/ending.ts가 매 프레임) */
+      #still { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; backdrop-filter: grayscale(1) brightness(0.85); -webkit-backdrop-filter: grayscale(1) brightness(0.85);
+        mask-image: radial-gradient(circle var(--r, 0px) at var(--at, 50% 50%), #000 60%, transparent); -webkit-mask-image: radial-gradient(circle var(--r, 0px) at var(--at, 50% 50%), #000 60%, transparent); }
+      /* 시간의 마녀의 한 줄: 이름 없이, 지문과 다르게 보랏빛 가운데 정렬 */
+      #talk.witch #talk-text { color: #cdb2ff; text-align: center; font-size: 1.1em; letter-spacing: 1px; text-shadow: 0 0 8px #7a4fd080; }
+      /* 엔딩 2: 검은 화면 → 후일담 한 줄씩 → 크레딧이 올라간다(아무 키나 누르면 건너뜀) */
+      #ending { position: fixed; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; transition: opacity 1s; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+      #ending.on { opacity: 1; pointer-events: auto; }
+      #ending-line { margin: 0; padding: 0 16px; font: 18px var(--serif); color: var(--ink); text-align: center; opacity: 0; transition: opacity 0.8s; }
+      #ending-line.show { opacity: 1; }
+      #ending-roll { position: absolute; top: 100%; left: 50%; width: min(480px, 90vw); text-align: center; color: var(--ink); line-height: 1.7; transform: translateX(-50%); }
+      #ending-roll h2 { font: 28px var(--serif); color: var(--gold-hi); letter-spacing: 3px; margin-bottom: 40vh; }
+      #ending-roll a { color: var(--gold); }
+      #ending-roll.go { animation: ending-roll 26s linear forwards; }
+      @keyframes ending-roll { to { transform: translate(-50%, calc(-100vh - 100%)); } }
 
       /* 대화상자: 금테 두른 가죽 패널, 제목은 금빛 */
       #credits, #help, #shop, #bag, #talk { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); padding: 18px 20px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.6; }
@@ -522,6 +541,8 @@
       <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
     </dialog>
     <div id="letterbox"></div>
+    <div id="still"></div>
+    <div id="ending"><p id="ending-line"></p><div id="ending-roll"></div></div>
     <dialog id="talk">
       <p><b id="talk-who"></b></p>
       <p id="talk-text" style="white-space: pre-line"></p>

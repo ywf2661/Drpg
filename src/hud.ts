@@ -7,6 +7,11 @@ import rangerSkillIcons from './assets/sprites/ranger_skill_icons.png';
 import necroSkillIcons from './assets/sprites/necro_skill_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import runesUrl from './assets/sprites/runes.png';
+import haloArt from './assets/legend/crackedHalo.png';
+import caliburxArt from './assets/legend/caliburx.png';
+import elemStaffArt from './assets/legend/elemStaff.png';
+import graveSkullArt from './assets/legend/graveSkull.png';
+import stormBowArt from './assets/legend/stormBow.png';
 import runesInfo from './assets/sprites/runes.json';
 import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
@@ -26,7 +31,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World } from './sim/world';
+import { FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -63,6 +68,16 @@ const SLOT_NAME: Record<Slot, string> = { weapon: '무기', armor: '갑옷', hel
 let cls: HeroClass = 'knight'; // 지금 판의 직업(장비 이름·아이콘·스킬 설명). 층이 바뀔 때·상점을 열 때 맞춘다
 const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons, ranger: rangerGearIcons, necromancer: wizardGearIcons };
 const nameOf = (kind: Slot, tier: number, affixes: Affix[]) => gearName(kind, tier, affixes, cls);
+// 기도하는 자의 전설(빛 고리·전설 무기 넷): 아이콘 줄 대신 가방 칸 크기(2×2·2×3)에 맞춘 그림 한 장(src/assets/legend)
+const LEGEND_ART: Partial<Record<UniqueId, string>> = { crackedHalo: haloArt, caliburx: caliburxArt, elemStaff: elemStaffArt, graveSkull: graveSkullArt, stormBow: stormBowArt };
+const artOf = (it: GearItem) => { const u = uniqueOf(it); return u && LEGEND_ART[u]; };
+// 아이콘 칸에 그림을 단다: 전설 그림이 있으면 그것(칸에 맞춰 contain), 없으면 직업 장비 줄의 그 단계 칸
+function setIcon(el: HTMLElement, it: GearItem) {
+  const art = artOf(it);
+  el.classList.toggle('art', !!art);
+  el.style.backgroundImage = `url(${art ?? GEAR_ICONS[cls]})`;
+  el.style.backgroundPositionX = art ? '' : iconX(it);
+}
 const toast = $('#toast');
 const soundBtn = $('#sound-btn');
 const goldLabel = $('#gold');
@@ -184,7 +199,8 @@ talkDlg.addEventListener('close', () => {
   const next = talkQueue.shift();
   if (next) showLine(next);
 });
-function showLine([who, text]: Line) {
+function showLine([who, text, look]: Line) {
+  talkDlg.className = look ?? '';
   $('#talk-who').textContent = who;
   $('#talk-text').textContent = text;
   talkBtn.textContent = talkQueue.length ? '다음' : '닫기';
@@ -675,7 +691,7 @@ function showGear(w: World) {
   for (const kind of SLOTS) {
     const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
     const slot = gearSlots[kind];
-    slot.style.backgroundPositionX = iconX(it);
+    setIcon(slot, it);
     slot.dataset.q = String(quality(it));
     paintSlot(slot, it);
     tipOn(slot, () => [it, '입은 장비', '눌러서 보관함 열기']);
@@ -690,8 +706,7 @@ let pickSaid = false; // 카드를 띄운 프레임: 같은 내용의 장착·�
 export function showPick(p: GearItem & { up: number; worn: boolean }, wear: () => boolean) {
   const q = quality(p);
   const icon = Object.assign(document.createElement('div'), { className: 'slot' });
-  icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
-  icon.style.backgroundPositionX = iconX(p);
+  setIcon(icon, p);
   icon.dataset.q = String(q);
   paintSlot(icon, p);
   const name = Object.assign(document.createElement('b'), { className: `q${q}`, textContent: nameOf(p.kind, p.tier, p.affixes) });
@@ -739,8 +754,7 @@ const once = (fn: () => void) => (e: MouseEvent) => {
 function gearRow(it: GearItem, mark: string, buttons: [string, () => void][]) {
   const row = Object.assign(document.createElement('div'), { className: 'gear-row' });
   const icon = Object.assign(document.createElement('div'), { className: 'slot' });
-  icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
-  icon.style.backgroundPositionX = iconX(it);
+  setIcon(icon, it);
   icon.dataset.q = String(quality(it));
   paintSlot(icon, it);
   const info = document.createElement('div');
@@ -788,9 +802,10 @@ function gearEl(it: GearItem, cell: number, className: string, cmp = 0): HTMLEle
   const el = Object.assign(document.createElement('div'), { className });
   el.dataset.q = String(quality(it));
   const icon = document.createElement('i');
-  icon.style.backgroundImage = `url(${GEAR_ICONS[cls]})`;
-  icon.style.backgroundPositionX = iconX(it);
-  icon.style.scale = String((Math.min(...size) * cell - 4) / 40);
+  setIcon(icon, it);
+  // 전설 그림은 차지한 칸 전체(w×h)를 채우고, 아이콘은 짧은 변에 맞춘 정사각형
+  if (artOf(it)) Object.assign(icon.style, { width: `${size[0] * cell - 4}px`, height: `${size[1] * cell - 4}px`, margin: `${-(size[1] * cell - 4) / 2}px 0 0 ${-(size[0] * cell - 4) / 2}px` });
+  else icon.style.scale = String((Math.min(...size) * cell - 4) / 40);
   icon.style.filter = tint(iconColor(it));
   el.append(icon);
   const n = socketsOf(it.affixes);

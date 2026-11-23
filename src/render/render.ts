@@ -31,6 +31,7 @@ import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
 import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 import { warded } from '../sim/sanctum';
+import { outroFx, outroGroup, outroLight } from './ending';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -189,7 +190,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -267,7 +268,7 @@ export function draw(world: World, dt: number) {
   const light = (x: number, z: number) => {
     let b = view.day ? 1 : (Math.max(0, 1 - Math.hypot(x - hero.x, z - hero.z) / TORCH_RANGE) ** 1.4 * 1.1 + 0.04) * flicker;
     for (const f of braziers) b = Math.max(b, Math.max(0, 1 - Math.hypot(x - f.x, z - f.z) / BRAZIER_RANGE) ** 1.4);
-    return b;
+    return Math.max(b, outroLight(x, z)); // 엔딩 1의 빛기둥
   };
   // 게임 중에 생긴 엔티티(해골 왕의 소환)도 판자를 만든다
   for (let i = sprites.length; i < world.entities.length; i++) scene.add((sprites[i] = makeSprite(world.entities[i])).mesh);
@@ -376,6 +377,7 @@ export function draw(world: World, dt: number) {
   updateFeel(dt, camera);
   impact(hits);
   snapToPixel();
+  outroFx(camera, renderer.domElement); // 엔딩 1: 빛·마녀·색 빠짐(카메라가 정해진 뒤)
   renderer.render(scene, camera);
 }
 

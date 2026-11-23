@@ -543,9 +543,14 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     return dealt;
   }
   // 기도하는 자: 「금 간 빛 고리」(haloDrop 확률, 아니면 평소 전설)·작은 목마(처음)
-  if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < LEGEND_DROP.prayer) toBagOrFloor(w, makeUnique(w, PRAYER_WEAPON[w.cls], t.x, t.z, w.maxTier)); // 따로 굴려 전설 무기(그가 지키던 무기)
-  if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < w.haloDrop) toBagOrFloor(w, makeUnique(w, 'crackedHalo', t.x, t.z, w.maxTier));
+  // 처음 쓰러뜨리는 판(horseDrop)은 엔딩의 빛 속에 떨어지도록 바닥에(빛 고리는 시체 머리 쪽), 다시 도전할 땐 가방 먼저
+  const prize = (it: Item) => (w.horseDrop ? w.items.push(it) : toBagOrFloor(w, it));
+  if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < LEGEND_DROP.prayer) prize(makeUnique(w, PRAYER_WEAPON[w.cls], t.x + 0.6, t.z + 0.3, w.maxTier)); // 따로 굴려 전설 무기(그가 지키던 무기)
+  if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < w.haloDrop) prize(makeUnique(w, 'crackedHalo', t.x, t.z - 0.6, w.maxTier));
   else if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
+  // 기도하는 자가 쓰러지면 그가 일으킨 해골 기사·졸개도 함께 무너진다(드롭·경험치 없이)
+  if (t.kind === 'boss' && w.land === 'sanctum')
+    for (const e of w.entities) if (e !== t && e.kind !== 'hero' && e.state !== 'dead') Object.assign(e, { hp: 0, state: 'dead', path: [], target: null });
   if (t.kind === 'boss' && w.horseDrop) w.items.push({ id: w.nextItem++, x: t.x - 0.6, z: t.z + 0.3, kind: 'relic', tier: 0, relic: HORSE });
   if (t.kind === 'boss' && w.relicDrop >= 0) w.items.push({ id: w.nextItem++, x: t.x, z: t.z + 0.6, kind: 'relic', tier: 0, relic: w.relicDrop }); // 지역 보스의 성물
   if (t.skin === 'treasure') treasureDrop(w, t);

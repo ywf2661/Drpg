@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { generateFloor, walkDistances } from './dungeon';
-import { createWorld, DT, LANDS, step } from './world';
+import { createWorld, DT, LANDS, step, uniqueOf } from './world';
 import { clearLine, hurt } from './core';
 import { spawnNear, touchChest } from './gimmicks';
 import { landSword, litBeams, paladin, tickPaladin } from './paladin';
@@ -26,8 +26,8 @@ test('성물은 늦어도 3회차에 다 모이고, 1·2회차 안에 다 모이
   const at = Array.from({ length: 400 }, (_, i) => collect(i * 7919 + 13));
   expect(Math.max(...at)).toBe(2);
   const by2 = at.filter((c) => c <= 1).length / at.length;
-  expect(by2).toBeGreaterThan(0.45); // 이론값 59%(1회차 50%, 2회차부터 75%)
-  expect(by2).toBeLessThan(0.72);
+  expect(by2).toBeGreaterThan(0.72); // 이론값 81%(1회차 50%, 2회차부터 90%)
+  expect(by2).toBeLessThan(0.9);
 });
 
 test('이미 가진 성물은 다시 안 떨어지고, 두 번 놓치면 확정', () => {
@@ -293,4 +293,28 @@ test('이야기: 귀중품마다 설명, 성소 1~4층마다 흔적, 처음 쓰�
 test('성소 1~4층에는 어느 시드든 흔적(L)이 하나씩 놓인다', () => {
   for (let seed = 1; seed <= 40; seed++)
     for (let n = 1; n <= 4; n++) expect(makeMap(seed, n, 'sanctum', 'w', undefined, 'L').join('').split('L').length - 1).toBe(1);
+});
+
+test('기도하는 자가 쓰러지면 해골 기사·졸개도 함께 무너진다', () => {
+  const { w, boss, hero } = arena();
+  const k = spawnNear(w, 'king', boss.x, boss.z, 3, -1, 'bone_knight')!;
+  const m = spawnNear(w, 'minion', boss.x, boss.z, 3)!;
+  w.bareT = 99; // 고리가 깨진 창
+  hurt(w, boss, boss.hp + 1, hero);
+  expect(boss.state).toBe('dead');
+  expect([k.state, m.state]).toEqual(['dead', 'dead']);
+  expect(hero.state).not.toBe('dead');
+});
+
+test('처음 쓰러뜨리면 빛 고리는 바닥(시체 머리 쪽)에, 다시 도전할 땐 가방에', () => {
+  for (const first of [true, false]) {
+    const { w, boss, hero } = arena();
+    Object.assign(w, { haloDrop: 1, horseDrop: first });
+    w.bareT = 99;
+    hurt(w, boss, boss.hp + 1, hero);
+    const floor = w.items.find((it) => it.affixes && uniqueOf(it as never) === 'crackedHalo');
+    expect(!!floor).toBe(first);
+    expect(w.bag.some((b) => uniqueOf(b) === 'crackedHalo')).toBe(!first);
+    if (floor) expect(floor.z).toBeLessThan(boss.z);
+  }
 });

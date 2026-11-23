@@ -248,7 +248,22 @@ def holy_tint(im, _):
     return rgb
 
 
-RECOLOR = {'necro': necro_tint, 'storm': storm_tint, 'holy': holy_tint, **{k: (lambda im, _, k=k: staff_tint(im, k)) for k in STAFF_TINTS}}
+# 시간의 마녀(엔딩 연출, docs/superpowers/specs/2026-11-23-prayer-ending-design.md): 여성 아바타의 마법사 옷을 검은 로브·보라 천으로
+WITCH_LAYERS = {'feet': 'mage_boots', 'legs': 'mage_skirt', 'hands': 'mage_sleeves', 'chest': 'mage_vest', 'head': 'mage_hood'}
+WITCH_TINTS = {'mage_hood': (0.9, (0.36, 0.3, 0.48)), 'mage_vest': (0.9, (0.32, 0.27, 0.44)), 'mage_boots': (0.9, (0.3, 0.26, 0.38)),
+               'mage_skirt': (0.7, (0.66, 0.38, 0.98)), 'mage_sleeves': (0.7, (0.66, 0.38, 0.98))}  # (회색으로 섞는 정도, RGB 배율): 로브는 검게, 치마·소매는 보라 천
+WITCH_KNEEL = (0.56, 0.8)  # 무릎 꿇기: 서 있는 첫 장에서 키의 이 구간(위에서부터 비율)을 잘라 내 몸을 낮춘다(긴 치마라 무릎이 안 보인다)
+
+
+def witch_tint(im, name):
+    gray, mult = WITCH_TINTS[name]
+    rgb = Image.blend(im.convert('RGB'), ImageOps.grayscale(im).convert('RGB'), gray)
+    rgb = Image.merge('RGB', [ch.point(lambda v, m=m: min(255, round(v * m))) for ch, m in zip(rgb.split(), mult)])
+    rgb.putalpha(im.getchannel('A'))
+    return rgb
+
+
+RECOLOR = {'necro': necro_tint, 'witch': witch_tint, 'storm': storm_tint, 'holy': holy_tint, **{k: (lambda im, _, k=k: staff_tint(im, k)) for k in STAFF_TINTS}}
 
 
 class Sheet:
@@ -874,6 +889,8 @@ Items: drop animations scaled by {SCALE} (potion by 0.5), item icons cropped fro
 Demon (ruins boss): "Demon - Flare sprite sheets", OpenGameArt, CC0 - {GRIDS['demon']['url']}
 Modifications: selected frames, saturation and brightness lowered, scaled by {KIND_SCALE['demon']}, alpha thresholded, reduced to 256 colors.
 
+Time witch (ending): female avatar mage hood, vest, skirt, sleeves and boots recolored black and purple; kneeling frame made by cutting the knees out of the idle frame.
+
 Fallen paladin (boss): "8 Directional Greatsword Knight" by Hormelz, itch.io, CC0 - {KNIGHT['url']}
 Modifications: idle frames halved, recolored (32-color palette swap), hit and death frames made by rotating the idle frame, scaled by {KNIGHT['scale']}, alpha thresholded, reduced to 256 colors.
 
@@ -884,7 +901,24 @@ Files used:
 {flare}''', encoding='utf-8')
 
 
+def witch():
+    frames, meta = frames_of({slot: f'avatar/female/{n}@witch' for slot, n in WITCH_LAYERS.items()}, {'stance': 'stance', 'move': 'run'})
+    for d in range(8):
+        im, (x, y) = frames[('stance', d, 0)]
+        a, b = (round(im.height * k) for k in WITCH_KNEEL)
+        out = Image.new('RGBA', (im.width, im.height - (b - a)))
+        out.paste(im.crop((0, 0, im.width, a)), (0, 0))
+        out.paste(im.crop((0, b, im.width, im.height)), (0, a))
+        frames[('kneel', d, 0)] = (out, (x, y + b - a))
+    meta['kneel'] = (1, 1000, 'play_once')
+    pack('witch', frames, meta, SCALE, 8)
+
+
 if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] == ['witch']:  # 마녀만 다시 굽는다(CREDITS.txt는 전체 실행에서)
+        witch()
+        sys.exit()
     SHEETS.mkdir(parents=True, exist_ok=True)
     PUBLIC.mkdir(parents=True, exist_ok=True)
     TILES.mkdir(parents=True, exist_ok=True)
@@ -921,6 +955,7 @@ if __name__ == '__main__':
         cave(name, *args)
     ruins()
     loot()
+    witch()
     SOUNDS.mkdir(parents=True, exist_ok=True)
     for f in SOUND_FILES:
         shutil.copy(fetch(f'mods/fantasycore/soundfx/{f}.ogg'), SOUNDS / f'{f.split("/")[-1]}.ogg')

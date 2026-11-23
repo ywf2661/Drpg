@@ -8,7 +8,7 @@ import type { Chest, World } from './rules';
 // guard: 기사가 지키는 거리(m), stagger: 고리가 깨질 때 성기사 기절(초), bossHp: 성기사 체력 배율(창에만 맞으므로 낮춘다),
 // depth: 이야기 깊이(폐허 다음, 21~25), chance·pity: 성물이 떨어질 확률, 놓친 횟수가 이만큼이면 다음은 확정
 // haloAgain: 다시 쓰러뜨릴 때 「금 간 빛 고리」가 나올 확률(처음엔 확정), fallTalk: 쓰러진 뒤 대화창까지(초, 쓰러지는 모습)
-export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 0.5, chance2: 0.75, pity: 2, knights: 2, haloAgain: 0.1, fallTalk: 2 };
+export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 0.5, chance2: 0.9, pity: 2, knights: 2, haloAgain: 0.1, fallTalk: 2 };
 // 성기사 전용 기술(설계: docs/superpowers/specs/2026-11-19-paladin-skills-design.md). 피해 = 성기사 평타 굴림 × *Mult
 // 빛의 사슬: beamR(m) 안이면 데이고 같은 대상은 beamEvery초에 한 번. 새로 이을 때(기절·성검의 비가 끝나거나 성소가 다시 켜질 때) beamWarn초는 바닥에 붉은 예고만.
 // 성검의 비: rainFirst초 뒤 처음, rainCd마다. raise초 치켜든 뒤 표식 rainCount개(주인공 발밑·곁 하나 + 성기사 rainRange m 안, 서로 rainGap, 성소에서 altarGap 떨어짐)
@@ -68,20 +68,28 @@ export const TRACES = [
   { name: '핀이 뽑힌 지도', text: '벽에 초원 일대를 그린 지도가 걸려 있다. 네 곳에 핀이 꽂혀 있었는데, 모두 뽑혀 바닥에 떨어져 있다.' },
   { name: '작은 침상', text: '작은 침상 하나. 머리맡에 식은 약사발. 이불은 반듯하게 개어져 있고, 오래 아무도 눕지 않았다.' },
 ];
-// 5층 대화: [말하는 이(빈칸 = 지문), 글]. first = 처음 쓰러뜨리는 판(목마가 아직 없다)
-export type Line = [string, string];
+// 5층 대화: [말하는 이(빈칸 = 지문), 글, 꾸밈]. first = 처음 쓰러뜨리는 판(목마가 아직 없다)
+export type Line = [string, string, string?]; // 셋째 = 대화창 꾸밈(class)
 const WHO = '기도하는 자';
 export const PRAYER_RISE = '"선대여, 일어나소서. 한 번만 더 지켜 주소서."'; // 체력 절반, 해골 기사 왕이 일어날 때(화면 한 줄)
 export const prayerMeet = (first: boolean): Line[] =>
-  (first ? ['…네가 거둬 갔구나. 넷 다.', '초원에, 눈밭에, 땅 밑에, 성채에. 하나씩 놓아 두었다. 그분이 돌아오실 길을 내려고.', '백 년을 이어 온 기도였다. 그걸 네가 끊었다.', '돌려다오.'] : ['…또 왔구나.']).map((t) => [WHO, t]);
+  (first
+    ? ['…그대였소. 넷을 모두 거둬 간 이가.', '들판과 눈밭, 땅 밑 미궁과 무너진 성채. 모두 내가 하나씩 놓아 둔 것이오. 그분께서 돌아오실 길이었소.', '백 년을 이어 온 기도였소. 그대는 그것을 길가의 돌 줍듯 거둬 갔지.', '칼을 뽑으시오. 그것들은 그대의 것이 아니오.']
+    : ['…또 왔소.']
+  ).map((t) => [WHO, t]);
 export const prayerFall = (first: boolean): Line[] =>
   first
     ? [
-        [WHO, '…왕국을 일으키겠다고 말해 왔다. 선대들에게도, 나 자신에게도.'],
-        [WHO, '옛날에 한 왕이 그분께 빌었다지. 죽어 가는 아이를 살려 달라고. 그분은 왕국의 시간을 통째로 멈춰 주셨다.'],
-        [WHO, '나도 빌고 싶었을 뿐이다. 그 애가 숨을 멈추기 사흘 전으로만, 돌려 달라고.'],
-        [WHO, '…그 왕의 아이는, 살았나?'],
+        [WHO, '…왕국을 다시 일으키겠다고 말해 왔소. 선대들에게도, 나 자신에게도.'],
+        [WHO, '옛날 한 왕이 그분께 빌었다 하오. 죽어 가는 아이를 살려 달라고. 그분은 왕국의 시간을 통째로 멈춰 주셨소.'],
+        [WHO, '나도 그렇게 빌고 싶었을 뿐이오. 그 아이가 숨을 거두기 사흘 전으로만, 돌려 달라고.'],
+        [WHO, '…그 왕의 아이는, 살았소?'],
         ['', '대답할 말이 없다.'],
-        [WHO, '그분은… 오시지 않는구나.'],
+        [WHO, '그분은… 끝내 오시지 않는구려.'],
       ]
-    : [[WHO, '그분은… 오시지 않는구나.']];
+    : [[WHO, '그분은… 끝내 오시지 않는구려.']];
+// 엔딩(설계: docs/superpowers/specs/2026-11-23-prayer-ending-design.md). 처음 쓰러뜨릴 때만
+// 시간의 마녀: 이름 없이 한 줄(셋째 칸 = 대화창 꾸밈. 지문과 구별되게)
+export const WITCH_LINE: Line = ['', '"멈춘 시간 속에, 고이 잠드소서."', 'witch'];
+// 후일담: 검은 화면에 한 줄씩
+export const EPILOGUE = ['그날 밤부터, 땅 밑의 기도 소리는 더 들리지 않았다.', '초원의 고블린은 계절이 바뀔 무렵 눈에 띄게 줄었다.', '성소의 빛은 다시 켜지지 않았다.', '작은 목마 하나가 짐 속에 남았다.'];

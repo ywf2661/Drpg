@@ -327,7 +327,7 @@ export function ghostSprite(hero: Entity): Sprite {
 
 // 후광 그림 두 장(64×64, 테스트 환경엔 캔버스가 없어 픽셀을 직접 계산): 검붉은 빛무리, 금 간 금빛 고리
 const haloTextures = { glow: null as THREE.DataTexture | null, ring: null as THREE.DataTexture | null };
-function haloTexture(paint: (u: number, v: number) => [number, number, number, number]): THREE.DataTexture {
+export function haloTexture(paint: (u: number, v: number) => [number, number, number, number]): THREE.DataTexture {
   const n = 64;
   const data = new Uint8Array(n * n * 4);
   for (let y = 0; y < n; y++)
@@ -351,7 +351,8 @@ const ringPaint = (u: number, v: number): [number, number, number, number] => {
   const a = broken || broken2 ? 0 : Math.max(0, 1 - Math.abs(Math.hypot(u, v) - 0.78) / 0.2);
   return [255, 228, 150, Math.round(255 * a * a)]; // 붉은 바닥에 묻히지 않게 금빛 쪽으로
 };
-const COS30 = Math.cos(Math.PI / 6); // 세운 판자는 화면에서 cos30°로 줄어 보인다(cardGeometry와 같은 보정)
+export const ringTexture = () => (haloTextures.ring ??= haloTexture(ringPaint)); // 엔딩에서 떨어지는 고리
+export const COS30 = Math.cos(Math.PI / 6); // 세운 판자는 화면에서 cos30°로 줄어 보인다(cardGeometry와 같은 보정)
 
 export function attachHalo(s: Sprite, e: Entity) {
   if (e.skin !== 'fallen_paladin' && e.kind !== 'hero') return;
@@ -370,7 +371,7 @@ export function attachHalo(s: Sprite, e: Entity) {
 }
 
 // 머리 자리표(tools/sprites.py knight_heads): 동작 → 방향 → 프레임 → 발 기준 화면 m (x 오른쪽, y 위)
-const HEADS = fallenPaladinHeads as Record<string, number[][][]>;
+export const HEADS = fallenPaladinHeads as Record<string, number[][][]>;
 
 // 성소 5층: 후광 밝기 = 켜진 성소 비율(고리가 깨지면 0). 그 밖에서는 1
 let haloGoal = 1;
