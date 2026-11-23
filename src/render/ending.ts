@@ -8,12 +8,12 @@ import { setHoldHalo } from './props';
 
 // 타임라인(초, 쓰러진 뒤 대사를 닫은 때 = 0): 정적 → light 빛이 내려옴 → come 마녀가 짙어짐 → walk 시체 곁으로 → kneel 무릎(색 빠짐, 모래 멈춤)
 // → say 한 줄(main이 대화창, 열린 동안 t는 멈춘다) → land 고리가 바닥에 닿음 → turn 일어나 주인공을 돌아봄 → leave 흐려짐 → end 레터박스가 걷힌다
-export const OUTRO = { light: 1, come: 2, walk: 3.5, kneel: 4.5, say: 5.6, land: 6.6, turn: 6.9, leave: 7.6, end: 9.1 };
+export const OUTRO = { light: 1, come: 2.5, walk: 5, kneel: 6.5, say: 8.5, land: 10, turn: 11, leave: 12.5, end: 15.5 };
 // 햇살: 벽 틈으로 비스듬히 들어온 빛줄기. len·r = 길이·반지름(m), soft = 바깥 은은한 겹의 반지름 배율, rest = 연출이 끝난 뒤 남는 밝기,
 // from = 바닥에서 빛이 오는 쪽(화면 왼쪽 위에서 비스듬히), motes = 빛 속에 떠도는 먼지 수
 const LIGHT = { len: 11, r: 0.6, soft: 2, rest: 0.35, from: new THREE.Vector3(-0.55, 1, 0.45).normalize(), motes: 36 };
 const STILL_R = 0.9; // 색이 빠지는 반경(m, 쓰러진 몸 가운데 둘레)
-const SAND = 48; // 모래 알갱이 수
+const WALK_SLOW = 2; // 걷기 그림(뛰듯 빠른 8장)을 이만큼 느리게: 천천히 다가오는 걸음
 const KNEEL_DROP = 0.76; // 무릎 꿇으면 키가 이만큼(tools/sprites.py WITCH_KNEEL)
 
 export type Outro = { t: number; x: number; z: number; face: number; hx: number; hz: number }; // 시체 발 (x, z)·바라보던 쪽, 주인공 (hx, hz)
@@ -74,17 +74,12 @@ gear.position.z = -0.05;
 witch.add(gear);
 const GEAR_Y = 1.5; // 서 있을 때 고리 높이(m)
 
-// 금빛 모래: 손끝에서 흘러내리다 무릎 꿇으면 공중에 멈춘다
-const sandPos = new Float32Array(SAND * 3);
-const sand = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(sandPos, 3)), new THREE.PointsMaterial({ color: 0xffd36a, size: 2, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
-sand.frustumCulled = false;
-
 // 떨어지는 고리(기도하는 자 머리 위에 있던 것). 바닥에 닿으면 바닥 아이템 「금 간 빛 고리」로 바뀐다
 const falling = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.36 / COS30), additive(ringTexture()));
 falling.rotation.y = Math.PI / 4;
 
-for (const m of [pillar, haze, floorGlow, motes, witch, sand, falling]) m.renderOrder = 4;
-outroGroup.add(pillar, floorGlow, motes, witch, sand, falling);
+for (const m of [pillar, haze, floorGlow, motes, witch, falling]) m.renderOrder = 4;
+outroGroup.add(pillar, floorGlow, motes, witch, falling);
 outroGroup.visible = false;
 
 // 빛기둥이 판자(시체·주인공·마녀 곁)를 비추는 밝기(render.ts light, 화로처럼 거리로)
@@ -127,7 +122,7 @@ export function outroFx(camera: THREE.Camera, canvas: HTMLCanvasElement) {
   const look = t >= OUTRO.turn ? [hx - wx, hz - wz] : [x - wx, z - wz];
   const c = info.anims[anim];
   const row = c.row + dirIndex(Math.atan2(look[0], look[1]));
-  witchMat.map?.offset.set(frameAt(c, t) / info.cols, 1 - (row + 1) / info.rows);
+  witchMat.map?.offset.set(frameAt(anim === 'move' ? { ...c, ms: c.ms * WALK_SLOW } : c, t) / info.cols, 1 - (row + 1) / info.rows);
   witch.position.set(wx, 0, wz);
   const alpha = ramp(t, OUTRO.come, OUTRO.walk) * (1 - ramp(t, OUTRO.leave, OUTRO.end - 0.3));
   witch.visible = alpha > 0;
@@ -136,17 +131,6 @@ export function outroFx(camera: THREE.Camera, canvas: HTMLCanvasElement) {
   gear.position.y = (GEAR_Y * (kneel ? KNEEL_DROP : 1)) / COS30;
   gear.rotation.z = -t * 0.25;
   gear.material.opacity = alpha * 0.9;
-  // 모래: 알갱이마다 손에서 떨어진 지 p(0~1). 무릎 꿇고 0.5초 뒤 흐름이 멈춘다
-  const flow = Math.min(t, OUTRO.kneel + 0.5);
-  const [handX, handZ] = [wx + (x - wx) * 0.3, wz + (z - wz) * 0.3];
-  for (let i = 0; i < SAND; i++) {
-    const p = (flow * 0.7 + i / SAND) % 1;
-    const j = hash(i) - 0.5; // 알갱이마다 다른 흩어짐
-    sandPos.set([handX + j * 0.25 + (x - handX) * p * 0.5, (kneel || t >= OUTRO.turn ? 0.7 : 0.95) * (1 - p) + 0.05, handZ - j * 0.25 + (z - handZ) * p * 0.5], i * 3);
-  }
-  sand.geometry.attributes.position.needsUpdate = true;
-  sand.material.opacity = alpha;
-  sand.visible = t >= OUTRO.come;
   // 고리: say부터 떨어져 land에 바닥(시체 머리 쪽 = 아이템 자리)
   const f = ramp(t, OUTRO.say, OUTRO.land);
   falling.visible = t >= OUTRO.say && t < OUTRO.land;

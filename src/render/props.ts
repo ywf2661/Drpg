@@ -720,6 +720,8 @@ export function syncShots(world: World) {
 // 엔딩: 「금 간 빛 고리」는 마녀 앞에서 떨어질 때까지 바닥에 그리지 않는다(떨어지는 순간 빛기둥·멈칫이 함께)
 let holdHalo = false;
 export const setHoldHalo = (on: boolean) => (holdHalo = on);
+let hideBeams = false; // 엔딩 1 동안은 바닥 아이템 빛기둥·고리를 숨긴다(빛 속 장면을 가리지 않게)
+export const setHideBeams = (on: boolean) => (hideBeams = on);
 export function syncItems(world: World) {
   const live = new Set(world.items.map((it) => it.id));
   for (const [id, p] of pillars) {
@@ -763,6 +765,7 @@ export function syncItems(world: World) {
     pause(PILLAR.stop); // 떨어진 순간 잠깐 멈춘다
     rumble(PILLAR.shake);
   }
+  for (const p of pillars.values()) p.visible = !hideBeams;
 }
 
 // 새 층의 소품·계단·화로 빛. 이전 층의 재질·질감·광원·물약 판자는 해제한다(지오메트리는 공유)

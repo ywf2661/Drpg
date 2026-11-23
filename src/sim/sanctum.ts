@@ -89,7 +89,10 @@ export const prayerFall = (first: boolean): Line[] =>
       ]
     : [[WHO, '그분은… 끝내 오시지 않는구려.']];
 // 엔딩(설계: docs/superpowers/specs/2026-11-23-prayer-ending-design.md). 처음 쓰러뜨릴 때만
-// 시간의 마녀: 이름 없이 한 줄(셋째 칸 = 대화창 꾸밈. 지문과 구별되게)
-export const WITCH_LINE: Line = ['', '"멈춘 시간 속에, 고이 잠드소서."', 'witch'];
+// 시간의 마녀: 이름 없이 두 줄(셋째 칸 = 대화창 꾸밈. 지문과 구별되게)
+export const WITCH_LINES: Line[] = [
+  ['', '"…또 한 사람이, 이렇게 아파하고 있었구나."', 'witch'],
+  ['', '"멈춘 시간 속에, 고이 잠드소서."', 'witch'],
+];
 // 후일담: 검은 화면에 한 줄씩
 export const EPILOGUE = ['그날 밤부터, 땅 밑의 기도 소리는 더 들리지 않았다.', '초원의 고블린은 계절이 바뀔 무렵 눈에 띄게 줄었다.', '성소의 빛은 다시 켜지지 않았다.', '작은 목마 하나가 짐 속에 남았다.'];

@@ -9,16 +9,16 @@ import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
-import { setHoldHalo } from './render/props';
+import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINE, EPILOGUE } from './sim/sanctum';
+import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -677,8 +677,21 @@ if (new URLSearchParams(location.search).has('test')) {
     equipFromBag(world, world.bag.length - 1);
   });
   // 결전 준비: 레벨 40(스킬 포인트 포함) + 정예 사냥꾼 세트 4부위(4단계, 입던 것은 사라진다) → 성소 5층
-  $('#test-prayer').addEventListener('click', () => {
+  $('#test-prayer').addEventListener('click', () => playing() && readyPrayer());
+  // 엔딩 보기: 결전 준비 → 첫 만남 연출을 건너뛰고 성소를 끈 채 기도하는 자를 한 번에 쓰러뜨린다. 목마가 있어도 "처음 쓰러뜨리는 판"으로
+  $('#test-ending').addEventListener('click', () => {
     if (!playing()) return;
+    readyPrayer();
+    Object.assign(world, { horseDrop: true, haloDrop: 1 });
+    setHoldHalo(true);
+    intro = null;
+    const hero = world.entities[0];
+    Object.assign(hero, { x: ARENA.center[0] + 0.5, z: ARENA.altars[2][1] + 1.5, path: [], target: null });
+    for (const c of world.chests) if (c.kind === 'altar') c.open = true;
+    const boss = world.entities.find((e) => e.kind === 'boss')!;
+    hurt(world, boss, boss.hp, hero);
+  });
+  function readyPrayer() {
     for (let i = 0; i < 40 && world.level < 40; i++) gainXp(world, xpToNext(world.level) - world.xp);
     const hero = world.entities[0];
     for (const u of ['hunterWeapon', 'hunterArmor', 'hunterHelm', 'hunterBoots'] as const) {
@@ -688,7 +701,7 @@ if (new URLSearchParams(location.search).has('test')) {
     relics |= ALL_RELICS; // 성물 넷(작은 목마는 처음 쓰러뜨릴 때 받게 둔다)
     land = 'sanctum';
     enterFloor(FLOORS, carryOf(world));
-  });
+  }
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
 if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; } } });
@@ -788,7 +801,7 @@ requestAnimationFrame(function frame(now) {
     if (outroOn() && !talking()) {
       const was = outro!;
       outro = Math.min(OUTRO.end, was + dt);
-      if (was < OUTRO.say && outro >= OUTRO.say) showTalks([WITCH_LINE]);
+      if (was < OUTRO.say && outro >= OUTRO.say) showTalks(WITCH_LINES);
       if (outro >= OUTRO.end) {
         letterbox(false);
         setGaze(null);
@@ -802,6 +815,7 @@ requestAnimationFrame(function frame(now) {
     if (stayed) world.toStairs = false; // 계단 위에서 다시 눌러도 열리지 않는다
     else leave();
   }
+  setHideBeams(land === 'sanctum' && floor === FLOORS && world.horseDrop && o === 'clear' && (outro ?? 0) < OUTRO.end); // 엔딩 1(쓰러진 뒤~마녀가 떠날 때까지)
   heard = snapshot(world);
   draw(world, dt);
   drawAutomap(world);
