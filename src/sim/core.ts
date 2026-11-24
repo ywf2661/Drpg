@@ -35,6 +35,8 @@ export function rank(w: World, id: SkillId) {
   return base ? Math.min(base + gearBonus(w, id), RANK_MAX + RANK_OVER) : 0;
 }
 export const ext = (w: World, id: SkillId) => Math.max(0, rank(w, id) - 1);
+// 재사용 대기용 단계: 초월(RANK_MAX 위)은 2단계까지만 대기를 줄이고, 그 위(8~10)는 피해·범위 같은 다른 수치만 올린다
+export const cdExt = (w: World, id: SkillId) => Math.min(ext(w, id), RANK_MAX + 1);
 export const mastered = (w: World, id: SkillId) => rank(w, id) >= RANK_MAX;
 // 시너지: 같은 탭의 다른 스킬에 찍은 포인트마다 피해 +SYNERGY
 export function syn(w: World, id: SkillId) {
@@ -64,36 +66,36 @@ export function cutCd(w: World, id: SkillId, by: number) {
 }
 
 // 기사 스킬의 단계별 수치(1단계 = 기본값, 단계마다 조금씩 강해진다). 피해 배율에는 시너지가 붙는다
-const axeMod = (w: World) => ({ cd: 1 - AXES.cd * rank(w, 'axes'), dmg: 1 + AXES.dmg * rank(w, 'axes') }); // 도끼 숙련
-export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * ext(w, 'cleave'), radius: SKILL.radius + 0.2 * ext(w, 'cleave'), mult: (SKILL.mult + 0.2 * ext(w, 'cleave')) * syn(w, 'cleave') });
-export const whirlStat = (w: World) => ({ cd: WHIRL.cd - 0.4 * ext(w, 'whirl'), time: WHIRL.time + (mastered(w, 'whirl') ? WHIRL.extra : 0), radius: SKILL.radius + 0.15 * ext(w, 'whirl'), mult: (WHIRL.mult + 0.08 * ext(w, 'whirl')) * syn(w, 'whirl') });
+const axeMod = (w: World) => ({ cd: 1 - AXES.cd * Math.min(rank(w, 'axes'), RANK_MAX + 2), dmg: 1 + AXES.dmg * rank(w, 'axes') }); // 도끼 숙련
+export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * cdExt(w, 'cleave'), radius: SKILL.radius + 0.2 * ext(w, 'cleave'), mult: (SKILL.mult + 0.2 * ext(w, 'cleave')) * syn(w, 'cleave') });
+export const whirlStat = (w: World) => ({ cd: WHIRL.cd - 0.4 * cdExt(w, 'whirl'), time: WHIRL.time + (mastered(w, 'whirl') ? WHIRL.extra : 0), radius: SKILL.radius + 0.15 * ext(w, 'whirl'), mult: (WHIRL.mult + 0.08 * ext(w, 'whirl')) * syn(w, 'whirl') });
 export const burstStat = (w: World) => ({ hp: BURST.hp + 0.05 * ext(w, 'burst') });
-export const executeStat = (w: World) => ({ cd: EXECUTE.cd - 0.5 * ext(w, 'execute'), below: EXECUTE.below + 0.03 * ext(w, 'execute'), mult: (EXECUTE.mult + 0.4 * ext(w, 'execute')) * syn(w, 'execute') });
-export const dashStat = (w: World) => ({ cd: DASH.cd - 0.5 * ext(w, 'dash'), dist: DASH.dist + 0.5 * ext(w, 'dash'), mult: (1 + 0.2 * ext(w, 'dash')) * syn(w, 'dash') });
+export const executeStat = (w: World) => ({ cd: EXECUTE.cd - 0.5 * cdExt(w, 'execute'), below: EXECUTE.below + 0.03 * ext(w, 'execute'), mult: (EXECUTE.mult + 0.4 * ext(w, 'execute')) * syn(w, 'execute') });
+export const dashStat = (w: World) => ({ cd: DASH.cd - 0.5 * cdExt(w, 'dash'), dist: DASH.dist + 0.5 * ext(w, 'dash'), mult: (1 + 0.2 * ext(w, 'dash')) * syn(w, 'dash') });
 export const shoutStat = (w: World) => ({
-  cd: SHOUT.cd - ext(w, 'shout'),
+  cd: SHOUT.cd - cdExt(w, 'shout'),
   stun: SHOUT.stun + 0.3 * ext(w, 'shout'),
   reduce: SHOUT.reduce + 0.04 * ext(w, 'shout'),
   radius: SHOUT.radius + 0.3 * ext(w, 'shout'),
 });
 export const trailStat = (w: World) => ({ mult: TRAIL.mult * (1 + 0.25 * ext(w, 'trail')) });
-export const leapStat = (w: World) => ({ cd: LEAP.cd - 0.5 * ext(w, 'leap'), radius: LEAP.radius, mult: (LEAP.mult + 0.3 * ext(w, 'leap')) * syn(w, 'leap') });
-export const axeStat = (w: World) => ({ cd: (AXE.cd - 0.2 * ext(w, 'throw')) * axeMod(w).cd, mult: (AXE.mult + 0.25 * ext(w, 'throw')) * syn(w, 'throw') * axeMod(w).dmg });
-export const bounceStat = (w: World) => ({ cd: (BOUNCE.cd - 0.2 * ext(w, 'bounce')) * axeMod(w).cd, count: BOUNCE.count * (mastered(w, 'bounce') ? 2 : 1), mult: (BOUNCE.mult + 0.2 * ext(w, 'bounce')) * syn(w, 'bounce') * axeMod(w).dmg });
+export const leapStat = (w: World) => ({ cd: LEAP.cd - 0.5 * cdExt(w, 'leap'), radius: LEAP.radius, mult: (LEAP.mult + 0.3 * ext(w, 'leap')) * syn(w, 'leap') });
+export const axeStat = (w: World) => ({ cd: (AXE.cd - 0.2 * cdExt(w, 'throw')) * axeMod(w).cd, mult: (AXE.mult + 0.25 * ext(w, 'throw')) * syn(w, 'throw') * axeMod(w).dmg });
+export const bounceStat = (w: World) => ({ cd: (BOUNCE.cd - 0.2 * cdExt(w, 'bounce')) * axeMod(w).cd, count: BOUNCE.count * (mastered(w, 'bounce') ? 2 : 1), mult: (BOUNCE.mult + 0.2 * ext(w, 'bounce')) * syn(w, 'bounce') * axeMod(w).dmg });
 // 발도 탭
 // 발도 탭. 칼선 배율에는 시너지를 넣어 둔다(그을 때 정해진다)
-export const markStat = (w: World) => ({ cd: MARK.cd - 0.1 * ext(w, 'mark'), mult: MARK.hit * syn(w, 'mark'), cut: (MARK.cut + 0.1 * ext(w, 'mark')) * syn(w, 'mark') });
-export const grazeStat = (w: World) => ({ cd: GRAZE.cd - 0.3 * ext(w, 'graze'), cut: (GRAZE.cut + 0.2 * ext(w, 'graze')) * syn(w, 'graze') });
+export const markStat = (w: World) => ({ cd: MARK.cd - 0.1 * cdExt(w, 'mark'), mult: MARK.hit * syn(w, 'mark'), cut: (MARK.cut + 0.1 * ext(w, 'mark')) * syn(w, 'mark') });
+export const grazeStat = (w: World) => ({ cd: GRAZE.cd - 0.3 * cdExt(w, 'graze'), cut: (GRAZE.cut + 0.2 * ext(w, 'graze')) * syn(w, 'graze') });
 export const echoStat = (w: World) => ({ need: ECHO.need, cut: (ECHO.cut + 0.1 * ext(w, 'echo')) * syn(w, 'echo') });
 // 벼림 탭. 덧벼림 단계마다 충전 +1
 const edgeCharges = (w: World) => TEMPER.charges + ext(w, 'reforge');
 export const flameEdgeStat = (w: World) => ({ cd: TEMPER.flameCd, mult: (TEMPER.flame + 0.1 * ext(w, 'flameEdge')) * syn(w, 'flameEdge'), charges: edgeCharges(w) });
 export const frostEdgeStat = (w: World) => ({ cd: TEMPER.frostCd, hits: mastered(w, 'frostEdge') ? 2 : TEMPER.hits, freeze: TEMPER.freeze + 0.15 * ext(w, 'frostEdge'), charges: edgeCharges(w) });
 export const reforgeStat = (w: World) => ({ radius: TEMPER.reforgeR, mult: (TEMPER.reforge + 0.05 * ext(w, 'reforge')) * syn(w, 'reforge') });
-export const unleashStat = (w: World) => ({ cd: TEMPER.cd - 0.5 * ext(w, 'unleash'), time: TEMPER.time + 0.5 * ext(w, 'unleash'), mult: TEMPER.slash * syn(w, 'unleash') });
-export const flashStat = (w: World) => ({ cd: FLASH.cd - 0.5 * ext(w, 'flash'), max: FLASH.max + ext(w, 'flash'), mult: FLASH.hit * syn(w, 'flash'), cut: FLASH.cut * syn(w, 'flash') });
+export const unleashStat = (w: World) => ({ cd: TEMPER.cd - 0.5 * cdExt(w, 'unleash'), time: TEMPER.time + 0.5 * ext(w, 'unleash'), mult: TEMPER.slash * syn(w, 'unleash') });
+export const flashStat = (w: World) => ({ cd: FLASH.cd - 0.5 * cdExt(w, 'flash'), max: FLASH.max + ext(w, 'flash'), mult: FLASH.hit * syn(w, 'flash'), cut: FLASH.cut * syn(w, 'flash') });
 
-export const finaleStat = (w: World) => ({ cd: FINALE.cd - 0.5 * ext(w, 'finale'), mult: (FINALE.mult + 0.5 * ext(w, 'finale')) * syn(w, 'finale') });
+export const finaleStat = (w: World) => ({ cd: FINALE.cd - 0.5 * cdExt(w, 'finale'), mult: (FINALE.mult + 0.5 * ext(w, 'finale')) * syn(w, 'finale') });
 
 // 공격을 준비 중인가: 예고 자세(내려찍기·돌진·소환)이거나 근접 평타가 아직 맞기 전. 붉게 보이고, 스킬로 치면 받아치기
 export const winding = (e: Entity) => e.phase === 'windup' || (e.state === 'attack' && e.attackT < (TELL[e.kind] ?? 0));

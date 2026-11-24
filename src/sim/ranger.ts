@@ -2,32 +2,32 @@
 // 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 명사수는 core의 hurt. 떨어지는 화살비·운석(tickVolleys)은 직업과 무관하게 돈다
 import { walkable } from './path';
 import { STORM_BOW, ARROW_STORM, CRIT, DOWNPOUR, DT, FIRE_RAIN, FOCUS, HUNT, KNOCK, PIERCE, PUSH, RAIN, RANGER, SNARE, SPREAD, TRAIL, TRAP, type Entity, type Shot, type World } from './rules';
-import { hasUnique, ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
+import { hasUnique, cdExt, ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
 import { aimDir, blast, foes, nearest, spot, stun } from './wizard';
 import { assist } from './hawk';
 
 // 스킬 단계별 수치(1단계 = 기본값). 피해 배율에는 시너지가 붙는다
-export const pierceStat = (w: World) => ({ cd: PIERCE.cd - 0.3 * ext(w, 'pierce'), mult: (PIERCE.mult + 0.25 * ext(w, 'pierce')) * syn(w, 'pierce') });
-export const spreadStat = (w: World) => ({ cd: SPREAD.cd - 0.3 * ext(w, 'spread'), count: mastered(w, 'spread') ? SPREAD.max : 3, mult: (SPREAD.mult + 0.2 * ext(w, 'spread')) * syn(w, 'spread') });
+export const pierceStat = (w: World) => ({ cd: PIERCE.cd - 0.3 * cdExt(w, 'pierce'), mult: (PIERCE.mult + 0.25 * ext(w, 'pierce')) * syn(w, 'pierce') });
+export const spreadStat = (w: World) => ({ cd: SPREAD.cd - 0.3 * cdExt(w, 'spread'), count: mastered(w, 'spread') ? SPREAD.max : 3, mult: (SPREAD.mult + 0.2 * ext(w, 'spread')) * syn(w, 'spread') });
 export const critStat = (w: World) => ({ chance: CRIT.chance * rank(w, 'crit') });
-export const focusStat = (w: World) => ({ cd: FOCUS.cd - ext(w, 'focus'), time: FOCUS.time + 0.5 * ext(w, 'focus') });
+export const focusStat = (w: World) => ({ cd: FOCUS.cd - cdExt(w, 'focus'), time: FOCUS.time + 0.5 * ext(w, 'focus') });
 export const trapStat = (w: World) => ({
-  cd: TRAP.cd - 0.5 * ext(w, 'trap'),
+  cd: TRAP.cd - 0.5 * cdExt(w, 'trap'),
   hold: (TRAP.hold + 0.2 * ext(w, 'trap')) * (1 + SNARE.hold * rank(w, 'snare')),
   max: TRAP.max + (rank(w, 'snare') ? 1 : 0),
   mult: TRAP.mult * syn(w, 'trap'),
 });
-export const pushStat = (w: World) => ({ cd: PUSH.cd - 0.3 * ext(w, 'push'), mult: (PUSH.mult + 0.2 * ext(w, 'push')) * syn(w, 'push') });
+export const pushStat = (w: World) => ({ cd: PUSH.cd - 0.3 * cdExt(w, 'push'), mult: (PUSH.mult + 0.2 * ext(w, 'push')) * syn(w, 'push') });
 export const snareStat = (w: World) => ({ blast: SNARE.blast + 0.1 * ext(w, 'snare') });
-export const huntStat = (w: World) => ({ cd: HUNT.cd - 0.5 * ext(w, 'hunt'), count: HUNT.count + ext(w, 'hunt'), mult: (HUNT.mult + 0.2 * ext(w, 'hunt')) * syn(w, 'hunt') });
+export const huntStat = (w: World) => ({ cd: HUNT.cd - 0.5 * cdExt(w, 'hunt'), count: HUNT.count + ext(w, 'hunt'), mult: (HUNT.mult + 0.2 * ext(w, 'hunt')) * syn(w, 'hunt') });
 export const rainStat = (w: World) => ({
-  cd: RAIN.cd - 0.5 * ext(w, 'rain'),
+  cd: RAIN.cd - 0.5 * cdExt(w, 'rain'),
   radius: (RAIN.radius + 0.15 * ext(w, 'rain')) * (mastered(w, 'rain') ? RAIN.big : 1),
   mult: (RAIN.mult + 0.2 * ext(w, 'rain')) * syn(w, 'rain'),
 });
-export const fireRainStat = (w: World) => ({ cd: FIRE_RAIN.cd - 0.5 * ext(w, 'fireRain'), radius: RAIN.radius + 0.15 * ext(w, 'fireRain'), mult: (FIRE_RAIN.mult + 0.2 * ext(w, 'fireRain')) * syn(w, 'fireRain') });
+export const fireRainStat = (w: World) => ({ cd: FIRE_RAIN.cd - 0.5 * cdExt(w, 'fireRain'), radius: RAIN.radius + 0.15 * ext(w, 'fireRain'), mult: (FIRE_RAIN.mult + 0.2 * ext(w, 'fireRain')) * syn(w, 'fireRain') });
 export const downpourStat = (w: World) => ({ waves: Math.ceil(rank(w, 'downpour') / 2) }); // 화살비·불화살이 더 내리는 횟수
-export const arrowStormStat = (w: World) => ({ cd: ARROW_STORM.cd - 0.5 * ext(w, 'arrowStorm'), count: ARROW_STORM.count + ext(w, 'arrowStorm'), mult: (ARROW_STORM.mult + 0.2 * ext(w, 'arrowStorm')) * syn(w, 'arrowStorm') });
+export const arrowStormStat = (w: World) => ({ cd: ARROW_STORM.cd - 0.5 * cdExt(w, 'arrowStorm'), count: ARROW_STORM.count + ext(w, 'arrowStorm'), mult: (ARROW_STORM.mult + 0.2 * ext(w, 'arrowStorm')) * syn(w, 'arrowStorm') });
 
 // 치명(사격 패시브): 화살 피해 2배 확률. 배우지 않았으면 난수를 쓰지 않는다
 const crit = (w: World) => (rank(w, 'crit') && rand(w) < critStat(w).chance ? 2 : 1);

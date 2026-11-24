@@ -8,7 +8,7 @@ import { hurt, roll, skillHit } from './core';
 import { fireBurst } from './wizard';
 import { bonesStat, raise } from './necro';
 import { REWIND } from './rules';
-import { plainAffixes, setLevel, ELITE_FX, moveSpeed, SET_HUNTER, attackInterval, DT, heroMax, LEGEND_FX, type Command, type UniqueId, createWorld, learn, learnBlock, LEGEND_DROP, mastered, quality, rank, RANK_MAX, rollGear, rollUnique, SKILLS, step, TREES, UNIQUES, uniqueOf, useClass, type Affix, type HeroClass, type SkillId, type World } from './world';
+import { plainAffixes, setLevel, ELITE_FX, moveSpeed, SET_HUNTER, attackInterval, DT, heroMax, LEGEND_FX, type Command, type UniqueId, createWorld, learn, learnBlock, LEGEND_DROP, mastered, quality, rank, RANK_MAX, RANK_OVER, rollGear, rollUnique, SKILLS, step, TREES, UNIQUES, uniqueOf, useClass, type Affix, type HeroClass, type SkillId, type World } from './world';
 
 const make = (cls: HeroClass = 'knight') => {
   const w = createWorld(1, ['H....']);
@@ -17,7 +17,7 @@ const make = (cls: HeroClass = 'knight') => {
 };
 const skill = (id: SkillId, value: number): Affix => ({ kind: 'skill', value, skill: id });
 
-test('스킬 +N: 배운 스킬에 장비 보너스를 더하고, 초월 상한은 RANK_MAX + 2', () => {
+test('스킬 +N: 배운 스킬에 장비 보너스를 더하고, 초월 상한은 RANK_MAX + RANK_OVER', () => {
   const w = make();
   w.ranks.cleave = 3;
   w.mods.weapon = [skill('cleave', 2)];
@@ -25,8 +25,8 @@ test('스킬 +N: 배운 스킬에 장비 보너스를 더하고, 초월 상한�
   expect(mastered(w, 'cleave')).toBe(true); // 5단계 완성 효과가 장비로 켜진다
   w.mods.helm = [{ kind: 'tab', value: 1, tab: 0 }];
   w.mods.armor = [{ kind: 'allSkills', value: 1 }];
-  w.mods.boots = [skill('cleave', 2)];
-  expect(rank(w, 'cleave')).toBe(RANK_MAX + 2);
+  w.mods.boots = [skill('cleave', 5)];
+  expect(rank(w, 'cleave')).toBe(RANK_MAX + RANK_OVER);
   expect(rank(w, 'whirl')).toBe(0); // 안 배운 스킬은 장비로 생기지 않는다
   w.mods = { weapon: [], armor: [], helm: [], boots: [] };
   expect(rank(w, 'cleave')).toBe(3); // 벗으면 내려간다
@@ -44,25 +44,25 @@ test('배우기 상한은 포인트로 찍은 기본 단계: 장비로 7이어�
   expect(learnBlock(w, 'cleave')).toBe('최고 단계');
 });
 
-// 초월 7단계에서도 수치가 말이 되는가: 유한·0 이상, 재사용 대기는 5단계의 60% 이상, 확률·감소율은 0.9 이하
-test.each(['knight', 'wizard', 'ranger', 'necromancer'] as HeroClass[])('7단계 수치 안전: %s', (cls) => {
+// 초월 10단계에서도 수치가 말이 되는가: 유한·0 이상, 재사용 대기는 5단계의 60% 이상, 확률·감소율은 0.9 이하
+test.each(['knight', 'wizard', 'ranger', 'necromancer'] as HeroClass[])('10단계 수치 안전: %s', (cls) => {
   const at = (n: number) => {
     const w = make(cls);
     for (const t of TREES[cls]) for (const id of t.skills) w.ranks[id] = n;
     return w;
   };
-  const [w5, w7] = [at(5), at(7)];
+  const [w5, w7] = [at(5), at(RANK_MAX + RANK_OVER)];
   const stats = Object.entries(W).filter(([k, f]) => k.endsWith('Stat') && typeof f === 'function') as [string, (w: World) => Record<string, number>][];
   expect(stats.length).toBeGreaterThan(20);
+  const bad: string[] = [];
   for (const [name, f] of stats) {
     const [s5, s7] = [f(w5), f(w7)];
     for (const [k, v] of Object.entries(s7)) {
       if (typeof v !== 'number' || s5[k] === Infinity) continue; // 처음부터 무한(시간제가 아닌 소환수 등)
-      expect(Number.isFinite(v) && v >= 0, `${name}.${k} = ${v}`).toBe(true);
-      if (k === 'cd') expect(v, `${name}.cd`).toBeGreaterThanOrEqual(s5[k] * 0.6 - 1e-9);
-      if (k === 'chance' || k === 'reduce') expect(v, `${name}.${k}`).toBeLessThanOrEqual(0.9);
+      if (!(Number.isFinite(v) && v >= 0) || (k === 'cd' && v < s5[k] * 0.6 - 1e-9) || ((k === 'chance' || k === 'reduce') && v > 0.9)) bad.push(`${name}.${k}: 5단계 ${s5[k]} → ${v}`);
     }
   }
+  expect(bad).toEqual([]);
 });
 
 test('스킬 옵션 굴림: 대상은 지금 직업의 스킬, 값 1~2, 희귀는 15%로 옵션 하나가 탭 +1', () => {

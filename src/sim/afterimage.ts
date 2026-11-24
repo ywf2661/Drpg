@@ -2,16 +2,16 @@
 // 잔상 남기기·자리 바꾸기·떠난 자리(패시브)·지나온 길(궁극). 설계: docs/superpowers/specs/2026-11-19-afterimage-tab-design.md
 // 주문 함수는 world의 CASTS에 있어(순환 import를 피하려고) 다시 쓰는 길을 Recast로 받는다.
 import { AFTERIMAGE, BLINK, BLIZZARD, DT, ROLL, type Entity, type Ghost, type SkillId, type World } from './rules';
-import { ext, mastered, rank, roll, skillHit, syn } from './core';
+import { cdExt, ext, mastered, rank, roll, skillHit, syn } from './core';
 import { auraHit, blast, blizzardStat, bolt, foes, stun } from './wizard';
 import { segDist } from './iaido';
 
 export type Recast = (w: World, id: SkillId, p: Entity, x?: number, z?: number) => number;
 
 export const afterimageStat = (w: World) => ({ cd: AFTERIMAGE.cd, time: AFTERIMAGE.time + 0.5 * ext(w, 'afterimage'), mult: AFTERIMAGE.mult + 0.05 * ext(w, 'afterimage'), max: mastered(w, 'afterimage') ? 2 : AFTERIMAGE.max });
-export const swapStat = (w: World) => ({ cd: AFTERIMAGE.swapCd - 0.3 * ext(w, 'swap'), mult: (AFTERIMAGE.swap + 0.2 * ext(w, 'swap')) * syn(w, 'swap') });
+export const swapStat = (w: World) => ({ cd: AFTERIMAGE.swapCd - 0.3 * cdExt(w, 'swap'), mult: (AFTERIMAGE.swap + 0.2 * ext(w, 'swap')) * syn(w, 'swap') });
 export const lingerStat = (w: World) => ({ time: AFTERIMAGE.linger + 0.3 * ext(w, 'lingering') });
-export const retraceStat = (w: World) => ({ cd: AFTERIMAGE.retraceCd - 0.5 * ext(w, 'retrace'), memory: AFTERIMAGE.memory + 0.3 * ext(w, 'retrace'), mult: (AFTERIMAGE.retrace + 0.1 * ext(w, 'retrace')) * syn(w, 'retrace') });
+export const retraceStat = (w: World) => ({ cd: AFTERIMAGE.retraceCd - 0.5 * cdExt(w, 'retrace'), memory: AFTERIMAGE.memory + 0.3 * ext(w, 'retrace'), mult: (AFTERIMAGE.retrace + 0.1 * ext(w, 'retrace')) * syn(w, 'retrace') });
 
 const OWN: SkillId[] = ['afterimage', 'swap', 'retrace'];
 const NO_COPY: SkillId[] = [...OWN, 'ward']; // 잔상이 따라 하지 않는 것(순간이동·물약은 cast를 거치지 않는다)

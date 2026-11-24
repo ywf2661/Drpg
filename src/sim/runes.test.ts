@@ -1,7 +1,7 @@
 // 룬과 소켓. 설계: docs/superpowers/specs/2026-11-19-runes-design.md
 import { expect, test } from 'vitest';
 import { sell } from '../shop';
-import { runeIcon, SKILLS, step, createWorld, discardFromBag, keyCut, rank, RANK_MAX, rollGear, rollRune, runeAffix, runeGrade, runesIn, socketRune, socketsOf, STAT_RUNES, unsocketRune, useClass, worn, type World } from './world';
+import { runeIcon, SKILLS, step, createWorld, discardFromBag, keyCut, rank, RANK_MAX, RANK_OVER, rollGear, rollRune, runeAffix, runeGrade, runesIn, socketRune, socketsOf, STAT_RUNES, unsocketRune, useClass, worn, type World } from './world';
 
 const make = (land: World['land'] = 'field') => {
   const w = createWorld(1, ['H....']);
@@ -53,15 +53,16 @@ test('새 장비는 소켓 1~3개(대부분 1개)', () => {
   expect(n.filter((k) => k === 1).length).toBeGreaterThan(500);
 });
 
-test('꽂기·빼기: 빈 소켓에만, 주머니에서 빠지고 돌아온다. 스킬 룬은 단계 상한 7을 넘지 않는다', () => {
+test('꽂기·빼기: 빈 소켓에만, 주머니에서 빠지고 돌아온다. 스킬 룬은 단계 상한 10을 넘지 않는다', () => {
   const w = make();
   w.ranks.cleave = 5;
   w.mods.weapon = [{ kind: 'socket', value: 2 }];
+  w.mods.armor = [{ kind: 'skill', value: 3, skill: 'cleave' }];
   w.runes = { 'cleave+2': 2, gale: 1 };
   expect(socketRune(w, 'weapon', 'cleave+2')).toBe(true);
-  expect(rank(w, 'cleave')).toBe(RANK_MAX + 2);
+  expect(rank(w, 'cleave')).toBe(RANK_MAX + RANK_OVER);
   expect(socketRune(w, 'weapon', 'cleave+2')).toBe(true);
-  expect(rank(w, 'cleave')).toBe(RANK_MAX + 2); // 상한 그대로
+  expect(rank(w, 'cleave')).toBe(RANK_MAX + RANK_OVER); // 상한 그대로
   expect(socketRune(w, 'weapon', 'gale')).toBe(false); // 소켓이 찼다
   expect(w.runes).toEqual({ gale: 1 });
   expect(unsocketRune(w, 'weapon', 0)).toBe(true);

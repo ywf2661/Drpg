@@ -644,7 +644,7 @@ export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: numbe
 // 스킬 옵션 굴림: 희귀(옵션 2개)는 tab 확률로 옵션 하나를 탭 +1로, 스킬 +2는 희귀에서 two 확률
 export const SKILL_AFFIX = { tab: 0.15, two: 0.25 };
 // 초월: 장비 보너스로 RANK_MAX 위로 오를 수 있는 단계 수
-export const RANK_OVER = 2;
+export const RANK_OVER = 5;
 // 옵션 0·1·2개(일반·마법·희귀) 확률. boosted = 정예·해골 왕
 export const QUALITY = { normal: [0.6, 0.32, 0.08], boosted: [0, 0.7, 0.3] };
 

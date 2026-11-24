@@ -3,11 +3,11 @@
 // 매는 하늘을 난다: 벽을 무시하고 곧장 가고, 적이 노리지 않는다. 피해는 매가 대상에 닿는 순간 들어간다(화면은 이 자리를 따라 그린다)
 import { walkable } from './path';
 import { DT, HAWK, ROLL, type Entity, type Hawk, type World } from './rules';
-import { dist, ext, hurt, mastered, pathTo, rank, roll, skillHit, syn } from './core';
+import { dist, cdExt, ext, hurt, mastered, pathTo, rank, roll, skillHit, syn } from './core';
 import { foes, stun } from './wizard';
 
-export const swoopStat = (w: World) => ({ cd: HAWK.cd - 0.3 * ext(w, 'swoop'), mult: (HAWK.mult + 0.25 * ext(w, 'swoop')) * syn(w, 'swoop') });
-export const rideStat = (w: World) => ({ cd: HAWK.rideCd - 0.3 * ext(w, 'ride'), mult: (HAWK.arrow + 0.15 * ext(w, 'ride')) * syn(w, 'ride') });
+export const swoopStat = (w: World) => ({ cd: HAWK.cd - 0.3 * cdExt(w, 'swoop'), mult: (HAWK.mult + 0.25 * ext(w, 'swoop')) * syn(w, 'swoop') });
+export const rideStat = (w: World) => ({ cd: HAWK.rideCd - 0.3 * cdExt(w, 'ride'), mult: (HAWK.arrow + 0.15 * ext(w, 'ride')) * syn(w, 'ride') });
 export const assistStat = (w: World) => ({ ratio: HAWK.assist + 0.1 * ext(w, 'assist') });
 export const flockStat = (w: World) => ({ cd: HAWK.flockCd, count: HAWK.count + ext(w, 'flock'), mult: (HAWK.flockMult + 0.1 * ext(w, 'flock')) * syn(w, 'flock') });
 

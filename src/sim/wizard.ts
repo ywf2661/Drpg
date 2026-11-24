@@ -2,34 +2,34 @@
 // 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다(칸에 적는 것은 world의 cast). 조준·지점 도구(aimDir·spot·stun)는 다른 직업도 쓴다
 import { walkable } from './path';
 import { steady, LEGEND_FX, BLINK, BLIZZARD, BOLT, CHAIN, COMET, DT, EMBERS, FIREBALL, FIREFIELD, FROST, FROST_ARMOR, KNOCK, ROLL, STATIC, TEMPEST, WARD, WIZ, type Blast, type Entity, type Shot, type World } from './rules';
-import { emberLine, hasUnique, clearLine, dist, ext, heroMax, hurt, knock, mastered, rank, roll, skillHit, syn } from './core';
+import { emberLine, hasUnique, clearLine, dist, cdExt, ext, heroMax, hurt, knock, mastered, rank, roll, skillHit, syn } from './core';
 
 // 스킬 단계별 수치(1단계 = 기본값). 5단계가 바꾸는 수치도 여기서. 피해 배율에는 시너지가 붙는다
-export const fireStat = (w: World) => ({ cd: FIREBALL.cd - 0.3 * ext(w, 'fireball'), radius: FIREBALL.radius + 0.15 * ext(w, 'fireball'), mult: (FIREBALL.mult + 0.25 * ext(w, 'fireball')) * syn(w, 'fireball') });
-export const firefieldStat = (w: World) => ({ cd: FIREFIELD.cd - 0.4 * ext(w, 'firefield'), radius: FIREFIELD.radius + 0.1 * ext(w, 'firefield'), mult: (FIREFIELD.mult + 0.07 * ext(w, 'firefield')) * syn(w, 'firefield') });
+export const fireStat = (w: World) => ({ cd: FIREBALL.cd - 0.3 * cdExt(w, 'fireball'), radius: FIREBALL.radius + 0.15 * ext(w, 'fireball'), mult: (FIREBALL.mult + 0.25 * ext(w, 'fireball')) * syn(w, 'fireball') });
+export const firefieldStat = (w: World) => ({ cd: FIREFIELD.cd - 0.4 * cdExt(w, 'firefield'), radius: FIREFIELD.radius + 0.1 * ext(w, 'firefield'), mult: (FIREFIELD.mult + 0.07 * ext(w, 'firefield')) * syn(w, 'firefield') });
 export const embersStat = (w: World) => ({ time: EMBERS.time + 0.5 * ext(w, 'embers'), mult: EMBERS.mult * (1 + 0.2 * ext(w, 'embers')) });
-export const cometStat = (w: World) => ({ cd: COMET.cd - 0.5 * ext(w, 'comet'), radius: COMET.radius, mult: (COMET.mult + 0.5 * ext(w, 'comet')) * syn(w, 'comet') });
+export const cometStat = (w: World) => ({ cd: COMET.cd - 0.5 * cdExt(w, 'comet'), radius: COMET.radius, mult: (COMET.mult + 0.5 * ext(w, 'comet')) * syn(w, 'comet') });
 export const frostStat = (w: World) => ({
-  cd: FROST.cd - 0.5 * ext(w, 'frost'),
+  cd: FROST.cd - 0.5 * cdExt(w, 'frost'),
   radius: FROST.radius + 0.25 * ext(w, 'frost'),
   freeze: FROST.freeze + 0.25 * ext(w, 'frost'),
   mult: (FROST.mult + 0.15 * ext(w, 'frost')) * syn(w, 'frost'),
 });
-export const wardStat = (w: World) => ({ cd: WARD.cd - ext(w, 'ward'), absorb: WARD.absorb + 0.05 * ext(w, 'ward') });
+export const wardStat = (w: World) => ({ cd: WARD.cd - cdExt(w, 'ward'), absorb: WARD.absorb + 0.05 * ext(w, 'ward') });
 export const frostArmorStat = (w: World) => ({ reduce: FROST_ARMOR.reduce + FROST_ARMOR.per * ext(w, 'frostArmor') });
-export const blizzardStat = (w: World) => ({ cd: BLIZZARD.cd - 0.5 * ext(w, 'blizzard'), time: BLIZZARD.time, radius: BLIZZARD.radius, mult: (BLIZZARD.mult + 0.08 * ext(w, 'blizzard')) * syn(w, 'blizzard') });
+export const blizzardStat = (w: World) => ({ cd: BLIZZARD.cd - 0.5 * cdExt(w, 'blizzard'), time: BLIZZARD.time, radius: BLIZZARD.radius, mult: (BLIZZARD.mult + 0.08 * ext(w, 'blizzard')) * syn(w, 'blizzard') });
 export function boltStat(w: World) {
   const big = mastered(w, 'lightning'); // 5단계: 범위 ×1.3, 기절 ×2
   return {
-    cd: BOLT.cd - 0.4 * ext(w, 'lightning'),
+    cd: BOLT.cd - 0.4 * cdExt(w, 'lightning'),
     radius: (BOLT.radius + 0.1 * ext(w, 'lightning')) * (big ? 1.3 : 1),
     mult: (BOLT.mult + 0.3 * ext(w, 'lightning')) * syn(w, 'lightning'),
     stun: (BOLT.stun + 0.1 * ext(w, 'lightning')) * (big ? 2 : 1),
   };
 }
-export const chainStat = (w: World) => ({ cd: CHAIN.cd - 0.4 * ext(w, 'chain'), count: CHAIN.count + Math.floor(ext(w, 'chain') / 2), radius: BOLT.radius, stun: BOLT.stun, mult: (CHAIN.mult + 0.3 * ext(w, 'chain')) * syn(w, 'chain') });
+export const chainStat = (w: World) => ({ cd: CHAIN.cd - 0.4 * cdExt(w, 'chain'), count: CHAIN.count + Math.floor(ext(w, 'chain') / 2), radius: BOLT.radius, stun: BOLT.stun, mult: (CHAIN.mult + 0.3 * ext(w, 'chain')) * syn(w, 'chain') });
 export const staticStat = (w: World) => ({ count: rank(w, 'static') >= 3 ? 2 : 1, mult: STATIC.mult + 0.08 * ext(w, 'static') });
-export const tempestStat = (w: World) => ({ cd: TEMPEST.cd - 0.5 * ext(w, 'tempest'), strikes: TEMPEST.strikes + ext(w, 'tempest'), mult: (TEMPEST.mult + 0.2 * ext(w, 'tempest')) * syn(w, 'tempest') });
+export const tempestStat = (w: World) => ({ cd: TEMPEST.cd - 0.5 * cdExt(w, 'tempest'), strikes: TEMPEST.strikes + ext(w, 'tempest'), mult: (TEMPEST.mult + 0.2 * ext(w, 'tempest')) * syn(w, 'tempest') });
 
 const ORB_GAP = 0.8; // 작은 화염구가 폭발 중심에서 떨어져 나오는 거리(m): 맞은 적에게서 바로 다시 터지지 않게
 // 주인공이 아닌 산 것. 종류로 거른다: 잔상 자리에 선 주인공 사본(afterimage.ts)을 넘겨도 주인공이 적으로 잡히지 않게

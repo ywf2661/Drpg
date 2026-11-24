@@ -3,7 +3,7 @@
 // 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
 import { GRAVE_KING, LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
-import { hasUnique, clearLine, dist, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
+import { hasUnique, clearLine, dist, cdExt, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
 import { burst, openGate } from './abilities';
 import { aimDir, blast, foes, spot, stun } from './wizard';
 
@@ -15,7 +15,7 @@ export function bonesStat(w: World) {
   // 검사 → 궁수 → 법사 순서로 되풀이. 궁수·법사는 단계가 올라야 섞인다
   const kinds = Array.from({ length: count }, (_, k): BoneKind => (k % 3 === 1 && r >= BONES.archerAt ? 'archer' : k % 3 === 2 && r >= BONES.mageAt ? 'mage' : 'minion'));
   return {
-    cd: BONES.cd - 0.4 * ext(w, 'bones'),
+    cd: BONES.cd - 0.4 * cdExt(w, 'bones'),
     count,
     kinds,
     max: count + 2,
@@ -25,28 +25,28 @@ export function bonesStat(w: World) {
   };
 }
 export const giantStat = (w: World) => ({
-  cd: GIANT.cd - ext(w, 'giant'),
+  cd: GIANT.cd - cdExt(w, 'giant'),
   life: Infinity,
   hp: Math.round(heroMax(w) * (GIANT.hp + 0.25 * ext(w, 'giant'))),
   mult: (GIANT.mult + 0.1 * ext(w, 'giant')) * syn(w, 'giant'),
 });
 export const lordStat = (w: World) => ({
-  cd: LORD.cd - 2 * ext(w, 'lord'),
+  cd: LORD.cd - 2 * cdExt(w, 'lord'),
   life: LORD.life,
   hp: Math.round(heroMax(w) * (LORD.hp + 0.3 * ext(w, 'lord'))),
   mult: (LORD.mult + 0.15 * ext(w, 'lord')) * syn(w, 'lord'),
 });
 export const curseStat = (w: World) => ({
-  cd: CURSE.cd - 0.5 * ext(w, 'curse'),
+  cd: CURSE.cd - 0.5 * cdExt(w, 'curse'),
   radius: (CURSE.radius + 0.15 * ext(w, 'curse')) * (1 + CURSE_MASTERY.radius * rank(w, 'curseMastery')),
   time: CURSE.time + 0.5 * ext(w, 'curse'),
   amp: CURSE.amp + 0.05 * ext(w, 'curse') + CURSE_MASTERY.amp * rank(w, 'curseMastery'),
 });
-export const plagueStat = (w: World) => ({ cd: PLAGUE.cd - 0.4 * ext(w, 'plague'), radius: PLAGUE.radius + 0.15 * ext(w, 'plague'), mult: (PLAGUE.mult + 0.06 * ext(w, 'plague')) * syn(w, 'plague') });
-export const corpseStat = (w: World) => ({ cd: CORPSE.cd - 0.5 * ext(w, 'corpseBlast'), hp: (CORPSE.hp + 0.05 * ext(w, 'corpseBlast')) * syn(w, 'corpseBlast') });
-export const spearStat = (w: World) => ({ cd: SPEAR.cd - 0.1 * ext(w, 'spear'), mult: (SPEAR.mult + 0.3 * ext(w, 'spear')) * syn(w, 'spear') });
-export const boneArmorStat = (w: World) => ({ cd: BONE_ARMOR.cd - 0.5 * ext(w, 'boneArmor'), absorb: BONE_ARMOR.absorb + 0.05 * ext(w, 'boneArmor') });
-export const prisonStat = (w: World) => ({ cd: PRISON.cd - 0.5 * ext(w, 'prison'), radius: PRISON.radius + 0.1 * ext(w, 'prison'), time: PRISON.time + 0.25 * ext(w, 'prison'), mult: (PRISON.mult + 0.2 * ext(w, 'prison')) * syn(w, 'prison') });
+export const plagueStat = (w: World) => ({ cd: PLAGUE.cd - 0.4 * cdExt(w, 'plague'), radius: PLAGUE.radius + 0.15 * ext(w, 'plague'), mult: (PLAGUE.mult + 0.06 * ext(w, 'plague')) * syn(w, 'plague') });
+export const corpseStat = (w: World) => ({ cd: CORPSE.cd - 0.5 * cdExt(w, 'corpseBlast'), hp: (CORPSE.hp + 0.05 * ext(w, 'corpseBlast')) * syn(w, 'corpseBlast') });
+export const spearStat = (w: World) => ({ cd: SPEAR.cd - 0.1 * cdExt(w, 'spear'), mult: (SPEAR.mult + 0.3 * ext(w, 'spear')) * syn(w, 'spear') });
+export const boneArmorStat = (w: World) => ({ cd: BONE_ARMOR.cd - 0.5 * cdExt(w, 'boneArmor'), absorb: BONE_ARMOR.absorb + 0.05 * ext(w, 'boneArmor') });
+export const prisonStat = (w: World) => ({ cd: PRISON.cd - 0.5 * cdExt(w, 'prison'), radius: PRISON.radius + 0.1 * ext(w, 'prison'), time: PRISON.time + 0.25 * ext(w, 'prison'), mult: (PRISON.mult + 0.2 * ext(w, 'prison')) * syn(w, 'prison') });
 
 const isBone = (a: Ally) => a.kind !== 'warrior' && a.kind !== 'king'; // 거인·왕은 해골 수에 세지 않는다
 // 스킬을 다시 쓰면 그 스킬로 부른 소환수는 물러난다
@@ -110,7 +110,7 @@ export function lord(w: World, hero: Entity): number {
 // 소환수 한 틱: 표식 안의 적이 먼저, 아니면 주인공 가까이(BONES.aggro 안)의 적을 쫓아 공격, 적이 없으면 주인공 뒤를 따른다. 시간이 다 되거나 맞아 죽으면 사라진다.
 // 소환수에게 맞은 몬스터는 주인공 대신 그 소환수를 노린다(보스·해골 왕은 한눈팔지 않는다)
 // ponytail: 소환수끼리·몬스터와는 겹치지 않게 소환수만 밀린다(separate는 entities만 본다)
-export const graveKingStat = (w: World) => ({ cd: GRAVE_KING.cd - ext(w, 'graveKing'), hp: Math.round(heroMax(w) * GRAVE_KING.hp), mult: (GRAVE_KING.mult + 0.25 * ext(w, 'graveKing')) * syn(w, 'graveKing') });
+export const graveKingStat = (w: World) => ({ cd: GRAVE_KING.cd - cdExt(w, 'graveKing'), hp: Math.round(heroMax(w) * GRAVE_KING.hp), mult: (GRAVE_KING.mult + 0.25 * ext(w, 'graveKing')) * syn(w, 'graveKing') });
 // 무덤 왕의 귀환(갇힌 왕의 두개골): 주인공 앞(조준점 쪽)에 거대한 해골 왕의 상반신이 솟아, 주인공을 따라다니며 곁의 적을 모두 내리친다
 export function graveKing(w: World, hero: Entity, x?: number, z?: number): number {
   const st = graveKingStat(w);
