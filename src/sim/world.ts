@@ -6,7 +6,7 @@ import { gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, res
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
 import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
-import { finale, axeStorm, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
+import { finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
 import { clearEdge, flameEdge, frostEdge, temper, tickEdge, unleash } from './temper';
 import { flock, ride, rideStep, swoop, tickHawks } from './hawk';
@@ -23,7 +23,7 @@ export { assistStat, flockStat, rideStat, swoopStat } from './hawk';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
 export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
 export { graveKingStat, boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
-export { wear, hurt, makeUnique, finaleStat, gearKeys, keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, axeStormStat, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { wear, hurt, makeUnique, finaleStat, gearKeys, keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, heavy, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 직업마다 예전 스킬 넷(트리 이전의 Q W E R). 테스트·봇의 기본 장비이고, createWorld가 기사 것을 넣는다
 export const BASIC: Record<HeroClass, [SkillId, SkillId, SkillId, SkillId]> = {
@@ -400,7 +400,7 @@ function command(w: World, hero: Entity, c: Command) {
 // 액티브 스킬: (x, z)는 조준점(없으면 스스로 고른다). 쓰이면 재사용 대기(초), 쓰지 못했으면 0
 type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
 const CASTS: Partial<Record<SkillId, Cast>> = {
-  cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe, axeStorm,
+  cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe,
   finale, graveKing,
   fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest, afterimage, swap, retrace, swoop, ride, flock,
   pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,

@@ -689,9 +689,41 @@ export function syncComets(world: World) {
   for (const m of comets.slice(list.length)) m.c.mesh.visible = m.mark.visible = false;
 }
 
+// 사슬 가르기의 사슬: 주인공 손에서 날아가는 사슬 도끼까지 길쭉한 쇠고리를 엇갈려(90°씩 돌려) 잇는다. 사슬 도끼마다 하나
+const chains = new Map<number, THREE.InstancedMesh>();
+const LINK = { gap: 0.19, max: 60, y: 0.6 }; // 고리 간격(m), 최대 고리 수(사거리 ÷ 간격보다 넉넉히), 높이(손 높이쯤)
+const linkGeo = new THREE.TorusGeometry(0.075, 0.024, 5, 10).rotateY(Math.PI / 2).scale(1, 1, 1.7); // 고리 면이 사슬 방향(+z)을 품게
+const linkMat = new THREE.MeshBasicMaterial({ toneMapped: false });
+const linkColor = [new THREE.Color(0xc8ced6), new THREE.Color(0x7a808a)]; // 엇갈린 고리를 밝게·어둡게
+const dummy = new THREE.Object3D();
+function makeChain(): THREE.InstancedMesh {
+  const ch = new THREE.InstancedMesh(linkGeo, linkMat, LINK.max);
+  for (let i = 0; i < LINK.max; i++) ch.setColorAt(i, linkColor[i % 2]);
+  ch.frustumCulled = false;
+  return ch;
+}
+function layChain(ch: THREE.InstancedMesh, x0: number, z0: number, x1: number, z1: number) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const n = Math.min(LINK.max, Math.floor(len / LINK.gap));
+  for (let i = 0; i < n; i++) {
+    const k = ((i + 0.5) * LINK.gap) / (len || 1);
+    dummy.position.set(x0 + (x1 - x0) * k, LINK.y, z0 + (z1 - z0) * k);
+    dummy.lookAt(x1, LINK.y, z1);
+    if (i % 2) dummy.rotateZ(Math.PI / 2);
+    dummy.updateMatrix();
+    ch.setMatrixAt(i, dummy.matrix);
+  }
+  ch.count = n;
+  ch.instanceMatrix.needsUpdate = true;
+}
 // 날아가는 화살 판자를 world.shots에 맞춘다(위치는 매 프레임)
 export function syncShots(world: World) {
   const live = new Set(world.shots.map((s) => s.id));
+  for (const [id, ch] of chains) {
+    if (live.has(id)) continue;
+    ch.removeFromParent();
+    chains.delete(id);
+  }
   for (const [id, c] of shots) {
     if (live.has(id)) continue;
     c.mesh.removeFromParent();
@@ -703,7 +735,7 @@ export function syncShots(world: World) {
     let c = shots.get(s.id);
     if (!c) {
       const fire = s.kind === 'fire' || s.kind === 'fireball';
-      c = fire ? card(fireballFx, 'fireball', s.x, s.z, false) : s.kind === 'axe' ? card(axeFx, 'axe', s.x, s.z, false) : s.kind === 'bolt' ? card(wiz.ember, 'ember', s.x, s.z, false) : card(arrow, 'fly', s.x, s.z, false);
+      c = fire ? card(fireballFx, 'fireball', s.x, s.z, false) : s.kind === 'axe' || s.kind === 'hook' ? card(axeFx, 'axe', s.x, s.z, false) : s.kind === 'bolt' ? card(wiz.ember, 'ember', s.x, s.z, false) : card(arrow, 'fly', s.x, s.z, false);
       c.dir = dirIndex(Math.atan2(s.dx, s.dz));
       c.glow = fire || s.kind === 'bolt' ? 1 : 0.7; // 화염구·마력탄은 스스로 빛난다
       c.mesh.renderOrder = 2;
@@ -713,6 +745,15 @@ export function syncShots(world: World) {
     }
     c.mesh.position.set(s.x, 0, s.z);
     c.mesh.visible = !s.wait; // 뒤따르는 화살(관통 사격 5단계)은 날기 전까지 숨긴다
+    if (s.kind !== 'hook') continue;
+    let ch = chains.get(s.id);
+    if (!ch) {
+      ch = makeChain();
+      chains.set(s.id, ch);
+      group.add(ch);
+    }
+    const hero = world.entities[0];
+    layChain(ch, hero.x, hero.z, s.x, s.z);
   }
 }
 

@@ -102,7 +102,6 @@ test('충전을 쓰는 타격과 쓰지 않는 타격', () => {
   runFor(spin, 2.2, [{ type: 'skill' }]); expect(spin.edge.kind, '회오리 2초 = 8틱').toBeNull();
   expect(left('throw', ['H..m.'], { type: 'skill', ...at(3.5) }), '도끼').toBe(6);
   expect(left('bounce', ['H..m.'], { type: 'skill', ...at(3.5) }), '튕기는 도끼').toBe(6);
-  expect(left('axeStorm', ['H..m.'], { type: 'skill' }), '도끼 폭풍').toBe(6);
   expect(left('graze', ['Hm...'], { type: 'skill' }, 0.3), '스쳐 베기(지나칠 때)').toBe(5);
 });
 test('respec하면 칼이 빈다', () => {

@@ -74,7 +74,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
     if (e.state === 'dead' && p.state !== 'dead') at(`${v}_die`, e.x, e.z);
     else if (e.hp < p.hp && e.maxHp === p.maxHp) at(`${v}_hit`, e.x, e.z); // 최대 체력이 바뀐 것(갑옷 교체)은 맞은 것이 아니다
   });
-  for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' || s.kind === 'fireball' ? 'fireball' : s.kind === 'axe' ? 'throw' : 'shoot', s.x, s.z);
+  for (const s of w.shots) if (!prev.shots.has(s.id)) at(s.kind === 'fire' || s.kind === 'fireball' ? 'fireball' : s.kind === 'axe' || s.kind === 'hook' ? 'throw' : 'shoot', s.x, s.z);
   // 내려찍기가 떨어짐 / 서리 고리 / 폭발·벼락 / 덫이 닫힘 / 화살비. 얼음·번개 튐·순간이동(구르기 소리)·치유는 따로 소리가 없다
   const BLAST_SOUND: Partial<Record<Blast['kind'], SoundName>> = { slam: 'skel_attack', frost: 'freeze', fire: 'blast', thunder: 'blast', nova: 'blast', heal: 'potion', trap: 'equip_weapon', slash: 'blast', rain: 'shoot', curse: 'shout' };
   const blastSound = (b: Blast) => BLAST_SOUND[b.kind] ?? (b.kind === 'ice' && b.r ? 'freeze' : undefined); // 얼음은 덧벼림 폭발(반경 있음)만 — 얼어붙은 적마다 울리지 않게

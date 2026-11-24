@@ -173,7 +173,7 @@ test('대지 강타: 커서 쪽으로 뛰어 내려찍고, 둘레의 적이 다�
   expect(w.entities[1].stunT).toBeGreaterThan(0);
 });
 
-test('튕기는 도끼는 세 번(5단계 여섯 번) 튀고, 도끼 숙련은 도끼를 더 자주·세게, 도끼 폭풍은 사방으로', () => {
+test('튕기는 도끼는 세 번(5단계 여섯 번) 튀고, 도끼 숙련은 도끼를 더 자주·세게', () => {
   const hit = (ranks: Partial<Record<SkillId, number>>, q: SkillId) => {
     const w = make(['H.a.a.a.a.a.a.a.a.a'], 'knight', ranks, q);
     run(w, 4, [{ type: 'skill', x: 9, z: 0.5 }]);
@@ -188,9 +188,34 @@ test('튕기는 도끼는 세 번(5단계 여섯 번) 튀고, 도끼 숙련은 �
   w.ranks.axes = 2;
   expect(axeStat(w).cd).toBeLessThan(plain.cd);
   expect(axeStat(w).mult).toBeGreaterThan(plain.mult);
-  const s = make(['.m.', 'mHm', '.m.'], 'knight', { axeStorm: 1 }, 'axeStorm');
-  run(s, 1, [{ type: 'skill' }]);
-  expect([1, 2, 3, 4].every((i) => lost(s, i) > 0)).toBe(true);
+});
+
+test('사슬 도끼(패시브): 가르기가 처음 맞은 적을 끌어와 벤다. 무거운 적·빗나감이면 가르지 않는다, 5단계는 기절', () => {
+  expect(isPassive('chainAxe')).toBe(true);
+  const w = make(['H....m.m'], 'knight', { chainAxe: 1 });
+  run(w, 1, [{ type: 'skill', x: 7.5, z: 0.5 }]);
+  expect(w.entities[1].x, '끌려와 베이고 조금 밀려난 자리').toBeLessThan(3);
+  expect(lost(w, 1)).toBeGreaterThan(0);
+  expect([w.entities[2].x, lost(w, 2)], '뒤의 적은 그대로').toEqual([7.5, 0]);
+  expect(w.shots).toEqual([]);
+
+  const boss = make(['H...M'], 'knight', { chainAxe: 1 });
+  run(boss, 1, [{ type: 'skill' }]);
+  expect([boss.entities[0].x, boss.entities[1].x], '보스도 주인공도 움직이지 않는다').toEqual([0.5, 4.5]);
+  expect(boss.cleaves, '가르지 않는다').toBe(0);
+
+  const miss = make(['H......'], 'knight', { chainAxe: 1 });
+  run(miss, 1, [{ type: 'skill' }]);
+  expect([miss.cleaves, miss.shots.length], '빗나가면 가르지 않는다').toEqual([0, 0]);
+
+  const stunned = (r: number) => {
+    const s = make(['H...m'], 'knight', { chainAxe: r });
+    s.entities[1].stunT = 0;
+    run(s, 0.6, [{ type: 'skill' }]);
+    return s.entities[1].stunT;
+  };
+  expect(stunned(1)).toBe(0);
+  expect(stunned(5)).toBeGreaterThan(0.5);
 });
 
 test('마법사: 불바다는 지점을 태우고, 잔불은 화염구 자리를 태우고, 운석은 잠시 뒤 떨어진다', () => {

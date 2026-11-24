@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, walkable, type Cell, type Grid } from './path';
-import { PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXE_STORM, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -80,7 +80,6 @@ export const trailStat = (w: World) => ({ mult: TRAIL.mult * (1 + 0.25 * ext(w, 
 export const leapStat = (w: World) => ({ cd: LEAP.cd - 0.5 * ext(w, 'leap'), radius: LEAP.radius, mult: (LEAP.mult + 0.3 * ext(w, 'leap')) * syn(w, 'leap') });
 export const axeStat = (w: World) => ({ cd: (AXE.cd - 0.2 * ext(w, 'throw')) * axeMod(w).cd, mult: (AXE.mult + 0.25 * ext(w, 'throw')) * syn(w, 'throw') * axeMod(w).dmg });
 export const bounceStat = (w: World) => ({ cd: (BOUNCE.cd - 0.2 * ext(w, 'bounce')) * axeMod(w).cd, count: BOUNCE.count * (mastered(w, 'bounce') ? 2 : 1), mult: (BOUNCE.mult + 0.2 * ext(w, 'bounce')) * syn(w, 'bounce') * axeMod(w).dmg });
-export const axeStormStat = (w: World) => ({ cd: (AXE_STORM.cd - 0.5 * ext(w, 'axeStorm')) * axeMod(w).cd, count: AXE_STORM.count + ext(w, 'axeStorm'), mult: (AXE_STORM.mult + 0.2 * ext(w, 'axeStorm')) * syn(w, 'axeStorm') * axeMod(w).dmg });
 // 발도 탭
 // 발도 탭. 칼선 배율에는 시너지를 넣어 둔다(그을 때 정해진다)
 export const markStat = (w: World) => ({ cd: MARK.cd - 0.1 * ext(w, 'mark'), mult: MARK.hit * syn(w, 'mark'), cut: (MARK.cut + 0.1 * ext(w, 'mark')) * syn(w, 'mark') });
@@ -439,7 +438,8 @@ export const randSlot = (w: World): Slot => SLOTS[Math.floor(rand(w) * SLOTS.len
 export function gainXp(w: World, n: number) {
   w.xp += w.buff?.kind === 'wisdom' ? Math.round(n * (1 + SHRINE.wisdom)) : n; // 지혜의 성소
   const before = w.level;
-  while (w.xp >= xpToNext(w.level)) w.xp -= xpToNext(w.level++);
+  while (w.level < MAX_LEVEL && w.xp >= xpToNext(w.level)) w.xp -= xpToNext(w.level++);
+  if (w.level >= MAX_LEVEL) w.xp = 0; // 만렙: 경험치가 쌓이지 않는다
   w.points += w.level - before; // 레벨마다 스킬 포인트 1
   if (w.level !== before) setLevel(w, w.level, w.xp);
 }
@@ -594,9 +594,11 @@ function trophyKill(w: World, t: Entity) {
 
 // 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동·예고가 끊긴다.
 // 보스·해골 왕은 밀리지도 끊기지도 않는다. 죽은 적도 밀린다(시체가 날아간다). 난수를 쓰지 않는다
+// 밀리지도 끌려오지도 않는 무거운 적
+export const heavy = (e: Entity) => e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave' || steady(e);
 export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
   w.impacts++;
-  if (e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave' || steady(e)) return;
+  if (heavy(e)) return;
   for (let i = Math.round(d / 0.1); i > 0 && walkable(w.grid, Math.floor(e.x + dx * 0.1), Math.floor(e.z + dz * 0.1)); i--) {
     e.x += dx * 0.1;
     e.z += dz * 0.1;

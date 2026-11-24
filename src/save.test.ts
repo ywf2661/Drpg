@@ -103,6 +103,13 @@ test('플레이 시간 표시', () => {
   expect(formatTime(3725)).toBe('1:02:05');
 });
 
+test('도끼 폭풍 저장: 단계는 사슬 도끼로 옮기고, 끼워 둔 칸은 비운다', () => {
+  const old = { ...run, cls: 'knight' as const, runes: {}, ranks: { cleave: 2, throw: 1, bounce: 1, axes: 1, axeStorm: 3 }, keys: { cleave: 'cleave', dash: 'axeStorm', shout: null, throw: 'throw' } };
+  const got = decodeSave(encodeSave(old as never));
+  expect(got?.ranks).toEqual({ cleave: 2, throw: 1, bounce: 1, axes: 1, chainAxe: 3 });
+  expect(got?.keys).toEqual({ cleave: 'cleave', dash: null, shout: null, throw: 'throw' });
+});
+
 test('궁수 저장도 직업을 그대로 되읽고, 다른 직업의 스킬이 든 저장은 버린다', () => {
   const ranger = { ...run, runes: { gale: 1 }, cls: 'ranger' as const, ranks: { pierce: 2, trap: 1 }, keys: { cleave: 'pierce' as const, dash: 'trap' as const, shout: null, throw: null } };
   expect(decodeSave(encodeSave(ranger))?.cls).toBe('ranger');

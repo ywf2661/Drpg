@@ -1,6 +1,7 @@
 // 기력·마나: 직업별 종류·최대치, 회복, 스킬 비용(나갔을 때만), 층·레벨업 때 가득
 import { expect, test } from 'vitest';
 import { canAfford, gainXp, resMax, setLevel, skillCost } from './core';
+import { MAX_LEVEL } from './rules';
 import { createWorld, DT, RESOURCE, step, TREES, useClass, xpToNext, type HeroClass } from './world';
 
 const hero = (cls: HeroClass, level = 1, map = ['H....']) => {
@@ -77,7 +78,7 @@ test('평타·구르기는 무료', () => {
 
 test('칸을 바꾸면 비용도 바뀐다', () => {
   const w = hero('knight');
-  const ult = TREES.knight[2].skills[3]; // 투척 궁극(도끼 폭풍: 대상 없이도 나간다)
+  const ult = TREES.knight[4].skills[3]; // 벼림 궁극(검기 해방: 대상 없이도 나간다)
   w.ranks[ult] = 1;
   w.keys.shout = ult;
   w.res = 100;
@@ -100,4 +101,14 @@ test('레벨업하면 가득', () => {
   expect(w.level).toBe(2);
   expect(w.res).toBe(resMax(w));
   expect(w.res).toBe(108);
+});
+
+test('만렙: 50에서 멈추고 경험치는 더 쌓이지 않는다', () => {
+  const w = createWorld(1, ['Hm']);
+  setLevel(w, MAX_LEVEL - 1, 0);
+  const pts = w.points;
+  gainXp(w, xpToNext(MAX_LEVEL - 1) * 3);
+  expect([w.level, w.xp, w.points - pts]).toEqual([MAX_LEVEL, 0, 1]);
+  gainXp(w, 99999);
+  expect([w.level, w.xp]).toEqual([MAX_LEVEL, 0]);
 });

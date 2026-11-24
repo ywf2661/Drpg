@@ -1,17 +1,22 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, walkable, type Cell } from './path';
-import { FINALE, steady, ARCHER, AXE, BOUNCE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
+import { FINALE, steady, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
-import { finaleStat, emberLine, hasUnique, axeStat, axeStormStat, bounceStat, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
+import { finaleStat, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
 
 // 가르기 시작: 조준점(없으면 가까운 적, 그것도 없으면 지금 방향)을 보고 휘두르기. 가던 길은 휘두른 뒤에 이어 간다
 export function cleaveStart(w: World, hero: Entity, x?: number, z?: number): number {
+  if (rank(w, 'chainAxe')) hookStart(w, hero, x, z);
+  else swingCleave(w, hero, x, z);
+  return cleaveStat(w).cd;
+}
+function swingCleave(w: World, hero: Entity, x?: number, z?: number) {
   if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
   else {
     const near = w.entities
@@ -21,7 +26,51 @@ export function cleaveStart(w: World, hero: Entity, x?: number, z?: number): num
   }
   w.slash = 'cleave';
   Object.assign(hero, { state: 'attack', attackT: 0, repathT: 0, skill: true }); // 공격 대상은 유지: 끝나면 이어서 친다
-  return cleaveStat(w).cd;
+}
+
+// 사슬 가르기(사슬 도끼를 배우면 가르기가 이것으로): 조준점(없으면 사거리 안의 가까운 적, 그것도 없으면 바라보는 방향)으로
+// 사슬 도끼를 던진다. 처음 맞은 적을 끌고 와 앞에 놓고 가르기. 빗나가거나 무거운 적이면 가르지 않는다. 날기·끌기는 hookFly
+const hookRange = (w: World) => CHAIN_AXE.range + CHAIN_AXE.grow * Math.max(0, rank(w, 'chainAxe') - 1);
+function hookStart(w: World, hero: Entity, x?: number, z?: number) {
+  const range = hookRange(w);
+  const near = w.entities.filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= range && clearLine(w, hero, e)).sort((a, b) => dist(a, hero) - dist(b, hero))[0];
+  const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [near.x, near.z] : [hero.x + Math.sin(hero.facing), hero.z + Math.cos(hero.facing)];
+  const d = Math.hypot(tx - hero.x, tz - hero.z);
+  if (d > 1e-6) hero.facing = Math.atan2(tx - hero.x, tz - hero.z);
+  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: Math.sin(hero.facing), dz: Math.cos(hero.facing), dmg: 0, left: range, kind: 'hook' });
+}
+function hookFly(w: World, hero: Entity, s: Shot): boolean {
+  const t = s.drag !== undefined ? w.entities[s.drag] : undefined;
+  if (s.back) {
+    // 되감기: 끌고 오는 적을 도끼에 붙여 주인공 앞까지
+    const d = Math.hypot(hero.x - s.x, hero.z - s.z);
+    const step = CHAIN_AXE.back * DT;
+    const [nx, nz] = [s.x + ((hero.x - s.x) / (d || 1)) * step, s.z + ((hero.z - s.z) / (d || 1)) * step];
+    if (!t || t.state === 'dead' || d - step <= CHAIN_AXE.hold || !walkable(w.grid, Math.floor(nx), Math.floor(nz))) return hookEnd(w, hero, t);
+    [s.x, s.z, t.x, t.z] = [nx, nz, nx, nz];
+    Object.assign(t, { state: 'idle', attackT: 0, path: [], repathT: 0, phase: 'none', stunT: Math.max(t.stunT, 2 * DT) }); // 끌려오는 동안은 아무것도 못 한다
+    return true;
+  }
+  const step = CHAIN_AXE.speed * DT;
+  const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
+  s.left -= step;
+  if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
+    openGate(w, Math.floor(nx), Math.floor(nz));
+    return hookEnd(w, hero);
+  }
+  [s.x, s.z] = [nx, nz];
+  const hit = w.entities.find((e) => e !== hero && e.state !== 'dead' && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);
+  if (!hit) return true;
+  if (heavy(hit)) return hookEnd(w, hero, hit); // 무거운 적은 끌려오지 않고, 주인공도 가지 않는다
+  Object.assign(s, { back: true, drag: hit.id, x: hit.x, z: hit.z });
+  return true;
+}
+// 사슬이 끝났다: 끌려온 적이 살아 있으면(5단계면 기절) 그쪽으로 가르기. 빗나감·무거운 적·끌려오다 죽은 적이면 가르지 않는다
+function hookEnd(w: World, hero: Entity, t?: Entity): false {
+  if (!t || t.state === 'dead' || heavy(t)) return false;
+  if (mastered(w, 'chainAxe')) stun(t, CHAIN_AXE.stun);
+  swingCleave(w, hero, t.x, t.z);
+  return false;
 }
 
 // 회오리: 휘두르지 않고 돈다. 걷던 길·공격 대상은 그대로(돌면서 따라간다)
@@ -409,17 +458,6 @@ export function bounceAxe(w: World, hero: Entity, x?: number, z?: number): numbe
   return st.cd;
 }
 
-// 도끼 폭풍: 사방으로 도끼를 고르게 던진다(모두 관통)
-export function axeStorm(w: World, hero: Entity): number {
-  const st = axeStormStat(w);
-  for (let k = 0; k < st.count; k++) {
-    const a = hero.facing + (k / st.count) * Math.PI * 2;
-    w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: Math.sin(a), dz: Math.cos(a), dmg: Math.round(roll(w, hero) * st.mult), left: AXE.flight, kind: 'axe', through: true });
-  }
-  w.shouts++; // 땅 울림
-  return st.cd;
-}
-
 function hurl(w: World, hero: Entity, dmg: number, more: Partial<Shot>, x?: number, z?: number) {
   // 자동 조준: 가까운 적, 또는 바로 앞의 닫힌 문 중 더 가까운 쪽
   const doors = w.gates.filter((g) => !g.open).map((g) => ({ x: g.x + 0.5, z: g.z + 0.5 }));
@@ -457,6 +495,7 @@ export function fly(w: World, hero: Entity) {
       [s.x, s.z] = [hero.x, hero.z];
       return true;
     }
+    if (s.kind === 'hook') return hookFly(w, hero, s);
     const fire = s.kind === 'fire';
     const speed = { fire: MAGE.speed, axe: AXE.speed, arrow: ARCHER.speed, bolt: WIZ.speed, fireball: FIREBALL.speed, shaft: RANGER.speed, pierce: PIERCE.speed }[s.kind];
     const step = speed * DT;

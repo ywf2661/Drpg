@@ -80,6 +80,12 @@ function skillTree(d: Record<string, unknown>, cls: HeroClass): Pick<Run, 'ranks
   const r = d.ranks as Record<string, unknown>;
   const k = d.keys as Record<string, unknown>;
   if (!r || typeof r !== 'object' || !k || typeof k !== 'object' || !int(d.points, 0, 1000)) return null;
+  // 도끼 폭풍(2026-11-24에 사슬 도끼로 바뀜): 단계는 옮기고, 끼워 둔 칸은 비운다(사슬 도끼는 패시브)
+  if ('axeStorm' in r) {
+    r.chainAxe = r.axeStorm;
+    delete r.axeStorm;
+  }
+  for (const key of KEYS) if (k[key] === 'axeStorm') k[key] = null;
   const ranks: Ranks = {};
   for (const [id, n] of Object.entries(r)) {
     if (SKILLS[id as SkillId]?.cls !== cls || !int(n, 1, RANK_MAX)) return null;

@@ -31,7 +31,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, axeStormStat, AXES, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
+import { FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -294,7 +294,12 @@ const cd = (v: number) => ` · 재사용 대기 ${sec(v)}`;
 type SkillText = { name: string; desc: string; stat?: (w: World) => string; cap?: string };
 const SKILL_TEXT: Record<SkillId, SkillText> = {
   // 기사
-  cleave: { name: '가르기', desc: '앞쪽의 적을 한꺼번에 벤다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 벤다', cap: '앞쪽 반원이 아니라 주위를 한 바퀴 벤다', stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '주위' : '앞쪽 반원'} ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  cleave: {
+    get name() { return learned.chainAxe ? '사슬 가르기' : '가르기'; },
+    get desc() { return learned.chainAxe ? '사슬 도끼를 던져 처음 맞은 적을 끌어온 뒤 앞쪽을 벤다. 보스처럼 무거운 적은 끌려오지 않는다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 던진다' : '앞쪽의 적을 한꺼번에 벤다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 벤다'; },
+    cap: '앞쪽 반원이 아니라 주위를 한 바퀴 벤다',
+    stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '주위' : '앞쪽 반원'} ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; },
+  },
   whirl: { name: '회오리', desc: '빙글빙글 돌며 걷는 동안 주변 적을 계속 벤다', cap: '1초 더 돈다', stat: (w) => { const s = whirlStat(w); return `${sec(s.time)} 동안 0.25초마다 ${m(s.radius)} 안의 적에게 ${wd(s.mult)}${cd(s.cd)}`; } },
   burst: { name: '시체 폭발', desc: '패시브 — 가르기·회오리·처형으로 쓰러뜨린 적이 터지며 주변을 태운다. 그 폭발로 죽은 적도 연달아 터진다', stat: (w) => `시체 최대 체력의 ${pct(burstStat(w).hp)} 피해 · 반경 ${BURST.radius}m` },
   execute: { name: '처형', desc: '눈앞의 적 하나를 벤다. 체력이 낮은 적은 단칼에 베어 버리고, 처치하면 주변 적이 겁에 질려 달아난다', stat: (w) => { const s = executeStat(w); return `체력 ${pct(s.below)} 이하면 즉사(보스 제외), 아니면 ${wd(s.mult)} · 공포 ${sec(EXECUTE.fear)}${cd(s.cd)}`; } },
@@ -304,8 +309,8 @@ const SKILL_TEXT: Record<SkillId, SkillText> = {
   leap: { name: '대지 강타', desc: '커서 지점으로 뛰어올라 내려찍는다. 착지 지점 주변의 적이 기절한다', stat: (w) => { const s = leapStat(w); return `최대 ${LEAP.range}m · ${s.radius}m 안의 적 모두에게 ${wd(s.mult)}, ${sec(LEAP.stun)} 기절${cd(s.cd)}`; } },
   throw: { name: '도끼 던지기', desc: '도끼를 던져 처음 맞는 적에게 피해를 준다. 사슬 문도 끊을 수 있다', cap: '도끼가 적을 꿰뚫고 날아간다', stat: (w) => { const s = axeStat(w); return `${mastered(w, 'throw') ? '지나는 길의 적 모두' : '처음 맞는 적'}에게 ${wd(s.mult)}${cd(s.cd)}`; } },
   bounce: { name: '튕기는 도끼', desc: '맞은 적에게서 가까운 적으로 튕겨 다니는 도끼를 던진다', cap: '튕기는 횟수가 두 배로 늘어난다', stat: (w) => { const s = bounceStat(w); return `${wd(s.mult)} · ${s.count}번 튕김${cd(s.cd)}`; } },
-  axes: { name: '도끼 숙련', desc: '패시브 — 도끼 스킬(던지기·튕기는 도끼·도끼 폭풍)을 더 자주, 더 세게 쓴다', stat: (w) => `재사용 대기 −${pct(AXES.cd * Math.max(1, w.ranks.axes ?? 0))} · 피해 +${pct(AXES.dmg * Math.max(1, w.ranks.axes ?? 0))}` },
-  axeStorm: { name: '도끼 폭풍', desc: '사방으로 도끼를 한꺼번에 던진다. 모든 도끼가 적을 꿰뚫는다', stat: (w) => { const s = axeStormStat(w); return `도끼 ${s.count}자루, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
+  axes: { name: '도끼 숙련', desc: '패시브 — 도끼 스킬(던지기·튕기는 도끼)을 더 자주, 더 세게 쓴다', stat: (w) => `재사용 대기 −${pct(AXES.cd * Math.max(1, w.ranks.axes ?? 0))} · 피해 +${pct(AXES.dmg * Math.max(1, w.ranks.axes ?? 0))}` },
+  chainAxe: { name: '사슬 도끼', desc: '패시브 — 가르기가 사슬 가르기로 바뀐다. 사슬 도끼를 던져 처음 맞은 적을 끌어온 뒤 벤다. 피해와 범위는 가르기 단계를 따른다', cap: '끌려온 적이 1초 동안 기절한다', stat: (w) => `사슬 사거리 ${m(CHAIN_AXE.range + CHAIN_AXE.grow * Math.max(0, (w.ranks.chainAxe ?? 1) - 1))}` },
   mark: { name: '그어두기', desc: '앞을 베어 바닥에 칼선을 남긴다. 칼선은 1초 뒤에 베이고, 그때 칼선 위에 있는 적과 처음에 벤 적이 맞는다', cap: '앞쪽 반원이 아니라 주위를 한 바퀴 벤다', stat: (w) => { const s = markStat(w); return `벨 때 ${wd(s.mult)} · ${sec(CUT.delay)} 뒤 칼선 ${wd(s.cut)}${cd(s.cd)}`; } },
   graze: { name: '스쳐 베기', desc: '순식간에 앞으로 지나간다. 지나간 길에 칼선이 남고, 1초 뒤에 베인다. 지나가는 동안은 맞지 않는다', cap: '칼선에 베여 죽은 적이 있으면 바로 다시 쓸 수 있다', stat: (w) => { const s = grazeStat(w); return `${m(GRAZE.dist)} 지나간 길에 칼선 ${wd(s.cut)}${cd(s.cd)}`; } },
   echo: { name: '칼의 여운', desc: '패시브 — 베는 스킬을 두 번 쓰면, 다음에 쓰는 가르기·회오리·처형·돌진 베기·대지 강타가 벤 모양 그대로 칼선을 남긴다', stat: (w) => `칼선 ${wd(echoStat(w).cut)}` },
@@ -370,7 +375,7 @@ export const skillName = (id: SkillId) => SKILL_TEXT[id].name;
 // 스킬 아이콘: 직업의 아이콘 띠(스킬 4칸 + 스페이스)에서 몇 번째 그림인가. 새 스킬은 같은 계열 그림을 빌리고 이름 두 글자를 얹는다
 // ponytail: 트리 스킬 그림이 생기면 ICON을 그 띠로 바꾸고 이름 글자를 뺄 것
 const ICON: Record<SkillId, number> = {
-  cleave: 0, whirl: 0, burst: 0, execute: 0, dash: 1, shout: 2, trail: 1, leap: 1, throw: 3, bounce: 3, axes: 3, axeStorm: 3,
+  cleave: 0, whirl: 0, burst: 0, execute: 0, dash: 1, shout: 2, trail: 1, leap: 1, throw: 3, bounce: 3, axes: 3, chainAxe: 3,
   fireball: 0, firefield: 0, embers: 0, comet: 0, frost: 1, ward: 3, frostArmor: 1, blizzard: 1, lightning: 2, chain: 2, static: 2, tempest: 2, afterimage: 5, swap: 6, lingering: 7, retrace: 8,
   pierce: 0, spread: 0, crit: 0, focus: 3, trap: 1, push: 0, snare: 1, hunt: 1, rain: 2, fireRain: 2, downpour: 2, arrowStorm: 2, swoop: 1, ride: 1, assist: 1, flock: 1, // ponytail: 매 탭은 덫 그림 + 이름 두 글자(아이콘은 사용자가 고른 뒤 띠에 붙인다)
   bones: 0, giant: 1, boneMastery: 0, lord: 3, curse: 2, plague: 2, curseMastery: 2, corpseBlast: 2, spear: 0, boneArmor: 1, drain: 2, prison: 2,
@@ -387,7 +392,7 @@ function paintIcon(el: HTMLElement, id: SkillId | null, size: number) {
   el.style.backgroundImage = id ? `url(${strip ?? KNIGHT_ICONS[ICON[id]]})` : 'none';
   el.style.backgroundSize = strip ? `${size * STRIP_LEN[SKILLS[id!].cls]!}px ${size}px` : `${size}px ${size}px`;
   el.style.backgroundPosition = strip ? `${-ICON[id!] * size}px 0` : '';
-  el.dataset.tag = id && !ORIGINAL.has(id) ? SKILL_TEXT[id].name.replace(/\s/g, '').slice(0, 2) : '';
+  el.dataset.tag = id && (!ORIGINAL.has(id) || (id === 'cleave' && learned.chainAxe)) ? SKILL_TEXT[id].name.replace(/\s/g, '').slice(0, 2) : '';
 }
 
 // 직업에 맞게 구르기 글자·장비 칸 아이콘을 바꾼다(스킬 버튼 그림은 끼운 스킬을 따라 showKeys가)
@@ -1172,7 +1177,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   xpFill.style.width = `${(world.xp / xpToNext(world.level)) * 100}%`;
   resFill.style.width = `${(world.res / resMax(world)) * 100}%`;
   resBar.title = `${resName(world.cls)} ${Math.floor(world.res)}/${resMax(world)}`;
-  levelLabel.textContent = `Lv ${world.level}` + (world.points ? ` · 스킬 +${world.points}` : '');
+  levelLabel.textContent = `Lv ${world.level}` + (world.level >= MAX_LEVEL ? ' (만렙)' : '') + (world.points ? ` · 스킬 +${world.points}` : '');
   pointsHint.hidden = !world.points;
   pointsHint.textContent = `스킬 포인트 ${world.points} — 눌러서 또는 T로 스킬 창`;
   if (shownLevel && world.level > shownLevel) say(`레벨 업! Lv ${world.level}` + (world.points ? ' — 스킬 포인트를 얻었습니다' : ''));
