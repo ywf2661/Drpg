@@ -1,0 +1,195 @@
+{
+  "cell": [
+    54,
+    72
+  ],
+  "anchor": [
+    31,
+    63
+  ],
+  "ppm": 30,
+  "cols": 1,
+  "rows": 30,
+  "anims": {
+    "stake0": {
+      "row": 0,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake1": {
+      "row": 1,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake2": {
+      "row": 2,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake3": {
+      "row": 3,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake4": {
+      "row": 4,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake5": {
+      "row": 5,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake6": {
+      "row": 6,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stake7": {
+      "row": 7,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "skull0": {
+      "row": 8,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "skull1": {
+      "row": 9,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "skull2": {
+      "row": 10,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "skull3": {
+      "row": 11,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "skull4": {
+      "row": 12,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "cheval0": {
+      "row": 13,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "cheval1": {
+      "row": 14,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "cheval2": {
+      "row": 15,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "cheval3": {
+      "row": 16,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "cheval4": {
+      "row": 17,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "keg": {
+      "row": 18,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "crate0": {
+      "row": 19,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "crate1": {
+      "row": 20,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "crate2": {
+      "row": 21,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "crate3": {
+      "row": 22,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "wood0": {
+      "row": 23,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "wood1": {
+      "row": 24,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stump0": {
+      "row": 25,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stump1": {
+      "row": 26,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "stump2": {
+      "row": 27,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "cauldron": {
+      "row": 28,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "firepit": {
+      "row": 29,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    }
+  }
+}

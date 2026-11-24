@@ -24,6 +24,7 @@ MAX_SHEET = 4096  # 모바일 텍스처 한계
 # 보스마다 동작: (프레임 수, 한 번 도는 ms, 반복). 게임 시트 키(stance·move·attack·hit·die)를 다 채운다
 BOSSES = {
     'time_warden': {'stance': (12, 2400, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1300, 'play_once')},
+    'raider_chief': {'stance': (12, 2200, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
     'plague_ferryman': {'stance': (12, 2600, 'looped'), 'move': (12, 1200, 'looped'), 'attack': (13, 1200, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
 }
 PAGE = '<!doctype html><meta charset="utf-8"><body style="margin:0"><script type="importmap">{"imports":{"three":"/three/three.module.js"}}</script><script type="module" src="/%s.js"></script>'

@@ -15,9 +15,10 @@ import { BLOCKS } from './dungeon';
 import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
 import { makeSluice } from './sluice';
 import { ferryman } from './ferryman';
+import { chief } from './chief';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
-import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
@@ -51,8 +52,8 @@ export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ r
 // 호숫가: 'u' 물(못 걷고 시야·투사체는 지나감), 'v' 여울(느리게 걷는다), '_' 나루·다리 판자, 'l' 호숫가 출구, '!' 잠긴 호숫가 출구, '|' 통나무집 벽
 const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', j: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
 const SPAWN_SKIN: Record<string, Skin | undefined> = { U: 'antlion_small', T: 'treasure', X: 'grave' }; // 지역 스킨 대신
-const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar', h: 'stash', '5': 'wheel', '6': 'wheel', '8': 'wheel', '9': 'well', p: 'sick', t: 'priest' };
-const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins', '*': 'sanctum', x: 'tent', y: 'camp', l: 'lake' };
+const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar', h: 'stash', '5': 'wheel', '6': 'wheel', '8': 'wheel', '9': 'well', p: 'sick', t: 'priest', b: 'keg' };
+const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins', '*': 'sanctum', x: 'tent', y: 'camp', l: 'lake', '&': 'raid' };
 const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins', '%': 'sanctum', '!': 'lake' };
 
 const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris', e: 'tent', i: 'tentBig', n: 'pad' };
@@ -77,6 +78,9 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const pits: Point[] = [];
   const spikes: Cell[] = [];
   const portals: Point[] = [];
+  const kegs: Keg[] = [];
+  const powder = new Set<number>();
+  const stakes: Cell[] = [];
   map.forEach((row, z) =>
     [...row].forEach((c, x) => {
       const kind = SPAWN[c];
@@ -93,6 +97,9 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
       if (c === 'U') pits.push([x + 0.5, z + 0.5]);
       if (c === '^') spikes.push([x, z]);
       if (c === '@') portals.push([x + 0.5, z + 0.5]);
+      if ('[]{'.includes(c)) stakes.push([x, z]); // 약탈자 진지: 말뚝 방책(화약통이 박힌 칸도 말뚝)
+      if (c === ':' || c === ']') powder.add(z * w + x); // 도화선(방책 밑으로도)
+      if (c === 'b' || c === '{') kegs.push({ x, z, fuse: -1, lit: false, wall: c === '{', done: false, chest: c === 'b' ? chests.length - 1 : -1 });
       if (EXIT_TO[c]) exits.push({ x, z, to: EXIT_TO[c]! });
       if (LOCKED_TO[c]) locked.push({ x, z, to: LOCKED_TO[c]! });
       if (BLOCKS.includes(c)) grid.blocked[z * w + x] = c === 'u' || c === 'f' ? 2 : 1;
@@ -120,7 +127,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, kegs, powder, sparks: [], stakes, broken: new Set(), amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -588,6 +595,7 @@ function act(w: World, e: Entity) {
     t = null;
   }
   if (e.skin === 'fallen_paladin' && paladin(w, e, t)) return; // 성기사 전용 기술(성검의 비·심판)
+  if (e.skin === 'raider_chief' && chief(w, e, t)) return; // 약탈자 우두머리: 통 들이받기·내려찍기·통 던지기(돌진은 아래 charge)
   if (e.skin === 'plague_ferryman') {
     if (ferryman(w, e, t)) return; // 뱃사공: 물 위·나루·배에 오르기(돌진은 안 한다)
   } else

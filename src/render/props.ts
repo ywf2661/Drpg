@@ -2,6 +2,7 @@
 import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
+import { POWDER } from '../sim/rules';
 import { CHEST, COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, uniqueOf, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import { relicCount, SANCTUM } from '../sim/sanctum';
 import { litBeams, paladinOf } from '../sim/paladin';
@@ -43,6 +44,8 @@ import lakeTreesUrl from '../assets/sprites/lake_trees.png';
 import lakePlantsInfo from '../assets/sprites/lake_plants.json';
 import lakePlantsUrl from '../assets/sprites/lake_plants.png';
 import tentsUrl from '../assets/sprites/tents.png';
+import raidInfo from '../assets/sprites/raid_props.json';
+import raidUrl from '../assets/sprites/raid_props.png';
 import ruinUrl from '../assets/sprites/ruin_props.png';
 import captainInfo from '../assets/sprites/npc_captain.json';
 import captainUrl from '../assets/sprites/npc_captain.png';
@@ -108,6 +111,7 @@ const flameFx: Sheet = { info: flameInfo as SheetInfo, url: flameUrl };
 const trapFx: Sheet = { info: trapInfo as SheetInfo, url: trapUrl };
 const stuckFx: Sheet = { info: stuckInfo as SheetInfo, url: stuckUrl };
 const tents: Sheet = { info: tentsInfo as SheetInfo, url: tentsUrl };
+const raidSheet: Sheet = { info: raidInfo as SheetInfo, url: raidUrl }; // 약탈자 진지 소품(tools/raid.py)
 const lakeTrees: Sheet = { info: lakeTreesInfo as SheetInfo, url: lakeTreesUrl }; // 호숫가 숲(tools/lake.py)
 const lakePlants: Sheet = { info: lakePlantsInfo as SheetInfo, url: lakePlantsUrl }; // 물가 풀 // 원정대 천막(2×2·4×4 칸, 기준점 = 바닥 마름모 가운데)
 const ruin: Sheet = { info: ruinInfo as SheetInfo, url: ruinUrl }; // 성소·시련 상자(세움), 가시 바닥·푸른 마법진(눕힘: 기준점 = 마름모 위 꼭짓점)
@@ -115,7 +119,18 @@ const wiz = { ember: fx('ember'), thunder: fx('thunder'), spark: fx('spark'), ic
 const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
 const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
 let cards: Card[] = [];
-let trees: { c: Card; x: number; z: number }[] = []; // 호숫가 숲의 나무(주인공 앞을 가리면 숨긴다)
+let trees: { c: Card; x: number; z: number }[] = [];
+// 약탈자 진지: 말뚝(칸 번호), 화약통(world.kegs 차례), 도화선 바닥 무늬, 도화선을 기어가는 불꽃
+let stakeCards: { c: Card; i: number }[] = [];
+let kegCards: Card[] = [];
+let trail: { mesh: THREE.InstancedMesh; cells: number[] } | null = null;
+let sparkFx: THREE.Mesh[] = [];
+const LIT = new THREE.Color(3, 0.9, 0.4);
+const RAID_DEBRIS = ['crate0', 'crate1', 'crate2', 'crate3', 'wood0', 'wood1', 'stump0', 'stump1', 'stump2', 'cauldron'];
+const BARRICADE = ['cheval0', 'cheval1', 'cheval2', 'cheval3', 'cheval4', 'cheval0', 'cheval2', 'crate1', 'crate3', 'wood0', 'wood1', 'stump1'];
+const KEG_RED = new THREE.Color(1.45, 0.55, 0.42); // 화약통은 붉게(터지는 통이라는 뜻)
+// 약탈자 진지: 가장자리 띠(5칸 안)가 아닌 막힌 칸('#')은 바위 대신 바리케이드(엇걸린 말뚝·상자·장작). render.ts와 같이 쓴다
+export const barricadeAt = (world: World, x: number, z: number) => world.land === 'raid' && Math.min(x, z, world.grid.w - 1 - x, world.grid.h - 1 - z) >= 5; // 호숫가 숲의 나무(주인공 앞을 가리면 숨긴다)
 let group = new THREE.Group();
 // 무너진 성소 입구(초원 1구역): 계단 구덩이 + 석상 + 화로(성물 수만큼 붉게) + 열렸으면 핏빛 안개·불씨·맥동하는 빛
 const DREAD_FIRE = new THREE.Color(1, 0.4, 0.34);
@@ -437,7 +452,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [...Object.values(npcs), ruin, tents, lakeTrees, lakePlants, props, stairs, loot, runeSheet, floorGear, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
+  for (const s of [...Object.values(npcs), ruin, tents, raidSheet, lakeTrees, lakePlants, props, stairs, loot, runeSheet, floorGear, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -831,6 +846,112 @@ export function syncItems(world: World) {
 // 물가(물에 닿은 땅)의 절반 가까이와 들판 드문드문에 풀. 자리는 칸 해시로 정해 들어올 때마다 같다
 const TREE_PICK = [8, 9, 10, 11, 12, 13, 14, 15, 8, 9, 12, 13, 0, 1, 4, 5]; // 침엽·활엽이 많고 청록·고목이 섞인다
 const PLANT_PICK = [2, 3, 2, 3, 0, 1, 4, 5, 8, 9, 10, 11, 12, 13, 6, 7]; // 갈대가 많다
+// 약탈자 진지: 말뚝 방책(칸마다 말뚝 둘 — 해골 섞어), 화약통, 도화선(바닥의 검은 화약 줄). 카드는 cards에 넣고, 3D는 돌려준다
+function raidDeco(world: World): THREE.Object3D[] {
+  const W = world.grid.w;
+  stakeCards = [];
+  kegCards = [];
+  sparkFx = [];
+  trail = null;
+  if (!world.stakes.length && !world.kegs.length) return [];
+  for (const [x, z] of world.stakes) {
+    const k = cellHash(x, z);
+    for (const [ox, oz] of [[-0.22, 0.18], [0.2, -0.2]]) {
+      const name = k % 5 === 0 && ox < 0 ? `skull${(k >>> 3) % 5}` : `stake${(k >>> (ox < 0 ? 2 : 5)) % 8}`;
+      const c = card(raidSheet, name, x + 0.5 + ox, z + 0.5 + oz, false);
+      stakeCards.push({ c, i: z * W + x });
+      cards.push(c);
+    }
+  }
+  for (const g of world.kegs) {
+    const c = card(raidSheet, 'keg', g.x + 0.5, g.z + 0.5, false);
+    c.mesh.scale.setScalar(1.45); // 눈에 띄게
+    c.tint = KEG_RED;
+    kegCards.push(c);
+    cards.push(c);
+  }
+  // 바리케이드: 막힌 칸 중 트인 칸에서 1칸 안(안쪽 깊은 덩어리는 듬성듬성)
+  const { w: GW, h: GH, blocked } = world.grid;
+  const stake = new Set(world.stakes.map(([x, z]) => z * GW + x));
+  for (let z = 0; z < GH; z++)
+    for (let x = 0; x < GW; x++) {
+      const i = z * GW + x;
+      if (blocked[i] !== 1 || stake.has(i) || !barricadeAt(world, x, z) || world.kegs.some((k) => k.x === x && k.z === z) || world.props.some((p) => p.x === x && p.z === z) || world.chests.some((p) => p.x === x && p.z === z)) continue;
+      const k = cellHash(x, z);
+      const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => blocked[(z + dz) * GW + x + dx] === 0);
+      if (!edge && k % 3) continue;
+      cards.push(card(raidSheet, BARRICADE[k % BARRICADE.length], x + 0.5 + ((k >>> 4) % 10) / 40 - 0.12, z + 0.5 + ((k >>> 8) % 10) / 40 - 0.12, false));
+    }
+  // 도화선: 칸 가운데에서 이웃한 도화선 칸·화약통 쪽으로 반 칸씩 — 끊기지 않는 검은 화약 줄(칸마다 5조각: 가운데 + 네 방향)
+  const cells = [...world.powder];
+  const kegAt = new Set(world.kegs.map((k) => k.z * W + k.x));
+  const linked = (j: number) => world.powder.has(j) || kegAt.has(j);
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x0c0a08, transparent: true, opacity: 0.92, depthWrite: false }), Math.max(1, cells.length * 5));
+  const m = new THREE.Matrix4();
+  const s = new THREE.Vector3();
+  cells.forEach((i, k) => {
+    const [x, z] = [i % W + 0.5, Math.floor(i / W) + 0.5];
+    mesh.setMatrixAt(k * 5, m.compose(new THREE.Vector3(x, 0.03, z), new THREE.Quaternion(), s.set(0.26, 1, 0.26)));
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dz], n) => {
+      const on = linked(i + dx + dz * W);
+      mesh.setMatrixAt(k * 5 + 1 + n, m.compose(new THREE.Vector3(x + dx * 0.25, 0.03, z + dz * 0.25), new THREE.Quaternion(), on ? s.set(dx ? 0.5 : 0.2, 1, dz ? 0.5 : 0.2) : s.set(0, 0, 0)));
+    });
+  });
+  mesh.count = cells.length * 5;
+  trail = { mesh, cells };
+  return [mesh];
+}
+
+// 매 프레임: 부서진 말뚝·터진 통은 숨기고, 불붙은 통은 붉게 깜빡이고, 다 탄 도화선은 지우고, 기어가는 불꽃을 그린다
+export function syncRaid(world: World, time: number) {
+  if (!stakeCards.length && !kegCards.length) return;
+  for (const s of stakeCards) s.c.mesh.visible = !world.broken.has(s.i);
+  while (kegCards.length < world.kegs.length) {
+    const g = world.kegs[kegCards.length]; // 우두머리가 던진 통
+    const c = card(raidSheet, 'keg', g.x + 0.5, g.z + 0.5, false);
+    c.mesh.scale.setScalar(1.45);
+    kegCards.push(c);
+    cards.push(c);
+    group.add(c.mesh);
+  }
+  world.kegs.forEach((g, k) => {
+    const c = kegCards[k];
+    if (!c) return;
+    c.mesh.visible = !g.done;
+    if (g.fx !== undefined) c.mesh.position.set(g.fx, 0, g.fz!);
+    c.mesh.rotation.z = g.roll ? Math.sin(time * 18) * 0.25 : 0; // 굴러오는 중
+    c.tint = g.lit ? KEG_RED.clone().lerp(LIT, 0.5 + 0.5 * Math.sin(time * (g.fuse < 0.6 ? 40 : 16))) : KEG_RED;
+    c.glow = g.lit ? 1 : 0;
+  });
+  world.props.forEach((p, k) => p.gone && cards[k] && (cards[k].mesh.visible = false)); // 쓰러진 천막
+  if (trail) {
+    const m = new THREE.Matrix4();
+    m.makeScale(0, 0, 0);
+    trail.cells.forEach((i, k) => {
+      if (world.powder.has(i)) return;
+      for (let n = 0; n < 5; n++) trail!.mesh.setMatrixAt(k * 5 + n, m); // 다 탄 화약은 지운다
+    });
+    trail.mesh.instanceMatrix.needsUpdate = true;
+  }
+  const W = world.grid.w;
+  while (sparkFx.length < world.sparks.length) {
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd060, toneMapped: false }));
+    f.add(new THREE.PointLight(0xff9a40, 2, 3));
+    sparkFx.push(f);
+    group.add(f);
+  }
+  sparkFx.forEach((f, k) => {
+    const s = world.sparks[k];
+    f.visible = !!s;
+    if (!s) return;
+    let j = 0;
+    while (j + 1 < s.d.length && s.d[j + 1] <= s.t * POWDER.spark) j++;
+    const i = s.cells[j];
+    f.position.set((i % W) + 0.5, 0.15 + Math.abs(Math.sin(time * 30)) * 0.06, Math.floor(i / W) + 0.5);
+    f.scale.setScalar(0.8 + Math.random() * 0.5);
+  });
+}
+
 function lakeDeco(world: World): Card[] {
   const { w, h, blocked } = world.grid;
   const taken = new Set([...world.props, ...world.chests, ...world.gates, ...world.logs.map(([x, z]) => ({ x, z }))].map((p) => p.z * w + p.x));
@@ -892,6 +1013,7 @@ export function buildProps(world: World): THREE.Group {
       const n = p.kind === 'tent' ? 1 : 2; // 글자는 왼쪽 위 칸 → 덮는 칸들의 가운데(칸 모서리)에 세운다
       return card(tents, names[cellHash(p.x, p.z) % names.length], p.x + n, p.z + n, false);
     }
+    if (p.kind === 'debris' && world.land === 'raid') return card(raidSheet, RAID_DEBRIS[cellHash(p.x, p.z) % RAID_DEBRIS.length], p.x + 0.5, p.z + 0.5, false); // 진지의 잔해 = 상자·장작·그루터기·솥
     const c = card(props, names[cellHash(p.x, p.z) % names.length] ?? 'barrel', p.x + 0.5, p.z + 0.5, p.kind === 'debris');
     c.mesh.visible = p.kind !== 'pad'; // 천막이 덮는 칸: 판자는 두되 안 그린다(번호를 world.props와 맞춘다)
     return c;
@@ -904,9 +1026,9 @@ export function buildProps(world: World): THREE.Group {
       if (ch.kind === 'sick') c.tint = SICK_SKIN; // 낫기 전엔 웅크린다(syncChests)
       return { card: c, open: c.clip };
     }
-    if (ch.kind === 'wheel' || ch.kind === 'well') {
+    if (ch.kind === 'wheel' || ch.kind === 'well' || ch.kind === 'keg') {
       const c = card(props, 'barrel', ch.x + 0.5, ch.z + 0.5, false);
-      c.mesh.visible = false; // 3D 모형(water.ts)
+      c.mesh.visible = false; // 3D 모형(water.ts)·화약통(raidDeco)
       return { card: c, open: c.clip };
     }
     if (ch.kind === 'beacon') {
@@ -938,6 +1060,7 @@ export function buildProps(world: World): THREE.Group {
   if (world.stairs) cards.push(card(stairs, 'stairs', world.stairs[0] + STAIRS_AT[0], world.stairs[1] + STAIRS_AT[1], true));
   trees = [];
   if (world.land === 'lake') cards.push(...lakeDeco(world));
+  const raidExtra = raidDeco(world);
   // 무너진 성소 입구 자리: 성물이 모일수록 땅이 갈라지고(1~3: 금만, 밟고 지나간다), 넷이면 꺼져서 계단 구덩이·석상·화로(화로·뼈는 맵 글자로 그때만 생긴다)
   const gate = [...world.exits, ...world.locked].filter((e) => e.to === 'sanctum');
   const extra: THREE.Object3D[] = [];
@@ -1009,7 +1132,7 @@ export function buildProps(world: World): THREE.Group {
   floorAt = (x, z) => walkable(world.grid, Math.floor(x), Math.floor(z));
   coldLight = new THREE.PointLight(0x8cc4ff, 0, ICE.lightRange, 1.5);
   group = new THREE.Group();
-  group.add(...cards.map((c) => c.mesh), ...lights, coldLight, wardFx, ...extra);
+  group.add(...cards.map((c) => c.mesh), ...lights, coldLight, wardFx, ...extra, ...raidExtra);
   return group;
 }
 

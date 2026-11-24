@@ -19,6 +19,7 @@ import fallenPaladin from '../assets/sprites/fallen_paladin.json';
 import fallenPaladinHeads from '../assets/sprites/fallen_paladin_heads.json';
 import timeWarden from '../assets/sprites/time_warden.json';
 import ferryman from '../assets/sprites/plague_ferryman.json';
+import chief from '../assets/sprites/raider_chief.json';
 
 const ANIMS = ['stance', 'move', 'attack', 'hit', 'die'] as const;
 
@@ -32,6 +33,7 @@ test.each([
   ['fallen_paladin', fallenPaladin],
   ['time_warden', timeWarden],
   ['plague_ferryman', ferryman],
+  ['raider_chief', chief],
 ])('%s 시트: 모든 동작 × 8방향이 시트 범위 안에 있다', (_, info) => {
   expect(info.ppm).toBe(30);
   expect(info.rows).toBe(ANIMS.length * 8);

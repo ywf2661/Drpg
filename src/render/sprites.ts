@@ -49,6 +49,10 @@ import fallenPaladinUrl from '../assets/sprites/fallen_paladin.png';
 import fallenPaladinHeads from '../assets/sprites/fallen_paladin_heads.json';
 import timeWardenInfo from '../assets/sprites/time_warden.json';
 import ferrymanInfo from '../assets/sprites/plague_ferryman.json';
+import chiefInfo from '../assets/sprites/raider_chief.json';
+import chiefUrl from '../assets/sprites/raider_chief.png';
+import raiderInfo from '../assets/sprites/raider_goblin.json';
+import raiderUrl from '../assets/sprites/raider_goblin.png';
 import ferrymanUrl from '../assets/sprites/plague_ferryman.png';
 import timeWardenUrl from '../assets/sprites/time_warden.png';
 
@@ -110,6 +114,8 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   fallen_paladin: { info: fallenPaladinInfo as SheetInfo, url: fallenPaladinUrl }, // 타락한 성기사(Hormelz 대검 기사, 배색 C)
   time_warden: { info: timeWardenInfo as SheetInfo, url: timeWardenUrl }, // 시간의 파수꾼(tools/boss3d로 렌더)
   plague_ferryman: { info: ferrymanInfo as SheetInfo, url: ferrymanUrl }, // 역병 걸린 뱃사공(tools/boss3d로 렌더)
+  raider_chief: { info: chiefInfo as SheetInfo, url: chiefUrl }, // 약탈자 우두머리(tools/boss3d로 렌더)
+  raider_goblin: { info: raiderInfo as SheetInfo, url: raiderUrl }, // 뒤틀린 고블린(tools/raider.py)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때

@@ -493,6 +493,10 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'dodge', age: 0 }); // 구르는 중: 무적
     return 0;
   }
+  if (t.skin === 'raider_chief' && t.stunT <= 0 && t.state !== 'dead') {
+    if (!w.combos.some((c) => c.kind === 'ward' && c.age < 0.4)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 약탈자 우두머리: 기절한 동안만 맞는다(화약통 들이받기)
+    return 0;
+  }
   if (t.kind === 'boss' && warded(w)) {
     if (from?.kind === 'hero' || !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 빛 고리: 성소를 꺼야 맞는다
     return 0;

@@ -426,3 +426,6 @@ https://github.com/flareteam/flare-game/wiki/Credits
 
 역병 걸린 마을 사람(src/assets/sprites/plague_villager.png): Flare 좀비(CC-BY-SA 3.0)의 색을 바꾼 것(tools/plague.py). 가공 결과물도 CC-BY-SA 3.0.
 역병 걸린 뱃사공(src/assets/sprites/plague_ferryman.png): 스크립트 3D 렌더(tools/boss3d/plague_ferryman.js, three.js 도형). 외부 그림 없음.
+약탈자 우두머리(src/assets/sprites/raider_chief.png): 스크립트 3D 렌더(tools/boss3d/raider_chief.js, three.js 도형). 외부 그림 없음.
+뒤틀린 고블린(src/assets/sprites/raider_goblin.png): Flare 고블린(CC-BY-SA 3.0)의 색을 바꾼 것(tools/raider.py). 가공 결과물도 CC-BY-SA 3.0.
+약탈자 진지 소품(src/assets/sprites/raid_props.png): rubberduck "isometric props and tents"(OpenGameArt, CC0)의 props_1x1·props_2x2에서 말뚝·화약통·상자·장작·그루터기·솥·화덕을 잘라 줄인 것(tools/raid.py).

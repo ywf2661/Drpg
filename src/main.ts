@@ -18,7 +18,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ACT2_OPEN, act2Step, CLEANSED, LAKE_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -57,7 +57,7 @@ let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
 // ponytail: 2막 땅이 생기면 여기에 더한다(지금은 호숫가)
-const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' ? 'tent' : 'camp');
+const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' ? 'tent' : 'camp');
 // ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
 let captainLine: string[] | null = null;
 // 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
@@ -91,13 +91,13 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', priest: '사제', sick: '앓는 주민' };
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', priest: '사제', sick: '앓는 주민', keg: '화약통' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
 const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' ? act2 < 2 : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
-  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake'] as const) {
+  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
     const mark = to === 'sanctum' ? '▼' : '▶';
     if (cells.length) out.push({ ...middle(cells), text: isHub(to) ? `${mark} ${LANDS[to].name}` : `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
@@ -105,7 +105,7 @@ function signsOf(w: World): Sign[] {
     if (shut.length && to !== 'sanctum') out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` }); // 성소 입구 자리는 이름표 없이 땅만 갈라진다
   }
   for (const c of w.chests) {
-    const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : land === 'sanctum' ? TRACES[floor - 1]?.name : STORY[stage].quest.sign) : CHEST_SIGN[c.kind ?? ''];
+    const text = QUEST_CHESTS.includes(c.kind ?? '') ? (c.open ? '' : land === 'sanctum' ? TRACES[floor - 1]?.name : STORY[stage].quest.sign) : c.kind === 'keg' && c.open ? '' : CHEST_SIGN[c.kind ?? '']; // 터진 화약통은 이름표를 뗀다
     if (text) out.push({ x: c.x + 0.5, z: c.z + 0.5, text, alert: alertOf(c.kind) });
   }
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
@@ -117,9 +117,9 @@ const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
-  w.rest = land === 'field' || land === 'lake' || isHub(land); // 초원·호숫가·거점 모닥불에서 쉴 수 있다
+  w.rest = land === 'field' || land === 'lake' || land === 'raid' || isHub(land); // 초원·호숫가·거점 모닥불에서 쉴 수 있다
   w.land = land;
   w.potions = carry.potions;
   w.gear = { ...carry.gear };
@@ -164,6 +164,7 @@ function enterFloor(n: number, carry: Carry) {
   saveRun(progress()); // 층에 들어갈 때마다 자동 저장
   world = makeFloor(n, entry);
   signs = signsOf(world);
+  kegsBlown = 0;
   setWorld(world, themeOf(n, land));
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
@@ -208,6 +209,9 @@ const VILLAGER = ['불 곁을 떠나지 마세요. 해가 지면 초원도 위�
 const MURMUR = '요즘 밤마다 땅 밑에서 웅얼거리는 소리가 나요. 꼭 누가 기도하는 것 같아요.';
 const chat = () => { const lines = relicCount(relics) >= 2 ? [...VILLAGER, MURMUR] : VILLAGER; return lines[chatter++ % lines.length]; };
 let chatter = 0;
+let kegsBlown = 0; // 이 맵에서 터진 화약통 수(이름표를 다시 달 때)
+let kegHint = false;
+let chiefHint = false; // 우두머리 안내 한 줄(판마다 한 번) // 화약통 안내 한 줄을 보였다(판마다 한 번)
 
 // NPC·단서를 누르면(sim이 w.talk를 남긴다)
 function talkTo(t: NonNullable<World['talk']>) {
@@ -394,7 +398,8 @@ function goCamp() {
   }
   if (after.newCycle) marksBy = [0, 0, 0, 0];
   if (land === 'sanctum') [news, captainLine] = [true, world.horseDrop && !act2 ? [SANCTUM_DONE, ACT2_OPEN] : [SANCTUM_DONE]];
-  if (land === 'lake') [act2, news, captainLine] = [Math.max(act2, 3), true, [LAKE_DONE]]; // 뱃사공: 원정대 천막의 순찰대장이 다음 길 이야기
+  if (land === 'lake') [act2, news, captainLine] = [Math.max(act2, 3), true, [LAKE_DONE]];
+  if (land === 'raid') [act2, news, captainLine] = [Math.max(act2, 4), true, [RAID_DONE]]; // 약탈자 우두머리: 다음 곳(광산) 이야기 // 뱃사공: 원정대 천막의 순찰대장이 다음 길 이야기
   if (land === 'sanctum' && world.horseDrop) act2 = Math.max(act2, 1); // 처음 쓰러뜨렸다: 2막이 열린다(야영지 북쪽 원정길)
   toCamp(carryOf(world), after.advanced && (!was || after.newCycle)); // 2회차부터 순찰대장은 회차가 넘어갈 때만 새로 말한다
   if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
@@ -679,7 +684,7 @@ if (new URLSearchParams(location.search).has('test')) {
   $('#test-land').addEventListener('click', () => {
     if (!playing()) return;
     land = LAND_LIST[(LAND_LIST.indexOf(land) + 1) % LAND_LIST.length];
-    enterFloor(floor, carryOf(world));
+    enterFloor(isHub(land) ? 0 : Math.max(1, floor), carryOf(world)); // 거점(층 0)에서 바깥 땅으로 넘어가면 1구역부터
   });
   // 최종 보스: 주인공 근처에 기도하는 자(그 회차 성소 5층과 같은 수치, 야영지 제외)
   $('#test-knight').addEventListener('click', () => {
@@ -782,6 +787,21 @@ requestAnimationFrame(function frame(now) {
   if (world.marked) {
     world.marked = false;
     markDone();
+  }
+  // 약탈자 진지: 화약통이 터지면 이름표를 다시 단다. 처음 불씨 통 곁에 오면 한 줄(무엇인지만 — 어디로 이어지는지는 말하지 않는다)
+  if (world.kegs.length) {
+    const blown = world.kegs.filter((k) => k.done).length;
+    if (blown !== kegsBlown) [kegsBlown, signs] = [blown, signsOf(world)];
+    const h = world.entities[0];
+    if (!kegHint && world.kegs.some((k) => k.chest >= 0 && !k.done && Math.hypot(k.x + 0.5 - h.x, k.z + 0.5 - h.z) < 4)) {
+      kegHint = true;
+      say(KEG_HINT);
+    }
+  }
+  // 약탈자 우두머리: 처음 막혔을 때 한 줄(통을 쓰라는 것까지만)
+  if (land === 'raid' && !chiefHint && world.combos.some((c) => c.kind === 'ward')) {
+    chiefHint = true;
+    say(CHIEF_HINT);
   }
   if (world.cleansed) {
     world.cleansed = false;

@@ -14,7 +14,8 @@ import ruinsFloorUrl from '../assets/tiles/floor_ruins.png';
 import plankUrl from '../assets/tiles/plank.png';
 import logUrl from '../assets/tiles/wall_log.png';
 import { buildWater, tickWater } from './water';
-import { fadeTrees } from './props';
+import { barricadeAt, fadeTrees, syncRaid } from './props';
+import { dirtGround } from './ground';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
@@ -52,6 +53,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   ruins: { torch: 0xffb070, range: 12, tint: [1, 0.86, 0.72], sky: 1.6, sun: 2.4, bg: 0x2b2a24 }, // 해 질 녘
   sanctum: { torch: 0xe0705a, range: 10, tint: [1, 0.78, 0.72], sky: 0.22, sun: 0, bg: 0x000000 }, // 무너진 성소: 폐허 타일에 칠흑과 핏빛 횃불
   lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
+  raid: { torch: 0xffc890, range: 12, tint: [1.05, 0.9, 0.76], sky: 1.9, sun: 3.0, bg: 0x2a1a10 }, // 약탈자 진지: 먼지 낀 붉은 해
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -206,6 +208,7 @@ export async function initRender(world: World, theme: Theme) {
   tex.snow = { floor: sf, wall: sw };
   tex.ruins = { floor: rf, wall: rw };
   tex.sanctum = tex.ruins;
+  tex.raid = { floor: ff, wall: fw }; // 약탈자 진지: 초원 그림을 메마른 흙·붉은 바위로 물들인다(buildMap)
   tex.lake = { floor: ff, wall: lg }; // 호숫가: 풀은 초원 그림(색만 서늘하게), 벽 상자는 통나무집뿐('#'은 숲으로 그린다)
   plankTex = pk;
   setWorld(world, theme);
@@ -358,6 +361,7 @@ export function draw(world: World, dt: number) {
   marker.material.opacity = Math.min(1, (2 * markT) / MARK);
   cutaway(hero.x, hero.z);
   fadeTrees(hero.x, hero.z);
+  syncRaid(world, time);
   syncItems(world);
   syncShots(world);
   syncComets(world);
@@ -431,7 +435,7 @@ function buildMap(world: World, theme: Theme) {
   const { w, h, blocked } = world.grid;
   // 바닥은 걸을 수 있는 칸과 소품 칸에, 벽은 바닥과 맞닿은 테두리만 그린다. 그 밖은 칠흑(디아블로처럼)
   const open = (x: number, z: number) => x >= 0 && z >= 0 && x < w && z < h && !blocked[z * w + x];
-  const prop = new Set([...world.props, ...world.gates, ...world.chests].map((p) => p.z * w + p.x)); // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
+  const prop = new Set([...world.props, ...world.gates, ...world.chests, ...world.stakes.map(([x, z]) => ({ x, z }))].map((p) => p.z * w + p.x)); // 말뚝 방책도 소품(바닥 위에 말뚝 그림) // 소품·문·상자 칸: 벽 상자 대신 바닥을 깐다
   const road = new Set(world.roads.map(([x, z]) => z * w + x));
   const sand = new Set(world.sand.map(([x, z]) => z * w + x));
   const floorCells: [number, number][][] = Array.from({ length: 3 * FLOOR_VARIANTS }, () => []); // 변형 × [바닥, 길(흙빛), 개미지옥 모래]
@@ -453,7 +457,9 @@ function buildMap(world: World, theme: Theme) {
       const i = z * w + x;
       if (blocked[i] === 2 || ford.has(i)) continue;
       else if (plank.has(i)) planks.push([x, z]);
-      else if (forest && blocked[i] === 1 && !logs.has(i) && !prop.has(i)) {
+      else if (theme === 'raid' && blocked[i] === 1 && !prop.has(i) && barricadeAt(world, x, z)) {
+        if (near(x, z, 1, (j) => !blocked[j])) undergrowth.push([x, z]);
+      } else if (forest && blocked[i] === 1 && !logs.has(i) && !prop.has(i)) {
         if (near(x, z, 2, (j) => !blocked[j])) undergrowth.push([x, z]);
       } else if (open(x, z) || prop.has(i)) floorCells[floorVariant(x, z) + (sand.has(i) ? 2 * FLOOR_VARIANTS : road.has(i) ? FLOOR_VARIANTS : 0)].push([x, z]);
       else if ([-1, 0, 1].some((dz) => [-1, 0, 1].some((dx) => open(x + dx, z + dz)))) wallCells.push([x, z]);
@@ -472,10 +478,12 @@ function buildMap(world: World, theme: Theme) {
   });
   // 호숫가 바닥 색: 풀은 이끼 낀 서늘한 초록, 숲 바닥은 어두운 덤불
   if (forest) for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(0.74, 0.88, 0.8));
-  for (const [cells, rgb] of [[undergrowth, 0x75876a]] as const) {
+  if (theme === 'raid') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) dirtGround(mesh.material as THREE.MeshStandardMaterial); // 밟아 다진 흙(셰이더)
+  for (const [cells, rgb] of [[undergrowth, theme === 'raid' ? 0x6a5444 : 0x75876a]] as const) {
     if (!cells.length) continue;
     const mat = stone(floorTex, 4, FLOOR_VARIANTS);
     mat.color.set(rgb);
+    if (theme === 'raid') dirtGround(mat);
     const mesh = new THREE.InstancedMesh(floorGeo.clone(), mat, cells.length);
     cells.forEach(([x, z], k) => mesh.setMatrixAt(k, m.makeTranslation(x + 0.5, 0, z + 0.5)));
     mesh.receiveShadow = true;
@@ -505,6 +513,7 @@ function buildMap(world: World, theme: Theme) {
     const walls = new THREE.InstancedMesh(v ? boxGeo.clone() : boxGeo, [side[0], side[0], top, top, side[1], side[1]], cells.length);
     cells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
     walls.castShadow = walls.receiveShadow = true;
+    if (theme === 'raid') for (const mt of [side[0], side[1], top]) mt.color.multiply(new THREE.Color(1.15, 0.72, 0.55)); // 붉은 바위 언덕
     mapGroup.add(walls);
     return makeCutaway(walls, cells);
   });
