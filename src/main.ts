@@ -19,7 +19,7 @@ import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bag
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
 import { ACT2_OPEN, act2Step, CLEANSED, LAKE_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
-import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
+import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
@@ -76,7 +76,9 @@ let entry: Carry = startOf('knight'); // 이 층에 들어올 때의 물약·장
 const questHere = () => STORY[stage].land === land;
 // 성소 1~4층: 층마다 흔적 하나(TRACES, 글자는 단서와 같은 L)
 const markLetter = () => (land === 'sanctum' ? (floor < FLOORS ? 'L' : undefined) : questHere() && questOn(stage, took) && markBit(floor) && !(marks & markBit(floor)) ? MARK_LETTER[STORY[stage].quest.kind] : undefined);
-const goalLine = () => hubOf(land) === 'tent' ? act2Step(act2).goal : (cycle ? `${FREE_GOAL} ${beatCount(beat)}/${STORY.length}` : STORY[stage].goal) + (questOn(stage, took) ? ` · ${STORY[stage].quest.name} ${markCount(marks)}/3` : '');
+// 성물이 다 모였고 아직 기도하는 자를 쓰러뜨리지 않았다: 성소로 안내한다
+const sanctumNext = () => cycle > 0 && hasAllRelics(relics) && !hasHorse(relics);
+const goalLine = () => hubOf(land) === 'tent' ? act2Step(act2).goal : sanctumNext() ? RELICS_GOAL : (cycle ? `${FREE_GOAL} ${beatCount(beat)}/${STORY.length}` : STORY[stage].goal) + (questOn(stage, took) ? ` · ${STORY[stage].quest.name} ${markCount(marks)}/3` : '');
 let world = makeFloor(floor, entry);
 let lostGold: number | null = null; // 이번 죽음에서 잃은 금화(null = 아직 안 죽음)
 let clearT = 0; // 보스를 쓰러뜨린 뒤 흐른 초. LOOT_TIME 전에는 결과 버튼이 없다(공격하던 연타가 버튼을 누르지 않게)
@@ -226,9 +228,10 @@ function talkTo(t: NonNullable<World['talk']>) {
     return changed();
   }
   if (t === 'elder') {
-    if (!news) return showTalk('순찰대장', land === 'tent' ? act2Step(act2).again : cycle ? FREE_AGAIN : STORY[stage].again);
+    if (!news) return showTalk('순찰대장', land === 'tent' ? act2Step(act2).again : sanctumNext() ? RELICS_AGAIN : cycle ? FREE_AGAIN : STORY[stage].again);
     news = false;
-    showTalks((captainLine ?? [captainNews(stage, cycle)]).map((t): [string, string] => ['순찰대장', t]));
+    const line = stage === 0 && cycle === 1 && hasAllRelics(relics) && !hasHorse(relics) ? RELICS_READY : captainNews(stage, cycle); // 1회차를 막 끝냈다: 성소가 열렸다
+    showTalks((captainLine ?? [line]).map((t): [string, string] => ['순찰대장', t]));
     captainLine = null;
     return changed();
   }
