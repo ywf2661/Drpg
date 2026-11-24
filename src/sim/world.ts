@@ -13,9 +13,11 @@ import { flock, ride, rideStep, swoop, tickHawks } from './hawk';
 import { afterimage, copyBolt, copyCast, linger, remember, retrace, swap, tickGhosts, type Recast } from './afterimage';
 import { BLOCKS } from './dungeon';
 import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
+import { makeSluice } from './sluice';
+import { ferryman } from './ferryman';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
-import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
@@ -45,19 +47,21 @@ export const newSkills = (cls: HeroClass): Pick<World, 'ranks' | 'keys'> => ({ r
 // 'D' 사슬 문(닫힌 동안 막음). 기믹: 'Y' 성소, 'Q' 시련의 제단, 'I' 얼어붙은 보물(모두 상자처럼 막고 누른다), 'Z' 잠든 졸개, 'U' 모래 속 새끼 개미귀신(개미지옥 가운데), '~' 개미지옥 모래,
 // 'T' 보물 고블린, 'X' 저주받은 무덤, '^' 가시 바닥, '@' 푸른 마법진, 'F'·'S'·'R' 바깥 출구(→ 초원·설원·폐허), 's'·'r' 잠긴 출구(막음), '*' 무너진 성소 입구·'%' 아직 안 열린 입구 자리(지나감), '$' 성소 5층의 성소,
 // 'E' 순찰대장·'V' 상인·'P' 주민·'q' 의뢰인 주민·'L' 단서·'h' 창고(상자처럼 막고 누른다)
-const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
+// 'x' 원정길 출구(야영지 → 원정대 천막), 'y' 야영지로 돌아가는 출구, 'e'·'i' 천막(2×2·4×4, 왼쪽 위 칸), 'n' 천막이 덮는 칸
+// 호숫가: 'u' 물(못 걷고 시야·투사체는 지나감), 'v' 여울(느리게 걷는다), '_' 나루·다리 판자, 'l' 호숫가 출구, '!' 잠긴 호숫가 출구, '|' 통나무집 벽
+const SPAWN: Record<string, Kind | undefined> = { H: 'hero', m: 'minion', w: 'warrior', W: 'warrior', a: 'archer', g: 'mage', N: 'minion', A: 'archer', G: 'mage', K: 'king', M: 'boss', Z: 'minion', j: 'minion', U: 'warrior', T: 'minion', X: 'minion' };
 const SPAWN_SKIN: Record<string, Skin | undefined> = { U: 'antlion_small', T: 'treasure', X: 'grave' }; // 지역 스킨 대신
-const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar', h: 'stash' };
-const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins', '*': 'sanctum' };
-const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins', '%': 'sanctum' };
+const CHEST_KIND: Record<string, Chest['kind']> = { Y: 'shrine', Q: 'trial', I: 'ice', E: 'elder', V: 'merchant', P: 'villager', q: 'asker', L: 'clue', J: 'beacon', k: 'keeper', O: 'seal', $: 'altar', h: 'stash', '5': 'wheel', '6': 'wheel', '8': 'wheel', '9': 'well', p: 'sick', t: 'priest' };
+const EXIT_TO: Record<string, Exit['to'] | undefined> = { F: 'field', S: 'snow', R: 'ruins', '*': 'sanctum', x: 'tent', y: 'camp', l: 'lake' };
+const LOCKED_TO: Record<string, Exit['to'] | undefined> = { s: 'snow', r: 'ruins', '%': 'sanctum', '!': 'lake' };
 
-const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris' };
+const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop', ',': 'debris', e: 'tent', i: 'tentBig', n: 'pad' };
 
 // power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만).
 // deep: 초원 너머(이야기 깊이 6부터) — 정예에 광폭·질주·불굴이 섞이고, 보스도 그중 하나를 단다
 export function createWorld(seed: number, map: string[], power = 1, bossPower = 1, skins: World['skins'] = {}, deep = false): World {
   const w = map[0].length;
-  const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length) };
+  const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length), slow: new Uint8Array(w * map.length) };
   const spawns: { kind: Kind; x: number; z: number; elite: boolean; c: string }[] = [];
   let stairs: Cell | null = null;
   const props: Prop[] = [];
@@ -66,6 +70,9 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   const exits: Exit[] = [];
   const locked: Exit[] = [];
   const roads: Cell[] = [];
+  const fords: Cell[] = [];
+  const planks: Cell[] = [];
+  const logs: Cell[] = [];
   const sand: Cell[] = [];
   const pits: Point[] = [];
   const spikes: Cell[] = [];
@@ -78,24 +85,30 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
       if (c === 'c' || c === 'C' || CHEST_KIND[c]) chests.push({ id: chests.length, x, z, open: false, ...((c === 'C' || c === 'k') && { guards: [] }), ...(CHEST_KIND[c] && { kind: CHEST_KIND[c] }) });
       if (c === 'D') gateCells.push([x, z]);
       if (c === '=') roads.push([x, z]);
+      if (c === 'v') fords.push([x, z]), (grid.slow![z * w + x] = 1);
+      if ('012347'.includes(c)) fords.push([x, z]); // 호숫가 퍼즐 물길: 그림은 물면(막힘·느림은 makeSluice)
+      if (c === '_') planks.push([x, z]);
+      if (c === '|') logs.push([x, z]);
       if (c === '~' || c === 'U') sand.push([x, z]);
       if (c === 'U') pits.push([x + 0.5, z + 0.5]);
       if (c === '^') spikes.push([x, z]);
       if (c === '@') portals.push([x + 0.5, z + 0.5]);
       if (EXIT_TO[c]) exits.push({ x, z, to: EXIT_TO[c]! });
       if (LOCKED_TO[c]) locked.push({ x, z, to: LOCKED_TO[c]! });
-      if (BLOCKS.includes(c)) grid.blocked[z * w + x] = 1;
+      if (BLOCKS.includes(c)) grid.blocked[z * w + x] = c === 'u' || c === 'f' ? 2 : 1;
       else if (c === '>') stairs = [x, z];
       else if (kind) spawns.push({ kind, x: x + 0.5, z: z + 0.5, elite: 'NWAG'.includes(c), c });
     }),
   );
+  const ferries = pairBoats(map);
+  const sluice = makeSluice(map, grid);
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   // 문이 막는 통로의 방향: 양옆(x±1)이 뚫려 있으면 x 방향 통로
   const gates = gateCells.map(([x, z], id): Gate => ({ id, x, z, axis: walkable(grid, x - 1, z) || walkable(grid, x + 1, z) ? 'x' : 'z', open: false, guards: [] }));
   const entities = spawns.map((s, id) => {
     const e = dress(makeEntity(id, s.kind, s.x, s.z, s.kind === 'hero' ? 1 : s.kind === 'boss' ? bossPower : power, s.elite), SPAWN_SKIN[s.c] ? { [s.kind]: SPAWN_SKIN[s.c] } : skins);
-    if (s.c === 'Z' || s.c === 'U') e.asleep = true;
+    if (s.c === 'Z' || s.c === 'U' || s.c === 'j') e.asleep = true; // j = 물가에 잠긴 마을 사람(호숫가)
     if (s.c === 'X') e.cd = GRAVE.first;
     return e;
   });
@@ -107,7 +120,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -136,6 +149,30 @@ function guardGates(grid: Grid, gates: Gate[], entities: Entity[]) {
     const near = [...outside].sort((a, b) => d(a) - d(b));
     g.guards = near.filter((e, i) => d(e) <= SEAL.radius || i < SEAL.min).map((e) => e.id);
   }
+}
+
+// (x, z)가 막 내린 나루(ferryLock) 곁의 배를 눌렀나
+const boatAt = (w: World, x: number, z: number) =>
+  w.ferries.some((f) => f.docks.some(([dx, dz], j) => dz * w.grid.w + dx === w.ferryLock && Math.hypot(x - (j ? f.b : f.a)[0], z - (j ? f.b : f.a)[1]) < 1.2));
+
+// 나룻배 'f'를 짝짓는다: 배는 나루 끝 판자('_') 곁에 있고, 나루 반대쪽으로 물('u')만 지나 닿는 배 — 그 배도 맞은편에 나루가 있어야 짝
+// (다른 줄의 배가 우연히 같은 줄에 있어도 나루 방향이 달라 짝이 되지 않는다)
+function pairBoats(map: string[]): Ferry[] {
+  const out: Ferry[] = [];
+  const at = (x: number, z: number) => map[z]?.[x];
+  map.forEach((row, z) =>
+    [...row].forEach((c, x) => {
+      if (c !== 'f') return;
+      for (const [dx, dz] of [[1, 0], [0, 1]]) {
+        if (at(x - dx, z - dz) !== '_') continue;
+        let k = 1;
+        while (at(x + dx * k, z + dz * k) === 'u') k++;
+        if (k > 1 && at(x + dx * k, z + dz * k) === 'f' && at(x + dx * (k + 1), z + dz * (k + 1)) === '_')
+          out.push({ a: [x + 0.5, z + 0.5], b: [x + dx * k + 0.5, z + dz * k + 0.5], docks: [[x - dx, z - dz], [x + dx * (k + 1), z + dz * (k + 1)]] });
+      }
+    }),
+  );
+  return out;
 }
 
 // 문지기를 모두 쓰러뜨린 문은 사슬이 풀린다(문지기가 없는 문은 스킬로만 연다)
@@ -364,6 +401,8 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'bind') return bind(w, c.key, c.skill);
   if (c.type === 'respec') return respec(w);
   if (hero.state === 'dead') return;
+  if (c.type === 'move' && w.ferryLock >= 0 && boatAt(w, c.x, c.z)) w.ferryLock = -1; // 막 내린 나루에서 배를 누르면 바로 되돌아 탄다
+  if (w.ride && (c.type === 'move' || c.type === 'amove' || c.type === 'open' || c.type === 'take' || c.type === 'roll')) return; // 배 위: 공격·스킬만
   const going = c.type === 'move' || c.type === 'amove' || c.type === 'attack' || c.type === 'open' || c.type === 'take';
   if (hero.phase !== 'none' || (going && (w.castT > 0 || (hero.state === 'attack' && hero.skill)))) {
     // 돌진·구르기 중에는 물약 말고는 못 하고, 스킬 시전 중에는 못 움직인다. 이동·공격은 마지막 것을 기억했다가 끝나면 따른다
@@ -549,6 +588,9 @@ function act(w: World, e: Entity) {
     t = null;
   }
   if (e.skin === 'fallen_paladin' && paladin(w, e, t)) return; // 성기사 전용 기술(성검의 비·심판)
+  if (e.skin === 'plague_ferryman') {
+    if (ferryman(w, e, t)) return; // 뱃사공: 물 위·나루·배에 오르기(돌진은 안 한다)
+  } else
   if (e.kind === 'boss' && charge(w, e, t)) return;
   if (e.kind === 'hero' && e.phase === 'charge') return dashStep(w, e);
   if (e.kind === 'hero' && e.phase === 'roll') return rollStep(w, e);

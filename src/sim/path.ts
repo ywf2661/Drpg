@@ -1,9 +1,11 @@
 // 격자 맵과 8방향 A* 길찾기. three.js 의존 없음.
-export type Grid = { w: number; h: number; blocked: Uint8Array };
+export type Grid = { w: number; h: number; blocked: Uint8Array; slow?: Uint8Array }; // blocked: 0 트임, 1 벽, 2 물(못 걷지만 시야·투사체는 지나간다). slow: 1 = 여울(걸음이 느려진다)
 export type Cell = [x: number, z: number];
 
 export const walkable = (g: Grid, x: number, z: number) =>
   x >= 0 && z >= 0 && x < g.w && z < g.h && g.blocked[z * g.w + x] === 0;
+// 시야·날아가는 것(화살·도끼·마법)이 지나가는 칸: 벽만 막는다(물은 지나간다)
+export const seeThrough = (g: Grid, x: number, z: number) => x >= 0 && z >= 0 && x < g.w && z < g.h && g.blocked[z * g.w + x] !== 1;
 
 const DIRS: Cell[] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 

@@ -6,9 +6,9 @@ import type { Chest, World } from './rules';
 
 // offer: 성물 바치기(초), window: 고리가 깨진 뒤 피해가 들어가는 시간, relight: 창이 끝나면 다시 켜는 성소 수,
 // guard: 기사가 지키는 거리(m), stagger: 고리가 깨질 때 성기사 기절(초), bossHp: 성기사 체력 배율(창에만 맞으므로 낮춘다),
-// depth: 이야기 깊이(폐허 다음, 21~25), chance·pity: 성물이 떨어질 확률, 놓친 횟수가 이만큼이면 다음은 확정
+// depth: 이야기 깊이(폐허 다음, 21~25), chance·pity: 성물이 떨어질 확률(1회차는 처음 깨면 반드시 — 사용자, 2026-11-24), 놓친 횟수가 이만큼이면 다음은 확정
 // haloAgain: 다시 쓰러뜨릴 때 「금 간 빛 고리」가 나올 확률(처음엔 확정), fallTalk: 쓰러진 뒤 대화창까지(초, 쓰러지는 모습)
-export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 0.5, chance2: 0.9, pity: 2, knights: 2, haloAgain: 0.1, fallTalk: 2 };
+export const SANCTUM = { offer: 2, window: 10, relight: 2, guard: 3, stagger: 1.5, bossHp: 0.8, depth: 20, chance: 1, chance2: 0.9, pity: 2, knights: 2, haloAgain: 0.1, fallTalk: 2 };
 // 성기사 전용 기술(설계: docs/superpowers/specs/2026-11-19-paladin-skills-design.md). 피해 = 성기사 평타 굴림 × *Mult
 // 빛의 사슬: beamR(m) 안이면 데이고 같은 대상은 beamEvery초에 한 번. 새로 이을 때(기절·성검의 비가 끝나거나 성소가 다시 켜질 때) beamWarn초는 바닥에 붉은 예고만.
 // 성검의 비: rainFirst초 뒤 처음, rainCd마다. raise초 치켜든 뒤 표식 rainCount개(주인공 발밑·곁 하나 + 성기사 rainRange m 안, 서로 rainGap, 성소에서 altarGap 떨어짐)

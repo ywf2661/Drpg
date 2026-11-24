@@ -6,20 +6,24 @@
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import { finish, FLOORS, generateFloor, mulberry, OPEN, SIZE, themeFor, walkDistances, type Theme } from './dungeon';
 import type { Cell } from './path';
-import type { Land } from './rules';
+import { isHub, type Land } from './rules';
 import { generateArena } from './sanctum';
+import { flows } from './sluice';
+import type { Sluice } from './rules';
 
 export const GATE_FIRES = [[-3, -3], [4, -3], [-3, 4], [4, 4]]; // 성소 입구(2×2의 위쪽 모서리 칸)에서 화로 넷
 export const WILD = 72; // 바깥 맵 크기(미궁은 SIZE 48)
 export type Side = 'n' | 'e' | 's' | 'w'; // 가장자리: n = z 0, s = z 끝, w = x 0, e = x 끝
 export const opposite: Record<Side, Side> = { n: 's', s: 'n', e: 'w', w: 'e' };
 const SIDES: Side[] = ['n', 'e', 's', 'w'];
-type Wild = 'field' | 'snow' | 'ruins';
+type Wild = 'field' | 'snow' | 'ruins' | 'lake';
+const ISLE = FLOORS - 1; // 호숫가 섬 나루 구역
 
 // open = 열린 지역(초원 1구역 갈림길에서 갈 수 있는 곳, 없으면 다 열림), mark = 놓을 의뢰 대상 글자(L 흔적·J 봉화·k 궤·O 봉인)
 export function makeMap(seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w', open?: Land[], mark?: string): string[] {
-  if (land === 'camp') return generateCamp();
-  const map = land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
+  if (land === 'camp') return generateCamp(!!open?.includes('tent'));
+  if (land === 'tent') return generateTent();
+  const map = land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'lake' && floor >= FLOORS ? generateLakeArena() : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
   return mark ? withMark(map, seed, mark) : map;
 }
 
@@ -58,7 +62,7 @@ export function withMark(map: string[], seed: number, letter: string): string[] 
   }
   return cells.map((r) => r.join(''));
 }
-export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : land === 'camp' ? 'field' : land);
+export const themeOf = (floor: number, land: Land): Theme => (land === 'dungeon' ? themeFor(floor) : isHub(land) ? 'field' : land);
 export const wildCount = (floor: number, land: Wild) => (land === 'field' ? 18 : 16) + 4 * (floor - 1); // 몬스터 수(잠든 몬스터·무덤·보물 고블린은 따로)
 // 이 구역의 출구가 이끄는 곳. 초원 1구역만 갈림길(초원 2·설원 1·폐허 1·미궁 1, 미궁은 동굴 입구), 지역을 고른 뒤로는 그 지역의 다음 구역뿐. 마지막 구역은 없음
 export const exitsFor = (floor: number, land: Wild): Land[] => (floor >= FLOORS ? [] : land === 'field' && floor === 1 ? ['field', 'snow', 'ruins', 'dungeon'] : [land]);
@@ -77,7 +81,7 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   if (!open.includes('ruins')) shut.R = 'r';
   if (!open.includes('dungeon')) shut['>'] = 'o';
   if (!open.includes('sanctum')) shut['*'] = '%';
-  const out = map.map((row) => row.replace(/[SR>*]/g, (c) => shut[c] ?? c));
+  const out = map.map((row) => row.replace(/[SR>*l]/g, (c) => shut[c] ?? c));
   // 성소가 안 열렸으면 입구 자리는 그냥 빈터(화로·뼈 없이, 밟고 지나간다). 갈라지는 금은 render가 성물 수로 그린다
   const gz = out.findIndex((row) => row.includes('%'));
   if (gz < 0) return out;
@@ -86,9 +90,10 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
 }
 
 // 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o)·창고(h, 주인공 바로 남쪽 — 들어오자마자 화면에 보이게).
-// 동쪽으로 곧은 길 끝, 맨 바깥 줄에 초원 1구역 출구(F 3칸). 가장자리는 숲 띠, 마당 밖에 바위·잔해. 몬스터·상자·기믹은 없다
+// 동쪽으로 곧은 길 끝, 맨 바깥 줄에 초원 1구역 출구(F 3칸). 가장자리는 숲 띠, 마당 밖에 바위·잔해. 몬스터·상자·기믹은 없다.
+// expedition = 2막이 열렸다: 마당 북동쪽에서 꺾여 북쪽 숲 띠를 뚫는 원정길과 맨 바깥 줄 출구(x 3칸, → 원정대 천막). 난수열은 그대로라 나머지 모양은 같다
 const CAMP_SEED = 7;
-export function generateCamp(): string[] {
+export function generateCamp(expedition = false): string[] {
   const M = SIZE;
   const c = M / 2;
   const rand = mulberry(CAMP_SEED);
@@ -116,11 +121,59 @@ export function generateCamp(): string[] {
   cells[c + 4][c - 3] = 'P';
   for (const [x, z] of [[c - 4, c - 4], [c + 4, c - 4], [c + 1, c + 5], [c + 5, c + 5]]) cells[z][x] = 'o';
   cells[c + 4][c + 2] = 'h';
+  if (expedition) {
+    for (let z = c - 4; z <= c - 2; z++) for (let x = c + 3; x <= c + 8; x++) cells[z][x] = '=';
+    for (let z = 1; z < c - 2; z++) for (let x = c + 6; x <= c + 8; x++) cells[z][x] = '=';
+    for (let x = c + 6; x <= c + 8; x++) cells[0][x] = 'x';
+  }
   for (let k = 0; k < 20; k++) {
     const [x, z] = [int(4, M - 5), int(4, M - 5)];
     if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 6) cells[z][x] = ',';
   }
   const d = walkDistances(cells, c, c + 2); // 주인공에서 닿지 않는 땅은 메운다
+  for (let z = 0; z < M; z++) for (let x = 0; x < M; x++) if (d[z * M + x] < 0 && OPEN(cells[z][x])) cells[z][x] = '#';
+  return cells.map((row) => row.join(''));
+}
+
+// 원정대 천막(48×48, 2막 거점): 늘 같은 모양. 가운데 화덕(B)과 흙마당, 둘레에 천막(작은 것 넷·큰 것 하나), 순찰대장(E, 동)·상인(V, 북)·창고(h, 주인공 곁).
+// 서쪽으로 곧은 길 끝, 맨 바깥 줄에 야영지로 돌아가는 출구(y 3칸). 북쪽 길 끝에 호숫가 1구역 출구(l 3칸)
+const TENT_SEED = 11;
+export const TENTS: [x: number, z: number, big: boolean][] = [[-8, -8, false], [5, -9, false], [7, 5, false], [-9, 5, false], [-2, -13, true]]; // 왼쪽 위 칸(마당 가운데 기준)
+export function generateTent(): string[] {
+  const M = SIZE;
+  const c = M / 2;
+  const rand = mulberry(TENT_SEED);
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const inside = (x: number, z: number) => x > 0 && z > 0 && x < M - 1 && z < M - 1;
+  const cells: string[][] = Array.from({ length: M }, (_, z) => Array.from({ length: M }, (_, x) => (inside(x, z) ? '.' : '#')));
+  const set = ([x, z]: Cell, ch: string) => inside(x, z) && (cells[z][x] = ch);
+  for (const side of SIDES)
+    for (let t = 0, th = int(2, 4); t < M; t++, th = Math.min(4, Math.max(2, th + int(-1, 1)))) for (let k = 0; k < th; k++) set(at(side, t, k, M), '#');
+  for (let k = int(8, 12); k > 0; k--) {
+    const [cx, cz, r] = [int(5, M - 6), int(5, M - 6), 0.8 + rand()];
+    if (Math.hypot(cx - c, cz - c) < 16 || (cx < c && Math.abs(cz - c) < 5)) continue; // 마당·천막 둘레·서쪽 길 밖에만
+    for (let z = Math.floor(cz - r); z <= cz + r; z++) for (let x = Math.floor(cx - r); x <= cx + r; x++) if (Math.hypot(x - cx, z - cz) <= r) set([x, z], '#');
+  }
+  for (let z = 0; z < M; z++) for (let x = 0; x < M; x++) if (Math.hypot(x - c, z - c) <= 6) set([x, z], '='); // 흙마당
+  for (let x = 1; x <= c - 5; x++) for (let z = c - 1; z <= c + 1; z++) cells[z][x] = '='; // 서쪽 길
+  for (let z = c - 1; z <= c + 1; z++) cells[z][0] = 'y';
+  for (let z = 1; z <= c - 6; z++) for (let x = c + 2; x <= c + 4; x++) cells[z][x] = '='; // 북쪽 길(큰 천막과 작은 천막 사이) 끝에 호숫가 1구역 출구
+  for (let x = c + 2; x <= c + 4; x++) cells[0][x] = 'l';
+  for (const [dx, dz, big] of TENTS) {
+    const n = big ? 4 : 2;
+    for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) cells[c + dz + z][c + dx + x] = 'n';
+    cells[c + dz][c + dx] = big ? 'i' : 'e';
+  }
+  cells[c][c] = 'B';
+  cells[c + 2][c] = 'H';
+  cells[c][c + 5] = 'E';
+  cells[c - 5][c] = 'V';
+  cells[c + 4][c - 2] = 'h';
+  for (let k = 0; k < 20; k++) {
+    const [x, z] = [int(4, M - 5), int(4, M - 5)];
+    if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 7) cells[z][x] = ',';
+  }
+  const d = walkDistances(cells, c, c + 2);
   for (let z = 0; z < M; z++) for (let x = 0; x < M; x++) if (d[z * M + x] < 0 && OPEN(cells[z][x])) cells[z][x] = '#';
   return cells.map((row) => row.join(''));
 }
@@ -131,9 +184,11 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   const inside = (x: number, z: number) => x > 0 && z > 0 && x < N - 1 && z < N - 1;
   let cells: string[][] = Array.from({ length: N }, (_, z) => Array.from({ length: N }, (_, x) => (inside(x, z) ? '.' : '#')));
   const set = ([x, z]: Cell, c: string) => inside(x, z) && (cells[z][x] = c);
+  const isle = land === 'lake' && floor === ISLE;
 
   // 1. 바탕
-  if (land === 'field') {
+  if (isle) for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) cells[z][x] = 'u'; // 섬 나루: 온통 물(섬은 3. 뒤에)
+  else if (land === 'field') {
     // 들판: 둥근 바위 무더기
     for (let k = int(70, 90); k > 0; k--) {
       const [cx, cz, r] = [int(2, N - 3), int(2, N - 3), 0.8 + rand() * 2];
@@ -156,6 +211,38 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
         for (let k = int(3, 5); k > 0; k--) for (let i = int(0, ring.length - 1), j = int(2, 3); j > 0; j--, i++) set(ring[i % ring.length], '.');
       }
     for (let k = int(25, 35); k > 0; k--) set([int(2, N - 3), int(2, N - 3)], '#'); // 쓰러진 기둥
+  } else if (land === 'lake') {
+    // 호숫가: 바위는 드문드문. 1구역(물가 마을) = 맵을 가로지르는 개울(폭 3~5, 굽이침) + 연못 둘 + 통나무집(5×5 벽 '|', 문 2칸). 바위·테두리('#')는 숲으로 그린다.
+    // 2구역부터(갈대 늪) = 웅덩이가 촘촘(작은 웅덩이 셋 중 하나는 여울). 물을 지나는 길은 판자 다리가 된다(4. 길 뒤)
+    for (let k = int(25, 35); k > 0; k--) {
+      const [cx, cz, r] = [int(2, N - 3), int(2, N - 3), 0.7 + rand() * 1.3];
+      for (let z = Math.floor(cz - r); z <= cz + r; z++) for (let x = Math.floor(cx - r); x <= cx + r; x++) if (Math.hypot(x - cx, z - cz) <= r) set([x, z], '#');
+    }
+    const pond = (cx: number, cz: number, r: number, c: string) => {
+      for (let z = Math.floor(cz - r - 1); z <= cz + r + 1; z++) for (let x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) if (Math.hypot(x - cx, (z - cz) * 1.2) <= r + (rand() - 0.5) * 0.8) set([x, z], c);
+    };
+    if (floor === 1) {
+      const across = from === 'w' || from === 'e'; // 들어온 쪽과 나갈 쪽 사이를 가로막게
+      let [mid, wid] = [N / 2 + int(-8, 8), int(3, 5)];
+      for (let t = 0; t < N; t++) {
+        if (t % 6 === 0) [mid, wid] = [Math.min(N - 14, Math.max(14, mid + int(-2, 2))), Math.min(5, Math.max(3, wid + int(-1, 1)))];
+        for (let k = 0; k < wid; k++) set(across ? [mid + k, t] : [t, mid + k], 'u');
+      }
+      for (let k = 0; k < 2; k++) pond(int(10, N - 11), int(10, N - 11), 3 + rand() * 2, 'u');
+      for (let k = int(5, 6), guard = 0; k > 0 && guard < 60; guard++) {
+        const [x0, z0] = [int(6, N - 12), int(6, N - 12)];
+        if (cells.slice(z0 - 1, z0 + 6).some((row) => row.slice(x0 - 1, x0 + 6).some((c) => c !== '.'))) continue; // 물·바위·다른 집과 겹치지 않게
+        for (let z = z0; z < z0 + 5; z++) for (let x = x0; x < x0 + 5; x++) if (z === z0 || z === z0 + 4 || x === x0 || x === x0 + 4) set([x, z], '|');
+        const door = int(0, 3); // 문: 네 벽 중 하나 가운데 2칸
+        for (const k2 of [1, 2]) set(door === 0 ? [x0 + 1 + k2, z0] : door === 1 ? [x0 + 4, z0 + 1 + k2] : door === 2 ? [x0 + 1 + k2, z0 + 4] : [x0, z0 + 1 + k2], '.');
+        k--;
+      }
+    } else {
+      for (let k = int(26, 34); k > 0; k--) {
+        const r = 1.5 + rand() * 3.5;
+        pond(int(4, N - 5), int(4, N - 5), r, r < 2.6 && rand() < 0.35 ? 'v' : 'u');
+      }
+    }
   } else {
     // 눈밭: 얼음 바위 지대 몇 곳(맵의 1/3쯤)에만 45%를 벽으로 뿌리고, 둘레 9칸 중 벽이 5칸 이상이면 벽 — 네 번
     const zone = new Uint8Array(N * N);
@@ -175,6 +262,9 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
       );
   }
 
+  const wet = new Uint8Array(N * N); // 길을 내기 전의 물·여울(다리 자리)
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if ('uv'.includes(cells[z][x])) wet[z * N + x] = 1;
+
   // 2. 가장자리 띠: 두께 2~5칸이 들쭉날쭉
   for (const side of SIDES)
     for (let t = 0, th = int(2, 5); t < N; t++, th = Math.min(5, Math.max(2, th + int(-1, 1)))) for (let k = 0; k < th; k++) set(at(side, t, k), '#');
@@ -187,8 +277,8 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
     [others[i], others[j]] = [others[j], others[i]];
   }
   const outer = kinds.filter((k): k is Wild => k !== 'dungeon');
-  const exits = outer.map((to, i) => ({ side: others[i], t: int(N / 2 - 15, N / 2 + 15), to }));
-  const t0 = int(N / 2 - 10, N / 2 + 10);
+  const exits = outer.map((to, i) => ({ side: others[i], t: isle ? N / 2 : int(N / 2 - 15, N / 2 + 15), to })); // 섬 나루는 가장자리 가운데(섬 자리)
+  const t0 = isle ? N / 2 : int(N / 2 - 10, N / 2 + 10);
   const hero = at(from, t0, 4);
   for (let k = 1; k <= 6; k++) for (let s = -1; s <= 1; s++) set(at(from, t0 + s, k), '.');
 
@@ -212,12 +302,13 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
       for (const [ox, oz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) set([x + ox, z + oz], '=');
     }
   };
+  const ferries = isle ? islands(cells, rand, hero, from, exits[0].side) : [];
   for (const e of exits) {
-    road(at(e.side, e.t, 1));
+    if (!isle) road(at(e.side, e.t, 1));
     for (let s = -1; s <= 1; s++) {
       for (let k = 1; k <= 2; k++) set(at(e.side, e.t + s, k), '=');
       const [x, z] = at(e.side, e.t + s, 0);
-      cells[z][x] = e.to === 'field' ? 'F' : e.to === 'snow' ? 'S' : 'R';
+      cells[z][x] = e.to === 'field' ? 'F' : e.to === 'snow' ? 'S' : e.to === 'lake' ? 'l' : 'R';
     }
   }
   const bossAt = at(opposite[from], int(N / 2 - 10, N / 2 + 10), 10);
@@ -225,6 +316,9 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   const gate: Cell = [N / 2, N / 2]; // 무너진 성소 입구(초원 1구역 한가운데, 길이 이어진다)
   if (kinds.includes('dungeon')) road(gate);
   cells[hero[1]][hero[0]] = 'H';
+  // 호숫가: 길이 물·여울을 지난 칸은 판자 다리(걸을 수 있다)
+  const well = land === 'lake' && !isle ? sluiceMap(cells, rand, floor, from, exits[0]) : null; // 호숫가 퍼즐: 검은 샘·물길·바퀴·우물
+  if (land === 'lake' && !isle) for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (cells[z][x] === '=' && wet[z * N + x]) cells[z][x] = '_';
 
   // 5. 주인공에서 걸어서 닿는 땅만 남긴다
   let d = walkDistances(cells, hero[0], hero[1]);
@@ -234,7 +328,7 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
       if (d[z * N + x] >= 0) open++;
       else if (OPEN(cells[z][x])) cells[z][x] = '#';
     }
-  if (open < MIN_OPEN) return wild(seed + 1, floor, land, from);
+  if (open < (isle ? MIN_ISLE : MIN_OPEN)) return wild(seed + 1, floor, land, from);
   const dist = ([x, z]: Cell) => d[z * N + x];
   const clear = ([cx, cz]: Cell, r: number) => {
     for (let z = cz - r; z <= cz + r; z++) for (let x = cx - r; x <= cx + r; x++) if (cells[z][x] === '#') cells[z][x] = '.';
@@ -284,7 +378,7 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
     cells[p[1]][p[0]] = c;
     if (!connected()) cells[p[1]][p[0]] = '.';
   };
-  for (let k = land === 'field' ? 3 : land === 'ruins' ? 4 : 8; k > 0; k--) block('B'); // 초원은 야영지 모닥불이 더 생긴다
+  for (let k = land === 'field' || land === 'lake' ? 3 : land === 'ruins' ? 4 : 8; k > 0; k--) block('B'); // 초원은 야영지 모닥불이 더 생긴다
   for (let k = land === 'field' ? int(1, 2) : int(3, 4); k > 0; k--) block('c');
   for (let k = 0; k < 30; k++) {
     const p = pick();
@@ -293,10 +387,10 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
 
   // 몬스터: 초원은 고블린 떼(전사가 이끌고 2구역부터 불개미), 설원은 얼음 개미·시체(2구역부터 해골 궁수).
   // 주인공에게서 먼 곳에 무리 지어 — 초원은 3~5마리 야영지, 설원은 3~4마리(궁수가 섞인다). 무리의 절반은 길가(길에서 6칸 안)
-  const count = wildCount(floor, land);
+  const count = isle ? ISLE_COUNT : wildCount(floor, land);
   const warriors = Math.round(count * (land === 'field' ? 0.2 : land === 'ruins' ? 0.25 : 0.3));
   // 설원은 궁수가 많다(트인 눈밭에서 숨을 곳이 얼음 바위뿐). 폐허는 1구역부터 골목의 홉고블린 궁수(초원 1구역을 지나 온 곳이라)
-  const ranged = land === 'ruins' ? Math.round(count * 0.2) : floor === 1 ? 0 : Math.round(count * (land === 'field' ? 0.15 : 0.25));
+  const ranged = land === 'lake' ? Math.round(count * 0.3) : land === 'ruins' ? Math.round(count * 0.2) : floor === 1 ? 0 : Math.round(count * (land === 'field' ? 0.15 : 0.25));
   const monsters: string[] = Array.from({ length: count }, (_, i) => (i < warriors ? 'w' : i < warriors + ranged ? (land === 'field' ? 'g' : 'a') : 'm'));
   for (let i = monsters.length - 1; i > 0; i--) {
     const j = int(0, i);
@@ -334,7 +428,104 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   }
   if (campsLeft > 0) return wild(seed + 1, floor, land, from); // 야영지가 모자라면 다음 시드로
   gimmicks(cells, mulberry(seed ^ 0x9e37), floor, land, all, keep, (p) => dist(p) >= 0 && OPEN(cells[p[1]][p[0]]), connected, (p) => dist(p));
+  if (land === 'lake') {
+    // 물가에 잠긴 마을 사람: 물에 닿은 땅 칸(주인공에서 먼 곳)에 4~6
+    const shore = all.filter(([x, z]) => cells[z][x] === '.' && dist([x, z]) >= 12 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => cells[z + dz][x + dx] === 'u'));
+    for (let k = int(4, 6); k > 0 && shore.length; k--) {
+      const [x, z] = shore.splice(int(0, shore.length - 1), 1)[0];
+      if (cells[z][x] === '.') cells[z][x] = 'j';
+    }
+    // 1구역: 우물 곁에 사제와 앓는 주민 셋(길을 끊지 않게)
+    if (well && floor === 1)
+      for (const c of ['t', 'p', 'p', 'p'])
+        for (let tries = 0; tries < 60; tries++) {
+          const [x, z] = [well[0] + int(-5, 5), well[1] + int(-5, 5)];
+          if (cells[z]?.[x] !== '.' || Math.hypot(x - well[0], z - well[1]) < 2.5) continue;
+          cells[z][x] = c;
+          if (connected()) break;
+          cells[z][x] = '.';
+        }
+  }
+  // 나룻배 줄: 만드는 동안은 판자 다리로 쳐서(닿는 땅·몬스터 자리를 그대로 따지게) 이제 물과 배로 되돌린다
+  for (const line of ferries) line.forEach(([x, z], i) => (cells[z][x] = i === 0 || i === line.length - 1 ? 'f' : 'u'));
+  if (land === 'lake' && !puzzleOk(cells, hero, at(exits[0].side, exits[0].t, 1), floor > 1 && !isle)) return wild(seed + 1, floor, land, from);
   return finish(cells, rand);
+}
+
+// 섬 나루(호숫가 4구역): 3×3 섬 자리 중 들어온 쪽 섬 → 가운데 섬 → 출구 쪽 섬을 잇고, 곁가지 섬 1~2(상자). 섬끼리는 나룻배 줄로만 잇는다.
+// 줄은 가로·세로 곧은 물길: 양쪽 섬 끝 땅 칸이 나루(판자 '_'), 그 앞 물 칸이 배 'f'. 돌려주는 것 = 줄마다 배~배 칸들(만드는 동안은 판자)
+const MIN_ISLE = 500; // 섬 나루는 땅이 적다
+const ISLE_COUNT = 20;
+const SLOT = [12, N / 2, N - 13];
+function islands(cells: string[][], rand: () => number, hero: Cell, from: Side, to: Side): Cell[][] {
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const set = ([x, z]: Cell, c: string) => x > 0 && z > 0 && x < N - 1 && z < N - 1 && (cells[z][x] = c);
+  const slotOf = (s: Side): Cell => (s === 'w' ? [0, 1] : s === 'e' ? [2, 1] : s === 'n' ? [1, 0] : [1, 2]);
+  const touch = (a: Cell, b: Cell) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
+  const [a, b] = [slotOf(from), slotOf(to)];
+  const all: Cell[] = [0, 1, 2].flatMap((j) => [0, 1, 2].map((i): Cell => [i, j]));
+  const mids = all.filter((m) => touch(m, a) && touch(m, b));
+  const chain = [a, mids[int(0, mids.length - 1)], b];
+  const links: [Cell, Cell][] = [[chain[0], chain[1]], [chain[1], chain[2]]];
+  const used = [...chain];
+  for (let k = int(1, 2); k > 0; k--) {
+    const free = all.filter((s) => !used.some((u) => u[0] === s[0] && u[1] === s[1]) && used.some((u) => touch(u, s)));
+    if (!free.length) break;
+    const s = free[int(0, free.length - 1)];
+    links.push([used.find((u) => touch(u, s))!, s]);
+    used.push(s);
+  }
+  const key = (s: Cell) => s[1] * 3 + s[0];
+  const center = new Map(used.map((s) => [key(s), [SLOT[s[0]], SLOT[s[1]]] as Cell]));
+  for (const s of used) {
+    const [cx, cz] = center.get(key(s))!;
+    const r = 6 + rand();
+    for (let z = Math.floor(cz - r - 1); z <= cz + r + 1; z++) for (let x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) if (cells[z]?.[x] === 'u' && Math.hypot(x - cx, z - cz) <= r + (rand() - 0.5) * 0.9) cells[z][x] = '.';
+    for (let k = int(1, 3); k > 0; k--) {
+      const [tx, tz, tr] = [cx + int(-4, 4), cz + int(-4, 4), 0.7 + rand() * 0.8]; // 섬 위 덤불·나무
+      for (let z = Math.floor(tz - tr); z <= tz + tr; z++) for (let x = Math.floor(tx - tr); x <= tx + tr; x++) if (cells[z]?.[x] === '.' && Math.hypot(x - tx, z - tz) <= tr) cells[z][x] = '#';
+    }
+  }
+  // 2칸 폭 흙길: (x0, z0)에서 옆으로 꺾어 (x1, z1)까지
+  const lay = ([x0, z0]: Cell, [x1, z1]: Cell) => {
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) for (const dz of [0, 1]) set([x, z0 + dz], '=');
+    for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) for (const dx of [0, 1]) set([x1 + dx, z], '=');
+  };
+  lay(hero, center.get(key(a))!);
+  lay(center.get(key(b))!, at(to, N / 2, 1));
+  const lines: Cell[][] = [];
+  for (const [n, [p, q]] of links.entries()) {
+    const bar = n >= 2 && n === links.length - 1; // 마지막 곁가지 섬은 배 대신 모래톱(물을 낮추면 드러난다)
+    const [c0, c1] = [center.get(key(p))!, center.get(key(q))!];
+    const ax = p[0] !== q[0] ? 0 : 1; // 줄이 나아가는 축(0 = x)
+    const dir = Math.sign(c1[ax] - c0[ax]);
+    const lat = Math.round((c0[1 - ax] + c1[1 - ax]) / 2);
+    const cell = (t: number): Cell => (ax === 0 ? [t, lat] : [lat, t]);
+    const ch = (t: number) => cells[cell(t)[1]][cell(t)[0]];
+    const ch2 = (t: number, dl: number) => (ax === 0 ? cells[lat + dl][t] : cells[t][lat + dl]);
+    let t0 = c0[ax];
+    while (ch(t0) !== 'u') t0 += dir; // 첫 물 칸 = 배 자리
+    let t1 = c1[ax];
+    while (ch(t1) !== 'u') t1 -= dir;
+    for (let k = 0; Math.abs(t1 - t0) > 11; k++) k % 2 ? (set(cell(t1), '_'), (t1 -= dir)) : (set(cell(t0), '_'), (t0 += dir)); // 멀면 나루 판자를 물 쪽으로 늘린다(한 번 건너기 ≤ 11m)
+    lay(c0, cell(t0 - 2 * dir));
+    lay(c1, cell(t1 + 2 * dir));
+    if (bar) {
+      for (let t = t0 - dir; t !== t1 + 2 * dir; t += dir) for (const dl of [0, 1]) if ('u='.includes(ch2(t, dl))) set(ax === 0 ? [t, lat + dl] : [lat + dl, t], '7');
+      set(ax === 0 ? [t0 - 3 * dir, lat - 2] : [lat - 2, t0 - 3 * dir], '8'); // 물높이 바퀴: 모래톱이 시작되는 섬(물을 낮춘 채 갇히지 않게)
+      continue;
+    }
+    for (const t of [t0 - dir, t1 + dir]) set(cell(t), '_'); // 나루 끝 판자(늘린 판자 뒤의 흙길은 위 lay가 잇는다)
+    const line: Cell[] = [];
+    for (let t = t0; t !== t1 + dir; t += dir) line.push(cell(t));
+    for (const c of line) set(c, '_');
+    lines.push(line);
+  }
+  for (const [, q] of links.slice(2)) {
+    const [x, z] = center.get(key(q))!;
+    cells[z][x] = 'c'; // 곁가지 섬의 상자
+  }
+  return lines;
 }
 
 // 지역 기믹을 놓는다. 앞의 난수열(땅·몬스터·야영지)을 바꾸지 않게 따로 굴린다.
@@ -388,4 +579,120 @@ function gimmicks(cells: string[][], r2: () => number, floor: number, land: Wild
     const a = put('@', (p) => dist(p) >= 0.15 * top && dist(p) <= 0.45 * top);
     if (a && !put('@', (p) => dist(p) >= 0.65 * top && Math.hypot(p[0] - a[0], p[1] - a[1]) >= 25)) cells[a[1]][a[0]] = '.'; // 짝이 없으면 하나도 두지 않는다
   }
+}
+
+// 호숫가 퍼즐(설계: 2026-11-24-act2-lake-design.md '퍼즐' 절). 기준 가장자리(t = 가장자리를 따라, k = 안쪽으로)에서 그린다.
+// 2~3구역(출구 가장자리 기준): 검은 샘 0 → 갈림 1(바퀴 5) → [1: 출구를 U자로 둘러막는 물길 | 2: 안쪽으로] → 갈림 2(바퀴 6) → [3: 우물 9로 | 4: 늪 구덩이].
+// 1구역(출구·들어온 곳이 아닌 가장자리): 샘 0 → 갈림 1 → [1: 우물로 | 2: 늪 구덩이]. 물길은 2칸 폭, 둘레의 물웅덩이·다리는 땅으로.
+// 돌려주는 것 = 우물 칸
+function sluiceMap(cells: string[][], rand: () => number, floor: number, from: Side, exit: { side: Side; t: number }): Cell {
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const ok = (x: number, z: number) => x > 0 && z > 0 && x < N - 1 && z < N - 1;
+  let side = exit.side;
+  let te = exit.t;
+  if (floor === 1) {
+    const free = SIDES.filter((x) => x !== from && x !== exit.side);
+    side = free[int(0, free.length - 1)];
+    te = int(N / 2 - 12, N / 2 + 12);
+  }
+  const s = te < N / 2 ? 1 : -1;
+  const L = (t: number, k: number): Cell => at(side, t, k);
+  const marks: [Cell, string][] = [];
+  const brush = (t: number, k: number, c: string) => {
+    for (const [dt, dk] of [[0, 0], [1, 0], [0, 1], [1, 1]]) marks.push([L(t + dt, k + dk), c]);
+  };
+  const sgn = (v: number) => (v < 0 ? -1 : 1);
+  // (t0, k0)에서 t를 따라 t1까지, 거기서 k를 따라 k1까지
+  const run = (t0: number, k0: number, t1: number, k1: number, c: string) => {
+    for (let t = t0; t !== t1 + sgn(t1 - t0); t += sgn(t1 - t0)) brush(t, k0, c);
+    for (let k = k0; k !== k1 + sgn(k1 - k0); k += sgn(k1 - k0)) brush(t1, k, c);
+  };
+  const pool = (t: number, k: number, r: number, c: string) => {
+    for (let dk = -3; dk <= 3; dk++) for (let dt = -3; dt <= 3; dt++) if (Math.hypot(dt, dk) <= r) marks.push([L(t + dt, k + dk), c]);
+  };
+  let wheels: [string, number, number][];
+  let wellAt: [number, number];
+  if (floor === 1) {
+    const [m, p] = [int(9, 12), int(8, 11)];
+    pool(te, 3, 2.2, '0');
+    run(te, 3, te, 6, '0');
+    run(te, 8, te, 8 + m, '1');
+    wellAt = [te, 8 + m + 2];
+    run(te + s * 2, 6, te + s * (2 + p), 6, '2');
+    pool(te + s * (3 + p), 7, 2.4, '2');
+    wheels = [['5', te - s * 2, 8]];
+  } else {
+    const R = int(8, 10);
+    const F = te + s * (R + 4);
+    const [l, m, p] = [int(9, 12), int(8, 10), int(5, 7)];
+    pool(F + s * 3, 3, 2.2, '0');
+    run(F + s * 3, 3, F, 6, '0');
+    run(F - s * 2, 6, te + s * R, 6, '1'); // 출구를 둘러막는 U: 갈림에서 가까운 다리로 → 다리 → 바닥 → 먼 다리
+    run(te + s * R, 1, te + s * R, R, '1');
+    run(te + s * R, R, te - s * R, R, '1');
+    run(te - s * R, R, te - s * R, 1, '1');
+    const k2 = 8 + l;
+    run(F, 8, F, k2, '2');
+    run(F + s * 2, k2, F + s * (2 + m), k2, '3');
+    wellAt = [F + s * (2 + m) + (s > 0 ? 2 : -1), k2];
+    run(F, k2 + 2, F, k2 + 2 + p, '4');
+    pool(F, k2 + 4 + p, 2.5, '4');
+    wheels = [['5', F - s * 2, 9], ['6', F - s * 2, k2 + 1]];
+  }
+  for (const [[x, z]] of marks)
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (ok(x + dx, z + dz) && 'uv_'.includes(cells[z + dz][x + dx])) cells[z + dz][x + dx] = '.';
+  for (const [[x, z], c] of marks) if (ok(x, z) && cells[z][x] !== 'H') cells[z][x] = c;
+  const put = ([x, z]: Cell, c: string) => ok(x, z) && cells[z][x] !== 'H' && (cells[z][x] = c);
+  for (const [c, t, k] of wheels) put(L(t, k), c);
+  const w = L(...wellAt);
+  put(w, '9');
+  return w;
+}
+
+// 바퀴 상태 조합마다(물이 차는 조각은 물 'u', 빠진 조각은 땅): 주인공이 바퀴·우물 곁에 닿고,
+// 출구는 barrier(2~3구역)면 갈림 1이 U(조각 1)를 빠지게 했을 때만, 아니면 늘 닿아야 한다
+function puzzleOk(cells: string[][], hero: Cell, exit: Cell, barrier: boolean): boolean {
+  const has = (c: string) => cells.some((r) => r.includes(c));
+  for (const g5 of [0, 1] as const)
+    for (const g6 of [0, 1] as const)
+      for (const g8 of [0, 1] as const) {
+        if ((!has('6') && g6) || (!has('8') && g8)) continue;
+        const sl = { gates: [{ key: '5', to: g5 }, { key: '6', to: g6 }, { key: '8', to: g8 }].filter((g) => has(g.key)) } as unknown as Sluice;
+        const c = cells.map((r) => r.map((ch) => ('012347'.includes(ch) ? (flows(sl, +ch) ? 'u' : '.') : ch)));
+        const d = walkDistances(c, hero[0], hero[1]);
+        const near = (x: number, z: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => d[(z + dz) * N + x + dx] >= 0);
+        for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if ('5689'.includes(cells[z][x]) && !near(x, z)) return false;
+        if (has('5') && d[exit[1] * N + exit[0]] >= 0 !== (!barrier || g5 === 1)) return false;
+      }
+  return true;
+}
+
+// 호숫가 결전장(48×48, 늘 같은 모양 — 설계: 2026-11-24-act2-lake-design.md 7절): 가운데 반지름 12 호수, 둘레 땅 고리(바위·덤불 조금), 가장자리 숲.
+// 동서남북 나루(판자 2칸 폭이 물 안으로 3칸(배가 도는 반지름 8에 닿지 않게), 끝이 뱃사공이 오르내리는 자리 — ferryman.ts FERRYMAN.tip). 주인공은 남쪽 땅, 뱃사공은 북쪽 나루 끝에서 시작
+const LAKE_ARENA_SEED = 13;
+export function generateLakeArena(): string[] {
+  const M = SIZE;
+  const c = M / 2;
+  const rand = mulberry(LAKE_ARENA_SEED);
+  const cells: string[][] = Array.from({ length: M }, (_, z) =>
+    Array.from({ length: M }, (_, x) => {
+      const r = Math.hypot(x + 0.5 - c, z + 0.5 - c);
+      return r <= 12 ? 'u' : r <= 19.5 + Math.sin(Math.atan2(z - c, x - c) * 5) * 1.2 ? '.' : '#';
+    }),
+  );
+  for (const [dx, dz] of [[0, -1], [1, 0], [0, 1], [-1, 0]])
+    for (let k = 9; k <= 13; k++)
+      for (const s of [-1, 0]) {
+        const [x, z] = [Math.floor(c + dx * (k + 0.5) + (dz ? s : 0)), Math.floor(c + dz * (k + 0.5) + (dx ? s : 0))];
+        if (cells[z][x] === 'u') cells[z][x] = '_';
+      }
+  for (let k = 0; k < 14; k++) {
+    const a = rand() * Math.PI * 2, r = 14.5 + rand() * 3.5;
+    const [x, z] = [Math.floor(c + Math.cos(a) * r), Math.floor(c + Math.sin(a) * r)];
+    if (Math.abs(Math.cos(a)) > 0.25 && Math.abs(Math.sin(a)) > 0.25 && cells[z][x] === '.') cells[z][x] = rand() < 0.4 ? '#' : ','; // 나루 길목은 비운다
+  }
+  for (const [x, z] of [[c - 9, c - 9], [c + 8, c + 8], [c + 8, c - 9], [c - 9, c + 8]]) cells[z][x] = cells[z][x] === '.' ? 'B' : cells[z][x]; // 네 귀퉁이 화로
+  cells[c + 16][c] = 'H';
+  cells[c - 10][c] = 'M';
+  return cells.map((r) => r.join(''));
 }

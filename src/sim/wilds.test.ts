@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { bossName, createWorld, LANDS, step } from './world';
 import { FLOORS, OPEN, SIZE, walkDistances } from './dungeon';
-import { exitsFor, GATE_FIRES, generateCamp, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
+import { exitsFor, GATE_FIRES, generateCamp, generateTent, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
 
 const count = (map: string[], chars: string) => map.join('').split('').filter((c) => chars.includes(c)).length;
 const find = (map: string[], ch: string): [number, number][] => map.flatMap((r, z) => [...r].flatMap((c, x) => (c === ch ? [[x, z] as [number, number]] : [])));
@@ -118,6 +118,43 @@ test('야영지: 48칸, 늘 같은 맵, 모닥불·순찰대장·상인·의뢰�
   const w = createWorld(1, map);
   expect(w.chests.map((c) => c.kind).sort()).toEqual(['asker', 'elder', 'merchant', 'stash', 'villager']);
   expect(w.exits.every((e) => e.to === 'field')).toBe(true);
+  expect(w.entities).toHaveLength(1);
+});
+
+test('2막이 열린 야영지: 북쪽 맨 바깥 줄에 원정길 출구(x 3칸, → 천막)가 더해지고 걸어서 닿는다. 나머지(NPC·초원 출구)는 그대로', () => {
+  const [plain, open] = [generateCamp(), generateCamp(true)];
+  expect(makeMap(5, 0, 'camp', 'w', ['field', 'tent'])).toEqual(open);
+  const exits = find(open, 'x');
+  expect(exits.length).toBe(3);
+  expect(exits.every(([, z]) => z === 0)).toBe(true);
+  const ok = reachable(open, find(open, 'H')[0]);
+  for (const p of [...exits, ...find(open, 'F'), ...find(open, 'E'), ...find(open, 'V'), ...find(open, 'h')]) expect(ok(p)).toBe(true);
+  for (const ch of 'HEVqPhBF') expect(find(open, ch)).toEqual(find(plain, ch));
+  expect(createWorld(1, open).exits.filter((e) => e.to === 'tent')).toHaveLength(3);
+});
+
+test('원정대 천막: 48칸, 늘 같은 맵, 화덕·순찰대장·상인·창고, 천막 다섯(작은 넷 2×2·큰 하나 4×4, 덮인 칸은 막힘), 서쪽 끝 야영지 출구(y 3칸)·북쪽 끝 호숫가 출구(l 3칸), 몬스터 없음, 모두 닿는다', () => {
+  const map = generateTent();
+  expect(map.length).toBe(SIZE);
+  expect(map).toEqual(makeMap(9, 0, 'tent'));
+  for (const ch of 'HEVhB') expect(count(map, ch)).toBe(1);
+  expect(count(map, 'e')).toBe(4);
+  expect(count(map, 'i')).toBe(1);
+  expect(count(map, 'n')).toBe(4 * 3 + 15);
+  const exits = find(map, 'y');
+  expect(exits.length).toBe(3);
+  expect(exits.every(([x]) => x === 0)).toBe(true);
+  expect(count(map, 'mwagNWAGKMZUTXcCYQIL')).toBe(0);
+  const ok = reachable(map, find(map, 'H')[0]);
+  for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'h'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
+  const w = createWorld(1, map);
+  expect(w.chests.map((c) => c.kind).sort()).toEqual(['elder', 'merchant', 'stash']);
+  expect(new Set(w.exits.map((e) => e.to))).toEqual(new Set(['camp', 'lake']));
+  const north = find(map, 'l');
+  expect(north.length).toBe(3);
+  expect(north.every(([, z]) => z === 0)).toBe(true);
+  for (const p of north) expect(ok(p)).toBe(true);
+  expect(w.props.filter((p) => p.kind === 'tent' || p.kind === 'tentBig')).toHaveLength(5);
   expect(w.entities).toHaveLength(1);
 });
 

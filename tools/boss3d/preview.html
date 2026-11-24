@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>보스 그림 미리보기</title>
+<style>
+  body { margin: 0; background: #16131a; color: #d8d0e8; font: 14px sans-serif; }
+  canvas { display: block; margin: 0 auto; image-rendering: pixelated; cursor: crosshair; }
+  p { text-align: center; margin: 8px; }
+  button { margin: 0 4px; padding: 4px 10px; }
+</style>
+<p>
+  <button id="auto">자동 시연</button>
+  <button id="walk">걷기</button>
+  <button id="atk">공격 (Space)</button>
+  <button id="hit">맞음 (H)</button>
+  <button id="die">쓰러짐 (D)</button>
+  <button id="zoom">확대 ×2/×3</button>
+  — 바닥을 누르면 그 자리로 걸어가요. 왼쪽부터 기도하는 자, 해골 기사, 악마(게임 시트 그대로)
+</p>
+<canvas id="c"></canvas>
+<script src="sheets.js"></script>
+<script>
+const SECT = [4, 3, 2, 1, 0, 7, 6, 5]; // 화면 각도 구간(E부터 반시계) → FLARE 방향
+const PPM = 30, SPEED = 1.6; // m/s
+const W = 560, H = 320;
+let Z = 2;
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+function size() { cv.width = W * Z; cv.height = H * Z; cx.imageSmoothingEnabled = false; }
+size();
+const imgs = {};
+for (const n in SHEETS) { imgs[n] = new Image(); imgs[n].src = n + '.png'; }
+
+function frameAt(c, t) {
+  const i = Math.floor((t * 1000 * c.frames) / c.ms);
+  if (c.loop === 'play_once') return Math.min(i, c.frames - 1);
+  if (c.loop === 'looped' || c.frames < 2) return i % c.frames;
+  const p = 2 * (c.frames - 1), k = i % p;
+  return k < c.frames ? k : p - k;
+}
+function draw(n, anim, dir, t, x, y) {
+  const s = SHEETS[n], c = s.anims[anim] || s.anims.stance, [cw, ch] = s.cell;
+  // 발밑 그림자
+  cx.fillStyle = 'rgba(0,0,0,0.35)';
+  cx.beginPath(); cx.ellipse(x * Z, y * Z, 14 * Z, 6 * Z, 0, 0, Math.PI * 2); cx.fill();
+  cx.drawImage(imgs[n], frameAt(c, t) * cw, (c.row + dir) * ch, cw, ch, (x - s.anchor[0]) * Z, (y - s.anchor[1]) * Z, cw * Z, ch * Z);
+}
+// 바닥: 1m 칸 마름모(화면에서 가로 1m = 30px, 세로는 sin30으로 눌린다)
+function floor() {
+  cx.fillStyle = '#2a2530'; cx.fillRect(0, 0, cv.width, cv.height);
+  cx.strokeStyle = '#3a3442'; cx.lineWidth = 1;
+  const sx = PPM * Math.SQRT1_2 * Z, sy = sx * 0.5;
+  for (let k = -40; k < 40; k++) {
+    cx.beginPath(); cx.moveTo(k * sx * 2, 0); cx.lineTo(k * sx * 2 + cv.height / sy * sx, cv.height); cx.stroke();
+    cx.beginPath(); cx.moveTo(k * sx * 2, 0); cx.lineTo(k * sx * 2 - cv.height / sy * sx, cv.height); cx.stroke();
+  }
+}
+
+const others = [['fallen_paladin', 90, 120], ['bone_knight', 90, 230], ['demon', 470, 250]];
+const boss = { x: 300, y: 190, dir: 6, anim: 'stance', t: 0, tx: null, ty: null, dead: false };
+let auto = true, step = 0, wait = 0;
+const PLAN = [[200, 150], 'attack', [380, 230], 'attack', [300, 120], [260, 250], 'attack', [300, 190]];
+
+function goTo(x, y) { boss.tx = x; boss.ty = y; if (boss.anim !== 'move') { boss.anim = 'move'; boss.t = 0; } }
+function act(a) { boss.anim = a; boss.t = 0; boss.tx = null; boss.dead = a === 'die'; }
+function faceTo(dx, dy) { const s = Math.round(Math.atan2(-dy, dx) / (Math.PI / 4)); boss.dir = SECT[((s % 8) + 8) % 8]; }
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  boss.t += dt;
+  if (boss.anim === 'move' && boss.tx !== null) {
+    const dx = boss.tx - boss.x, dy = boss.ty - boss.y;
+    const wx = dx / PPM, wz = dy / (PPM * 0.5); // 화면 → 바닥 거리(m)
+    const dist = Math.hypot(wx, wz);
+    if (dist < 0.05) { boss.anim = 'stance'; boss.t = 0; boss.tx = null; }
+    else {
+      faceTo(dx, dy);
+      const m = Math.min(dist, SPEED * dt) / dist;
+      boss.x += dx * m; boss.y += dy * m;
+    }
+  }
+  const c = SHEETS[BOSS].anims[boss.anim];
+  if (c.loop === 'play_once' && boss.t * 1000 > c.ms + (boss.anim === 'die' ? 1500 : 150)) {
+    if (boss.anim === 'die') { boss.anim = 'stance'; boss.dead = false; }
+    else boss.anim = 'stance';
+    boss.t = 0;
+  }
+  if (auto && boss.anim === 'stance' && (wait -= dt) <= 0) {
+    const s = PLAN[step++ % PLAN.length];
+    if (s === 'attack') act('attack'); else goTo(...s);
+    wait = 0.6;
+  }
+  floor();
+  const list = others.map(([n, x, y]) => ({ y, f: () => draw(n, 'stance', n === 'demon' ? 7 : 5, now / 1000, x, y) }));
+  list.push({ y: boss.y, f: () => draw(BOSS, boss.anim, boss.dir, boss.t, boss.x, boss.y) });
+  list.sort((a, b) => a.y - b.y).forEach((o) => o.f());
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+cv.addEventListener('click', (e) => { auto = false; const r = cv.getBoundingClientRect(); goTo((e.clientX - r.left) / Z, (e.clientY - r.top) / Z); });
+document.getElementById('auto').onclick = () => { auto = true; };
+document.getElementById('walk').onclick = () => { auto = false; goTo(Math.random() * 400 + 80, Math.random() * 180 + 90); };
+document.getElementById('atk').onclick = () => { auto = false; act('attack'); };
+document.getElementById('hit').onclick = () => { auto = false; act('hit'); };
+document.getElementById('die').onclick = () => { auto = false; act('die'); };
+document.getElementById('zoom').onclick = () => { Z = Z === 2 ? 3 : 2; size(); };
+addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); auto = false; act('attack'); }
+  if (e.code === 'KeyD') { auto = false; act('die'); }
+  if (e.code === 'KeyH') { auto = false; act('hit'); }
+});
+</script>

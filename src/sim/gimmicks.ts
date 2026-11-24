@@ -5,8 +5,9 @@ import { walkable } from './path';
 import { asleep, dist, dress, dropGold, hurt, makeEntity, rand, randSlot, rollGear, wake } from './core';
 import { guardOf, SANCTUM } from './sanctum';
 import { tickPaladin } from './paladin';
+import { lakeLow, tickSluice, turnWheel } from './sluice';
 import { bossScale, cyclePower, FLOORS } from './dungeon';
-import { depthOf, FIERCE, AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
+import { isHub, depthOf, FIERCE, AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, FERRY, LURK, PUDDLE, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
 const LETTER: Record<string, Kind> = { m: 'minion', w: 'warrior', a: 'archer', g: 'mage' };
 // 몬스터 피해 배율(층 배율의 DMG_SCALE배 + 공통 배율) — 함정 피해에 곱한다
@@ -26,13 +27,13 @@ export function spawnNear(w: World, kind: Kind, cx: number, cz: number, r: numbe
   return null;
 }
 
-// ?test 「기사 소환」: 주인공 곁에 그 회차의 성소 5층 기도하는 자와 같은 수치(체력·힘·깊은 곳 특성 하나).
+// ?test 「기사 소환」·「파수꾼 소환」(skin): 주인공 곁에 그 회차의 성소 5층 기도하는 자와 같은 수치(체력·힘·깊은 곳 특성 하나).
 // 어느 구역에서 불러도 실제 결전과 같은 세기로 시험하게(main.ts makeFloor의 보스 배율·성소 체력 배율과 같은 순서로 반올림)
-export function summonKnight(w: World, cycle: number): Entity | null {
+export function summonKnight(w: World, cycle: number, skin: Skin = 'fallen_paladin'): Entity | null {
   const hero = w.entities[0];
-  const k = spawnNear(w, 'boss', hero.x, hero.z, 3, -1, 'fallen_paladin');
+  const k = spawnNear(w, 'boss', hero.x, hero.z, 3, -1, skin);
   if (!k) return null;
-  const base = dress(makeEntity(k.id, 'boss', k.x, k.z, cyclePower(cycle)), { boss: 'fallen_paladin' });
+  const base = dress(makeEntity(k.id, 'boss', k.x, k.z, cyclePower(cycle)), { boss: skin });
   const s = bossScale(depthOf('sanctum', FLOORS));
   const hp = Math.round(Math.round(base.maxHp * s) * SANCTUM.bossHp);
   return Object.assign(k, { power: base.power * s, hp, maxHp: hp, eliteKind: FIERCE[Math.floor(rand(w) * FIERCE.length)] });
@@ -40,7 +41,7 @@ export function summonKnight(w: World, cycle: number): Entity | null {
 
 // ?test 「기사 소환」(타락한 성기사)이 되는 곳: 야영지가 아니고, 구역 클리어를 계단·출구·원래 보스가 정하는 곳.
 // 셋 다 없는 구역(안 열린 지역으로 건너뛴 구역 등)에서는 기사가 유일한 보스가 되어 쓰러뜨리면 구역 클리어 → 이야기가 넘어갈 수 있다
-export const canSummonKnight = (w: World) => w.land !== 'camp' && (!!w.stairs || w.exits.length > 0 || w.entities.some((e) => e.kind === 'boss'));
+export const canSummonKnight = (w: World) => !isHub(w.land) && (!!w.stairs || w.exits.length > 0 || w.entities.some((e) => e.kind === 'boss'));
 
 // 특별한 상자를 눌렀다. true = 처리했다(평소처럼 열지 않는다)
 export function touchChest(w: World, ch: Chest): boolean {
@@ -51,6 +52,16 @@ export function touchChest(w: World, ch: Chest): boolean {
       w.marked = true;
     }
     w.talk = ch.kind;
+    return true;
+  }
+  if (ch.kind === 'wheel') return turnWheel(w, ch), true;
+  if (ch.kind === 'well' || ch.kind === 'priest') return (w.talk = ch.kind), true;
+  if (ch.kind === 'sick') {
+    if (ch.open && !ch.wave) {
+      ch.wave = 1; // 나은 주민이 물약 하나(한 번)
+      w.items.push({ id: w.nextItem++, x: ch.x + 0.5, z: ch.z + 1.3, kind: 'potion', tier: 0 });
+    }
+    w.talk = 'sick';
     return true;
   }
   if (ch.kind === 'altar') {
@@ -106,7 +117,7 @@ export function specialLoot(w: World, ch: Chest, x: number, z: number, gx: numbe
 // 몬스터 한 마리의 특별한 행동. true = 이번 틱은 이것으로 끝(평소의 생각·행동을 건너뛴다)
 export function special(w: World, e: Entity, hero: Entity): boolean {
   if (asleep(e)) {
-    if (hero.state !== 'dead' && dist(e, hero) <= SLEEP.wake) wake(w, e);
+    if (hero.state !== 'dead' && dist(e, hero) <= (e.skin === 'plague_villager' ? LURK : SLEEP.wake)) wake(w, e); // 물가에 잠긴 마을 사람은 멀리서 기어 나온다
     return asleep(e);
   }
   if (e.skin === 'grave') {
@@ -130,6 +141,10 @@ export function special(w: World, e: Entity, hero: Entity): boolean {
 export function tickGimmicks(w: World, hero: Entity) {
   if (w.buff && (w.buff.t -= DT) <= 0) w.buff = null;
   if (w.land === 'sanctum') tickAltars(w, hero);
+  tickSluice(w);
+  // 역병 마을 사람이 쓰러진 자리: 검은 웅덩이(밟은 주인공은 느려진다 — core 걸음)
+  w.puddles = w.puddles.filter((p) => (p.t -= DT) > 0);
+  for (const e of w.entities) if (e.skin === 'plague_villager' && e.state === 'dead' && !e.pooled && e.x > -10) (e.pooled = true), w.puddles.push({ x: e.x, z: e.z, t: PUDDLE.t });
   tickPaladin(w); // 성기사 기술(?test 소환이면 성소 밖에서도)
   // 시련의 제단: 물결을 다 막으면 다음 물결(마지막 뒤엔 상자가 풀린다 — 열기는 주인공이)
   // 봉화도 같은 방식이고, 마지막 물결을 다 막으면 저절로 켜진다(의뢰 하나)
@@ -174,6 +189,7 @@ export function tickGimmicks(w: World, hero: Entity) {
     Object.assign(hero, { x, z, path: [], state: 'idle', target: null });
     Object.assign(w, { portalLock: true, amove: null, opening: null });
   }
+  if (w.ferries.length) tickFerry(w, hero);
   // 폐허 보스: 체력 절반에 무덤을 일으킨다
   const boss = w.land === 'ruins' && !w.bossRaised ? w.entities.find((e) => e.kind === 'boss' && e.skin === 'demon' && e.state !== 'dead' && e.hp <= e.maxHp / 2) : undefined;
   if (boss) {
@@ -232,4 +248,49 @@ function tickAltars(w: World, hero: Entity) {
     const at = (lit.length >= SANCTUM.knights ? lit : altars).slice(0, SANCTUM.knights);
     for (const c of at) spawnNear(w, 'king', c.x + 0.5, c.z + 0.5, 1.5, -1, 'bone_knight');
   }
+}
+
+// 나룻배(호숫가 섬 나루): 나루 끝 판자 칸에 서면 탄다. 배는 줄을 따라 FERRY.speed로 건너 건너편 나루에 내려 준다
+// (탄 배는 거기 남고 빈 배는 처음 나루로 돌아가 있다 — 그림은 두 배가 엇갈려 지나간다). 타는 동안 주인공은 배에 붙어 있고
+// 이동·구르기 명령은 command가 버린다(공격·스킬은 된다). 절반쯤에 물에서 마을 사람이 배로 기어올라 같이 탄다
+function tickFerry(w: World, hero: Entity) {
+  const cell = Math.floor(hero.z) * w.grid.w + Math.floor(hero.x);
+  const r = w.ride;
+  if (!r) {
+    if (cell !== w.ferryLock) w.ferryLock = -1;
+    if (w.ferryLock >= 0 || hero.phase !== 'none' || lakeLow(w)) return; // 물이 낮으면 배가 바닥에 걸려 있다
+    for (let line = 0; line < w.ferries.length; line++) {
+      const from = w.ferries[line].docks.findIndex(([x, z]) => z * w.grid.w + x === cell);
+      if (from < 0) continue;
+      w.ride = { line, from: from as 0 | 1, s: 0, riders: [], climbed: false };
+      Object.assign(hero, { path: [], state: 'idle', target: null });
+      Object.assign(w, { amove: null, opening: null, taking: null, toStairs: false });
+      return;
+    }
+    return;
+  }
+  const f = w.ferries[r.line];
+  const [p, q] = r.from ? [f.b, f.a] : [f.a, f.b];
+  const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const [ux, uz] = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
+  r.s = Math.min(len, r.s + FERRY.speed * DT);
+  const [bx, bz] = [p[0] + ux * r.s, p[1] + uz * r.s];
+  if (!r.climbed && r.s >= len / 2) {
+    r.climbed = true;
+    const [lo, hi] = FERRY.climbers;
+    for (let n = lo + Math.floor(rand(w) * (hi - lo + 1)), k = 0; k < n; k++) {
+      const e = Object.assign(dress(makeEntity(w.entities.length, 'minion', bx, bz, w.power), w.skins), { target: 0 });
+      w.entities.push(e);
+      r.riders.push(e.id);
+    }
+  }
+  // 주인공은 배 가운데, 기어오른 것들은 뱃머리·고물(번갈아)
+  Object.assign(hero, { x: bx, z: bz, path: [] });
+  r.riders.forEach((id, i) => Object.assign(w.entities[id], { x: bx + ux * (i % 2 ? -0.75 : 0.75), z: bz + uz * (i % 2 ? -0.75 : 0.75), path: [] }));
+  if (r.s < len) return;
+  const [dx, dz] = f.docks[r.from ? 0 : 1];
+  Object.assign(hero, { x: dx + 0.5, z: dz + 0.5 });
+  for (const id of r.riders) Object.assign(w.entities[id], { x: dx + 0.5 - ux * 0.3, z: dz + 0.5 - uz * 0.3 });
+  w.ferryLock = dz * w.grid.w + dx;
+  w.ride = null;
 }

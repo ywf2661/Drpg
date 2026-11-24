@@ -17,6 +17,8 @@ import loot from '../assets/sprites/loot.json';
 import ember from '../assets/sprites/ember.json';
 import fallenPaladin from '../assets/sprites/fallen_paladin.json';
 import fallenPaladinHeads from '../assets/sprites/fallen_paladin_heads.json';
+import timeWarden from '../assets/sprites/time_warden.json';
+import ferryman from '../assets/sprites/plague_ferryman.json';
 
 const ANIMS = ['stance', 'move', 'attack', 'hit', 'die'] as const;
 
@@ -28,6 +30,8 @@ test.each([
   ['mage', mage],
   ['boss', boss],
   ['fallen_paladin', fallenPaladin],
+  ['time_warden', timeWarden],
+  ['plague_ferryman', ferryman],
 ])('%s 시트: 모든 동작 × 8방향이 시트 범위 안에 있다', (_, info) => {
   expect(info.ppm).toBe(30);
   expect(info.rows).toBe(ANIMS.length * 8);
@@ -88,7 +92,7 @@ test('loot 시트: 물약과 장비(기사·마법사·궁수) 바닥 그림', (
 });
 
 test('사망 동작은 모두 1회 재생(마지막 프레임 = 시체)', () => {
-  for (const info of [hero, minion, warrior, archer, mage, boss, fallenPaladin]) expect(info.anims.die.loop).toBe('play_once');
+  for (const info of [hero, minion, warrior, archer, mage, boss, fallenPaladin, timeWarden]) expect(info.anims.die.loop).toBe('play_once');
 });
 
 test('가르기 효과 시트: 8방향 × 6프레임 1회', () => {
@@ -120,7 +124,7 @@ test('마력탄은 화살처럼 가슴 높이로 난다(칸 꼭대기 = 그림�
 });
 
 test('모든 시트의 기준점(발)은 칸 안에 있다(판자 바닥선)', () => {
-  for (const info of [hero, minion, warrior, archer, mage, boss, fallenPaladin, props, stairs, loot, arrow, cleave, fireball, blast, axe, quake]) {
+  for (const info of [hero, minion, warrior, archer, mage, boss, fallenPaladin, timeWarden, props, stairs, loot, arrow, cleave, fireball, blast, axe, quake]) {
     expect(info.anchor[1]).toBeLessThanOrEqual(info.cell[1]);
     expect(info.anchor[1]).toBeGreaterThanOrEqual(0);
   }

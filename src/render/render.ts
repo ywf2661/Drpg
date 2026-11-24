@@ -11,6 +11,10 @@ import fieldWallUrl from '../assets/tiles/wall_field.png';
 import snowFloorUrl from '../assets/tiles/floor_snow.png';
 import snowWallUrl from '../assets/tiles/wall_snow.png';
 import ruinsFloorUrl from '../assets/tiles/floor_ruins.png';
+import plankUrl from '../assets/tiles/plank.png';
+import logUrl from '../assets/tiles/wall_log.png';
+import { buildWater, tickWater } from './water';
+import { fadeTrees } from './props';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
@@ -47,6 +51,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   snow: { torch: 0xcfe2ff, range: 12, tint: [0.9, 0.95, 1], sky: 2.2, sun: 2.8, bg: 0xb9c4cf },
   ruins: { torch: 0xffb070, range: 12, tint: [1, 0.86, 0.72], sky: 1.6, sun: 2.4, bg: 0x2b2a24 }, // 해 질 녘
   sanctum: { torch: 0xe0705a, range: 10, tint: [1, 0.78, 0.72], sky: 0.22, sun: 0, bg: 0x000000 }, // 무너진 성소: 폐허 타일에 칠흑과 핏빛 횃불
+  lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -169,6 +174,7 @@ const SLIDE_MIN = 0.3; // 한 프레임에 이보다 멀리 옮겨졌으면 걸�
 const tex = {} as Record<Theme, { floor: THREE.Texture; wall: THREE.Texture }>; // 테마별 바닥·벽 질감
 let floorTex: THREE.Texture;
 let wallTex: THREE.Texture;
+let plankTex: THREE.Texture; // 나루·다리 판자(plank.png, 4칸). 물·여울은 water.ts의 물면
 const FLOOR_VARIANTS = 8; // floor.png 가로 칸 수
 let cutaway = (_hx: number, _hz: number) => {}; // 현재 층의 앞쪽 벽 낮추기
 // 설원 눈보라: 구역에 들어온 뒤의 시간과 시간표 시드. 눈보라 동안 시야가 BLIZZARD_SIGHT까지 좁아진다
@@ -193,13 +199,15 @@ export async function initRender(world: World, theme: Theme) {
   scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
-  const [f, w, cf, cw, ff, fw, sf, sw, rf, rw] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
+  const [f, w, cf, cw, ff, fw, sf, sw, rf, rw, pk, lg] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSheet(plankUrl), loadSheet(logUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
   tex.dungeon = { floor: f, wall: w };
   tex.cave = { floor: cf, wall: cw };
   tex.field = { floor: ff, wall: fw };
   tex.snow = { floor: sf, wall: sw };
   tex.ruins = { floor: rf, wall: rw };
   tex.sanctum = tex.ruins;
+  tex.lake = { floor: ff, wall: lg }; // 호숫가: 풀은 초원 그림(색만 서늘하게), 벽 상자는 통나무집뿐('#'은 숲으로 그린다)
+  plankTex = pk;
   setWorld(world, theme);
 }
 
@@ -220,7 +228,7 @@ export function setWorld(world: World, theme: Theme) {
   (scene.background as THREE.Color).set(mood.bg);
   torch.castShadow = !view.day; // 그림자는 낮엔 해가, 밤엔 횃불이
   sun.castShadow = view.day;
-  buildMap(world);
+  buildMap(world, theme);
   clearRain();
   for (const s of sprites) s.mesh.removeFromParent();
   dropAllies(new Set());
@@ -251,6 +259,7 @@ export function headOf(id: number): THREE.Vector3 | null {
 export function draw(world: World, dt: number) {
   const hero = world.entities[0];
   time += dt;
+  tickWater(time, world);
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;
@@ -348,6 +357,7 @@ export function draw(world: World, dt: number) {
   marker.scale.setScalar(0.45 + (0.55 * markT) / MARK);
   marker.material.opacity = Math.min(1, (2 * markT) / MARK);
   cutaway(hero.x, hero.z);
+  fadeTrees(hero.x, hero.z);
   syncItems(world);
   syncShots(world);
   syncComets(world);
@@ -406,7 +416,7 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
-function buildMap(world: World) {
+function buildMap(world: World, theme: Theme) {
   // 이전 층의 메시·지오메트리·재질·질감 해제(소품은 buildProps가 해제)
   mapGroup.traverse((o) => {
     if (!(o instanceof THREE.InstancedMesh)) return;
@@ -426,9 +436,26 @@ function buildMap(world: World) {
   const sand = new Set(world.sand.map(([x, z]) => z * w + x));
   const floorCells: [number, number][][] = Array.from({ length: 3 * FLOOR_VARIANTS }, () => []); // 변형 × [바닥, 길(흙빛), 개미지옥 모래]
   const wallCells: [number, number][] = [];
+  // 호숫가: 물(막힘 값 2)·여울은 바닥·벽 대신 물면(water.ts), 판자는 판자 바닥(질감 4칸 중 해시로)
+  const ford = new Set(world.fords.map(([x, z]) => z * w + x));
+  const plank = new Set(world.planks.map(([x, z]) => z * w + x));
+  const planks: [number, number][] = [];
+  // 호숫가: 벽 칸('#')은 상자 대신 숲(어두운 덤불 바닥 + 나무 그림, props.ts lakeDeco), 통나무집('|')만 벽 상자. 물가 젖은 흙은 water.ts의 둑 판
+  const forest = theme === 'lake';
+  const logs = new Set(world.logs.map(([x, z]) => z * w + x));
+  const near = (x: number, z: number, r: number, ok: (i: number) => boolean) => {
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (x + dx >= 0 && z + dz >= 0 && x + dx < w && z + dz < h && ok((z + dz) * w + x + dx)) return true;
+    return false;
+  };
+  const undergrowth: [number, number][] = [];
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
-      if (open(x, z) || prop.has(z * w + x)) floorCells[floorVariant(x, z) + (sand.has(z * w + x) ? 2 * FLOOR_VARIANTS : road.has(z * w + x) ? FLOOR_VARIANTS : 0)].push([x, z]);
+      const i = z * w + x;
+      if (blocked[i] === 2 || ford.has(i)) continue;
+      else if (plank.has(i)) planks.push([x, z]);
+      else if (forest && blocked[i] === 1 && !logs.has(i) && !prop.has(i)) {
+        if (near(x, z, 2, (j) => !blocked[j])) undergrowth.push([x, z]);
+      } else if (open(x, z) || prop.has(i)) floorCells[floorVariant(x, z) + (sand.has(i) ? 2 * FLOOR_VARIANTS : road.has(i) ? FLOOR_VARIANTS : 0)].push([x, z]);
       else if ([-1, 0, 1].some((dz) => [-1, 0, 1].some((dx) => open(x + dx, z + dz)))) wallCells.push([x, z]);
     }
   }
@@ -443,6 +470,28 @@ function buildMap(world: World) {
     floor.receiveShadow = true;
     mapGroup.add(floor);
   });
+  // 호숫가 바닥 색: 풀은 이끼 낀 서늘한 초록, 숲 바닥은 어두운 덤불
+  if (forest) for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(0.74, 0.88, 0.8));
+  for (const [cells, rgb] of [[undergrowth, 0x75876a]] as const) {
+    if (!cells.length) continue;
+    const mat = stone(floorTex, 4, FLOOR_VARIANTS);
+    mat.color.set(rgb);
+    const mesh = new THREE.InstancedMesh(floorGeo.clone(), mat, cells.length);
+    cells.forEach(([x, z], k) => mesh.setMatrixAt(k, m.makeTranslation(x + 0.5, 0, z + 0.5)));
+    mesh.receiveShadow = true;
+    mapGroup.add(mesh);
+  }
+  const water = buildWater(world);
+  if (water) mapGroup.add(water);
+  for (let v = 0; v < 4 && planks.length; v++) {
+    const boards = planks.filter(([x, z]) => floorVariant(x, z) % 4 === v);
+    if (boards.length) {
+      const mesh = new THREE.InstancedMesh(floorGeo.clone(), stone(plankTex, v, 4), boards.length);
+      boards.forEach(([x, z], k) => mesh.setMatrixAt(k, m.makeTranslation(x + 0.5, 0.02, z + 0.5)));
+      mesh.receiveShadow = true;
+      mapGroup.add(mesh);
+    }
+  }
   floorGeo.dispose();
   // 보이는 면은 +x·+z(카메라 쪽)와 윗면뿐. 안 보이는 면은 같은 재질을 쓴다
   // wall.png = 변형마다 [+x 면, +z 면] 32px씩. 변형별로 InstancedMesh 하나(칸마다 해시로 고름)

@@ -1,0 +1,51 @@
+{
+  "cell": [
+    151,
+    119
+  ],
+  "anchor": [
+    84,
+    77
+  ],
+  "ppm": 30,
+  "cols": 1,
+  "rows": 6,
+  "anims": {
+    "tent_a": {
+      "row": 0,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "tent_b": {
+      "row": 1,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "tent_rope": {
+      "row": 2,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "lean_to": {
+      "row": 3,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "tent_big": {
+      "row": 4,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "tent_round": {
+      "row": 5,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    }
+  }
+}

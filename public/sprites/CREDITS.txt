@@ -19,6 +19,20 @@ Time witch (ending): female avatar mage hood, vest, skirt, sleeves and boots rec
 Fallen paladin (boss): "8 Directional Greatsword Knight" by Hormelz, itch.io, CC0 - https://hormelz.itch.io/8-directional-great-sword-knight-character
 Modifications: idle frames halved, recolored (32-color palette swap), hit and death frames made by rotating the idle frame, scaled by 0.5, alpha thresholded, reduced to 256 colors.
 
+Lake planks, trees, plants and log walls (act 2 lake): "Regular Grassland Tileset Hills / Slopes / Ramps [16x190]" by WithinAmnesia (an edit of the Flare
+grassland tileset by Clint Bellanger), OpenGameArt, CC-BY-SA 3.0 - https://opengameart.org/content/regular-grassland-tileset-hills-slopes-ramps-16x190
+Modifications: plank tiles 345, 347 flattened from isometric into square textures; 16 trees and 16 plants cut out (shadows and
+neighbouring pieces removed), scaled by 42.43/64 and packed into lake_trees / lake_plants; a log-cabin wall face cropped into
+wall_log.png (tools/lake.py, source kept in tools/art/grassland_plus).
+
+Expedition tents (act 2 camp): "isometric props and tents" by rubberduck, OpenGameArt, CC0 - https://opengameart.org/content/isometric-props-and-tents
+Modifications: six tents cropped from props_2x2.png / props_4x4.png (kept in tools/art/rubberduck), scaled by 42.43/128,
+alpha thresholded, packed into one sheet (tools/tents.py), reduced to 256 colors.
+
+Time warden (act 2 boss): original 3D model built from primitives by script (tools/boss3d/time_warden.js) and rendered
+into an 8-direction sprite sheet (tools/boss3d/render.py); procedural canvas textures. Design reference: the time guardian
+of the previous game (dungeon-crawler images/monsters/timeguardian.png, same author).
+
 Runes (rune stones): "FLARE Item Variation 60x60 ONLY", OpenGameArt, CC0 - https://opengameart.org/content/flare-item-variation-60x60-only
 Modifications: 20 rune stones cropped from the 5x4 preview sheet (tools/art/Runes1.png), black background made transparent,
 packed into a one-column 40x40 sheet (tools/runes.py). One stone (row 4, column 2) is not used.
@@ -409,3 +423,6 @@ Full Credits
 See the full credits listing including per-file attribution online:
 https://github.com/flareteam/flare-engine/wiki/Credits
 https://github.com/flareteam/flare-game/wiki/Credits
+
+역병 걸린 마을 사람(src/assets/sprites/plague_villager.png): Flare 좀비(CC-BY-SA 3.0)의 색을 바꾼 것(tools/plague.py). 가공 결과물도 CC-BY-SA 3.0.
+역병 걸린 뱃사공(src/assets/sprites/plague_ferryman.png): 스크립트 3D 렌더(tools/boss3d/plague_ferryman.js, three.js 도형). 외부 그림 없음.

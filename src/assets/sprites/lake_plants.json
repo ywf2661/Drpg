@@ -1,0 +1,111 @@
+{
+  "cell": [
+    35,
+    26
+  ],
+  "anchor": [
+    18,
+    23
+  ],
+  "ppm": 30,
+  "cols": 1,
+  "rows": 16,
+  "anims": {
+    "plant0": {
+      "row": 0,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant1": {
+      "row": 1,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant2": {
+      "row": 2,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant3": {
+      "row": 3,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant4": {
+      "row": 4,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant5": {
+      "row": 5,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant6": {
+      "row": 6,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant7": {
+      "row": 7,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant8": {
+      "row": 8,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant9": {
+      "row": 9,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant10": {
+      "row": 10,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant11": {
+      "row": 11,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant12": {
+      "row": 12,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant13": {
+      "row": 13,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant14": {
+      "row": 14,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "plant15": {
+      "row": 15,
+      "frames": 1,
+      "ms": 1000,
+      "loop": "play_once"
+    }
+  }
+}

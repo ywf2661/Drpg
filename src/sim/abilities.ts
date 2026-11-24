@@ -1,5 +1,5 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
-import { findPath, walkable, type Cell } from './path';
+import { findPath, seeThrough, walkable, type Cell } from './path';
 import { FINALE, steady, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WHIRL, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
@@ -54,7 +54,7 @@ function hookFly(w: World, hero: Entity, s: Shot): boolean {
   const step = CHAIN_AXE.speed * DT;
   const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
   s.left -= step;
-  if (!walkable(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
+  if (!seeThrough(w.grid, Math.floor(nx), Math.floor(nz)) || s.left <= 0) {
     openGate(w, Math.floor(nx), Math.floor(nz));
     return hookEnd(w, hero);
   }
@@ -501,7 +501,7 @@ export function fly(w: World, hero: Entity) {
     const step = speed * DT;
     const [nx, nz] = [s.x + s.dx * step, s.z + s.dz * step];
     s.left -= step;
-    const wall = !walkable(w.grid, Math.floor(nx), Math.floor(nz));
+    const wall = !seeThrough(w.grid, Math.floor(nx), Math.floor(nz)); // 물 위는 날아간다
     if (wall || s.left <= 0) {
       if (fire) explode(w, s.x, s.z, s.dmg); // 벽 앞(마지막으로 있던 자리)에서
       if (s.kind === 'axe' || s.kind === 'fireball' || s.kind === 'bolt' || s.kind === 'shaft' || s.kind === 'pierce') openGate(w, Math.floor(nx), Math.floor(nz)); // 도끼·마법이 사슬 문에 맞으면 열린다
@@ -513,8 +513,8 @@ export function fly(w: World, hero: Entity) {
       }
       if (s.kind === 'pierce' && wall && !s.ricochet && hasUnique(w, 'hawkHood')) {
         // 매의 눈 두건: 막힌 축의 방향을 뒤집어 한 번 튕긴다(모서리면 둘 다)
-        const bx = !walkable(w.grid, Math.floor(nx), Math.floor(s.z));
-        const bz = !walkable(w.grid, Math.floor(s.x), Math.floor(nz));
+        const bx = !seeThrough(w.grid, Math.floor(nx), Math.floor(s.z));
+        const bz = !seeThrough(w.grid, Math.floor(s.x), Math.floor(nz));
         return !!Object.assign(s, { ricochet: true, hit: [], dx: bx || !bz ? -s.dx : s.dx, dz: bz || !bx ? -s.dz : s.dz, left: Math.max(s.left, PIERCE.flight / 2) });
       }
       return false;
@@ -587,6 +587,7 @@ export function tickZones(w: World) {
     const owner = z.owner < 0 ? null : w.entities[z.owner];
     if (owner && (owner.state === 'dead' || owner.phase !== 'windup')) return false;
     if ((z.t -= DT) > 0) return true;
+    if (z.kind === 'warn') return false;
     if (!owner) z.kind === 'sword' ? landSword(w, z) : explode(w, z.x, z.z, z.dmg, z.kind);
     else {
       owner.phase = 'none';

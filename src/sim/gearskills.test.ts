@@ -75,7 +75,7 @@ test('강령술사: 갇힌 왕의 두개골 → 무덤 왕의 귀환(소환 탭)
 });
 
 test('저장: 칸의 전설 스킬은 비워 저장을 버리지 않는다(불러온 뒤 gearKeys가 다시 끼운다)', () => {
-  const run = { name: '용사', marks: 0, news: false, took: false, runes: {}, beat: 0, marksBy: [0, 0, 0, 0], relics: 0, relicMiss: [0, 0, 0, 0], stash: [], cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 4, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [{ kind: 'unique' as const, value: 0, u: 'caliburx' as const }, { kind: 'tab' as const, value: 1, tab: 0 }], armor: [], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: 'finale' as const, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, stage: 0 };
+  const run = { name: '용사', marks: 0, news: false, took: false, runes: {}, beat: 0, marksBy: [0, 0, 0, 0], relics: 0, relicMiss: [0, 0, 0, 0], stash: [], act2: 0, cls: 'knight' as const, floor: 2, potions: 2, gear: { weapon: 4, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [{ kind: 'unique' as const, value: 0, u: 'caliburx' as const }, { kind: 'tab' as const, value: 1, tab: 0 }], armor: [], helm: [], boots: [] }, ranks: { cleave: 1 }, points: 0, keys: { cleave: 'cleave' as const, dash: 'finale' as const, shout: null, throw: null }, bag: [], autoEquip: true, level: 1, xp: 0, gold: 0, cycle: 0, stats: { time: 0, kills: 0, deaths: 0 }, pity: 0, land: 'dungeon' as const, from: 'w' as const, stage: 0 };
   const back = decodeSave(encodeSave(run));
   expect(back).not.toBeNull();
   expect(back!.keys).toEqual({ cleave: 'cleave', dash: null, shout: null, throw: null });

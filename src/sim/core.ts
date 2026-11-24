@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
-import { findPath, walkable, type Cell, type Grid } from './path';
-import { PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
+import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -633,11 +633,11 @@ export function canHit(w: World, a: Entity, b: Entity) {
   return dist(a, b) <= reach && clearLine(w, a, b);
 }
 
-// 둘 사이 직선이 벽 칸을 지나지 않는가(0.1m 간격 샘플)
+// 둘 사이 직선이 벽 칸을 지나지 않는가(0.1m 간격 샘플). 물은 지나간다
 export function clearLine(w: World, a: Entity, b: Entity) {
   const n = Math.ceil(dist(a, b) / 0.1);
   for (let i = 1; i < n; i++) {
-    if (!walkable(w.grid, Math.floor(a.x + ((b.x - a.x) * i) / n), Math.floor(a.z + ((b.z - a.z) * i) / n))) return false;
+    if (!seeThrough(w.grid, Math.floor(a.x + ((b.x - a.x) * i) / n), Math.floor(a.z + ((b.z - a.z) * i) / n))) return false;
   }
   return true;
 }
@@ -687,7 +687,8 @@ export function pathTo(w: World, e: Entity, x: number, z: number): Point[] | nul
 
 export function walk(w: World, e: Entity) {
   e.state = 'move';
-  let budget = moveSpeed(w, e) * DT;
+  let budget = moveSpeed(w, e) * DT * (w.grid.slow?.[Math.floor(e.z) * w.grid.w + Math.floor(e.x)] ? FORD_SLOW : 1); // 여울에서는 느리다
+  if (e.id === 0 && w.puddles.some((p) => Math.hypot(p.x - e.x, p.z - e.z) <= PUDDLE.r)) budget *= PUDDLE.slow; // 검은 웅덩이
   while (budget > 0 && e.path.length) {
     const [px, pz] = e.path[0];
     const dx = px - e.x;

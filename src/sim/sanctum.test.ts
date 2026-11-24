@@ -22,12 +22,9 @@ function collect(salt: number) {
   return 99;
 }
 
-test('성물은 늦어도 3회차에 다 모이고, 1·2회차 안에 다 모이는 판도 있다', () => {
+test('1회차에 지역 보스를 처음 깨면 성물이 반드시 떨어져 1회차에 다 모인다', () => {
   const at = Array.from({ length: 400 }, (_, i) => collect(i * 7919 + 13));
-  expect(Math.max(...at)).toBe(2);
-  const by2 = at.filter((c) => c <= 1).length / at.length;
-  expect(by2).toBeGreaterThan(0.72); // 이론값 81%(1회차 50%, 2회차부터 90%)
-  expect(by2).toBeLessThan(0.9);
+  expect(Math.max(...at)).toBe(0);
 });
 
 test('이미 가진 성물은 다시 안 떨어지고, 두 번 놓치면 확정', () => {

@@ -37,6 +37,12 @@ import trapUrl from '../assets/sprites/trap.png';
 import stuckInfo from '../assets/sprites/stuck.json';
 import stuckUrl from '../assets/sprites/stuck.png';
 import ruinInfo from '../assets/sprites/ruin_props.json';
+import tentsInfo from '../assets/sprites/tents.json';
+import lakeTreesInfo from '../assets/sprites/lake_trees.json';
+import lakeTreesUrl from '../assets/sprites/lake_trees.png';
+import lakePlantsInfo from '../assets/sprites/lake_plants.json';
+import lakePlantsUrl from '../assets/sprites/lake_plants.png';
+import tentsUrl from '../assets/sprites/tents.png';
 import ruinUrl from '../assets/sprites/ruin_props.png';
 import captainInfo from '../assets/sprites/npc_captain.json';
 import captainUrl from '../assets/sprites/npc_captain.png';
@@ -75,11 +81,16 @@ const VARIANTS: Record<Prop['kind'], string[]> = {
   brazier: ['brazier'],
   prop: ['barrel', 'barrel2', 'crate', 'crate2', 'statue', 'statue2'], // 상자 그림은 열 수 있는 상자 전용
   debris: Array.from({ length: 8 }, (_, k) => `bones${k + 1}`),
+  tent: ['tent_a', 'tent_b', 'tent_rope', 'lean_to'], // tents 시트(tools/tents.py)
+  tentBig: ['tent_big', 'tent_round'],
+  pad: [],
 };
 type Sheet = { info: SheetInfo; url: string; tex?: THREE.Texture; geo?: THREE.BufferGeometry };
 type Card = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; clip: Clip; t: number; glow: number; dir: number; dim?: number; tint?: THREE.Color }; // dir: 방향 행(화살), dim: 밝기 배수(잠긴 야영지 상자), tint: 색(얼어붙은 보물·가시 예고)
 const props: Sheet = { info: propsInfo as SheetInfo, url: propsUrl };
 // 야영지 사람(FLARE npcs, 서 있는 동작 8방향): 순찰대장·상인·주민 둘. 상자 칸에 정면(NPC_DIR)을 보고 선다
+const PRIEST_ROBE = new THREE.Color(0.9, 0.88, 1.15); // 사제: 빛바랜 흰 옷
+const SICK_SKIN = new THREE.Color(0.75, 0.9, 0.62); // 앓는 주민: 핏기 없는 회녹색
 const npcs = { captain: { info: captainInfo as SheetInfo, url: captainUrl }, merchant: { info: merchantInfo as SheetInfo, url: merchantUrl }, villager1: { info: villager1Info as SheetInfo, url: villager1Url }, villager2: { info: villager2Info as SheetInfo, url: villager2Url } } as Record<'captain' | 'merchant' | 'villager1' | 'villager2', Sheet>;
 const NPC_DIR = 6;
 const stairs: Sheet = { info: stairsInfo as SheetInfo, url: stairsUrl };
@@ -96,11 +107,15 @@ const gateFx: Sheet = { info: gateInfo as SheetInfo, url: gateUrl };
 const flameFx: Sheet = { info: flameInfo as SheetInfo, url: flameUrl };
 const trapFx: Sheet = { info: trapInfo as SheetInfo, url: trapUrl };
 const stuckFx: Sheet = { info: stuckInfo as SheetInfo, url: stuckUrl };
+const tents: Sheet = { info: tentsInfo as SheetInfo, url: tentsUrl };
+const lakeTrees: Sheet = { info: lakeTreesInfo as SheetInfo, url: lakeTreesUrl }; // 호숫가 숲(tools/lake.py)
+const lakePlants: Sheet = { info: lakePlantsInfo as SheetInfo, url: lakePlantsUrl }; // 물가 풀 // 원정대 천막(2×2·4×4 칸, 기준점 = 바닥 마름모 가운데)
 const ruin: Sheet = { info: ruinInfo as SheetInfo, url: ruinUrl }; // 성소·시련 상자(세움), 가시 바닥·푸른 마법진(눕힘: 기준점 = 마름모 위 꼭짓점)
 const wiz = { ember: fx('ember'), thunder: fx('thunder'), spark: fx('spark'), ice: fx('ice'), frost: fx('frost'), blink: fx('blink'), heal: fx('heal') };
 const FLAME_GAP = 0.55; // 불길 위 불꽃 간격(m)
 const flames = new Map<number, Card[]>(); // 불길 id → 그 길 위의 불꽃들
 let cards: Card[] = [];
+let trees: { c: Card; x: number; z: number }[] = []; // 호숫가 숲의 나무(주인공 앞을 가리면 숨긴다)
 let group = new THREE.Group();
 // 무너진 성소 입구(초원 1구역): 계단 구덩이 + 석상 + 화로(성물 수만큼 붉게) + 열렸으면 핏빛 안개·불씨·맥동하는 빛
 const DREAD_FIRE = new THREE.Color(1, 0.4, 0.34);
@@ -422,7 +437,7 @@ export function wallVariant(x: number, z: number, n: number): number {
 }
 
 export async function loadProps() {
-  for (const s of [...Object.values(npcs), ruin, props, stairs, loot, runeSheet, floorGear, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
+  for (const s of [...Object.values(npcs), ruin, tents, lakeTrees, lakePlants, props, stairs, loot, runeSheet, floorGear, arrow, cleaveFx, fireballFx, blastFx, axeFx, quakeFx, gateFx, flameFx, trapFx, stuckFx, ...Object.values(wiz)]) {
     s.tex = await loadSheet(s.url);
     s.geo = cardGeometry(s.info);
   }
@@ -460,6 +475,8 @@ export function syncChests(world: World) {
     const c = chestCards[i];
     if (ch.open && c) c.card.clip = c.open;
     if (ch.open && c && ch.kind === 'beacon') Object.assign(c.card, { glow: 1, tint: undefined }); // 켜진 봉화
+    if (c && ch.kind === 'sick') c.card.mesh.scale.y = ch.open ? 1 : 0.62; // 앓는 주민: 웅크려 있다가 정화하면 일어선다
+    if (c && ch.kind === 'sick' && ch.open) c.card.tint = undefined;
     if (c) c.card.dim = ch.guards?.some((id) => world.entities[id].state !== 'dead') ? 0.4 : 1; // 야영지 무리가 살아 있으면 어둡게(잠김)
   });
   const boss = paladinOf(world);
@@ -810,6 +827,46 @@ export function syncItems(world: World) {
 }
 
 // 새 층의 소품·계단·화로 빛. 이전 층의 재질·질감·광원·물약 판자는 해제한다(지오메트리는 공유)
+// 호숫가 꾸미기(그림만, sim과 상관없다): 벽 칸('#', 통나무집·상자·소품 칸 빼고) 중 트인 칸에서 2칸 안에 나무(1칸이면 다, 2칸이면 셋에 하나),
+// 물가(물에 닿은 땅)의 절반 가까이와 들판 드문드문에 풀. 자리는 칸 해시로 정해 들어올 때마다 같다
+const TREE_PICK = [8, 9, 10, 11, 12, 13, 14, 15, 8, 9, 12, 13, 0, 1, 4, 5]; // 침엽·활엽이 많고 청록·고목이 섞인다
+const PLANT_PICK = [2, 3, 2, 3, 0, 1, 4, 5, 8, 9, 10, 11, 12, 13, 6, 7]; // 갈대가 많다
+function lakeDeco(world: World): Card[] {
+  const { w, h, blocked } = world.grid;
+  const taken = new Set([...world.props, ...world.chests, ...world.gates, ...world.logs.map(([x, z]) => ({ x, z }))].map((p) => p.z * w + p.x));
+  const path = new Set([...world.roads, ...world.planks].map(([x, z]) => z * w + x));
+  const at = (x: number, z: number) => (x >= 0 && z >= 0 && x < w && z < h ? blocked[z * w + x] : 1);
+  const jit = (k: number, s: number) => ((cellHash(k, s) % 100) / 100 - 0.5) * 0.5;
+  const out: Card[] = [];
+  for (let z = 0; z < h; z++)
+    for (let x = 0; x < w; x++) {
+      const i = z * w + x;
+      const k = cellHash(x, z);
+      if (taken.has(i)) continue;
+      if (blocked[i] === 1) {
+        let near = 9;
+        for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (at(x + dx, z + dz) !== 1) near = Math.min(near, Math.max(Math.abs(dx), Math.abs(dz)));
+        if (near > 2 || (near === 2 && k % 3)) continue;
+        const c = card(lakeTrees, `tree${TREE_PICK[k % 16]}`, x + 0.5 + jit(x, 7), z + 0.5 + jit(z, 13), false);
+        c.mesh.scale.setScalar(0.85 + (k % 7) * 0.06);
+        trees.push({ c, x: x + 0.5, z: z + 0.5 });
+        out.push(c);
+      } else if (blocked[i] === 0 && !path.has(i)) {
+        const shore = [-1, 0, 1].some((dz) => [-1, 0, 1].some((dx) => at(x + dx, z + dz) === 2));
+        if ((shore && k % 100 < 45) || k % 100 < 4) out.push(card(lakePlants, `plant${PLANT_PICK[(k >>> 3) % 16]}`, x + 0.5 + jit(x, 3), z + 0.5 + jit(z, 5), false));
+      }
+    }
+  return out;
+}
+
+// 호숫가 숲: 주인공보다 카메라 쪽(+x+z)에 있어 주인공을 가릴 나무는 숨긴다(벽의 앞면 낮추기와 같은 일)
+export function fadeTrees(hx: number, hz: number) {
+  for (const t of trees) {
+    const [dx, dz] = [t.x - hx, t.z - hz];
+    t.c.mesh.visible = !(dx + dz > 0 && dx + dz < 4.5 && Math.abs(dx - dz) < 3);
+  }
+}
+
 export function buildProps(world: World): THREE.Group {
   cards.forEach(free);
   items.clear();
@@ -831,12 +888,25 @@ export function buildProps(world: World): THREE.Group {
   for (const l of lights) l.dispose();
   cards = world.props.map((p) => {
     const names = VARIANTS[p.kind];
-    return card(props, names[cellHash(p.x, p.z) % names.length], p.x + 0.5, p.z + 0.5, p.kind === 'debris');
+    if (p.kind === 'tent' || p.kind === 'tentBig') {
+      const n = p.kind === 'tent' ? 1 : 2; // 글자는 왼쪽 위 칸 → 덮는 칸들의 가운데(칸 모서리)에 세운다
+      return card(tents, names[cellHash(p.x, p.z) % names.length], p.x + n, p.z + n, false);
+    }
+    const c = card(props, names[cellHash(p.x, p.z) % names.length] ?? 'barrel', p.x + 0.5, p.z + 0.5, p.kind === 'debris');
+    c.mesh.visible = p.kind !== 'pad'; // 천막이 덮는 칸: 판자는 두되 안 그린다(번호를 world.props와 맞춘다)
+    return c;
   });
   chestCards = world.chests.map((ch) => {
-    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' ? npcs.merchant : ch.kind === 'asker' ? npcs.villager1 : ch.kind === 'villager' ? npcs.villager2 : null;
+    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' ? npcs.merchant : ch.kind === 'asker' || ch.kind === 'priest' ? npcs.villager1 : ch.kind === 'villager' || ch.kind === 'sick' ? npcs.villager2 : null;
     if (npc) {
       const c = Object.assign(card(npc, 'stance', ch.x + 0.5, ch.z + 0.5, false), { dir: NPC_DIR });
+      if (ch.kind === 'priest') c.tint = PRIEST_ROBE;
+      if (ch.kind === 'sick') c.tint = SICK_SKIN; // 낫기 전엔 웅크린다(syncChests)
+      return { card: c, open: c.clip };
+    }
+    if (ch.kind === 'wheel' || ch.kind === 'well') {
+      const c = card(props, 'barrel', ch.x + 0.5, ch.z + 0.5, false);
+      c.mesh.visible = false; // 3D 모형(water.ts)
       return { card: c, open: c.clip };
     }
     if (ch.kind === 'beacon') {
@@ -866,6 +936,8 @@ export function buildProps(world: World): THREE.Group {
   for (const g of world.gates) if (!g.open) gateCards.set(g.id, card(gateFx, `gate_${g.axis}`, g.x + 0.5, g.z + 0.5, false));
   cards.push(...gateCards.values());
   if (world.stairs) cards.push(card(stairs, 'stairs', world.stairs[0] + STAIRS_AT[0], world.stairs[1] + STAIRS_AT[1], true));
+  trees = [];
+  if (world.land === 'lake') cards.push(...lakeDeco(world));
   // 무너진 성소 입구 자리: 성물이 모일수록 땅이 갈라지고(1~3: 금만, 밟고 지나간다), 넷이면 꺼져서 계단 구덩이·석상·화로(화로·뼈는 맵 글자로 그때만 생긴다)
   const gate = [...world.exits, ...world.locked].filter((e) => e.to === 'sanctum');
   const extra: THREE.Object3D[] = [];

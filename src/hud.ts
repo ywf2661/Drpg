@@ -31,7 +31,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
+import { isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -183,9 +183,9 @@ function replay(el: HTMLElement) {
 let shownCycle = 0;
 export function showFloor(n: number, cycle: number, land: Land = 'dungeon', goal = '') {
   shownCycle = cycle;
-  const place = land === 'camp' ? LANDS.camp.name : `${LANDS[land].name} ${n}${LANDS[land].unit}`;
+  const place = isHub(land) ? LANDS[land].name : `${LANDS[land].name} ${n}${LANDS[land].unit}`;
   floorLabel.textContent = `${place} · ${cycle + 1}회차`;
-  floorTitle.textContent = land !== 'camp' && n === FLOORS ? `${place} — ${bossName(LANDS[land].skins)}` : floorLabel.textContent;
+  floorTitle.textContent = !isHub(land) && n === FLOORS ? `${place} — ${bossName(LANDS[land].skins)}` : floorLabel.textContent;
   $('#quest').textContent = goal && `임무: ${goal}`;
   replay(floorTitle);
 }
@@ -249,7 +249,7 @@ function showScreen(which: 'main' | 'slots' | 'pick', focus = true) {
   first.focus();
 }
 
-const placeOf = (r: Run) => (r.land === 'camp' ? LANDS.camp.name : `${LANDS[r.land].name} ${r.floor}${LANDS[r.land].unit}`);
+const placeOf = (r: Run) => (isHub(r.land) ? LANDS[r.land].name : `${LANDS[r.land].name} ${r.floor}${LANDS[r.land].unit}`);
 
 // 저장 슬롯: 이어하기면 빈 슬롯은 못 고르고, 새 게임이면 찬 슬롯은 덮어쓸지 묻는다
 function showSlots(mode: 'new' | 'load') {

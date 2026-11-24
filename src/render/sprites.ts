@@ -34,6 +34,8 @@ import graveInfo from '../assets/sprites/grave.json';
 import graveUrl from '../assets/sprites/grave.png';
 import zombieDarkInfo from '../assets/sprites/zombie_dark.json';
 import zombieDarkUrl from '../assets/sprites/zombie_dark.png';
+import plagueInfo from '../assets/sprites/plague_villager.json';
+import plagueUrl from '../assets/sprites/plague_villager.png';
 import hobgoblinInfo from '../assets/sprites/hobgoblin.json';
 import hobgoblinUrl from '../assets/sprites/hobgoblin.png';
 import hobgoblinArcherInfo from '../assets/sprites/hobgoblin_archer.json';
@@ -45,6 +47,10 @@ import demonUrl from '../assets/sprites/demon.png';
 import fallenPaladinInfo from '../assets/sprites/fallen_paladin.json';
 import fallenPaladinUrl from '../assets/sprites/fallen_paladin.png';
 import fallenPaladinHeads from '../assets/sprites/fallen_paladin_heads.json';
+import timeWardenInfo from '../assets/sprites/time_warden.json';
+import ferrymanInfo from '../assets/sprites/plague_ferryman.json';
+import ferrymanUrl from '../assets/sprites/plague_ferryman.png';
+import timeWardenUrl from '../assets/sprites/time_warden.png';
 
 export type Anim = 'stance' | 'move' | 'attack' | 'hit' | 'die';
 export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth' | 'looped' | 'play_once' };
@@ -96,11 +102,14 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   antlion_small: { info: antlionSmallInfo as SheetInfo, url: antlionSmallUrl },
   grave: { info: graveInfo as SheetInfo, url: graveUrl },
   zombie_dark: { info: zombieDarkInfo as SheetInfo, url: zombieDarkUrl },
+  plague_villager: { info: plagueInfo as SheetInfo, url: plagueUrl },
   hobgoblin: { info: hobgoblinInfo as SheetInfo, url: hobgoblinUrl },
   hobgoblin_archer: { info: hobgoblinArcherInfo as SheetInfo, url: hobgoblinArcherUrl },
   bone_knight: { info: boneKnightInfo as SheetInfo, url: boneKnightUrl },
   demon: { info: demonInfo as SheetInfo, url: demonUrl },
   fallen_paladin: { info: fallenPaladinInfo as SheetInfo, url: fallenPaladinUrl }, // 타락한 성기사(Hormelz 대검 기사, 배색 C)
+  time_warden: { info: timeWardenInfo as SheetInfo, url: timeWardenUrl }, // 시간의 파수꾼(tools/boss3d로 렌더)
+  plague_ferryman: { info: ferrymanInfo as SheetInfo, url: ferrymanUrl }, // 역병 걸린 뱃사공(tools/boss3d로 렌더)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
