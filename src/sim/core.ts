@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
-import { DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -67,14 +67,15 @@ export function cutCd(w: World, id: SkillId, by: number) {
 
 // 기사 스킬의 단계별 수치(1단계 = 기본값, 단계마다 조금씩 강해진다). 피해 배율에는 시너지가 붙는다
 const axeMod = (w: World) => ({ cd: 1 - AXES.cd * Math.min(rank(w, 'axes'), RANK_MAX + 2), dmg: 1 + AXES.dmg * rank(w, 'axes') }); // 도끼 숙련
-export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * cdExt(w, 'cleave'), radius: SKILL.radius + 0.2 * ext(w, 'cleave'), mult: (SKILL.mult + 0.2 * ext(w, 'cleave')) * syn(w, 'cleave') });
+const big = (w: World, k: number) => (w.bigT > 0 ? k : 1); // 거인의 칼이 켜져 있으면 k배
+export const cleaveStat = (w: World) => ({ cd: SKILL.cd - 0.3 * cdExt(w, 'cleave'), radius: (SKILL.radius + 0.2 * ext(w, 'cleave')) * big(w, GREATSWORD.radius), mult: (SKILL.mult + 0.2 * ext(w, 'cleave')) * syn(w, 'cleave') * big(w, GREATSWORD.dmg) });
 export const burstStat = (w: World) => ({ hp: BURST.hp + 0.05 * ext(w, 'burst') });
-export const executeStat = (w: World) => ({ cd: EXECUTE.cd - 0.5 * cdExt(w, 'execute'), below: EXECUTE.below + 0.03 * ext(w, 'execute'), mult: (EXECUTE.mult + 0.4 * ext(w, 'execute')) * syn(w, 'execute') });
+export const greatswordStat = (w: World) => ({ cd: GREATSWORD.cd - GREATSWORD.cdStep * cdExt(w, 'greatsword'), time: GREATSWORD.time + GREATSWORD.timeStep * ext(w, 'greatsword') });
 // 내리베기: p = 모은 정도(0~1). 길이·배율은 p에 따라 커진다
 export const downcutStat = (w: World, at?: number) => {
   const full = mastered(w, 'downcut') ? DOWNCUT.fullMaster : DOWNCUT.full;
   const p = at ?? Math.min(1, Math.max(0, w.cut) / full); // at: 모은 정도를 정해서 본다(설명 글)
-  return { cd: DOWNCUT.cd - 0.4 * cdExt(w, 'downcut'), full, p, len: DOWNCUT.len0 + (DOWNCUT.len1 - DOWNCUT.len0) * p + DOWNCUT.lenStep * ext(w, 'downcut'), mult: (DOWNCUT.mult0 + (DOWNCUT.mult1 - DOWNCUT.mult0) * p + DOWNCUT.multStep * ext(w, 'downcut')) * syn(w, 'downcut') };
+  return { cd: DOWNCUT.cd - 0.4 * cdExt(w, 'downcut'), full, p, len: (DOWNCUT.len0 + (DOWNCUT.len1 - DOWNCUT.len0) * p + DOWNCUT.lenStep * ext(w, 'downcut')) * big(w, GREATSWORD.len), mult: (DOWNCUT.mult0 + (DOWNCUT.mult1 - DOWNCUT.mult0) * p + DOWNCUT.multStep * ext(w, 'downcut')) * syn(w, 'downcut') * big(w, GREATSWORD.dmg) };
 };
 // 휘청임: 무거운 적만, REEL.every초에 한 번 잠깐 기절
 export function reel(w: World, e: Entity) {
@@ -471,7 +472,7 @@ export function dress(e: Entity, skins: World['skins']): Entity {
 
 // 한 번 휘두르는 데 걸리는 시간. 주인공은 장착 무기를 따른다
 export function attackInterval(w: World, e: Entity): number {
-  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + worn(w, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) / (w.trophies.frenzied ? SET_HUNTER.frenzy : 1) / (w.buff?.kind === 'haste' ? 1 + SHRINE.haste : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : e.eliteKind === 'frenzied' ? ELITE_FX.frenzy : 1); // 궁수 집중 중엔 빠르게
+  return e.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].interval / (1 + worn(w, 'speed') / 100) / (w.focusT > 0 ? 1 + FOCUS.speed : 1) / (1 + rage(w)) / (w.trophies.swift ? ELITE_FX.swiftAttack : 1) / (w.trophies.frenzied ? SET_HUNTER.frenzy : 1) / (w.buff?.kind === 'haste' ? 1 + SHRINE.haste : 1) * (w.bigT > 0 ? GREATSWORD.slow : 1) : STATS[e.kind].interval / (e.eliteKind === 'swift' ? ELITE_FX.swiftAttack : e.eliteKind === 'frenzied' ? ELITE_FX.frenzy : 1); // 궁수 집중 중엔 빠르게
 }
 
 // 공격자 a의 데미지 굴림(무기·레벨·층 배율)

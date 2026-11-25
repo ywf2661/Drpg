@@ -8,7 +8,7 @@ export type HeroClass = 'knight' | 'wizard' | 'ranger' | 'necromancer';
 
 // 스킬 트리의 스킬. 탭마다 [1단계, 2단계, 패시브, 궁극기] 순서(TREES)
 export type SkillId =
-  | 'cleave' | 'downcut' | 'burst' | 'execute' | 'dash' | 'shout' | 'trail' | 'leap' | 'throw' | 'bounce' | 'axes' | 'chainAxe'
+  | 'cleave' | 'downcut' | 'burst' | 'greatsword' | 'dash' | 'shout' | 'trail' | 'leap' | 'throw' | 'bounce' | 'axes' | 'chainAxe'
   | 'fireball' | 'firefield' | 'embers' | 'comet' | 'frost' | 'ward' | 'frostArmor' | 'blizzard' | 'lightning' | 'chain' | 'static' | 'tempest'
   | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
   | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
@@ -20,7 +20,7 @@ export type SkillId =
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
-    { name: '검술', skills: ['cleave', 'downcut', 'burst', 'execute'] },
+    { name: '검술', skills: ['cleave', 'downcut', 'burst', 'greatsword'] },
     { name: '돌격', skills: ['dash', 'shout', 'trail', 'leap'] },
     { name: '투척', skills: ['throw', 'bounce', 'axes', 'chainAxe'] },
     { name: '발도', skills: ['mark', 'graze', 'echo', 'flash'] },
@@ -439,6 +439,7 @@ export type World = {
   edgeHits: EdgeHit[]; // 강화 효과를 받은 적(렌더·소리용, TEMPER.hitAge초)
   edge: { kind: 'flame' | 'frost' | 'both' | null; left: number; t: number }; // 칼 강화(벼림): 종류, 남은 충전, 해방 남은 시간(초)
   cut: number; // 내리베기 모은 시간(초), 모으지 않으면 -1
+  bigT: number; // 거인의 칼 남은 시간(초)
   reeled: Record<number, number>; // 휘청인 무거운 적(id) → 다시 휘청일 수 있을 때까지 남은 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
 };
@@ -692,13 +693,12 @@ export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: �
 export const RANK_MAX = 5;
 export const COMBO = { counter: 2, stunned: 1.5, back: 2, age: 0.6 }; // 연계 배율(예고 중·기절 중·도망치는 적에게 스킬), 기록 유지 시간
 export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·회오리·처형으로 죽은 적
-export const EXECUTE = { cd: 8, reach: 2.5, below: 0.3, mult: 2.5, fear: 3, fearR: 4 }; // 처형(검술 궁극): 재사용, 닿는 거리, 즉사 체력 비율(단계마다 +0.03), 아니면 배율, 처치 시 주변 공포(시간·반경)
 export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
 // 발도(기사 넷째 탭): 그어두기가 적에게 검흔을 새기고, 납도가 한꺼번에 터뜨린다
 export const CUT = { delay: 1, near: 0.6 }; // 칼선: 그은 뒤 베이기까지(초), 선에서 이 거리 안이면 맞는다(m)
 export const MARK = { hit: 0.4, cut: 1.2, cd: 1.5 }; // 그어두기: 바로 들어가는 피해, 칼선 배율, 재사용
 export const GRAZE = { cd: 6, dist: 6, speed: 60, near: 0.8, cut: 2.0 }; // 스쳐 베기: 재사용, 거리, 속도(m/s), 지나치는 거리, 칼선 배율
-export const ECHO = { need: 2, cut: 0.8, x: 2 }; // 칼의 여운: 채울 칸, 칼선 배율, 처형 X자 길이(m)
+export const ECHO = { need: 2, cut: 0.8 }; // 칼의 여운: 채울 칸, 칼선 배율
 export const FLASH = { cd: 14, range: 6, max: 5, hit: 0.5, cut: 1.5, speed: 30, past: 1, near: 0.8 }; // 일섬(궁극): 재사용, 거리, 최대 대상, 지날 때 피해, 칼선 배율, 속도, 지나가는 거리, 가까이 서는 거리
 // 벼림(기사 다섯째 탭): 칼에 불·서리를 입혀 휘두를 때마다 충전을 쓴다
 // charges 충전, flame 불 배율, flameCd 불 대기, burstR·burst 5단계 화염 폭발, hits·freeze 서리 빙결 타수·시간, frostCd 서리 대기,
@@ -712,6 +712,9 @@ export const CHAIN_AXE = { speed: 32, back: 24, range: 6, grow: 0.5, hold: 1, st
 // 내리베기(검술 2): 재사용, 다 모으는 시간(5단계), 다 모인 뒤 들고 있을 수 있는 시간, 길이(p 0→1, 단계마다 +lenStep), 폭,
 // 배율(p 0→1, 단계마다 +multStep), 다 모으면 밀어내는 거리, 모으는 동안 이동 속도 배율
 export const DOWNCUT = { cd: 6, full: 1.5, fullMaster: 1, hold: 1, len0: 2, len1: 6, lenStep: 0.3, width: 1.2, mult0: 1.2, mult1: 4, multStep: 0.3, knock: 2, slow: 0.4 };
+// 거인의 칼(검술 궁극): 재사용(단계마다 −cdStep), 지속(단계마다 +timeStep), 가르기 범위·내리베기 길이·피해 배율, 평타 간격 배율,
+// 평타 반원 반경, 맞은 적 밀어내기(m), 5단계 끝 한 바퀴 반경·배율
+export const GREATSWORD = { cd: 20, cdStep: 1, time: 6, timeStep: 0.5, radius: 1.8, len: 1.5, dmg: 1.5, slow: 1.4, sweep: 2.5, knock: 1.5, finaleR: 3.5, finale: 3 };
 export const REEL = { stun: 0.5, every: 2 }; // 휘청임(무거운 적): 기절 시간, 다시 휘청일 수 있기까지(초)
 export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)

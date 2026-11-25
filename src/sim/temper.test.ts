@@ -94,7 +94,6 @@ test('충전을 쓰는 타격과 쓰지 않는 타격', () => {
   expect(left('cleave', ['Hm...'], { type: 'attack', targetId: 1 }), '평타').toBeLessThan(6);
   expect(left('cleave', ['Hm...'], { type: 'skill', ...at(1.5) }, 0.6), '가르기').toBe(5);
   expect(left('mark', ['Hm...'], { type: 'skill', ...at(1.5) }, 0.6), '그어두기').toBe(5);
-  expect(left('execute', ['Hm...'], { type: 'skill', ...at(1.5) }, 0.3), '처형').toBe(5);
   expect(left('dash', ['Hmm...'], { type: 'skill', ...at(5.5) }, 1), '돌진 베기(돌진 하나 = 1)').toBe(5);
   expect(left('leap', ['H...m.'], { type: 'skill', ...at(4.5) }, 1), '대지 강타').toBe(5);
   expect(left('flash', ['Hm.m..'], { type: 'skill' }, 1.5), '일섬(꿰뚫을 때마다)').toBe(4);

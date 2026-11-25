@@ -1,12 +1,12 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, seeThrough, walkable, type Cell } from './path';
-import { DOWNCUT, RADIUS, FINALE, steady, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, EXECUTE, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, ECHO, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World } from './rules';
+import { DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
-import { downcutStat, reel, finaleStat, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints } from './core';
+import { downcutStat, reel, finaleStat, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, greatswordStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
 
@@ -110,7 +110,8 @@ export function downcutStrike(w: World, hero: Entity, x?: number, z?: number) {
     if (along < -RADIUS || along > st.len + RADIUS || Math.abs(dx * fz - dz * fx) > DOWNCUT.width / 2 + RADIUS || !clearLine(w, hero, e)) continue;
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
     hit.push(e);
-    knock(w, e, fx, fz, push);
+    if (w.bigT > 0) bigKnock(w, hero, e, fx, fz);
+    else knock(w, e, fx, fz, push);
     if (st.p >= 1) reel(w, e);
     if (e.hp <= 0) killed.push(e);
   }
@@ -121,32 +122,39 @@ export function downcutStrike(w: World, hero: Entity, x?: number, z?: number) {
   w.cleaves++;
 }
 
-// 처형: 닿는 거리 안의 적 하나(조준점에 가장 가까운, 없으면 가장 가까운)를 벤다. 체력이 낮으면(보스·해골 왕 제외) 단칼에,
-// 아니면 큰 피해. 죽이면 주변 적이 공포에 질려 도망친다. 닿는 적이 없으면 쓰지 않는다
-export function execute(w: World, hero: Entity, x?: number, z?: number): number {
-  const st = executeStat(w);
-  const [ax, az] = x !== undefined && z !== undefined ? [x, z] : [hero.x, hero.z];
-  const t = w.entities
-    .filter((e) => e !== hero && e.state !== 'dead' && dist(e, hero) <= EXECUTE.reach && clearLine(w, hero, e))
-    .sort((a, b) => Math.hypot(a.x - ax, a.z - az) - Math.hypot(b.x - ax, b.z - az))[0];
-  if (!t) return 0;
-  face(hero, t);
-  const big = t.kind === 'boss' || t.kind === 'king';
-  if (!big && t.hp <= t.maxHp * st.below) hurt(w, t, t.hp, hero);
-  else skillHit(w, t, Math.round(roll(w, hero) * st.mult));
-  const d = dist(t, hero) || 1;
-  knock(w, t, (t.x - hero.x) / d, (t.z - hero.z) / d, KNOCK.cleave);
-  w.blasts.push({ id: w.nextItem++, x: t.x, z: t.z, age: 0, kind: 'slam' });
-  w.cleaves++;
-  temper(w, hero, [t]);
-  echoCut(w, 'execute', () => crossSegs(t.x, t.z, ECHO.x, true), [t]); // 칼의 여운: X자
-  if (t.hp <= 0) {
-    if (rank(w, 'burst')) burst(w, hero, [t]);
-    for (const e of w.entities)
-      if (e !== hero && e.state !== 'dead' && e.kind !== 'boss' && e.kind !== 'king' && !steady(e) && dist(e, t) <= EXECUTE.fearR) Object.assign(e, { fearT: EXECUTE.fear, state: 'idle', attackT: 0, path: [], phase: 'none' });
-  }
+// 거인의 칼: time초 동안 칼이 커진다(평타·가르기·내리베기가 넓고 세지고 느려진다 — core의 수치·bigSweep)
+export function greatsword(w: World): number {
+  const st = greatswordStat(w);
+  w.bigT = st.time;
   return st.cd;
 }
+// 거인의 칼에 맞은 적: 멀리 밀리고, 무거운 적은 휘청인다
+function bigKnock(w: World, hero: Entity, e: Entity, fx: number, fz: number) {
+  const [dx, dz] = [e.x - hero.x, e.z - hero.z];
+  const d = Math.hypot(dx, dz);
+  knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, GREATSWORD.knock);
+  reel(w, e);
+}
+// 거인의 칼 평타: 바라보는 쪽 반원 GREATSWORD.sweep 안의 적 모두(halfOnly) 또는 한 바퀴 반경 r(5단계 끝)
+function bigSwing(w: World, hero: Entity, r: number, mult: number, halfOnly: boolean) {
+  const [fx, fz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
+  const hit: Entity[] = [];
+  const killed: Entity[] = [];
+  for (const e of w.entities) {
+    if (e === hero || e.state === 'dead') continue;
+    const [dx, dz] = [e.x - hero.x, e.z - hero.z];
+    if (Math.hypot(dx, dz) > r + RADIUS || (halfOnly && dx * fx + dz * fz < 0) || !clearLine(w, hero, e)) continue;
+    hurt(w, e, Math.round(roll(w, hero) * mult), hero);
+    hit.push(e);
+    bigKnock(w, hero, e, fx, fz);
+    if (e.hp <= 0) killed.push(e);
+  }
+  if (rank(w, 'burst')) burst(w, hero, killed);
+  temper(w, hero, hit);
+  w.cleaves++;
+}
+export const bigSweep = (w: World, hero: Entity) => bigSwing(w, hero, GREATSWORD.sweep, GREATSWORD.dmg, true);
+export const bigFinale = (w: World, hero: Entity) => bigSwing(w, hero, GREATSWORD.finaleR, GREATSWORD.finale, false);
 
 // 종언(칼리버X): 최대 체력의 FINALE.hp를 잃고(1은 남는다) 조준 쪽(없으면 가까운 적 쪽) 넓은 부채꼴의 적 모두에게 큰 피해
 export function finale(w: World, hero: Entity, x?: number, z?: number): number {
@@ -185,7 +193,8 @@ export function cleave(w: World, hero: Entity) {
     skillHit(w, e, Math.round(roll(w, hero) * st.mult));
     hit.push(e);
     const d = Math.hypot(dx, dz);
-    knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
+    if (w.bigT > 0) bigKnock(w, hero, e, fx, fz);
+    else knock(w, e, d > 1e-6 ? dx / d : fx, d > 1e-6 ? dz / d : fz, KNOCK.cleave);
     if (e.hp <= 0) killed.push(e);
   }
   if (rank(w, 'burst')) burst(w, hero, killed);

@@ -1,7 +1,7 @@
 // 스킬 트리: 배우기 규칙(레벨·아래 단계·포인트), 칸 끼우기, 되돌리기, 시너지, 그리고 트리의 새 스킬·패시브
 import { expect, test } from 'vitest';
 import { shaft } from './ranger';
-import { axeStat, BASIC, BOUNCE, bind, bonesStat, cleaveStat, createWorld, critStat, DT, EXECUTE, HUNT, isPassive, KEY_CD, KEYS, LEAP, learn, learnBlock, newSkills, RESPEC, respec, setLevel, SPREAD, step, TIER_LEVEL, TRAP, TREES, useClass, type Command, type HeroClass, type SkillId, type World } from './world';
+import { axeStat, BASIC, BOUNCE, bind, bonesStat, cleaveStat, createWorld, critStat, DT, HUNT, isPassive, KEY_CD, KEYS, LEAP, learn, learnBlock, newSkills, RESPEC, respec, setLevel, SPREAD, step, TIER_LEVEL, TRAP, TREES, useClass, type Command, type HeroClass, type SkillId, type World } from './world';
 
 const run = (w: World, sec: number, cmds: Command[] = []) => {
   step(w, cmds);
@@ -44,7 +44,7 @@ test('배우기: 레벨·아래 단계·포인트가 모자라면 못 배우고,
   step(w, [{ type: 'learn', skill: 'dash' }]);
   expect(w.keys.throw).toBe('dash');
   // 궁극기도 레벨과 패시브를 거쳐야
-  expect(learnBlock(w, 'execute')).toBe(`레벨 ${TIER_LEVEL[3]}부터 배울 수 있음`);
+  expect(learnBlock(w, 'greatsword')).toBe(`레벨 ${TIER_LEVEL[3]}부터 배울 수 있음`);
 });
 
 test('끼우기: 배운 액티브만, 다른 칸에 있던 스킬은 맞바꾸고 두 칸의 재사용 대기는 긴 쪽으로', () => {
@@ -112,21 +112,6 @@ test('시체 폭발(패시브): 가르기로 죽은 적이 터지고, 터져서 
   };
   expect(go(0).entities.slice(1).map((e) => e.state === 'dead')).toEqual([true, false, false]);
   expect(go(1).entities.slice(1).map((e) => e.state === 'dead')).toEqual([true, true, true]);
-});
-
-test('처형: 체력이 낮은 적은 단칼에, 죽이면 주변이 공포에 질린다. 아니면 큰 피해, 닿는 적이 없으면 안 나간다', () => {
-  const w = make(['Hm.m'], 'knight', { execute: 1 }, 'execute');
-  w.entities[1].hp = 1e5 * EXECUTE.below - 1;
-  step(w, [{ type: 'skill' }]);
-  expect(w.entities[1].state).toBe('dead');
-  expect(w.entities[2].fearT).toBeGreaterThan(0);
-  const v = make(['Hm.m'], 'knight', { execute: 1 }, 'execute');
-  step(v, [{ type: 'skill' }]);
-  expect(lost(v)).toBeGreaterThan(0);
-  expect(v.entities[1].state).not.toBe('dead');
-  const far = make(['H...m'], 'knight', { execute: 1 }, 'execute');
-  step(far, [{ type: 'skill' }]);
-  expect(far.skillCd).toBe(0);
 });
 
 test('불길(패시브): 돌진한 길이 3초 동안 타며 그 위의 적을 태운다', () => {
