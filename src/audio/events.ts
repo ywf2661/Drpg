@@ -21,6 +21,8 @@ export type Snapshot = {
   zones: Set<number>;
   level: number;
   cleaves: number;
+  cutN: number; // 내리베기 타격 수
+  big: number; // 거인의 칼 남은 시간
   edgeSlashes: number; // 벼림 해방 참격
   edgeHits: Set<number>; // 벼림 강화 타격
   dashes: number;
@@ -44,6 +46,8 @@ export function snapshot(w: World): Snapshot {
     zones: new Set(w.zones.map((z) => z.id)),
     level: w.level,
     cleaves: w.cleaves,
+    cutN: w.cutFx.n,
+    big: w.bigT,
     edgeSlashes: w.edgeSlashes,
     edgeHits: new Set(w.edgeHits.map((h) => h.id)),
     dashes: w.dashes,
@@ -98,6 +102,8 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
   if (changed('armor') || changed('helm') || changed('boots')) at('equip_armor'); // 방어구는 한 번만
   if (w.level > prev.level) at('level_up');
   if (w.cleaves > prev.cleaves || w.edgeSlashes > prev.edgeSlashes) at('cleave');
+  if (w.cutFx.n > prev.cutN && w.cutFx.full) at('blast'); // 다 모은 내리베기: 무겁게
+  if (w.bigT > prev.big) at('equip_weapon'); // 거인의 칼이 켜졌다: 쇠 울림
   if (w.dashes > prev.dashes) at('dash');
   if (w.shouts > prev.shouts) at('shout');
   if (w.chests.filter((c) => c.open).length > prev.opened) at('chest');

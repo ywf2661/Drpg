@@ -1,6 +1,6 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, hasUnique, hidden, winding, type World } from '../sim/world';
+import { downcutStat, attackInterval, hasUnique, hidden, winding, type World } from '../sim/world';
 import { REWIND } from '../sim/rules';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
@@ -63,6 +63,7 @@ const SUN_BOX = 20; // 그림자를 그리는 범위(m, 화면보다 넉넉히)
 const WINDUP = new THREE.Color(2.2, 0.2, 0.12); // 공격 준비(평타·내려찍기·돌진 예고) 색
 const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
 const BLOOD = new THREE.Color(3, 0.25, 0.2); // 종언: 체력을 내준 순간 주인공이 붉게
+const GOLD = new THREE.Color(2.6, 1.9, 0.6); // 내리베기를 모으는 중·거인의 칼
 const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -340,6 +341,10 @@ export function draw(world: World, dt: number) {
     if (e.stunT > 0 || e.asleep) s.mat.color.lerp(STUNNED, 0.5); // 잠든(얼어붙은) 몬스터도 푸르게
     if (e.fearT > 0 && e.skin !== 'treasure') s.mat.color.lerp(SCARED, 0.5); // 보물 고블린은 도망쳐도 금빛
     if (e === hero && world.finales.some((f) => f.age < 0.15)) s.mat.color.lerp(BLOOD, 0.6);
+    if (e === hero && world.cut >= 0) {
+      const p = downcutStat(world).p; // 내리베기를 모은다: 금빛이 차오르고, 다 모이면 맥동
+      s.mat.color.lerp(GOLD, p < 1 ? 0.45 * p : 0.55 + 0.25 * Math.sin(time * 20));
+    } else if (e === hero && world.bigT > 0) s.mat.color.lerp(GOLD, 0.2); // 거인의 칼
   }
   // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
   dropAllies(new Set(world.allies.map((a) => a.id)));

@@ -117,7 +117,9 @@ export function downcutStrike(w: World, hero: Entity, x?: number, z?: number) {
   }
   if (rank(w, 'burst')) burst(w, hero, killed);
   temper(w, hero, hit);
-  echoCut(w, 'downcut', () => [[hero.x, hero.z, hero.x + fx * st.len, hero.z + fz * st.len]], hit); // 칼의 여운: 벤 직선 그대로
+  const seg: [number, number, number, number] = [hero.x, hero.z, hero.x + fx * st.len, hero.z + fz * st.len];
+  echoCut(w, 'downcut', () => [seg], hit); // 칼의 여운: 벤 직선 그대로
+  w.cutFx = { n: w.cutFx.n + 1, seg, full: st.p >= 1 };
   w.cut = -1;
   w.cleaves++;
 }

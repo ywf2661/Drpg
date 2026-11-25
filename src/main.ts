@@ -17,7 +17,7 @@ import { bossScale, cyclePower, FLOORS, floorPower } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
-import { toughenBoss } from './sim/world';
+import { DOWNCUT, downcutStat, toughenBoss } from './sim/world';
 import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
@@ -561,6 +561,15 @@ function skillKey(cmd: Exclude<AimCmd, 'roll'>) {
   if (aiming === cmd) return fireAim();
   if (world[COOLDOWN[cmd]] <= 0 && world.entities[0].state !== 'dead') startAim(cmd);
 }
+// 내리베기를 모으는 동안: 벨 직선(커서 쪽, 마우스가 없으면 바라보는 쪽, 길이 = 지금 모은 만큼). 다 모이면 굵게
+function cutGuide() {
+  const hero = world.entities[0];
+  const p = aim();
+  const d = p ? Math.hypot(p.x - hero.x, p.z - hero.z) : 0;
+  const [dx, dz] = d > 1e-6 ? [(p!.x - hero.x) / d, (p!.z - hero.z) / d] : [Math.sin(hero.facing), Math.cos(hero.facing)];
+  const st = downcutStat(world);
+  return { kind: 'line' as const, x: hero.x, z: hero.z, dx, dz, len: st.len, width: DOWNCUT.width * (st.p >= 1 ? 1.5 : 1) };
+}
 // 조준 표시: 직선은 주인공에서 커서 쪽으로 사거리만큼(벽·닫힌 문에서 끊음), 원은 커서 지점(사거리까지로 당김). 커서가 없으면 null
 function aimGuide() {
   const shape = aiming && dragShape(aiming);
@@ -784,7 +793,7 @@ requestAnimationFrame(function frame(now) {
   if (cut) commands.length = 0;
   if (intro) introStep(dt, cut);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
-  setAim(aiming ? aimGuide() : null);
+  setAim(aiming ? aimGuide() : world.cut >= 0 ? cutGuide() : null);
   renderer.domElement.classList.toggle('aiming', !!aiming || amoving);
   if (paused || hitstop > 0) acc = 0; // 타격 멈춤 동안은 sim이 서 있다(명령은 큐에 남는다)
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));

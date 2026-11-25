@@ -440,6 +440,7 @@ export type World = {
   edge: { kind: 'flame' | 'frost' | 'both' | null; left: number; t: number }; // 칼 강화(벼림): 종류, 남은 충전, 해방 남은 시간(초)
   cut: number; // 내리베기 모은 시간(초), 모으지 않으면 -1
   bigT: number; // 거인의 칼 남은 시간(초)
+  cutFx: { n: number; seg: [number, number, number, number]; full: boolean }; // 내리베기 타격(렌더·소리용): 횟수, 벤 직선, 다 모은 베기인가
   reeled: Record<number, number>; // 휘청인 무거운 적(id) → 다시 휘청일 수 있을 때까지 남은 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
 };
