@@ -1,0 +1,45 @@
+{
+  "cell": [
+    72,
+    78
+  ],
+  "anchor": [
+    36,
+    61
+  ],
+  "ppm": 30,
+  "cols": 11,
+  "rows": 40,
+  "anims": {
+    "stance": {
+      "row": 0,
+      "frames": 8,
+      "ms": 2400,
+      "loop": "looped"
+    },
+    "move": {
+      "row": 8,
+      "frames": 10,
+      "ms": 1200,
+      "loop": "looped"
+    },
+    "attack": {
+      "row": 16,
+      "frames": 11,
+      "ms": 1200,
+      "loop": "play_once"
+    },
+    "hit": {
+      "row": 24,
+      "frames": 2,
+      "ms": 200,
+      "loop": "play_once"
+    },
+    "die": {
+      "row": 32,
+      "frames": 8,
+      "ms": 1200,
+      "loop": "play_once"
+    }
+  }
+}

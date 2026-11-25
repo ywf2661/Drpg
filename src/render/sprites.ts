@@ -57,6 +57,12 @@ import raiderOrcInfo from '../assets/sprites/raider_orc.json';
 import raiderOrcUrl from '../assets/sprites/raider_orc.png';
 import treantInfo from '../assets/sprites/swamp_treant.json';
 import treantUrl from '../assets/sprites/swamp_treant.png';
+import golemInfo from '../assets/sprites/rock_golem.json';
+import golemUrl from '../assets/sprites/rock_golem.png';
+import minerInfo from '../assets/sprites/miner_goblin.json';
+import minerUrl from '../assets/sprites/miner_goblin.png';
+import shardArcherInfo from '../assets/sprites/crystal_archer.json';
+import shardArcherUrl from '../assets/sprites/crystal_archer.png';
 import ferrymanUrl from '../assets/sprites/plague_ferryman.png';
 import timeWardenUrl from '../assets/sprites/time_warden.png';
 
@@ -65,7 +71,7 @@ export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth'
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 // tint: 불빛에 곱하는 고유 색(정예는 특성 색). ring: 정예의 발밑 고리
 // halo: 기도하는 자(성기사 그림)의 후광(k = 켜짐 정도 0~1, t = 맥동 시간). hero = 주인공의 「금 간 빛 고리」(고리만, 머리 위)
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number; hero?: boolean } };
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; fall?: number; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number; hero?: boolean } };
 // 후광: 맥동 주기(초)·빛무리 밝기 범위, 켜지고 꺼지는 시간(초). 고리 밝기 = ring + 맥동의 0.2배(빛무리보다 또렷하게)
 export const HALO = { period: 2.6, min: 0.45, max: 0.75, fade: 1.2, ring: 0.75 };
 // 주인공 머리 위 고리: y = 발에서 높이(m), broken = 되감기를 막 쓴 밝기 → 다시 쓸 수 있으면 1(그 사이는 차오름)
@@ -124,6 +130,9 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   raider_goblin: { info: raiderInfo as SheetInfo, url: raiderUrl }, // 뒤틀린 고블린(tools/raider.py)
   swamp_treant: { info: treantInfo as SheetInfo, url: treantUrl }, // 늪 나무 괴물(받은 3D 모델, tools/boss3d/render.py swamp_treant)
   raider_orc: { info: raiderOrcInfo as SheetInfo, url: raiderOrcUrl }, // 약탈자 오크(받은 3D 모델, tools/boss3d/render.py raider_orc)
+  rock_golem: { info: golemInfo as SheetInfo, url: golemUrl }, // 바위 괴물(tools/boss3d로 렌더)
+  miner_goblin: { info: minerInfo as SheetInfo, url: minerUrl }, // 광부 고블린(tools/miner.py)
+  crystal_archer: { info: shardArcherInfo as SheetInfo, url: shardArcherUrl }, // 결정 궁수(tools/miner.py)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
@@ -433,7 +442,9 @@ export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number)
   const f = casting ? Math.min(c.frames - 1, Math.floor((1 - s.castT / CAST_SHOW) * c.frames)) : anim === 'attack' ? Math.min(c.frames - 1, Math.floor((e.attackT / interval) * c.frames)) : frameAt(c, s.t);
   const row = c.row + dirIndex(e.facing);
   s.mat.map!.offset.set(f / s.info.cols, 1 - (row + 1) / s.info.rows);
-  s.mesh.position.set(e.x, 0, e.z);
+  // 광산: 허공에 떨어진 몬스터는 아래로 떨어지며 사라지고, 매달린 정예·보스는 가장자리 아래로 몸이 내려가 있다
+  if (e.fell) s.fall = (s.fall ?? 0) + dt;
+  s.mesh.position.set(e.x, e.fell ? -Math.min(30, 4.9 * s.fall! ** 2) : e.hangT ? -0.9 : 0, e.z);
   // 시체는 벽보다 뒤, 산 캐릭터보다 먼저 그리고 깊이를 남기지 않는다 → 그 뒤를 지나가는 캐릭터를 가리지 않는다
   const dead = e.state === 'dead';
   s.mesh.renderOrder = dead ? 1 : 2;

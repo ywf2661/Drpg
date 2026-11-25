@@ -14,6 +14,7 @@ import ruinsFloorUrl from '../assets/tiles/floor_ruins.png';
 import plankUrl from '../assets/tiles/plank.png';
 import logUrl from '../assets/tiles/wall_log.png';
 import { buildWater, tickWater } from './water';
+import { buildAbyss, tickAbyss } from './abyss';
 import { barricadeAt, fadeTrees, syncRaid } from './props';
 import { dirtGround } from './ground';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
@@ -54,7 +55,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   sanctum: { torch: 0xe0705a, range: 10, tint: [1, 0.78, 0.72], sky: 0.22, sun: 0, bg: 0x000000 }, // 무너진 성소: 폐허 타일에 칠흑과 핏빛 횃불
   lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
   raid: { torch: 0xffc890, range: 12, tint: [1.05, 0.9, 0.76], sky: 1.9, sun: 3.0, bg: 0x2a1a10 }, // 약탈자 진지: 먼지 낀 붉은 해
-  mine: { torch: 0xffb070, range: 11, tint: [0.92, 0.86, 1.04], sky: 0.5, sun: 0.5, bg: 0x07040c }, // 보랏빛 광산: 어둡고, 허공 밑에서 보랏빛이 올라온다
+  mine: { torch: 0xffc890, range: 12, tint: [0.98, 0.9, 1.08], sky: 1.1, sun: 1.0, bg: 0x0d0618 }, // 보랏빛 광산: 어둡고, 허공 밑에서 보랏빛이 올라온다
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -210,6 +211,7 @@ export async function initRender(world: World, theme: Theme) {
   tex.ruins = { floor: rf, wall: rw };
   tex.sanctum = tex.ruins;
   tex.raid = { floor: ff, wall: fw }; // 약탈자 진지: 초원 그림을 메마른 흙·붉은 바위로 물들인다(buildMap)
+  tex.mine = { floor: cf, wall: cw }; // 보랏빛 광산: 동굴 바위(buildMap이 잿빛 보라로 물들인다)
   tex.lake = { floor: ff, wall: lg }; // 호숫가: 풀은 초원 그림(색만 서늘하게), 벽 상자는 통나무집뿐('#'은 숲으로 그린다)
   plankTex = pk;
   setWorld(world, theme);
@@ -264,6 +266,7 @@ export function draw(world: World, dt: number) {
   const hero = world.entities[0];
   time += dt;
   tickWater(time, world);
+  tickAbyss(time, world);
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;
@@ -480,6 +483,7 @@ function buildMap(world: World, theme: Theme) {
   // 호숫가 바닥 색: 풀은 이끼 낀 서늘한 초록, 숲 바닥은 어두운 덤불
   if (forest) for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(0.74, 0.88, 0.8));
   if (theme === 'raid') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) dirtGround(mesh.material as THREE.MeshStandardMaterial); // 밟아 다진 흙(셰이더)
+  if (theme === 'mine') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(1.35, 1.25, 1.5)); // 잿빛 보라 바위(동굴 바닥 그림이 어두워 밝게)
   for (const [cells, rgb] of [[undergrowth, theme === 'raid' ? 0x6a5444 : 0x75876a]] as const) {
     if (!cells.length) continue;
     const mat = stone(floorTex, 4, FLOOR_VARIANTS);
@@ -490,6 +494,8 @@ function buildMap(world: World, theme: Theme) {
     mesh.receiveShadow = true;
     mapGroup.add(mesh);
   }
+  const abyss = buildAbyss(world, wallTex); // 광산: 허공 밑 깊이·절벽 면·빛 다리·결정
+  if (abyss) mapGroup.add(abyss);
   const water = buildWater(world);
   if (water) mapGroup.add(water);
   for (let v = 0; v < 4 && planks.length; v++) {

@@ -1026,9 +1026,9 @@ export function buildProps(world: World): THREE.Group {
       if (ch.kind === 'sick') c.tint = SICK_SKIN; // 낫기 전엔 웅크린다(syncChests)
       return { card: c, open: c.clip };
     }
-    if (ch.kind === 'wheel' || ch.kind === 'well' || ch.kind === 'keg') {
+    if (ch.kind === 'wheel' || ch.kind === 'well' || ch.kind === 'keg' || ch.kind === 'crystal') {
       const c = card(props, 'barrel', ch.x + 0.5, ch.z + 0.5, false);
-      c.mesh.visible = false; // 3D 모형(water.ts)·화약통(raidDeco)
+      c.mesh.visible = false; // 3D 모형(water.ts)·화약통(raidDeco)·광산 결정(abyss.ts)
       return { card: c, open: c.clip };
     }
     if (ch.kind === 'beacon') {

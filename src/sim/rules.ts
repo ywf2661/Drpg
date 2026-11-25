@@ -480,7 +480,7 @@ export const steady = (e: Entity) => e.eliteKind === 'unyielding'; // 기절·�
 export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum' | 'tent' | 'lake' | 'raid' | 'mine'; // camp = 야영지(거점, 몬스터 없음), tent = 2막 원정대 천막(거점), lake = 2막 ① 호숫가
 // 거점: 몬스터 없이 쉬고 사고 맡기는 곳(층 번호 0). 죽거나 보스를 깨면 여기로 온다
 export const isHub = (land: Land) => land === 'camp' || land === 'tent';
-export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin' | 'time_warden' | 'plague_villager' | 'plague_ferryman' | 'raider_goblin' | 'raider_chief' | 'raider_orc' | 'swamp_treant';
+export type Skin = 'goblin' | 'miner_goblin' | 'crystal_archer' | 'rock_golem' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin' | 'time_warden' | 'plague_villager' | 'plague_ferryman' | 'raider_goblin' | 'raider_chief' | 'raider_orc' | 'swamp_treant';
 export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = {
   goblin: { name: '고블린', hp: 0.8, speed: 1.25 }, // 약하지만 빠르고 떼로 온다
   goblin_elite: { name: '고블린 전사', hp: 0.9, speed: 1.15 },
@@ -502,6 +502,9 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   raider_goblin: { name: '뒤틀린 고블린', hp: 1.1, speed: 1.05 }, // 약탈자 진지 졸개(고블린 색 바꾸기)
   swamp_treant: { name: '늪 나무 괴물', hp: 1.25, speed: 0.9 }, // 호숫가 전사(받은 3D 모델 — tools/boss3d/render.py MODELS)
   raider_orc: { name: '약탈자 오크', hp: 1.2, speed: 0.95 }, // 약탈자 진지 전사(받은 3D 모델 — tools/boss3d/render.py MODELS)
+  miner_goblin: { name: '광부 고블린', hp: 1.1, speed: 1.05 }, // 보랏빛 광산 졸개(고블린 색 바꾸기 — tools/miner.py)
+  crystal_archer: { name: '결정 궁수', hp: 1.1, speed: 1 }, // 보랏빛 광산 궁수(홉고블린 궁수 색 바꾸기)
+  rock_golem: { name: '바위 괴물', hp: 1.5, speed: 0.8 }, // 보랏빛 광산 전사(tools/boss3d/rock_golem.js). 밀리지 않는다(core.heavy)
   raider_chief: { name: '약탈자 우두머리', hp: 1.35, speed: 1 }, // 약탈자 진지 보스(chief.ts). 그림: tools/boss3d/raider_chief.js
   plague_ferryman: { name: '역병 걸린 뱃사공', hp: 1.3, speed: 1 }, // 호숫가 보스: 배를 타고 호수를 돌다 나루에 내려 싸운다(ferryman.ts). 그림: tools/boss3d/plague_ferryman.js
   time_warden: { name: '시간의 파수꾼', hp: 1.2, speed: 1 }, // 2막 최종 보스(보스 원형). 지금은 ?test 소환만. 그림: tools/boss3d/time_warden.js
@@ -516,8 +519,8 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
   // ponytail: 졸개는 「역병 걸린 마을 사람」, 보스는 뱃사공이 생길 때 바꾼다(설계: 2026-11-24-act2-lake-design.md 6·7절)
   lake: { name: '호숫가', unit: '구역', skins: { minion: 'plague_villager', warrior: 'swamp_treant', archer: 'hobgoblin_archer', boss: 'plague_ferryman' } },
   raid: { name: '약탈자 진지', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'raider_orc', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
-  // ponytail: 광산 몬스터(광부 고블린·바위 괴물·결정 궁수)와 감독관 그림이 생기면 바꾼다(설계: 2026-11-25-act2-mine-design.md 2·5절)
-  mine: { name: '보랏빛 광산', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
+  // ponytail: 감독관 그림이 생기면 보스를 바꾼다(설계: 2026-11-25-act2-mine-design.md 5절)
+  mine: { name: '보랏빛 광산', unit: '구역', skins: { minion: 'miner_goblin', warrior: 'rock_golem', archer: 'crystal_archer', boss: 'raider_chief' } },
   sanctum: { name: '무너진 성소', unit: '층', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', king: 'bone_knight', boss: 'fallen_paladin' } },
 };
 // 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.

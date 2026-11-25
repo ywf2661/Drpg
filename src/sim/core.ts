@@ -604,7 +604,7 @@ function trophyKill(w: World, t: Entity) {
 // 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동·예고가 끊긴다.
 // 보스·해골 왕은 밀리지도 끊기지도 않는다. 죽은 적도 밀린다(시체가 날아간다). 난수를 쓰지 않는다
 // 밀리지도 끌려오지도 않는 무거운 적
-export const heavy = (e: Entity) => e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave' || steady(e);
+export const heavy = (e: Entity) => e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave' || e.skin === 'rock_golem' || steady(e);
 export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
   w.impacts++;
   if (heavy(e)) return;

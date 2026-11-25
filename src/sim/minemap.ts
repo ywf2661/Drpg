@@ -164,7 +164,7 @@ function tryMine(seed: number, floor: number, from: Side): string[] | null {
   }
   // 섬과 다리
   const jitter = deep ? 1 : 2;
-  const rad = () => (floor === 1 ? 6.5 + rand() * 1.5 : deep ? 3.6 + rand() * 1.2 : 5 + rand() * 1.6);
+  const rad = () => (floor === 1 ? 5.2 + rand() * 1.2 : deep ? 3.6 + rand() * 1.2 : 4.4 + rand() * 1.3); // 슬롯 간격 17(4구역 14) — 섬 사이 허공이 4~7칸
   const isles: Isle[] = [...path, ...branches.map((b) => b[1])].map(([i, j]) => ({ c: [slots[i] + int(-jitter, jitter), slots[j] + int(-jitter, jitter)], r: rad() }));
   const edges: Edge[] = [];
   for (let n = 1; n < path.length; n++) edges.push({ a: n - 1, b: n, light: false });
