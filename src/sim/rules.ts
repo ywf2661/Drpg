@@ -348,6 +348,7 @@ export type World = {
   potions: number;
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
+  hitScale: number; // 몬스터 한 방 = 기준 체력 × HIT 비율 × 이 값(dungeon.ts hitScale). 0 = 예전 공식(1막 첫 판). main이 정한다
   xpCap: number; // 경험치 배율 상한(몬스터 배율이 이보다 커도 경험치는 여기까지): 이야기 깊이로 세진 만큼 레벨이 빨리 올라 상쇄되지 않게
   gear: Gear;
   mods: Record<Slot, Affix[]>; // 장착 장비의 마법 옵션
@@ -451,6 +452,12 @@ export const RANGE = 1.5;
 // (마법 옵션·스킬 도입 후 봇 테스트로 정함: 5층 ×2.2. 스킬을 쓰면 확실히 덜 죽게)
 export const DMG_SCALE = 2;
 export const MONSTER_DMG = 3.25; // 공통 배율(밸런스 손잡이). 사용자가 해 보고 "너무 쉽다" → 2.5에서 3.25. 그 전: 투구·신발이 생기면서 2 → 2.5(봇 사망 수를 그 전과 맞춤)
+// 2막·1막 2회차 이상의 몬스터 한 방(설계: docs/superpowers/specs/2026-11-25-act2-loot-growth-design.md 1절).
+// 직업 기준 체력의 비율. 4단계 갑옷을 입었을 때 실제로 깎이는 양이 이 비율이 되게 hitBase에서 갑옷 몫을 되돌려 놓는다.
+// tell = 예고 공격·함정, big = 보스 큰 기술
+export const HIT = { hero: 0, minion: 0.1, warrior: 0.25, archer: 0.15, mage: 0.15, king: 0.3, boss: 0.3, tell: 0.4, big: 0.55 };
+export const refHp = (cls: HeroClass) => heroMaxHp(MAX_LEVEL, cls) + CLASSES[cls].helms[3].hp; // 실제 최대 체력이 아니라 고정값: 체력 옵션을 올리면 그만큼 더 버틴다
+export const hitBase = (cls: HeroClass) => refHp(cls) / (1 - CLASSES[cls].armors[3].reduce);
 export const ELITE = { hp: 3, dmg: 1.3, xp: 4, chance: 0.1 }; // chance: 몬스터 하나가 정예로 나올 확률
 // 정예 특성: 이름(접두어)·설명·색(스프라이트·발밑 고리·대상 이름).
 // 신속 = 이동·공격 속도 배수, 흡혈 = 주인공에게 준 피해의 배수만큼 회복, 폭발 = 죽은 자리에 예고 후 폭발(굴림 × mult),

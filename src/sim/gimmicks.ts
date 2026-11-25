@@ -8,11 +8,11 @@ import { tickPaladin } from './paladin';
 import { lakeLow, tickSluice, turnWheel } from './sluice';
 import { igniteKeg, tickPowder } from './powder';
 import { bossScale, cyclePower, FLOORS } from './dungeon';
-import { isHub, depthOf, FIERCE, AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, FERRY, LURK, PUDDLE, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
+import { isHub, depthOf, FIERCE, AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, FERRY, LURK, PUDDLE, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, HIT, hitBase, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
 const LETTER: Record<string, Kind> = { m: 'minion', w: 'warrior', a: 'archer', g: 'mage' };
 // 몬스터 피해 배율(층 배율의 DMG_SCALE배 + 공통 배율) — 함정 피해에 곱한다
-const trapDmg = (w: World, base: number) => Math.round(base * (1 + (w.power - 1) * DMG_SCALE) * MONSTER_DMG);
+const trapDmg = (w: World, base: number) => Math.round(w.hitScale > 0 ? hitBase(w.cls) * HIT.tell * w.hitScale : base * (1 + (w.power - 1) * DMG_SCALE) * MONSTER_DMG); // hitScale이 있으면 예고 공격 칸
 
 // (cx, cz) 둘레 r m 쯤의 걸을 수 있는 자리에 몬스터 하나(이 맵의 스킨 또는 skin, 주인공을 노린다 — 무덤은 아무도 안 노린다)
 export function spawnNear(w: World, kind: Kind, cx: number, cz: number, r: number, summoner = -1, skin?: Skin): Entity | null {

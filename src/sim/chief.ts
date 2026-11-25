@@ -4,11 +4,11 @@
 //   화약통은 군막에서 하나씩 굴러 나와 마당에 멈춰 선다(마당에 CHIEF.kegs개까지)
 //   내려찍기: 앞쪽 원 예고 뒤 큰 피해. 화약통 던지기: 주인공 발밑에 불붙은 통(곧 터진다)
 //   체력 절반 아래: 군막에서 약탈자 넷(한 번), 통을 둘씩
-import { face, friends, hurt, rand, roll } from './core';
+import { face, friends, hitOf, hurt, rand } from './core';
 import { walkable } from './path';
 import { spawnNear } from './gimmicks';
 import { kegAt } from './powder';
-import { DT, POWDER, type Entity, type World } from './rules';
+import { DT, HIT, POWDER, type Entity, type World } from './rules';
 
 export const CHIEF = { kegs: 3, rollEvery: 5, rollFirst: 1.5, stun: 3, bump: 1.3, throwEvery: 5, throwHalf: 3.5, slamEvery: 4, slamR: 1.7, slamAt: 1.5, windup: 0.8, slamMult: 1.6, raiders: 4 };
 type ChiefState = { throwT: number; slamT: number; raised: boolean; rollT: number };
@@ -40,7 +40,7 @@ export function chief(w: World, e: Entity, t: Entity | null): boolean {
     if ((e.phaseT -= DT) > 0) return true;
     const [x, z] = [e.x + Math.sin(e.facing) * CHIEF.slamAt, e.z + Math.cos(e.facing) * CHIEF.slamAt];
     w.blasts.push({ id: w.nextItem++, x, z, age: 0, kind: 'slam' });
-    for (const f of friends(w)) if (Math.hypot(f.x - x, f.z - z) <= CHIEF.slamR) hurt(w, f, Math.round(roll(w, e) * CHIEF.slamMult), e);
+    for (const f of friends(w)) if (Math.hypot(f.x - x, f.z - z) <= CHIEF.slamR) hurt(w, f, hitOf(w, e, CHIEF.slamMult, HIT.big), e);
     Object.assign(e, { phase: 'none' });
     s.slamT = CHIEF.slamEvery;
     return true;
