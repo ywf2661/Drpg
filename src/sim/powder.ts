@@ -2,13 +2,24 @@
 // 화약통을 누르면 불이 붙고 POWDER.fuse초 뒤 그 자리에서 터진다(바닥에 예고 원). 터지면 반지름 r 안의 주인공·몬스터가 다치고,
 // 말뚝 방책 칸이 부서지고, 천막이 쓰러지고, 곁의 화약통은 곧 터진다. 터진 통에 닿은 도화선마다 불꽃이 초속 spark칸으로 기어가
 // 끝에 닿은 통을 터뜨린다(사슬). 통은 한 번씩만 터진다.
-import { hurt } from './core';
-import { DT, POWDER, type Keg, type World } from './rules';
+import { hurt, roll } from './core';
+import { walkable } from './path';
+import { DT, LEGEND2, POWDER, type Entity, type Keg, type World } from './rules';
 
 export function igniteKeg(w: World, k: Keg | undefined) {
   if (!k || k.done || k.lit) return;
   Object.assign(k, { lit: true, fuse: k.fuse >= 0 ? Math.min(k.fuse, POWDER.fuse) : POWDER.fuse });
   w.zones.push({ id: w.nextItem++, x: k.x + 0.5, z: k.z + 0.5, r: POWDER.r, t: k.fuse, total: k.fuse, dmg: 0, owner: -1, kind: 'warn' });
+}
+
+// 「우두머리의 화약 망치」: 가르기마다 불붙은 통이 발밑에서 앞으로 굴러간다(벽 앞에서 멈춘다). 주인공은 안 다치고(bump), 몬스터는 무기 피해 × kegMult
+export function hammerKeg(w: World, hero: Entity) {
+  const [ux, uz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
+  let d = 0;
+  while (d + 0.25 <= LEGEND2.kegRoll && walkable(w.grid, Math.floor(hero.x + ux * (d + 0.25)), Math.floor(hero.z + uz * (d + 0.25)))) d += 0.25;
+  const [ex, ez] = [hero.x + ux * d, hero.z + uz * d];
+  w.kegs.push({ x: Math.floor(hero.x), z: Math.floor(hero.z), fx: hero.x, fz: hero.z, fuse: POWDER.fuse, lit: true, wall: false, done: false, chest: -1, bump: true, roll: d > 0 ? [ex, ez] : undefined, dmg: Math.round(roll(w, hero) * LEGEND2.kegMult) });
+  w.zones.push({ id: w.nextItem++, x: ex, z: ez, r: POWDER.r, t: POWDER.fuse, total: POWDER.fuse, dmg: 0, owner: -1, kind: 'warn' });
 }
 
 // 통 가운데(구르는 통은 칸 사이)
@@ -41,7 +52,7 @@ function blow(w: World, k: Keg) {
   w.blasts.push({ id: w.nextItem++, x: cx, z: cz, age: 0, kind: 'fire' }, { id: w.nextItem++, x: cx, z: cz, age: 0, kind: 'slam' });
   for (const e of [...w.entities, ...w.allies]) {
     if (e.state === 'dead' || Math.hypot(e.x - cx, e.z - cz) > POWDER.r || (k.bump && e.kind === 'hero')) continue;
-    hurt(w, e, Math.max(1, Math.round(e.maxHp * (e.kind === 'hero' ? POWDER.hero : e.kind === 'boss' ? POWDER.boss : POWDER.mob))));
+    hurt(w, e, k.dmg ?? Math.max(1, Math.round(e.maxHp * (e.kind === 'hero' ? POWDER.hero : e.kind === 'boss' ? POWDER.boss : POWDER.mob)))); // 망치 통은 무기 피해
   }
   // 말뚝 방책·천막
   for (const [x, z] of w.stakes) if (Math.hypot(x + 0.5 - cx, z + 0.5 - cz) <= POWDER.r && !w.broken.has(z * W + x)) (w.broken.add(z * W + x), (w.grid.blocked[z * W + x] = 0));

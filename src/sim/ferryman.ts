@@ -3,9 +3,9 @@
 //        물 위에 나설 때 세 번에 한 번은 물에서 마을 사람 둘을 끌어올린다.
 // 나루: 주인공에게 가까운 나루에 내려 땅에서 싸운다(평타 + 삿대 휘두르기·찌르기 예고). 시간이 다 되면 가까운 나루 끝으로 가서 다시 배에 오른다.
 // 체력 절반 아래: 물 위에 있는 시간이 짧아지고 등불을 둘씩 던진다.
-import { face, friends, hurt, pathTo, rand, roll, walk } from './core';
+import { face, friends, hitOf, hurt, pathTo, rand, walk } from './core';
 import { spawnNear } from './gimmicks';
-import { DT, type Entity, type World } from './rules';
+import { DT, HIT, type Entity, type World } from './rules';
 
 export const FERRYMAN = {
   center: 24, ring: 8, tip: 9.5, speed: 1.9, // 호수 가운데(칸), 배가 도는 반지름·나루 끝 반지름(m), 배 빠르기(m/s)
@@ -34,7 +34,7 @@ export function ferryman(w: World, e: Entity, t: Entity | null): boolean {
       fm.lantern = half(e) ? FERRYMAN.lanternHalf : FERRYMAN.lantern;
       const spots: [number, number][] = [[hero.x, hero.z]];
       if (half(e)) spots.push([hero.x + (rand(w) - 0.5) * 4, hero.z + (rand(w) - 0.5) * 4]);
-      const dmg = Math.round(roll(w, e) * FERRYMAN.lanternMult);
+      const dmg = hitOf(w, e, FERRYMAN.lanternMult, HIT.tell);
       for (const [x, z] of spots) {
         w.zones.push({ id: w.nextItem++, x, z, r: 1.2, t: FERRYMAN.lanternDelay, total: FERRYMAN.lanternDelay, dmg, owner: -1 });
         for (const b of FERRYMAN.burn) w.zones.push({ id: w.nextItem++, x, z, r: 1.2, t: FERRYMAN.lanternDelay + b, total: FERRYMAN.lanternDelay + b, dmg: Math.round(dmg * FERRYMAN.burnMult), owner: -1 });
@@ -105,6 +105,6 @@ function strike(w: World, e: Entity, kind: 0 | 1) {
     const [dx, dz] = [f.x - e.x, f.z - e.z];
     const along = dx * ux + dz * uz, side = Math.abs(dx * uz - dz * ux);
     const hit = kind === 0 ? Math.hypot(dx, dz) <= 3.1 && along >= Math.hypot(dx, dz) * Math.cos(1.35) : along >= 0 && along <= 4.4 && side <= 0.8;
-    if (hit) hurt(w, f, Math.round(roll(w, e) * (kind === 0 ? FERRYMAN.sweepMult : FERRYMAN.thrustMult)), e);
+    if (hit) hurt(w, f, hitOf(w, e, kind === 0 ? FERRYMAN.sweepMult : FERRYMAN.thrustMult, HIT.big), e);
   }
 }

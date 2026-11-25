@@ -1,12 +1,14 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, seeThrough, walkable, type Cell } from './path';
-import { DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World } from './rules';
+import { DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World, HIT } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
-import { downcutStat, reel, finaleStat, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, greatswordStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints } from './core';
+import { downcutStat, reel, finaleStat, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, greatswordStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, hitOf } from './core';
+import { hammerKeg } from './powder';
+import { decoy } from './necro'; // 함수만 쓰니 서로 부르는 import라도 괜찮다
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
 
@@ -201,6 +203,7 @@ export function cleave(w: World, hero: Entity) {
   }
   if (rank(w, 'burst')) burst(w, hero, killed);
   temper(w, hero, hit);
+  if (hasUnique(w, 'powderHammer')) hammerKeg(w, hero);
   w.cleaves++;
   const r = cleaveStat(w).radius;
   echoCut(w, 'cleave', () => (mastered(w, 'cleave') ? ringSegs(hero.x, hero.z, r) : halfSegs(hero, r)), hit); // 칼의 여운: 벤 모양 그대로
@@ -242,7 +245,7 @@ export function charge(w: World, e: Entity, t: Entity | null): boolean {
   if (!rush(w, e, CHARGE.speed)) return true;
   const hit = friends(w).find((f) => dist(e, f) <= CHARGE.hit);
   if (hit) {
-    hurt(w, hit, Math.round(roll(w, e) * CHARGE.mult), e);
+    hurt(w, hit, hitOf(w, e, CHARGE.mult, HIT.big), e);
     Object.assign(e, { phase: 'none', state: 'idle' });
   }
   return true;
@@ -355,6 +358,7 @@ export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [2 * hero.x - near.x, 2 * hero.z - near.z] : [hero.x + dx, hero.z + dz];
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
+  if (hasUnique(w, 'runnerBoots')) decoy(w, hero.x, hero.z); // 도망자의 장화: 구른 자리에 허수아비
   Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   w.rollCd = ROLL.cd;
   w.trail = emberLine(w, hero.x, hero.z); // 불꽃 걸음: 구르며 늘어나는 불길
@@ -598,7 +602,7 @@ export function slam(w: World, e: Entity, t: Entity | null): boolean {
   face(e, t);
   Object.assign(e, { phase: 'windup', cd: SLAM.cd, state: 'idle', attackT: 0, path: [] });
   const [x, z] = [e.x + Math.sin(e.facing) * SLAM.reach, e.z + Math.cos(e.facing) * SLAM.reach];
-  w.zones.push({ id: w.nextItem++, x, z, r: SLAM.radius, t: SLAM.windup, total: SLAM.windup, dmg: Math.round(roll(w, e) * SLAM.mult), owner: e.id });
+  w.zones.push({ id: w.nextItem++, x, z, r: SLAM.radius, t: SLAM.windup, total: SLAM.windup, dmg: hitOf(w, e, SLAM.mult, HIT.tell), owner: e.id });
   return true;
 }
 
@@ -607,7 +611,7 @@ export function meteor(w: World, e: Entity, t: Entity) {
   e.cd = Math.max(0, e.cd - DT);
   if (e.cd > 0 || dist(e, t) > MAGE.range || !clearLine(w, e, t)) return;
   e.cd = METEOR.cd;
-  w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: METEOR.delay, total: METEOR.delay, dmg: Math.round(roll(w, e) * METEOR.mult), owner: -1 });
+  w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: METEOR.delay, total: METEOR.delay, dmg: hitOf(w, e, METEOR.mult, HIT.tell), owner: -1 });
 }
 
 // 위험 구역 한 틱: 주인이 죽었거나 예고가 끊겼으면 사라지고, 시간이 다 되면 반경 안의 주인공에게 피해

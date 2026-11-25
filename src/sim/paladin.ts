@@ -1,9 +1,9 @@
 // 타락한 성기사 전용 기술(설계: docs/superpowers/specs/2026-11-19-paladin-skills-design.md). 수치는 sanctum.ts의 PALADIN.
 // 빛의 사슬: 켜진 성소마다 성기사와 빛줄, 닿으면 데인다. 성검의 비: 표식 → 성검이 꽂혀 잠시 벽. 심판: 체력 절반부터, 곁만 빼고 방 전체. three.js·Math.random 금지.
-import { face, friends, hurt, rand, roll } from './core';
+import { face, friends, hitOf, hurt, rand, roll } from './core';
 import { walkable } from './path';
 import { PALADIN } from './sanctum';
-import { DT, type Chest, type Entity, type World, type Zone } from './rules';
+import { DT, HIT, type Chest, type Entity, type World, type Zone } from './rules';
 
 export const paladinOf = (w: World) => w.entities.find((e) => e.kind === 'boss' && e.skin === 'fallen_paladin' && e.state !== 'dead');
 
@@ -81,7 +81,7 @@ function judge(w: World, e: Entity) {
   for (const f of friends(w))
     if (Math.hypot(f.x - e.x, f.z - e.z) > PALADIN.judgeSafe) {
       w.blasts.push({ id: w.nextItem++, x: f.x, z: f.z, age: 0, kind: 'fire' });
-      hurt(w, f, Math.round(roll(w, e) * PALADIN.judgeMult));
+      hurt(w, f, hitOf(w, e, PALADIN.judgeMult, HIT.big));
     }
 }
 
@@ -99,7 +99,7 @@ function rainMarks(w: World, e: Entity) {
   const around: [number, number][] = [];
   for (let z = Math.floor(e.z) - R; z <= Math.floor(e.z) + R; z++) for (let x = Math.floor(e.x) - R; x <= Math.floor(e.x) + R; x++) if (Math.hypot(x + 0.5 - e.x, z + 0.5 - e.z) <= PALADIN.rainRange) around.push([x, z]);
   while (marks.length < PALADIN.rainCount && pick(around.filter(([x, z]) => ok(x, z, PALADIN.rainGap))));
-  for (const [x, z] of marks) w.zones.push({ id: w.nextItem++, x: x + 0.5, z: z + 0.5, r: PALADIN.swordR, t: PALADIN.rainDelay, total: PALADIN.rainDelay, dmg: Math.round(roll(w, e) * PALADIN.swordMult), owner: -1, kind: 'sword' });
+  for (const [x, z] of marks) w.zones.push({ id: w.nextItem++, x: x + 0.5, z: z + 0.5, r: PALADIN.swordR, t: PALADIN.rainDelay, total: PALADIN.rainDelay, dmg: hitOf(w, e, PALADIN.swordMult, HIT.tell), owner: -1, kind: 'sword' });
   w.pal.quiet = PALADIN.rainDelay + PALADIN.swordWall; // 칼이 다 사라질 때까지 빛줄을 끈다
 }
 

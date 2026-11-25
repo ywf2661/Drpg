@@ -134,6 +134,8 @@ LEGEND_LAYERS = {
     'wizard_main_elemvoid': ('wizard', 'greatstaff@void', ('gem', (190, 80, 255))),
     'necromancer_off_skull': ('necromancer', None, ('orb', (60, 255, 170))),
     'ranger_main_storm': ('ranger', 'longbow@storm', ('storm', (110, 190, 255))),
+    'hero_main_hammer': ('hero', 'maul', ('edge', (255, 110, 40))),
+    'hero_main_spear': ('hero', 'staff', ('spear', (60, 110, 220)), 1.2),  # 원정대 깃발창(2막): FLARE엔 창이 없어 장대 끝에 창날·깃발을 덧그린다  # 우두머리의 화약 망치(2막): 양손 망치 + 잉걸불 빛
 }
 # 엘리멘탈 스태프 색(시안 staffs.py): 보석 색조(0~255)·밝기 배율, 자루 회색 섞기·RGB 배율. base = 색은 원본, 보석 표식만
 STAFF_TINTS = {'base': None, 'fire': (8, 1.15, 0.2, (1.1, 0.75, 0.6)), 'frost': (133, 1.2, 0.5, (0.85, 1.0, 1.25)),
@@ -424,6 +426,44 @@ def stretch(c, k):
     return c.transform(c.size, Image.AFFINE, (m11, m12, hx - m11 * hx - m12 * hy, m21, m22, hy - m21 * hx - m22 * hy), Image.BICUBIC)
 
 
+def spearhead(c, color):
+    """원정대 깃발창: 장대(지팡이) 끝 너머에 쇠 창날, 끝 조금 아래에 원정대 깃발 천(color, 금빛 줄)"""
+    a = c.getchannel('A')
+    pts = [(x, y) for y in range(0, c.height, 2) for x in range(0, c.width, 2) if a.getpixel((x, y)) > 60]
+    if len(pts) < 2:
+        return c
+    px = c.load()
+    gem = [(x, y) for x, y in pts if px[x, y][1] > px[x, y][0] + 40 and px[x, y][1] > px[x, y][2] + 40]  # 지팡이 머리의 초록 보석 = 창 머리 쪽
+    if gem:
+        gx, gy = sum(p[0] for p in gem) / len(gem), sum(p[1] for p in gem) / len(gem)
+        hx, hy = max(pts, key=lambda p: (p[0] - gx) ** 2 + (p[1] - gy) ** 2)  # 반대쪽 끝
+    else:
+        hx, hy = min(pts, key=lambda p: (p[0] - TORSO[0]) ** 2 + (p[1] - TORSO[1]) ** 2)
+    tx, ty = max(pts, key=lambda p: (p[0] - hx) ** 2 + (p[1] - hy) ** 2)
+    ln = math.hypot(tx - hx, ty - hy) or 1
+    ux, uy = (tx - hx) / ln, (ty - hy) / ln
+    nx, ny = -uy, ux
+    for y in range(c.height):  # 보석은 쇠 물림쇠로
+        for x in range(c.width):
+            r, g, b, al = px[x, y]
+            if al and g > r + 40 and g > b + 40:
+                px[x, y] = (110, 112, 120, al)
+    d = ImageDraw.Draw(c)
+    L, W = 34, 9  # 창날 길이·반폭(원본 픽셀, SCALE 전)
+    blade = [(tx, ty), (tx + ux * L * 0.35 + nx * W, ty + uy * L * 0.35 + ny * W), (tx + ux * L, ty + uy * L), (tx + ux * L * 0.35 - nx * W, ty + uy * L * 0.35 - ny * W)]
+    d.polygon(blade, fill=(70, 74, 86, 255))
+    d.polygon([blade[0], blade[1], blade[2], (tx + ux * L * 0.35, ty + uy * L * 0.35)], fill=(200, 208, 222, 255))  # 한쪽 날은 밝게
+    d.line([(tx - nx * 6, ty - ny * 6), (tx + nx * 6, ty + ny * 6)], fill=(150, 120, 60, 255), width=4)  # 날밑
+    # 깃발: 끝에서 장대를 따라 조금 내려온 곳에 매달려 화면 아래쪽으로 늘어진다
+    fx0, fy0 = tx - ux * 10, ty - uy * 10
+    fx1, fy1 = tx - ux * 34, ty - uy * 34
+    drop = 30
+    cloth = [(fx0, fy0), (fx1, fy1), (fx1 + 4, fy1 + drop), (fx0 + 8, fy0 + drop * 0.8)]
+    d.polygon(cloth, fill=tuple(round(v * 0.75) for v in color) + (255,))
+    d.line([(fx0 + 2, fy0 + drop * 0.35), (fx1 + 2, fy1 + drop * 0.4)], fill=(222, 180, 70, 255), width=4)
+    return c
+
+
 def legend_frames(cls, src, fx, grow=1):
     """전설 무기 레이어 한 장의 프레임(frames_of와 같은 꼴). src = 원본@색(None = 그림 없이 덧그리기만), fx = (종류, 색), grow = 칼날 배율"""
     anims = CLASS_SHEETS[cls][1]
@@ -450,6 +490,11 @@ def legend_frames(cls, src, fx, grow=1):
                     base.draw(c, s, i, d)
                     if grow != 1:
                         c = stretch(c, grow)
+                    if kind == 'spear':
+                        c = spearhead(c, color)
+                        bb = c.getbbox() or (FOOT[0], FOOT[1], FOOT[0] + 1, FOOT[1] + 1)
+                        frames[(anim, d, i)] = (c.crop(bb), bb[:2])
+                        continue
                     a_ = c.getchannel('A')
                     gem = a_.point(lambda p: 255 if p == 254 else 0)
                     c.putalpha(a_.point(lambda p: 255 if p == 254 else p))

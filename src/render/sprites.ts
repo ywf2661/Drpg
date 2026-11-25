@@ -199,6 +199,8 @@ const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → w
 // 전설 무기의 레이어(설계 2026-11-20): 칼리버X = 츠바이헨더·방패 없음, 엘리멘탈 스태프 = 마지막 속성 색, 두개골 = 4단계 로드 + 해골 구슬, 천둥새 = 번개 장궁
 const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
   caliburx: () => ({ main: 'hero_main_caliburx', off: null }),
+  powderHammer: () => ({ main: 'hero_main_hammer', off: null }),
+  bannerSpear: () => ({ main: 'hero_main_spear', off: null }), // 장대 + 창날·원정대 깃발(tools/sprites.py spearhead) // 양손 망치(FLARE maul + 잉걸불 빛)
   elemStaff: (e) => ({ main: `wizard_main_elem${ELEM_SHEET[e] ?? 'base'}` }),
   graveSkull: () => ({ main: 'necromancer_main_4', off: 'necromancer_off_skull' }),
   stormBow: () => ({ main: 'ranger_main_storm' }),
@@ -379,6 +381,30 @@ export function makeSprite(e: Entity): Sprite {
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }
+
+// 원정대 병사(원정대 깃발창): 고정 장비(사슬 갑옷·숏소드)를 입힌 기사 시트의 판자. 시트는 처음 부를 때 한 번 만들고, 그동안은 지금 주인공 시트
+let soldierTex: Promise<THREE.Texture> | null = null;
+export function soldierSprite(a: Entity): Sprite {
+  const info = SHEETS.hero.info;
+  if (!geometries.has('hero')) geometries.set('hero', cardGeometry(info));
+  const map = textures.get('hero')!.clone();
+  map.repeat.set(1 / info.cols, 1 / info.rows);
+  const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
+  const mesh = new THREE.Mesh(geometries.get('hero')!, mat);
+  mesh.rotation.y = Math.PI / 4;
+  soldierTex ??= heroSheet({ weapon: 2, armor: 3, helm: 3, boots: 2 }, 'knight', {});
+  void soldierTex.then((t) => {
+    const old = mat.map!;
+    const m = t.clone();
+    m.repeat.copy(old.repeat);
+    m.offset.copy(old.offset);
+    mat.map = m;
+    mat.needsUpdate = true;
+    old.dispose();
+  });
+  return { mesh, mat, info, anim: 'stance', t: 0, hp: a.hp, maxHp: a.maxHp, hitT: 0, castT: 0, tint: SOLDIER_TINT };
+}
+const SOLDIER_TINT = new THREE.Color(0.85, 0.95, 1.2); // 원정대의 푸른빛
 
 // 잔상(마법사): 지금 주인공 시트를 복제한 반투명 판자. 주인공 판자로 기억하지 않고, 후광·고리도 달지 않는다
 export function ghostSprite(hero: Entity): Sprite {

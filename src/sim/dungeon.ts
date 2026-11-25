@@ -3,13 +3,19 @@
 // 문 뒤(보물 방, 2층부터는 계단 방)는 문을 열기 전에는 걸어서 갈 수 없다.
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
-import { ELITE } from './rules';
+import { ELITE, STORY } from './rules';
+import { ACT2_MAX } from './act2';
 
 export const FLOORS = 5;
 // 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 100%씩 더 강하다(2회차 ×2, 3회차 ×3).
 // n은 이야기 깊이(5k + n). 초원(1~5)을 지나면 구역마다 extra만큼 더 가파르다 — 이어 가는 캐릭터가 깊이보다 빨리 커서(설계서 6-1)
 export const DEPTH_EXTRA = 0.15;
 export const floorPower = (n: number, cycle = 0, extra = DEPTH_EXTRA) => (1 + 0.15 * (n - 1) + extra * Math.max(0, n - FLOORS)) * cyclePower(cycle);
+// 몬스터 한 방의 깊이·회차 배율(HIT 비율에 곱한다). 0 = 예전 공식(1막 첫 판).
+// 2막(깊이 26~50)은 1 → 1.2로 오르고, 회차는 3회차(cycle 2)부터 회차마다 +5%(최대 +20%)
+const ACT2_FROM = 5 * STORY.length + 6, ACT2_TO = ACT2_FROM + 5 * ACT2_MAX - 1;
+export const hitScale = (depth: number, cycle: number) =>
+  depth < ACT2_FROM && cycle < 1 ? 0 : (1 + 0.2 * Math.min(1, Math.max(0, depth - ACT2_FROM) / (ACT2_TO - ACT2_FROM))) * (1 + 0.05 * Math.min(4, Math.max(0, cycle - 1)));
 export const cyclePower = (cycle: number) => 1 + cycle;
 // 보스 깊이 배율: 보스 수치(STATS.boss)는 초원 5구역(이야기 깊이 5) 기준이라, 깊은 지역 보스는 그 구역 몬스터 배율만큼 더 세진다(회차 배율은 따로)
 export const bossScale = (depth: number) => Math.max(1, floorPower(depth) / floorPower(FLOORS));

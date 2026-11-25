@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
-import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World, HIT, hitBase, act2Land, LEGEND2 } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -133,10 +133,23 @@ export function skillHit(w: World, e: Entity, raw: number) {
   const r = 1 + rage(w);
   hurt(w, e, kind ? Math.round(raw * r * COMBO[kind]) : r === 1 ? raw : Math.round(raw * r), w.entities[0]);
   if (w.elem >= 0 && hasUnique(w, 'elemStaff')) elemHit(w, e, raw);
+  if (w.cls === 'wizard' && hasUnique(w, 'wellScepter')) wellHit(w, e, raw);
   if (kind === 'counter' && hasUnique(w, 'duelist')) {
     for (const k of KEYS) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - LEGEND_FX.duelCd);
     w.res = Math.min(resMax(w), w.res + LEGEND_FX.duelRes);
   }
+}
+// 「우물 사제의 홀」: 냉기 스킬(1번 탭)이 맞힌 적 발밑에 물웅덩이, 번개 스킬(2번 탭)이 웅덩이 위의 적을 맞히면 같은 웅덩이 위의 다른 적도 모두(hurt — 다시 퍼지지 않는다)
+function wellHit(w: World, e: Entity, raw: number) {
+  const on = (p: { x: number; z: number }, t: Entity) => Math.hypot(t.x - p.x, t.z - p.z) <= LEGEND2.poolR;
+  if (w.elem === 1) {
+    const p = w.pools.find((p) => Math.hypot(p.x - e.x, p.z - e.z) < 0.6);
+    if (p) p.t = LEGEND2.poolT;
+    else w.pools.push({ x: e.x, z: e.z, t: LEGEND2.poolT });
+  }
+  if (w.elem !== 2) return;
+  const p = w.pools.find((p) => on(p, e));
+  if (p) for (const o of w.entities) if (o !== e && o.kind !== 'hero' && o.state !== 'dead' && on(p, o)) hurt(w, o, raw, w.entities[0]);
 }
 // 광전사의 손잡이의 분노: 잃은 체력 비율 × LEGEND_FX.rage
 export function rage(w: World) {
@@ -387,9 +400,10 @@ export function quality(it: { affixes: Affix[] }): number {
 export function rollUnique(w: World, x: number, z: number, tier: number): Item {
   const pick = <T>(list: T[]) => list[Math.floor(rand(w) * list.length)];
   let u: UniqueId;
-  const pool = UNIQUE_LIST.filter((id) => !UNIQUES[id].only); // 정해진 보스만 떨구는 것은 빼고
-  if (rand(w) < LEGEND_DROP.set) {
-    const sets = pool.filter((id) => UNIQUES[id].set);
+  const act2 = act2Land(w.land);
+  const pool = UNIQUE_LIST.filter((id) => !UNIQUES[id].only && !!UNIQUES[id].act2 === act2); // 정해진 보스만 떨구는 것은 빼고, 그 막의 것만
+  const sets = pool.filter((id) => UNIQUES[id].set);
+  if (sets.length && rand(w) < LEGEND_DROP.set) {
     const owned = new Set([...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] })), ...w.bag.map((it) => uniqueOf(it))]);
     const missing = sets.filter((id) => !owned.has(id));
     u = pick(missing.length && rand(w) < LEGEND_DROP.missing ? missing : sets);
@@ -480,11 +494,26 @@ export function roll(w: World, a: Entity) {
   const [lo, hi] = a.kind === 'hero' ? CLASSES[w.cls].weapons[w.gear.weapon - 1].dmg : STATS[a.kind].dmg;
   // 주인공은 레벨 보너스, 몬스터는 층 배율의 절반만(체력과 데미지에 다 곱하면 난이도가 배율의 제곱으로 오른다)
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + worn(w, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
+  // 몬스터: hitScale이 있으면 기준 체력 × 종류 비율(굴림은 평균 대비 비율로만 쓴다), 없으면 층 배율 공식
+  const mob = w.hitScale > 0 ? (hitBase(w.cls) * HIT[a.kind] * w.hitScale) / ((lo + hi) / 2) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG;
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + worn(w, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) * (1 + crownBonus(w)) : mob * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
   const crit = a.kind === 'hero' ? worn(w, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale * (a.kind === 'hero' ? w.ghostScale : 1)) * twice; // 잔상 몫이면 줄인다
 }
+
+// 전리품 자루가 맞으면 쌓인 금화 일부를 등 뒤에 흘린다(주우면 되찾는다)
+function spill(w: World, hero: Entity) {
+  const k = Math.ceil(w.sack * LEGEND2.sackSpill);
+  w.sack -= k;
+  w.items.push({ id: w.nextItem++, x: hero.x - Math.sin(hero.facing) * 0.8, z: hero.z - Math.cos(hero.facing) * 0.8, kind: 'gold', tier: 0, amount: k, sack: k });
+}
+
+// 「수집가의 왕관」: 창고·가방·몸의 서로 다른 전설 하나마다 피해 +crownPer%(최대 crownMax%)
+export const crownBonus = (w: World) => (hasUnique(w, 'collectorCrown') ? Math.min(LEGEND2.crownMax, LEGEND2.crownPer * new Set([...w.stashLegends, ...w.bag.map(uniqueOf), ...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] }))].filter(Boolean)).size) / 100 : 0);
+
+// 몬스터 기술 한 방: pct(HIT.tell·big)를 주면 hitScale이 켜졌을 때 그 비율로, 아니면 굴림 × mult
+export const hitOf = (w: World, e: Entity, mult: number, pct?: number) => Math.round(roll(w, e) * (w.hitScale > 0 && pct !== undefined ? pct / HIT[e.kind] : mult));
 
 // 통솔하는 정예가 가까이 있는 (다른) 몬스터인가
 const led = (w: World, a: Entity) => w.entities.some((e) => e.eliteKind === 'warlord' && e !== a && e.state !== 'dead' && dist(e, a) <= ELITE_FX.auraRange);
@@ -526,6 +555,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     if (w.buff?.kind === 'guard') dmg = Math.round(dmg * (1 - SHRINE.guard)); // 수호의 성소
     if (w.trophies.unyielding) dmg = Math.round(dmg * SET_HUNTER.steady); // 불굴의 정예에게서 얻은 특성
     dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST_ARMOR.reduce + FROST_ARMOR.per * ext(w, 'frostArmor') : shoutStat(w).reduce) : 1)));
+    if (hasUnique(w, 'lootSack')) dmg = Math.max(1, Math.round(dmg * (1 - w.sack / 100))); // 전리품 자루
     const absorbed = Math.min(w.wardHp, dmg);
     if (absorbed > 0) {
       w.wardHp -= absorbed;
@@ -536,6 +566,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   }
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
+  if (t.kind === 'hero' && dealt > 0 && w.sack > 0 && hasUnique(w, 'lootSack')) spill(w, t);
   if (t.kind === 'hero' && !t.hp && rewind(w, t)) return dealt; // 「금 간 빛 고리」: 쓰러지는 대신 되감긴다
   const hero = w.entities[0];
   const leech = from?.kind === 'hero' ? Math.round((dealt * worn(w, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) + (w.trophies.vampiric ? Math.round(dealt * SET_HUNTER.leech) : 0) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
@@ -550,6 +581,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (t.kind === 'hero' || t.id < 0) return dealt; // 해골 병사는 경험치도 드롭도 없다(tickAllies가 치운다)
   if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'focus')) cutCd(w, 'focus', FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
   if (from?.kind === 'hero') trophyKill(w, t);
+  if (hasUnique(w, 'lootSack')) w.sack = Math.min(LEGEND2.sackMax, w.sack + 1); // 전리품 자루가 찬다
   dropRunes(w, t);
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
@@ -563,6 +595,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   // 기도하는 자: 「금 간 빛 고리」(haloDrop 확률, 아니면 평소 전설)·작은 목마(처음)
   // 처음 쓰러뜨리는 판(horseDrop)은 엔딩의 빛 속에 떨어지도록 바닥에(빛 고리는 시체 머리 쪽), 다시 도전할 땐 가방 먼저
   const prize = (it: Item) => (w.horseDrop ? w.items.push(it) : toBagOrFloor(w, it));
+  if (t.skin === 'raider_chief' && w.cls === 'knight' && rand(w) < LEGEND_DROP.boss) toBagOrFloor(w, makeUnique(w, 'powderHammer', t.x + 0.6, t.z + 0.3, w.maxTier)); // 따로 굴려 화약 망치(기사만)
   if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < LEGEND_DROP.prayer) prize(makeUnique(w, PRAYER_WEAPON[w.cls], t.x + 0.6, t.z + 0.3, w.maxTier)); // 따로 굴려 전설 무기(그가 지키던 무기)
   if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < w.haloDrop) prize(makeUnique(w, 'crackedHalo', t.x, t.z - 0.6, w.maxTier));
   else if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);
@@ -574,7 +607,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (t.skin === 'treasure') treasureDrop(w, t);
   gainXp(w, Math.round(XP[t.kind] * Math.min(t.power, w.xpCap) * (t.elite ? ELITE.xp : 1)));
   // 폭발하는 정예: 죽은 자리에 불기둥과 같은 예고 구역. 분열하는 정예: 그 자리에서 졸개들이 일어난다(separate가 떼어 놓는다)
-  if (t.eliteKind === 'volatile') w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: ELITE_FX.blastDelay, total: ELITE_FX.blastDelay, dmg: Math.round(roll(w, t) * ELITE_FX.blastMult), owner: -1 });
+  if (t.eliteKind === 'volatile') w.zones.push({ id: w.nextItem++, x: t.x, z: t.z, r: MAGE.blast, t: ELITE_FX.blastDelay, total: ELITE_FX.blastDelay, dmg: hitOf(w, t, ELITE_FX.blastMult, HIT.tell), owner: -1 });
   if (t.eliteKind === 'splitting')
     for (let i = 0; i < ELITE_FX.split; i++) w.entities.push(Object.assign(dress(makeEntity(w.entities.length, 'minion', t.x + (i ? 0.1 : -0.1), t.z, t.power), w.skins), { target: 0 }));
   const drop = (kind: Item['kind'], tier: number) => w.items.push({ id: w.nextItem++, x: t.x, z: t.z, kind, tier });

@@ -2,7 +2,7 @@
 // 뼈(뼈 창·뼈 갑옷·생명 흡수·뼈 감옥). 스페이스는 기사 구르기. 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다.
 // 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
-import { GRAVE_KING, LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
+import { LEGEND2, RANGE, STATS, GRAVE_KING, LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
 import { hasUnique, clearLine, dist, cdExt, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
 import { burst, openGate } from './abilities';
 import { aimDir, blast, foes, spot, stun } from './wizard';
@@ -122,6 +122,39 @@ export function graveKing(w: World, hero: Entity, x?: number, z?: number): numbe
   return st.cd;
 }
 
+// 「뼈 피리」 행진: 해골 병사 모두를 주인공 뒤 한 줄로 세워 가리킨 쪽으로 marchDist m 돌격시킨다. 지나며 닿은 적마다 한 번. 해골이 없으면 쓰지 않는다
+export function march(w: World, hero: Entity, x?: number, z?: number): number {
+  const line = w.allies.filter((a) => isBone(a) && a.state !== 'dead' && a.from !== 'curse' && !a.decoy);
+  if (!line.length) return 0;
+  if (x !== undefined && z !== undefined) hero.facing = Math.atan2(x - hero.x, z - hero.z);
+  const [dx, dz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
+  line.forEach((a, k) => {
+    const [sx, sz] = [hero.x - dx * 0.6 * k, hero.z - dz * 0.6 * k];
+    if (walkable(w.grid, Math.floor(sx), Math.floor(sz))) [a.x, a.z] = [sx, sz];
+    Object.assign(a, { rush: { dx, dz, left: LEGEND2.marchDist, hit: [] }, state: 'move', path: [], target: null, facing: hero.facing });
+  });
+  return LEGEND2.marchCd;
+}
+
+// 「도망자의 장화」: 구른 자리에 허수아비. decoyR 안의 몬스터(보스 빼고)가 decoyT초 동안 허수아비를 노린다
+export function decoy(w: World, x: number, z: number) {
+  const d = spawn(w, x, z, 'warrior', { life: LEGEND2.decoyT, hp: 9999, mult: 0, reach: 0, interval: 99 }, (a) => !!a.decoy, 1, { decoy: true });
+  for (const e of w.entities) if (e.kind !== 'hero' && e.kind !== 'boss' && e.state !== 'dead' && dist(e, d) <= LEGEND2.decoyR) Object.assign(e, { target: d.id, repathT: 0 });
+}
+
+// 「원정대 깃발창」 깃발 꽂기: 가리킨 곳(벽이면 발밑)에 깃발, 원정대 병사 둘이 bannerLife초 싸운다. 다시 쓰면 앞의 병사는 물러난다
+export function banner(w: World, hero: Entity, x?: number, z?: number): number {
+  let [bx, bz] = x !== undefined && z !== undefined ? [x, z] : [hero.x + Math.sin(hero.facing) * 2, hero.z + Math.cos(hero.facing) * 2];
+  if (!walkable(w.grid, Math.floor(bx), Math.floor(bz))) [bx, bz] = [hero.x, hero.z];
+  dismiss(w, 'banner');
+  blast(w, 'slam', bx, bz);
+  for (const o of [-0.7, 0.7]) {
+    const ok = walkable(w.grid, Math.floor(bx + o), Math.floor(bz));
+    spawn(w, ok ? bx + o : bx, bz, 'warrior', { life: LEGEND2.bannerLife, hp: Math.round(heroMax(w) * LEGEND2.bannerHp), mult: LEGEND2.bannerMult, reach: RANGE, interval: 1.2 }, (a) => a.from === 'banner', 2, { from: 'banner' });
+  }
+  return LEGEND2.bannerCd;
+}
+
 export function tickAllies(w: World, hero: Entity) {
   const aura = w.allies.some((a) => a.kind === 'king' && a.from === 'lord') ? LORD.aura : 1;
   const marked = (e: Entity) => w.curses.some((c) => c.amp > 0 && Math.hypot(e.x - c.x, e.z - c.z) <= c.r);
@@ -130,6 +163,22 @@ export function tickAllies(w: World, hero: Entity) {
     a.life -= DT;
     if (a.state === 'dead') return;
     if (hero.state === 'dead') return void (a.state = 'idle');
+    if (a.decoy) return; // 허수아비는 서 있기만 한다
+    if (a.rush) {
+      const r = a.rush;
+      const s = Math.min(r.left, LEGEND2.marchSpeed * DT);
+      const [nx, nz] = [a.x + r.dx * s, a.z + r.dz * s];
+      if (!walkable(w.grid, Math.floor(nx), Math.floor(nz))) return void (a.rush = undefined); // 벽에 닿으면 멈춘다
+      [a.x, a.z] = [nx, nz];
+      r.left -= s;
+      for (const e of foes(w, hero))
+        if (dist(e, a) <= 0.9 && !r.hit.includes(e.id)) {
+          r.hit.push(e.id);
+          hurt(w, e, Math.round(roll(w, hero) * LEGEND2.marchMult), hero);
+        }
+      if (r.left <= 0) a.rush = undefined;
+      return;
+    }
     let t = a.target === null ? null : w.entities[a.target];
     if (!t || t.state === 'dead' || (dist(t, hero) > BONES.aggro + 2 && !marked(t))) t = null; // 주인공에게서 너무 멀어지면 놓는다
     if (!t || !marked(t)) t = near(a, foes(w, hero).filter(marked)) ?? t; // 죽음의 표식: 하던 싸움을 두고 달려든다
@@ -224,11 +273,13 @@ export function tickCurses(w: World, hero: Entity) {
       const dmg = Math.round(roll(w, hero) * c.plague);
       for (const e of foes(w, hero)) if (inside(e)) hurt(w, e, dmg, hero);
     }
-    if (c.amp > 0 && mastered(w, 'curse'))
+    const doctor = hasUnique(w, 'plagueStaff');
+    if (c.amp > 0 && (doctor || mastered(w, 'curse')))
       for (const e of w.entities)
         if (e.state === 'dead' && inside(e) && !w.raised.includes(e.id)) {
           w.raised.push(e.id);
-          raise(w, e.x, e.z, 1);
+          if (doctor) spawn(w, e.x, e.z, e.kind, { life: LEGEND2.plagueLife, hp: e.maxHp, mult: 1, reach: RANGE, interval: STATS[e.kind].interval }, (a) => a.from === 'curse', 99, { from: 'curse', skin: e.skin }); // 「역병 의사의 지팡이」: 그 모습 그대로 일어난다
+          else raise(w, e.x, e.z, 1);
         }
     c.t -= DT;
   }

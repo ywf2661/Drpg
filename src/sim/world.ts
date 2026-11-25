@@ -2,9 +2,9 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
 import type { Side } from './wilds';
-import { mastered, keyOf, downcutStat, gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
-import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
-import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
+import { mastered, keyOf, downcutStat, gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn, hasUnique } from './core';
+import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap, tickGales, tickTwin } from './ranger';
+import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses, banner, march } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { downcut, finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, greatsword, bigSweep, bigFinale, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
@@ -18,7 +18,7 @@ import { ferryman } from './ferryman';
 import { chief } from './chief';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
-import { DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World, LEGEND2 } from './rules';
 
 export * from './rules';
 export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
@@ -127,7 +127,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, kegs, powder, sparks: [], stakes, broken: new Set(), amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, cut: -1, bigT: 0, cutFx: { n: 0, seg: [0, 0, 0, 0], full: false }, reeled: {}, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, kegs, powder, sparks: [], stakes, broken: new Set(), amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, cut: -1, bigT: 0, cutFx: { n: 0, seg: [0, 0, 0, 0], full: false }, reeled: {}, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0, hitScale: 0, stashLegends: [], sack: 0, twinT: 0, gales: [], pools: [] };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -213,6 +213,9 @@ export function step(w: World, cmds: Command[]): void {
   if (w.ghosts.length || w.memos.length || w.swaps.length) tickGhosts(w, hero, recast);
   if (w.traps.length) tickTraps(w, hero);
   if (w.volleys.length) tickVolleys(w, hero);
+  if (w.cls === 'ranger' && hasUnique(w, 'twinBows')) tickTwin(w, hero);
+  if (w.gales.length) tickGales(w, hero);
+  if (w.pools.length) w.pools = w.pools.filter((p) => (p.t -= DT) > 0);
   if (w.curses.length) tickCurses(w, hero);
   tickCuts(w, hero);
   tickEdge(w);
@@ -298,7 +301,8 @@ function pickup(w: World, hero: Entity) {
   w.items = w.items.filter((it) => {
     if (Math.hypot(it.x - hero.x, it.z - hero.z) > POTION.pickup) return true;
     if (it.kind === 'gold') {
-      w.gold += it.amount ?? 0;
+      if (it.sack) w.sack = Math.min(LEGEND2.sackMax, w.sack + it.sack); // 자루에서 흘린 금화
+      else w.gold += it.amount ?? 0;
       return false;
     }
     if (it.kind === 'rune') {
@@ -452,7 +456,7 @@ function command(w: World, hero: Entity, c: Command) {
 type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
 const CASTS: Partial<Record<SkillId, Cast>> = {
   cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, downcut, greatsword, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe,
-  finale, graveKing,
+  finale, graveKing, march, banner,
   fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest, afterimage, swap, retrace, swoop, ride, flock,
   pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,
   bones, giant, lord, curse, plague, corpseBlast, spear, boneArmor, prison,

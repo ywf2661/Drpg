@@ -7,11 +7,6 @@ import rangerSkillIcons from './assets/sprites/ranger_skill_icons.png';
 import necroSkillIcons from './assets/sprites/necro_skill_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import runesUrl from './assets/sprites/runes.png';
-import haloArt from './assets/legend/crackedHalo.png';
-import caliburxArt from './assets/legend/caliburx.png';
-import elemStaffArt from './assets/legend/elemStaff.png';
-import graveSkullArt from './assets/legend/graveSkull.png';
-import stormBowArt from './assets/legend/stormBow.png';
 import runesInfo from './assets/sprites/runes.json';
 import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
@@ -31,7 +26,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { greatswordStat, GREATSWORD, downcutStat, isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
+import { greatswordStat, GREATSWORD, downcutStat, isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World, LEGEND2 } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -69,7 +64,8 @@ let cls: HeroClass = 'knight'; // 지금 판의 직업(장비 이름·아이콘�
 const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons, ranger: rangerGearIcons, necromancer: wizardGearIcons };
 const nameOf = (kind: Slot, tier: number, affixes: Affix[]) => gearName(kind, tier, affixes, cls);
 // 기도하는 자의 전설(빛 고리·전설 무기 넷): 아이콘 줄 대신 가방 칸 크기(2×2·2×3)에 맞춘 그림 한 장(src/assets/legend)
-const LEGEND_ART: Partial<Record<UniqueId, string>> = { crackedHalo: haloArt, caliburx: caliburxArt, elemStaff: elemStaffArt, graveSkull: graveSkullArt, stormBow: stormBowArt };
+// 전설 그림: assets/legend/<전설 id>.png를 넣으면 저절로 붙는다(무기·갑옷 192×288, 둥근 것 192×192)
+const LEGEND_ART = Object.fromEntries(Object.entries(import.meta.glob<string>('./assets/legend/*.png', { eager: true, import: 'default' })).map(([f, url]) => [f.slice(f.lastIndexOf('/') + 1, -4), url])) as Partial<Record<UniqueId, string>>;
 const artOf = (it: GearItem) => { const u = uniqueOf(it); return u && LEGEND_ART[u]; };
 // 아이콘 칸에 그림을 단다: 전설 그림이 있으면 그것(칸에 맞춰 contain), 없으면 직업 장비 줄의 그 단계 칸
 function setIcon(el: HTMLElement, it: GearItem) {
@@ -367,6 +363,8 @@ const SKILL_TEXT: Record<SkillId, SkillText> = {
   drain: { name: '생명 흡수', desc: '패시브 — 나와 해골이 준 피해의 일부만큼 체력을 회복한다', stat: (w) => `준 피해의 ${pct(DRAIN.per * Math.max(1, w.ranks.drain ?? 0))}` },
   // 전설 무기가 주는 스킬(GEAR_SKILLS) — 수치 줄은 효과를 넣을 때
   finale: { name: '종언', desc: '최대 체력의 일부를 잃고(체력 1은 남는다) 앞쪽 넓은 부채꼴로 불길한 검붉은 검기를 날린다', stat: (w) => { const s = finaleStat(w); return `최대 체력 ${pct(FINALE.hp)}를 잃고 반경 ${m(FINALE.radius)} · ${FINALE.arc}° 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
+  march: { name: '행진', desc: '해골 병사들을 한 줄로 세워 가리킨 쪽으로 돌격시킨다. 지나가며 닿는 적을 들이받는다. 해골이 없으면 쓸 수 없다', stat: () => `재사용 ${LEGEND2.marchCd}초` },
+  banner: { name: '깃발 꽂기', desc: '가리킨 곳에 원정대 깃발을 꽂는다. 원정대 병사 둘이 달려와 함께 싸운다', stat: () => `${LEGEND2.bannerLife}초 · 재사용 ${LEGEND2.bannerCd}초` },
   graveKing: { name: '무덤 왕의 귀환', desc: '땅을 가르고 거대한 해골 왕의 상반신을 불러낸다. 곁을 따라다니며 다가오는 적을 양팔로 번갈아 내리친다', stat: (w) => { const s = graveKingStat(w); return `${sec(GRAVE_KING.life)} 동안 따라다님 · 체력 ${s.hp} · 둘레 ${m(GRAVE_KING.reach)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; } },
   prison: { name: '뼈 감옥', desc: '지정한 곳 주변의 적을 뼈 감옥에 가둔다', stat: (w) => { const s = prisonStat(w); return `반경 ${m(s.radius)} 안의 적에게 ${wd(s.mult)} · ${sec(s.time)} 속박(보스 ${sec(PRISON.big)})${cd(s.cd)}`; } },
 };
@@ -381,7 +379,7 @@ const ICON: Record<SkillId, number> = {
   bones: 0, giant: 1, boneMastery: 0, lord: 3, curse: 2, plague: 2, curseMastery: 2, corpseBlast: 2, spear: 0, boneArmor: 1, drain: 2, prison: 2,
   mark: 0, graze: 1, echo: 0, flash: 1,
   flameEdge: 0, frostEdge: 0, reforge: 0, unleash: 1,
-  finale: 0, graveKing: 3, // 가르기·해골 왕 그림 + 이름 두 글자
+  finale: 0, graveKing: 3, march: 0, banner: 2, // 가르기·해골 왕 그림 + 이름 두 글자
 };
 const KNIGHT_ICONS = [skillIcon, dashIcon, shoutIcon, throwIcon];
 const SKILL_STRIPS: Partial<Record<HeroClass, string>> = { wizard: wizardSkillIcons, ranger: rangerSkillIcons, necromancer: necroSkillIcons };
@@ -1123,18 +1121,24 @@ const ALLY_END = 3; // 남은 시간이 이만큼(초)이면 깜빡인다
 const allyCards = new Map<number, HTMLElement>();
 function showAllies(w: World) {
   const box = $('#allies');
-  const live = new Set(w.allies.map((a) => a.id));
+  const shown = w.allies.filter((a) => !a.decoy); // 허수아비는 초상화가 없다
+  const live = new Set(shown.map((a) => a.id));
   for (const [id, card] of allyCards) {
     if (live.has(id)) continue;
     card.remove();
     allyCards.delete(id);
   }
-  for (const a of w.allies) {
+  for (const a of shown) {
     let card = allyCards.get(a.id);
     if (!card) {
-      card = Object.assign(document.createElement('div'), { className: `ally ${a.kind}`, title: ALLY_NAME[a.kind] ?? '' });
+      card = Object.assign(document.createElement('div'), { className: `ally ${a.kind}`, title: a.from === 'banner' ? '원정대 병사' : (ALLY_NAME[a.kind] ?? '') });
       card.innerHTML = '<div class="pic"></div><div class="hp"><i></i></div>';
-      paintPortrait(card.firstElementChild as HTMLElement, a, 28);
+      if (a.from === 'banner') {
+        const c = document.createElement('canvas'); // 원정대 병사: 기사(주인공) 얼굴
+        drawHeroPortrait(c, 0.5);
+        Object.assign(c.style, { width: '100%', height: '100%', imageRendering: 'pixelated' });
+        card.firstElementChild!.append(c);
+      } else paintPortrait(card.firstElementChild as HTMLElement, a, 28);
       allyCards.set(a.id, card);
       box.append(card);
     }
