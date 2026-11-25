@@ -8,7 +8,7 @@ export type HeroClass = 'knight' | 'wizard' | 'ranger' | 'necromancer';
 
 // 스킬 트리의 스킬. 탭마다 [1단계, 2단계, 패시브, 궁극기] 순서(TREES)
 export type SkillId =
-  | 'cleave' | 'whirl' | 'burst' | 'execute' | 'dash' | 'shout' | 'trail' | 'leap' | 'throw' | 'bounce' | 'axes' | 'chainAxe'
+  | 'cleave' | 'downcut' | 'burst' | 'execute' | 'dash' | 'shout' | 'trail' | 'leap' | 'throw' | 'bounce' | 'axes' | 'chainAxe'
   | 'fireball' | 'firefield' | 'embers' | 'comet' | 'frost' | 'ward' | 'frostArmor' | 'blizzard' | 'lightning' | 'chain' | 'static' | 'tempest'
   | 'pierce' | 'spread' | 'crit' | 'focus' | 'trap' | 'push' | 'snare' | 'hunt' | 'rain' | 'fireRain' | 'downpour' | 'arrowStorm'
   | 'bones' | 'giant' | 'boneMastery' | 'lord' | 'curse' | 'plague' | 'curseMastery' | 'corpseBlast' | 'spear' | 'boneArmor' | 'drain' | 'prison'
@@ -20,7 +20,7 @@ export type SkillId =
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
-    { name: '검술', skills: ['cleave', 'whirl', 'burst', 'execute'] },
+    { name: '검술', skills: ['cleave', 'downcut', 'burst', 'execute'] },
     { name: '돌격', skills: ['dash', 'shout', 'trail', 'leap'] },
     { name: '투척', skills: ['throw', 'bounce', 'axes', 'chainAxe'] },
     { name: '발도', skills: ['mark', 'graze', 'echo', 'flash'] },
@@ -438,8 +438,8 @@ export type World = {
   edgeSlashes: number; // 해방 참격 수(렌더·소리용)
   edgeHits: EdgeHit[]; // 강화 효과를 받은 적(렌더·소리용, TEMPER.hitAge초)
   edge: { kind: 'flame' | 'frost' | 'both' | null; left: number; t: number }; // 칼 강화(벼림): 종류, 남은 충전, 해방 남은 시간(초)
-  spinT: number; // 회오리 남은 시간(초)
-  spinAcc: number; // 회오리 다음 타격까지 쌓인 시간
+  cut: number; // 내리베기 모은 시간(초), 모으지 않으면 -1
+  reeled: Record<number, number>; // 휘청인 무거운 적(id) → 다시 휘청일 수 있을 때까지 남은 시간
   impacts: number; // 스킬이 적을 맞힌 누적 횟수(렌더용: 멈춤·흔들림)
 };
 
@@ -691,7 +691,6 @@ export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: �
 
 export const RANK_MAX = 5;
 export const COMBO = { counter: 2, stunned: 1.5, back: 2, age: 0.6 }; // 연계 배율(예고 중·기절 중·도망치는 적에게 스킬), 기록 유지 시간
-export const WHIRL = { cd: 6, time: 2, extra: 1, tick: 0.25, mult: 0.4 }; // 회오리(검술 2): 재사용, 시간, 5단계 추가 시간, 타격 간격, 타격당 배율
 export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·회오리·처형으로 죽은 적
 export const EXECUTE = { cd: 8, reach: 2.5, below: 0.3, mult: 2.5, fear: 3, fearR: 4 }; // 처형(검술 궁극): 재사용, 닿는 거리, 즉사 체력 비율(단계마다 +0.03), 아니면 배율, 처치 시 주변 공포(시간·반경)
 export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
@@ -710,6 +709,10 @@ export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1, air: 0.45
 export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율
 export const AXES = { cd: 0.06, dmg: 0.1 }; // 도끼 숙련(투척 패시브): 단계마다 도끼 스킬 재사용 대기 −6%, 피해 +10%
 export const CHAIN_AXE = { speed: 32, back: 24, range: 6, grow: 0.5, hold: 1, stun: 1, stuck: 1 }; // 사슬 도끼(투척 궁극, 패시브 — 가르기가 사슬 가르기로): 날아가는·되감는 속도, 사거리(단계마다 +grow), 놓는 거리(주인공 앞), 5단계 기절(초), 거대적에 박혀 있는 시간(초)
+// 내리베기(검술 2): 재사용, 다 모으는 시간(5단계), 다 모인 뒤 들고 있을 수 있는 시간, 길이(p 0→1, 단계마다 +lenStep), 폭,
+// 배율(p 0→1, 단계마다 +multStep), 다 모으면 밀어내는 거리, 모으는 동안 이동 속도 배율
+export const DOWNCUT = { cd: 6, full: 1.5, fullMaster: 1, hold: 1, len0: 2, len1: 6, lenStep: 0.3, width: 1.2, mult0: 1.2, mult1: 4, multStep: 0.3, knock: 2, slow: 0.4 };
+export const REEL = { stun: 0.5, every: 2 }; // 휘청임(무거운 적): 기절 시간, 다시 휘청일 수 있기까지(초)
 export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8, gate: 3 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준(적), 자동 조준(닫힌 문)

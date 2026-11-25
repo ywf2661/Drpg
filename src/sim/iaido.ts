@@ -126,8 +126,8 @@ export function grazeStep(w: World, hero: Entity): void {
 }
 
 // 칼의 여운: 베는 스킬은 칸을 채우고, 칸이 가득하면 다음 다른 탭 베기(TAKES)가 벤 모양 그대로 칼선을 남긴다
-const SLASHES: SkillId[] = ['cleave', 'whirl', 'execute', 'dash', 'leap', 'mark', 'graze', 'flash'];
-const TAKES: SkillId[] = ['cleave', 'whirl', 'execute', 'dash', 'leap'];
+const SLASHES: SkillId[] = ['cleave', 'downcut', 'execute', 'dash', 'leap', 'mark', 'graze', 'flash'];
+const TAKES: SkillId[] = ['cleave', 'downcut', 'execute', 'dash', 'leap'];
 export function echoCast(w: World, id: SkillId, cast: () => number): number {
   if (!rank(w, 'echo') || !SLASHES.includes(id)) return cast();
   const arm = w.echo >= ECHO.need && TAKES.includes(id);

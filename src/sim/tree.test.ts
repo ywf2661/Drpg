@@ -24,12 +24,12 @@ test('배우기: 레벨·아래 단계·포인트가 모자라면 못 배우고,
   Object.assign(w, newSkills('knight'), { points: 10 });
   expect(w.keys).toEqual({ cleave: 'cleave', dash: null, shout: null, throw: null });
   expect(learnBlock(w, 'fireball')).toBe('다른 직업의 스킬');
-  expect(learnBlock(w, 'whirl')).toBe(`레벨 ${TIER_LEVEL[1]}부터 배울 수 있음`);
+  expect(learnBlock(w, 'downcut')).toBe(`레벨 ${TIER_LEVEL[1]}부터 배울 수 있음`);
   setLevel(w, TIER_LEVEL[1], 0);
   expect(learnBlock(w, 'shout')).toBe('바로 아래 단계 스킬을 먼저 배워야 함'); // 돌진 베기를 안 배웠다
-  learn(w, 'whirl');
+  learn(w, 'downcut');
   learn(w, 'throw');
-  expect(w.keys).toEqual({ cleave: 'cleave', dash: 'whirl', shout: 'throw', throw: null });
+  expect(w.keys).toEqual({ cleave: 'cleave', dash: 'downcut', shout: 'throw', throw: null });
   setLevel(w, TIER_LEVEL[2], 0);
   learn(w, 'burst');
   expect(w.ranks.burst).toBe(1);
@@ -49,7 +49,7 @@ test('배우기: 레벨·아래 단계·포인트가 모자라면 못 배우고,
 
 test('끼우기: 배운 액티브만, 다른 칸에 있던 스킬은 맞바꾸고 두 칸의 재사용 대기는 긴 쪽으로', () => {
   const w = createWorld(1, ['H....']);
-  w.ranks.whirl = 1;
+  w.ranks.downcut = 1;
   w.ranks.burst = 1;
   w.skillCd = 3;
   w.throwCd = 0.5;
@@ -60,14 +60,14 @@ test('끼우기: 배운 액티브만, 다른 칸에 있던 스킬은 맞바꾸�
   bind(w, 'throw', 'cleave');
   expect(w.keys).toEqual({ cleave: 'throw', dash: 'dash', shout: 'shout', throw: 'cleave' });
   expect([w.skillCd, w.throwCd]).toEqual([3, 3]);
-  bind(w, 'dash', 'whirl');
-  expect(w.keys.dash).toBe('whirl');
+  bind(w, 'dash', 'downcut');
+  expect(w.keys.dash).toBe('downcut');
   expect(Object.values(w.keys).filter((k) => k === 'dash')).toHaveLength(0); // 빈 데서 끼우면 원래 것은 빠진다
 });
 
 test('되돌리기: 금화를 내고 포인트를 모두 돌려받아 새 판의 스킬로', () => {
   const w = createWorld(1, ['H....']);
-  w.ranks = { cleave: 3, whirl: 2, throw: 1 };
+  w.ranks = { cleave: 3, downcut: 2, throw: 1 };
   w.points = 1;
   respec(w);
   expect(w.ranks.cleave).toBe(3); // 금화가 없다
@@ -83,7 +83,7 @@ test('시너지: 같은 탭의 다른 스킬에 찍은 포인트마다 피해 +8
   const w = createWorld(1, ['H....']);
   w.ranks = { cleave: 1 };
   const base = cleaveStat(w).mult;
-  w.ranks = { cleave: 1, whirl: 3, burst: 2, dash: 5 };
+  w.ranks = { cleave: 1, downcut: 3, burst: 2, dash: 5 };
   expect(cleaveStat(w).mult).toBeCloseTo(base * 1.4);
 });
 
@@ -96,28 +96,10 @@ test('모든 직업의 모든 액티브 스킬이 칸에서 나가고 재사용 
       if (id === 'retrace') w.memos.push({ id: 'fireball', x: 1.5, z: 1.5, age: 0 }); // 기억이 있어야
       if (id === 'ride' || id === 'flock') w.ranks.swoop = 1; // 매가 있어야(덮쳐라를 배워야 배울 수 있다)
       step(w, [{ type: 'skill', x: 3.5, z: 1.5 }]);
+      if (id === 'downcut') step(w, [{ type: 'skill', x: 3.5, z: 1.5 }]); // 모으고 다시 눌러 벤다
       expect(w[KEY_CD.cleave], `${cls} ${id}`).toBeGreaterThan(0);
       expect(w.cdFull.cleave).toBe(w.skillCd);
     }
-});
-
-test('회오리: 휘두르지 않고 돌면서 여러 번 베고, 그동안 걸을 수 있다. 5단계는 1초 더', () => {
-  const once = make(['.....', '.Ha..', '.....'], 'knight', { cleave: 3 });
-  run(once, 1, [{ type: 'skill', x: 5, z: 1.5 }]);
-  const w = make(['.....', '.Ha..', '.....'], 'knight', { whirl: 3 }, 'whirl');
-  step(w, [{ type: 'skill' }]);
-  expect(w.spinT).toBeGreaterThan(1.9);
-  const hero = w.entities[0];
-  const x0 = hero.x;
-  run(w, 0.5, [{ type: 'move', x: 0.5, z: 1.5 }]);
-  expect(hero.x).toBeLessThan(x0);
-  run(w, 2);
-  expect(w.spinT).toBe(0);
-  expect(w.cleaves).toBeGreaterThanOrEqual(8);
-  expect(lost(w)).toBeGreaterThan(lost(once));
-  const v = make(['.....', '.Ha..', '.....'], 'knight', { whirl: 5 }, 'whirl');
-  step(v, [{ type: 'skill' }]);
-  expect(v.spinT).toBeGreaterThan(2.9);
 });
 
 test('시체 폭발(패시브): 가르기로 죽은 적이 터지고, 터져서 죽은 적도 이어서 터진다', () => {

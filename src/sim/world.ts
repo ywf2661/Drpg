@@ -2,11 +2,11 @@
 // 수치·타입은 rules.ts, 공용 전투 도구는 core.ts, 스킬·보스 패턴·투사체는 abilities.ts. 바깥은 이 파일만 import하면 된다.
 import { walkable, type Cell, type Grid } from './path';
 import type { Side } from './wilds';
-import { gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
+import { keyOf, downcutStat, gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap } from './ranger';
 import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
-import { finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
+import { downcut, finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
 import { clearEdge, flameEdge, frostEdge, temper, tickEdge, unleash } from './temper';
 import { flock, ride, rideStep, swoop, tickHawks } from './hawk';
@@ -18,7 +18,7 @@ import { ferryman } from './ferryman';
 import { chief } from './chief';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
-import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
+import { DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
 
 export * from './rules';
 export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
@@ -26,7 +26,7 @@ export { assistStat, flockStat, rideStat, swoopStat } from './hawk';
 export { blizzardStat, boltStat, chainStat, cometStat, embersStat, fireStat, firefieldStat, frostArmorStat, frostStat, staticStat, tempestStat, wardStat } from './wizard';
 export { arrowStormStat, critStat, downpourStat, fireRainStat, focusStat, huntStat, pierceStat, pushStat, rainStat, snareStat, spreadStat, trapStat } from './ranger';
 export { graveKingStat, boneArmorStat, bonesStat, corpseStat, curseStat, giantStat, lordStat, plagueStat, prisonStat, spearStat } from './necro';
-export { wear, hurt, makeUnique, finaleStat, gearKeys, keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, heavy, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, whirlStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
+export { downcutStat, reel, wear, hurt, makeUnique, finaleStat, gearKeys, keyCut, pocket, socketRune, unsocketRune, rollRune, runeRand, type RuneTarget, hasUnique, quality, rollUnique, setCount, uniqueOf, baseRank, gearBonus, rollAffixes, rollSkillAffix, canAfford, resMax, skillCost, attackInterval, copyMods, defenseScore, moveSpeed, randSlot, worn, axeStat, heavy, bagBlocked, bagFits, bagSpot, bounceStat, burstStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, cleaveStat, dashStat, discardFromBag, equipFromBag, moveGear, executeStat, gainXp, gearDiff, gearSize, heroMax, isBetter, leapStat, mastered, mod, moveInBag, rank, syn, trailStat, winding, rollGear, setLevel, shoutStat, weaponScore } from './core';
 
 // 직업마다 예전 스킬 넷(트리 이전의 Q W E R). 테스트·봇의 기본 장비이고, createWorld가 기사 것을 넣는다
 export const BASIC: Record<HeroClass, [SkillId, SkillId, SkillId, SkillId]> = {
@@ -127,7 +127,7 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   for (const e of entities) if (e.elite) e.eliteKind = pick(e, pool);
   for (const e of entities) if (deep && e.kind === 'boss') e.eliteKind = pick(e, FIERCE);
   // 기본 장비(롱소드·천옷) = 장비 도입 전 주인공 수치. 게임은 main이 시작 장비를 넣는다
-  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, kegs, powder, sparks: [], stakes, broken: new Set(), amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, spinT: 0, spinAcc: 0, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
+  return { cls: 'knight', res: 100, pity: 0, trophies: {}, wardHp: 0, wardT: 0, wardBroke: false, storm: [], traps: [], volleys: [], focusT: 0, flashQ: [], flashHit: -1, flashPath: [], flashHits: [], cuts: [], snapped: [], echo: 0, echoOn: null, echoHit: [], echoFrom: [0, 0], grazeFrom: [0, 0], grazeHit: [], allies: [], curses: [], raised: [], grid, entities, skins, rng: seed, stairs, toStairs: false, exits, locked, talk: null, roads, fords, planks, logs, ferries, ride: null, ferryLock: -1, sluice, puddles: [], cleansed: false, kegs, powder, sparks: [], stakes, broken: new Set(), amove: null, queued: null, castT: 0, props, chests, gates, opening: null, taking: null, picked: null, items: [], shots: [], blasts: [], zones: [], combos: [], fires: [], healing: null, nextItem: 0, potions: 0, gold: 0, power, xpCap: XP_CAP * bossPower, gear: { weapon: 3, armor: 1, helm: 1, boots: 1 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, bag: [], runes: {}, runeRng: seed ^ 0x5bd1e995, autoEquip: true, regenAcc: 0, rest: false, land: 'dungeon', buff: null, sand, pits, spikes, spikeT: 0, portals, portalLock: false, icicleT: ICICLE.every, bossRaised: false, marked: false, sureLegend: false, relics: 0, relicDrop: -1, relicGot: -1, offer: null, bareT: 0, knightsUp: false, haloDrop: 0, horseDrop: false, past: [], haloCd: 0, pal: { rain: PALADIN.rainFirst, judge: -1, quiet: 0, burn: {}, link: {} }, swords: [], calmT: 0, lastHp: 0, rested: 0, maxTier: 2, level: 1, xp: 0, skillCd: 0, cleaves: 0, markSlashes: 0, dashCd: 0, dashHit: [], dashes: 0, shoutCd: 0, shoutT: 0, shouts: 0, casts: 0, ghosts: [], memos: [], ghostScale: 1, swaps: [], hawk: null, elem: -1, finales: [], flock: [], rideHit: [], throwCd: 0, rollCd: 0, ranks: { cleave: 1, dash: 1, shout: 1, throw: 1 }, points: 0, keys: { cleave: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' }, cdFull: { cleave: 1, dash: 1, shout: 1, throw: 1 }, trail: -1, auraT: 0, auraAcc: 0, cut: -1, reeled: {}, slash: 'cleave', edge: { kind: null, left: 0, t: 0 }, edgeSwings: 0, edgeSlashes: 0, edgeHits: [], impacts: 0 };
 }
 
 // 보스를 k배로(체력·피해 배율). 경험치 상한(xpCap)은 그대로 둔다 — createWorld의 bossPower를 키우면 상한도 같이 커진다
@@ -222,8 +222,8 @@ export function step(w: World, cmds: Command[]): void {
   }
   for (const c of cmds) command(w, hero, c);
   advance(w, hero);
-  if (hero.state === 'dead') w.spinT = 0;
-  if (w.spinT > 0) spin(w, hero);
+  if (w.cut >= 0) tickDowncut(w, hero);
+  for (const id in w.reeled) if ((w.reeled[id] -= DT) <= 0) delete w.reeled[id];
   for (const e of w.entities) {
     if (e.state === 'dead') continue; // 같은 틱 앞 순서에서 죽었을 수도 있음
     if (e !== hero && special(w, e, hero)) continue; // 잠든 몬스터·무덤·보물 고블린
@@ -372,7 +372,7 @@ export function respec(w: World) {
   const spent = Object.values(w.ranks).reduce((s, r) => s + (r ?? 0), 0) - 1;
   if (w.gold < RESPEC || spent <= 0) return;
   w.gold -= RESPEC;
-  Object.assign(w, newSkills(w.cls), { points: w.points + spent, spinT: 0, auraT: 0, ghosts: [], memos: [], hawk: null, flock: [] });
+  Object.assign(w, newSkills(w.cls), { points: w.points + spent, cut: -1, auraT: 0, ghosts: [], memos: [], hawk: null, flock: [] });
   clearEdge(w);
 }
 
@@ -421,7 +421,7 @@ function command(w: World, hero: Entity, c: Command) {
     const cd = w.skillCd + w.dashCd + w.shoutCd + w.throwCd;
     cast(w, hero, c);
     if (hero.phase !== 'none') w.castT = 0; // 구르기·돌진은 시전을 끊는다
-    else if (w.skillCd + w.dashCd + w.shoutCd + w.throwCd > cd && !hero.skill && w.spinT <= 0) w.castT = CAST; // 스킬이 나갔다(재사용 대기가 돌기 시작): 서서 시전. 회오리는 돌면서 걷는다
+    else if (w.skillCd + w.dashCd + w.shoutCd + w.throwCd > cd && !hero.skill) w.castT = CAST; // 스킬이 나갔다(재사용 대기가 돌기 시작): 서서 시전
     return;
   }
   w.opening = null; // 다른 명령은 상자로 가던 것을 취소한다
@@ -447,7 +447,7 @@ function command(w: World, hero: Entity, c: Command) {
 // 액티브 스킬: (x, z)는 조준점(없으면 스스로 고른다). 쓰이면 재사용 대기(초), 쓰지 못했으면 0
 type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
 const CASTS: Partial<Record<SkillId, Cast>> = {
-  cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe,
+  cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, downcut, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe,
   finale, graveKing,
   fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest, afterimage, swap, retrace, swoop, ride, flock,
   pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,
@@ -455,6 +455,15 @@ const CASTS: Partial<Record<SkillId, Cast>> = {
 };
 const recast: Recast = (w, id, p, x, z) => CASTS[id]?.(w, p, x, z) ?? 0; // 잔상이 주문을 다시 쓰는 길
 const CMD_KEY: Partial<Record<Command['type'], SkillName>> = { skill: 'cleave', dash: 'dash', shout: 'shout', throw: 'throw' };
+const KEY_CMD = { cleave: 'skill', dash: 'dash', shout: 'shout', throw: 'throw' } as const;
+
+// 내리베기 모으기: 죽거나 구르기·돌진 등에 들어가거나 칸에서 빠지면 풀린다(재사용 대기 없음). 다 모이고 hold초가 지나면 저절로 벤다
+function tickDowncut(w: World, hero: Entity) {
+  const key = keyOf(w, 'downcut');
+  if (hero.state === 'dead' || hero.phase !== 'none' || !key) return void (w.cut = -1);
+  w.cut += DT;
+  if (w.cut >= downcutStat(w).full + DOWNCUT.hold) command(w, hero, { type: KEY_CMD[key] });
+}
 
 // 명령 skill·dash·shout·throw = 칸 Q W E R에 끼운 스킬. 재사용 대기는 칸마다(KEY_CD). 가던 길·상자·계단은 쓴 뒤에 이어 간다
 function cast(w: World, hero: Entity, c: Command) {
@@ -468,7 +477,7 @@ function cast(w: World, hero: Entity, c: Command) {
   const key = CMD_KEY[c.type];
   const id = key && w.keys[key];
   if (!key || !id || !rank(w, id) || w[KEY_CD[key]] > 0) return; // 빈 칸·재사용 대기 중
-  if (!canAfford(w, id)) return; // 기력·마나 부족
+  if (!canAfford(w, id) && !(id === 'downcut' && w.cut >= 0)) return; // 기력·마나 부족(모으던 내리베기는 그래도 벤다, 비용은 벨 때)
   const [x, z] = ['x' in c ? c.x : undefined, 'z' in c ? c.z : undefined];
   const cd = echoCast(w, id, () => CASTS[id]?.(w, hero, x, z) ?? 0);
   if (cd > 0) {
@@ -615,7 +624,7 @@ function act(w: World, e: Entity) {
   if (e.kind === 'hero' && w.castT > 0) return void (e.state = 'idle'); // 스킬 시전 중에는 서 있는다(가던 길은 그대로)
   if (e.kind === 'mage' && t && flee(w, e, t)) return;
   if (t) {
-    if (canHit(w, e, t) && e === w.entities[0] && w.spinT > 0) return void (e.state = 'idle'); // 회오리 중에는 평타 대신 돈다
+    if (canHit(w, e, t) && e === w.entities[0] && w.cut >= 0) return void (e.state = 'idle'); // 내리베기를 모으는 중에는 치지 않는다
     if (canHit(w, e, t)) return startSwing(e, t);
     if ((e.repathT -= DT) <= 0) {
       e.repathT = REPATH;

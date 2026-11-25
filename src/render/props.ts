@@ -570,7 +570,7 @@ export function syncEffects(world: World) {
   if (world.cleaves > cleavesSeen) {
     const hero = world.entities[0];
     const c = card(cleaveFx, 'cleave', hero.x, hero.z, false);
-    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing + (world.spinT > 0 ? (world.cleaves * Math.PI) / 2 : 0)) }); // 회오리: 벨 때마다 90°씩 돌아간다
+    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing) });
     c.mesh.renderOrder = 2;
     if (world.markSlashes > markSeen) {
       // 그어두기: 가늘고 흰 초승달, 빠르게(0.12초)

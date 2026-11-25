@@ -98,8 +98,8 @@ test('충전을 쓰는 타격과 쓰지 않는 타격', () => {
   expect(left('dash', ['Hmm...'], { type: 'skill', ...at(5.5) }, 1), '돌진 베기(돌진 하나 = 1)').toBe(5);
   expect(left('leap', ['H...m.'], { type: 'skill', ...at(4.5) }, 1), '대지 강타').toBe(5);
   expect(left('flash', ['Hm.m..'], { type: 'skill' }, 1.5), '일섬(꿰뚫을 때마다)').toBe(4);
-  const spin = arena(['Hm...'], { whirl: 1 }, { cleave: 'whirl' }); spin.edge = flame();
-  runFor(spin, 2.2, [{ type: 'skill' }]); expect(spin.edge.kind, '회오리 2초 = 8틱').toBeNull();
+  const dc = arena(['Hm...'], { downcut: 1 }, { cleave: 'downcut' }); dc.edge = flame();
+  runFor(dc, 0.1, [{ type: 'skill', ...at(1.5) }]); runFor(dc, 0.3, [{ type: 'skill', ...at(1.5) }]); expect(dc.edge.left, '내리베기').toBe(5);
   expect(left('throw', ['H..m.'], { type: 'skill', ...at(3.5) }), '도끼').toBe(6);
   expect(left('bounce', ['H..m.'], { type: 'skill', ...at(3.5) }), '튕기는 도끼').toBe(6);
   expect(left('graze', ['Hm...'], { type: 'skill' }, 0.3), '스쳐 베기(지나칠 때)').toBe(5);
