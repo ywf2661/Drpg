@@ -262,11 +262,44 @@ export function headOf(id: number): THREE.Vector3 | null {
   return s.mesh.position.clone().add(new THREE.Vector3(0, s.info.cell[1] / s.info.ppm + 0.1, 0));
 }
 
+// 타임패트롤 신호(설계: 2026-11-24-act2-expedition-design.md 4절): 주인공 그림을 푸르스름하게 비춘 흐릿한 형상이 (x, z)에 깜빡이며 선다.
+// 주인공의 지금 동작 칸을 그대로 따라 그리고, 가끔 끊기듯 사라지거나 옆으로 어긋난다(노이즈). null = 없음
+let patrolAt: { x: number; z: number } | null = null;
+let patrol: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; of: Sprite } | null = null;
+export const setPatrol = (p: { x: number; z: number } | null) => (patrolAt = p);
+function drawPatrol() {
+  const hero = sprites[0];
+  if (patrol && (!patrolAt || patrol.of !== hero)) {
+    patrol.mesh.removeFromParent();
+    patrol.mat.map?.dispose();
+    patrol.mat.dispose();
+    patrol = null;
+  }
+  if (!patrolAt || !hero?.mat.map) return;
+  if (!patrol) {
+    const mat = new THREE.MeshBasicMaterial({ map: hero.mat.map.clone(), transparent: true, depthWrite: false, toneMapped: false, color: 0x8ad0ff, blending: THREE.AdditiveBlending }); // 빛이 더해져 신호처럼
+    const mesh = new THREE.Mesh(hero.mesh.geometry, mat);
+    mesh.renderOrder = 3;
+    scene.add(mesh);
+    patrol = { mesh, mat, of: hero };
+  }
+  const map = patrol.mat.map!;
+  map.repeat.copy(hero.mat.map.repeat);
+  map.offset.copy(hero.mat.map.offset);
+  const k = Math.floor(time * 12);
+  const cut = Math.sin(k * 91.7) > 0.82; // 끊김
+  const jx = Math.sin(k * 37.1) > 0.7 ? 0.25 * Math.sin(k * 13.3) : 0; // 옆으로 어긋남
+  patrol.mesh.position.set(patrolAt.x + jx, 0, patrolAt.z - jx);
+  patrol.mesh.quaternion.copy(hero.mesh.quaternion);
+  patrol.mat.opacity = cut ? 0.1 : 0.8 + 0.2 * Math.sin(time * 9);
+}
+
 export function draw(world: World, dt: number) {
   const hero = world.entities[0];
   time += dt;
   tickWater(time, world);
   tickAbyss(time, world);
+  drawPatrol();
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;

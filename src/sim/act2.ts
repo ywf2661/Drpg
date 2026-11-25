@@ -40,3 +40,10 @@ export const SICK = { ill: '…물이… 물이 검어요… 우물에서 썩은
 export const WELL = { dirty: '검은 물이 우물로 흘러들고 있다. 물길을 다른 데로 돌려야 한다.', clean: '우물 물이 맑다.' };
 export const CLEANSED = '검은 물이 늪으로 빠졌다. 우물이 맑아졌다!';
 export const act2Step = (act2: number) => ACT2[Math.min(Math.max(act2, 1), ACT2.length) - 1]; // 0(시험용 바로 가기 등)이면 첫 단계
+// 타임패트롤 신호 1: 광산 4구역 출구 섬에 처음 닿았을 때(저장에 한 번). 말하는 이는 "???". 툴툴대는 반말, 끊김은 마지막 한 번(설계: 2026-11-24-act2-expedition-design.md 4절)
+export const PATROL1 = [
+  '…하, 또 이 시간대야? 고쳐 놓고 간 지 얼마나 됐다고.',
+  '그래서, 네가 오늘의 해결사냐? …뭐, 없는 것보단 낫겠지.',
+  '정화? 그런 거 없어. 신전에 가 보면 알 거다.',
+  '잘 들어, 두 번 말 안 해. 그 역병, 병 아니다. 틈에서 새어 나온 거야. …지직, 젠장, 신호가—',
+];

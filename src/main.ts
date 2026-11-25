@@ -7,7 +7,7 @@ import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
-import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setWorld } from './render/render';
+import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
@@ -18,7 +18,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, CRYSTAL_HINT, FOREMAN_HINT, KEG_HINT, LAKE_DONE, MINE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, KEG_HINT, LAKE_DONE, MINE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -55,6 +55,8 @@ let relicMiss = [0, 0, 0, 0];
 let stash: BagItem[] = [];
 let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
+let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
+let patrolOn = false; // 신호 형상이 서 있다(대화창이 닫히면 끊긴다)
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
 // ponytail: 2막 땅이 생기면 여기에 더한다(지금은 호숫가)
 const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' || l === 'mine' ? 'tent' : 'camp');
@@ -111,7 +113,7 @@ function signsOf(w: World): Sign[] {
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2 }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1 }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
@@ -589,7 +591,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash, act2] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], [], 0];
+  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash, act2, signal1] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], [], 0, false];
   begin(0, startOf(cls));
   if (!slots.some(Boolean)) help.showModal();
 };
@@ -619,6 +621,7 @@ initHud({
     name = saved.name;
     stats = { ...saved.stats };
     ({ cycle, stage, land, from, marks, news, took, beat, relics, act2 } = saved);
+    signal1 = !!saved.heard;
     if (hasHorse(relics) && !act2) [act2, news, captainLine] = [1, true, [ACT2_OPEN]]; // 2막이 생기기 전에 기도하는 자를 쓰러뜨린 판
     marksBy = [...saved.marksBy];
     relicMiss = [...saved.relicMiss];
@@ -799,6 +802,15 @@ requestAnimationFrame(function frame(now) {
       kegHint = true;
       say(KEG_HINT);
     }
+  }
+  // 광산 4구역: 출구 섬에 처음 닿으면 타임패트롤 신호(저장에 한 번). 대화창이 닫히면 형상도 끊긴다
+  if (land === 'mine' && floor === FLOORS - 1 && !signal1 && world.exits.some((e) => Math.hypot(e.x + 0.5 - world.entities[0].x, e.z + 0.5 - world.entities[0].z) < 9)) {
+    [signal1, patrolOn] = [true, true];
+    setPatrol({ x: world.entities[0].x + 1.3, z: world.entities[0].z - 1.3 });
+    showTalks(PATROL1.map((l): [string, string] => ['???', l]));
+  } else if (patrolOn && !talking()) {
+    patrolOn = false;
+    setPatrol(null);
   }
   // 광산: 처음 결정 곁에 오면 한 줄(무엇이 생기는지는 말하지 않는다)
   if (world.mine && !crystalHint && world.mine.crystals.some((c) => Math.hypot(c.x + 0.5 - world.entities[0].x, c.z + 0.5 - world.entities[0].z) < 4)) {
