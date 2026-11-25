@@ -126,7 +126,7 @@ export type Entity = {
 };
 
 // 강령술사의 소환수(해골 검사·궁수·법사, 시체 거인, 해골 왕): life초 뒤 사라진다
-export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId; escort?: true; rush?: { dx: number; dz: number; left: number; hit: number[] } }; // rush: 「행진」으로 한 줄 돌격 중(남은 m, 이미 친 적) // escort: 적을 쫓지 않고 주인공 곁을 따라다니며 reach 안의 적 모두를 친다(무덤 왕) // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
+export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId; escort?: true; decoy?: true; rush?: { dx: number; dz: number; left: number; hit: number[] } }; // decoy: 「도망자의 장화」 허수아비(치지도 움직이지도 않는다), rush: 「행진」으로 한 줄 돌격 중(남은 m, 이미 친 적) // escort: 적을 쫓지 않고 주인공 곁을 따라다니며 reach 안의 적 모두를 친다(무덤 왕) // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris' | 'tent' | 'tentBig' | 'pad'; x: number; z: number; gone?: boolean }; // gone: 폭발에 쓰러진 천막 // tent·tentBig: 천막(2×2·4×4 칸, 글자는 왼쪽 위 칸), pad: 천막이 덮는 나머지 칸(막고 그림 없음)

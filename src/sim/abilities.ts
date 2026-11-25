@@ -7,6 +7,7 @@ import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
 import { hammerKeg } from './powder';
+import { decoy } from './necro'; // 함수만 쓰니 서로 부르는 import라도 괜찮다
 import { finaleStat, hitOf, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
@@ -335,6 +336,7 @@ export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
   const [tx, tz] = x !== undefined && z !== undefined ? [x, z] : near ? [2 * hero.x - near.x, 2 * hero.z - near.z] : [hero.x + dx, hero.z + dz];
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
+  if (hasUnique(w, 'runnerBoots')) decoy(w, hero.x, hero.z); // 도망자의 장화: 구른 자리에 허수아비
   Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   w.rollCd = ROLL.cd;
   w.trail = emberLine(w, hero.x, hero.z); // 불꽃 걸음: 구르며 늘어나는 불길

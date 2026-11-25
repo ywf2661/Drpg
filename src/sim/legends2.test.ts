@@ -182,3 +182,18 @@ test('원정대 깃발창 「깃발 꽂기」: 병사 둘, 15초 뒤 사라지�
   run(w, 15.2);
   expect(w.allies.length).toBe(0);
 });
+
+test('도망자의 장화: 구르면 허수아비가 남아 2초 동안 둘레 적이 노리고, 사라지면 다시 주인공', () => {
+  const w = createWorld(19, ['H....m']);
+  w.mods.boots = [{ kind: 'unique', value: 0, u: 'runnerBoots' }];
+  const [hero] = w.entities;
+  const m = w.entities.find((e) => e.kind === 'minion')!;
+  m.target = hero.id;
+  step(w, [{ type: 'roll', x: 3, z: 0.5 }]);
+  const d = w.allies.find((a) => a.decoy);
+  expect(d).toBeDefined();
+  expect(m.target).toBe(d!.id);
+  run(w, 2.5);
+  expect(w.allies.some((a) => a.decoy)).toBe(false);
+  expect(m.target === null || m.target === hero.id).toBe(true);
+});
