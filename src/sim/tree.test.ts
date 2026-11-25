@@ -190,7 +190,7 @@ test('튕기는 도끼는 세 번(5단계 여섯 번) 튀고, 도끼 숙련은 �
   expect(axeStat(w).mult).toBeGreaterThan(plain.mult);
 });
 
-test('사슬 도끼(패시브): 가르기가 처음 맞은 적을 끌어와 벤다. 무거운 적·빗나감이면 가르지 않는다, 5단계는 기절', () => {
+test('사슬 도끼(패시브): 가르기가 처음 맞은 적을 끌어와 벤다. 거대적엔 박혔다 빠지며 피해, 빗나가면 가르지 않는다, 5단계는 기절', () => {
   expect(isPassive('chainAxe')).toBe(true);
   const w = make(['H....m.m'], 'knight', { chainAxe: 1 });
   run(w, 1, [{ type: 'skill', x: 7.5, z: 0.5 }]);
@@ -200,9 +200,11 @@ test('사슬 도끼(패시브): 가르기가 처음 맞은 적을 끌어와 벤�
   expect(w.shots).toEqual([]);
 
   const boss = make(['H...M'], 'knight', { chainAxe: 1 });
-  run(boss, 1, [{ type: 'skill' }]);
-  expect([boss.entities[0].x, boss.entities[1].x], '보스도 주인공도 움직이지 않는다').toEqual([0.5, 4.5]);
-  expect(boss.cleaves, '가르지 않는다').toBe(0);
+  run(boss, 0.5, [{ type: 'skill' }]);
+  expect([boss.entities[0].x, boss.entities[1].x], '보스도 주인공도 끌려가지 않는다').toEqual([0.5, 4.5]);
+  expect([lost(boss), boss.shots.length], '도끼가 박혀 있다').toEqual([0, 1]);
+  run(boss, 1);
+  expect([lost(boss) > 0, boss.shots.length, boss.cleaves], '1초 뒤 빠지며 피해, 가르기는 안 한다').toEqual([true, 0, 0]);
 
   const miss = make(['H......'], 'knight', { chainAxe: 1 });
   run(miss, 1, [{ type: 'skill' }]);

@@ -29,7 +29,7 @@ function swingCleave(w: World, hero: Entity, x?: number, z?: number) {
 }
 
 // 사슬 가르기(사슬 도끼를 배우면 가르기가 이것으로): 조준점(없으면 사거리 안의 가까운 적, 그것도 없으면 바라보는 방향)으로
-// 사슬 도끼를 던진다. 처음 맞은 적을 끌고 와 앞에 놓고 가르기. 빗나가거나 무거운 적이면 가르지 않는다. 날기·끌기는 hookFly
+// 사슬 도끼를 던진다. 처음 맞은 적을 끌고 와 앞에 놓고 가르기. 빗나가면 가르지 않고, 거대적(무거운 적)에는 박혔다가 1초 뒤 빠지며 가르기 피해. 날기·끌기는 hookFly
 const hookRange = (w: World) => CHAIN_AXE.range + CHAIN_AXE.grow * Math.max(0, rank(w, 'chainAxe') - 1);
 function hookStart(w: World, hero: Entity, x?: number, z?: number) {
   const range = hookRange(w);
@@ -41,6 +41,14 @@ function hookStart(w: World, hero: Entity, x?: number, z?: number) {
 }
 function hookFly(w: World, hero: Entity, s: Shot): boolean {
   const t = s.drag !== undefined ? w.entities[s.drag] : undefined;
+  if (s.stuck !== undefined) {
+    // 거대적에 박혀 있다: 적을 따라다니다 빠지면서 가르기 피해
+    if (!t || t.state === 'dead') return false;
+    [s.x, s.z] = [t.x, t.z];
+    if ((s.stuck -= DT) > 0) return true;
+    skillHit(w, t, Math.round(roll(w, hero) * cleaveStat(w).mult));
+    return false;
+  }
   if (s.back) {
     // 되감기: 끌고 오는 적을 도끼에 붙여 주인공 앞까지
     const d = Math.hypot(hero.x - s.x, hero.z - s.z);
@@ -61,13 +69,12 @@ function hookFly(w: World, hero: Entity, s: Shot): boolean {
   [s.x, s.z] = [nx, nz];
   const hit = w.entities.find((e) => e !== hero && e.state !== 'dead' && Math.hypot(e.x - s.x, e.z - s.z) <= AXE.hit);
   if (!hit) return true;
-  if (heavy(hit)) return hookEnd(w, hero, hit); // 무거운 적은 끌려오지 않고, 주인공도 가지 않는다
-  Object.assign(s, { back: true, drag: hit.id, x: hit.x, z: hit.z });
+  Object.assign(s, heavy(hit) ? { stuck: CHAIN_AXE.stuck } : { back: true }, { drag: hit.id, x: hit.x, z: hit.z }); // 거대적은 끌려오지 않고 도끼가 박힌다
   return true;
 }
-// 사슬이 끝났다: 끌려온 적이 살아 있으면(5단계면 기절) 그쪽으로 가르기. 빗나감·무거운 적·끌려오다 죽은 적이면 가르지 않는다
+// 사슬이 끝났다: 끌려온 적이 살아 있으면(5단계면 기절) 그쪽으로 가르기. 빗나감·끌려오다 죽은 적이면 가르지 않는다
 function hookEnd(w: World, hero: Entity, t?: Entity): false {
-  if (!t || t.state === 'dead' || heavy(t)) return false;
+  if (!t || t.state === 'dead') return false;
   if (mastered(w, 'chainAxe')) stun(t, CHAIN_AXE.stun);
   swingCleave(w, hero, t.x, t.z);
   return false;

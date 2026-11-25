@@ -296,7 +296,7 @@ const SKILL_TEXT: Record<SkillId, SkillText> = {
   // 기사
   cleave: {
     get name() { return learned.chainAxe ? '사슬 가르기' : '가르기'; },
-    get desc() { return learned.chainAxe ? '사슬 도끼를 던져 처음 맞은 적을 끌어온 뒤 앞쪽을 벤다. 보스처럼 무거운 적은 끌려오지 않는다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 던진다' : '앞쪽의 적을 한꺼번에 벤다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 벤다'; },
+    get desc() { return learned.chainAxe ? '사슬 도끼를 던져 처음 맞은 적을 끌어온 뒤 앞쪽을 벤다. 보스처럼 무거운 적에게는 도끼가 박혔다가 1초 뒤 빠지면서 가르기만큼 피해를 준다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 던진다' : '앞쪽의 적을 한꺼번에 벤다. Q는 가까운 적 쪽으로, 우클릭은 커서 쪽으로 벤다'; },
     cap: '앞쪽 반원이 아니라 주위를 한 바퀴 벤다',
     stat: (w) => { const s = cleaveStat(w); return `${mastered(w, 'cleave') ? '주위' : '앞쪽 반원'} ${m(s.radius)} 안의 적 모두에게 ${wd(s.mult)}${cd(s.cd)}`; },
   },

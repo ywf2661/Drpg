@@ -262,7 +262,7 @@ export const SPIKE = { period: 3, warn: 1, up: 0.8, dmg: 5 };
 // 날아가는 화살. (dx, dz) 단위 방향, dmg는 쏠 때 굴린 값, left는 남은 비행 거리(m)
 // hit: 관통 도끼(5단계)·관통 화염구가 이미 맞힌 적 id
 // 주인공 것(몬스터만 맞음): axe = 도끼, bolt = 마법사 마력탄(평타), fireball = 마법사 화염구
-export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce' | 'hook'; drag?: number; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number; back?: boolean; small?: boolean; ricochet?: boolean; scale?: number }; // back: 돌아오는 도끼날로 되돌아오는 중, small: 쪼개진 작은 화염구, scale: 잔상이 쏜 것(터지며 생기는 잔불에 곱한다), ricochet: 매의 눈 두건으로 이미 튕김 // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창, hook = 사슬 가르기의 사슬 도끼(drag: 끌고 오는 적 id, back: 되감는 중)
+export type Shot = { id: number; x: number; z: number; dx: number; dz: number; dmg: number; left: number; kind: 'arrow' | 'fire' | 'axe' | 'bolt' | 'fireball' | 'shaft' | 'pierce' | 'hook'; drag?: number; stuck?: number; hit?: number[]; bounce?: number; through?: boolean; push?: boolean; wait?: number; back?: boolean; small?: boolean; ricochet?: boolean; scale?: number }; // back: 돌아오는 도끼날로 되돌아오는 중, small: 쪼개진 작은 화염구, scale: 잔상이 쏜 것(터지며 생기는 잔불에 곱한다), ricochet: 매의 눈 두건으로 이미 튕김 // bounce: 남은 튕김(튕기는 도끼), through: 맞혀도 계속 난다(도끼 5단계), push: 밀쳐내기 사격, wait: 이 시간(초) 동안 주인공 자리에서 기다렸다 난다. shaft = 궁수 화살, pierce = 관통 사격·뼈 창, hook = 사슬 가르기의 사슬 도끼(drag: 끌고 오는 적 id, back: 되감는 중, stuck: 거대적에 박혀 빠지기까지 남은 초)
 
 // 스킬 연계 기록(렌더용 글자). counter = 받아치기, stunned = 약점, reset = 돌진 → 가르기 준비. age초 뒤 지운다
 export type Combo = { id: number; x: number; z: number; kind: 'counter' | 'stunned' | 'back' | 'reset' | 'dodge' | 'ward'; age: number }; // ward = 빛 고리에 막힘(성기사) // back = 공포로 도망치는 적
@@ -709,7 +709,7 @@ export const LEAP = { cd: 10, range: 6, radius: 2.5, mult: 2, stun: 1, air: 0.45
 
 export const BOUNCE = { cd: 4, count: 3, range: 5, mult: 1 }; // 튕기는 도끼(투척 2): 재사용, 튕김 횟수(5단계 두 배), 다음 적을 찾는 거리, 배율
 export const AXES = { cd: 0.06, dmg: 0.1 }; // 도끼 숙련(투척 패시브): 단계마다 도끼 스킬 재사용 대기 −6%, 피해 +10%
-export const CHAIN_AXE = { speed: 32, back: 24, range: 6, grow: 0.5, hold: 1, stun: 1 }; // 사슬 도끼(투척 궁극, 패시브 — 가르기가 사슬 가르기로): 날아가는·되감는 속도, 사거리(단계마다 +grow), 놓는 거리(주인공 앞), 5단계 기절(초)
+export const CHAIN_AXE = { speed: 32, back: 24, range: 6, grow: 0.5, hold: 1, stun: 1, stuck: 1 }; // 사슬 도끼(투척 궁극, 패시브 — 가르기가 사슬 가르기로): 날아가는·되감는 속도, 사거리(단계마다 +grow), 놓는 거리(주인공 앞), 5단계 기절(초), 거대적에 박혀 있는 시간(초)
 export const KNOCK = { cleave: 0.9, dash: 0.7, axe: 0.6, shout: 0.4 }; // 스킬에 맞은 적이 밀려나는 거리(m)
 export const SHOUT = { cd: 15, radius: 4, stun: 2, time: 6, reduce: 0.3, heal: 0.15 }; // 전투의 함성: 재사용, 범위, 기절, 피해 감소 시간·비율, 5단계의 회복(최대 체력 비율)
 export const AXE = { cd: 2.5, speed: 12, flight: 8, hit: 0.5, mult: 1.2, aim: 8, gate: 3 }; // 도끼 던지기: 재사용, 속도, 비행 거리, 맞는 반경, 배율, 자동 조준(적), 자동 조준(닫힌 문)
