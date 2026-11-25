@@ -4,6 +4,7 @@
 // ③ 닿은 자리: 꽂힌 화살(props의 stickArrow)과 작은 흙먼지
 import * as THREE from 'three';
 import type { World } from '../sim/world';
+import { LEGEND2 } from '../sim/rules';
 
 const FALL = 0.22; // 빛줄기가 하늘에서 바닥까지(초)
 const STAGGER = 0.16; // 한 물결의 빛줄기가 엇갈려 떨어지는 폭(초)
@@ -44,6 +45,10 @@ function ringAt(i: number) {
   }
   return rings[i];
 }
+
+const galeGeo = new THREE.RingGeometry(0.9, 1, 32, 1, 0, Math.PI * 1.4).rotateX(-Math.PI / 2); // 끊긴 고리(도는 게 보이게)
+const gales: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>[] = [];
+let galeT = 0;
 
 // 흙먼지: 바닥에 눕힌 원이 커지며 옅어진다
 const puffs: { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
@@ -124,6 +129,23 @@ export function syncRain(world: World, dt: number, land: (x: number, z: number, 
     p.mesh.scale.setScalar(0.12 + 0.38 * k);
     p.mesh.material.opacity = 0.55 * (1 - k);
   }
+
+  // 「회오리 깃 활」의 회오리: 끊긴 고리 셋이 돌며 가운데로 조여든다
+  galeT += dt;
+  let n = 0;
+  for (const g of world.gales)
+    for (let k = 0; k < 3; k++, n++) {
+      if (!gales[n]) rainGroup.add((gales[n] = new THREE.Mesh(galeGeo, glow())));
+      const m = gales[n];
+      const f = (galeT * 1.2 + k / 3) % 1; // 바깥에서 안으로
+      m.visible = true;
+      m.position.set(g.x, 0.05 + k * 0.03, g.z);
+      m.rotation.y = galeT * 6 + k * 2;
+      m.scale.setScalar(LEGEND2.galeR * (1 - 0.8 * f));
+      m.material.color.setHex(0xdfe9f0);
+      m.material.opacity = 0.5 * Math.min(1, g.t / 0.3) * (0.3 + 0.7 * f);
+    }
+  for (; n < gales.length; n++) gales[n].visible = false;
 }
 
 // 층이 바뀌면 남은 그림을 치운다

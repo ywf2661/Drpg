@@ -125,3 +125,15 @@ test('사냥꾼의 쌍궁: 걷는 동안만 저절로 쏜다', () => {
   expect(w.shots.length).toBe(0);
   expect(m.hp).toBe(before);
 });
+
+test('회오리 깃 활: 화살비가 떨어진 자리로 둘레 적이 끌려온다', () => {
+  const w = createWorld(11, ['.......', '.......', '...H...', '.......', '.......', '......m', '.......']);
+  w.cls = 'ranger';
+  w.mods.weapon = [{ kind: 'unique', value: 0, u: 'galeBow' }];
+  const foe = w.entities.find((e) => e.kind === 'minion')!;
+  Object.assign(foe, { hp: 99999, maxHp: 99999, asleep: true });
+  w.volleys.push({ x: 3.5, z: 5.5, r: 1, t: 0, left: 1, mult: 0, later: 0, blast: 'rain' } as World['volleys'][number]);
+  run(w, 1);
+  expect(w.gales.length).toBe(1);
+  expect(Math.hypot(foe.x - 3.5, foe.z - 5.5)).toBeLessThan(1.5);
+});
