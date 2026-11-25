@@ -34,7 +34,7 @@ import { legendFx, legendGroup, resetLegendFx } from './legendfx';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
-import { ALLY_TINT, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { ALLY_TINT, STRAW, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 import { warded } from '../sim/sanctum';
 import { outroFx, outroGroup, outroLight } from './ending';
 
@@ -347,7 +347,7 @@ export function draw(world: World, dt: number) {
     let s = allySprites.get(a.id);
     if (!s) {
       s = makeSprite(a);
-      s.tint = ALLY_TINT;
+      s.tint = a.decoy ? STRAW : ALLY_TINT; // 허수아비는 짚빛
       allySprites.set(a.id, s);
       scene.add(s.mesh);
     }
