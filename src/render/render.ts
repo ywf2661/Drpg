@@ -54,6 +54,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   sanctum: { torch: 0xe0705a, range: 10, tint: [1, 0.78, 0.72], sky: 0.22, sun: 0, bg: 0x000000 }, // 무너진 성소: 폐허 타일에 칠흑과 핏빛 횃불
   lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
   raid: { torch: 0xffc890, range: 12, tint: [1.05, 0.9, 0.76], sky: 1.9, sun: 3.0, bg: 0x2a1a10 }, // 약탈자 진지: 먼지 낀 붉은 해
+  mine: { torch: 0xffb070, range: 11, tint: [0.92, 0.86, 1.04], sky: 0.5, sun: 0.5, bg: 0x07040c }, // 보랏빛 광산: 어둡고, 허공 밑에서 보랏빛이 올라온다
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)

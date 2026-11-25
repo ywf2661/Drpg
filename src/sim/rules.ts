@@ -118,6 +118,8 @@ export type Entity = {
   frost?: number; // 서리 칼에 맞은 횟수(벼림, 없으면 0)
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
+  hangT?: number; // 광산: 허공 가장자리에 매달린 남은 시간(초, 정예·보스 — 받는 피해 MINE.hangMult배)
+  fell?: boolean; // 광산: 허공에 떨어져 죽었다(렌더가 떨어지는 모습으로)
   fearT: number; // 공포 남은 시간(초). 주인공 반대쪽으로 도망친다
   asleep?: boolean; // 잠들어 있다(SLEEP): 생각도 행동도 하지 않는다
   pooled?: boolean; // 쓰러진 역병 마을 사람이 검은 웅덩이를 남겼다
@@ -211,7 +213,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar' | 'stash' | 'wheel' | 'well' | 'sick' | 'priest' | 'keg'; wave?: number }; // keg = 약탈자 진지 화약통(누르면 불이 붙는다 — powder.ts) // wheel·well = 호숫가 퍼즐의 바퀴·우물(sluice가 그린다), sick = 앓는 주민(정화하면 낫고 open, wave = 물약을 줬다), priest = 사제 // stash = 야영지 창고(열리지 않고 누르면 창고 창) // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar' | 'stash' | 'wheel' | 'well' | 'sick' | 'priest' | 'keg' | 'crystal'; wave?: number }; // keg = 약탈자 진지 화약통(누르면 불이 붙는다 — powder.ts) // wheel·well = 호숫가 퍼즐의 바퀴·우물(sluice가 그린다), sick = 앓는 주민(정화하면 낫고 open, wave = 물약을 줬다), priest = 사제 // stash = 야영지 창고(열리지 않고 누르면 창고 창) // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -249,6 +251,8 @@ export const LURK = 6; // 물가에 잠긴 마을 사람이 깨어나는 거리(
 // 약탈자 진지 화약통·도화선(설계: 2026-11-24-act2-raid-design.md 3절). fuse = 터지기까지 남은 초(-1 = 안 붙음), lit = 보이게 타는 중(누름·곁 폭발 — 도화선으로 올 차례는 false), wall = 방책 속(누를 수 없다)
 export type Keg = { x: number; z: number; fuse: number; lit: boolean; wall: boolean; done: boolean; chest: number; fx?: number; fz?: number; roll?: [number, number]; bump?: boolean }; // fx·fz: 칸 사이 자리(구르는 통), roll: 굴러가는 목적지(멈추면 없음), bump: 우두머리가 들이받은 통(주인공은 안 다친다)
 export type Spark = { cells: number[]; d: number[]; t: number }; // 도화선을 기어가는 불꽃: 칸 번호, 그 칸까지 걸음 수, 지난 초
+// 보랏빛 광산 결정 빛 다리(설계: 2026-11-25-act2-mine-design.md 3절): appear = 다리가 나타나 밟히기까지(초), hang = 매달림(초), light = 결정 빛 반지름(m, 렌더)
+export const MINE = { appear: 0.5, hang: 3, hangMult: 2, light: 7 };
 export const POWDER = { fuse: 1.5, chain: 0.25, r: 2.5, spark: 6, hero: 0.25, mob: 0.7, boss: 0.1, roll: 3.5 }; // roll: 구르는 통 빠르기(m/s)
 export type Ride = { line: number; from: 0 | 1; s: number; to: number; riders: number[]; hand: { s: number; t: number } | null }; // 타고 건너는 중: s = 간 거리(m), to = 배가 가는 곳(m, 누른 곳), riders = 배에 기어오른 몬스터, hand = 물속 손(t: 예고 뒤 지난 초, 음수 = 아직 예고 전)
 // 보물 고블린(초원): 주인공을 보면 run초 동안 speed m/s로 도망치고 못 잡으면 사라진다. 잡으면 금화 더미 gold개, 장비 gear개
@@ -285,7 +289,7 @@ export type Zone = { id: number; x: number; z: number; r: number; t: number; tot
 export type Gear = Record<Slot, number>;
 
 // 바깥 지역 출구 한 칸: 맨 바깥 줄에 있고, to 지역의 다음 구역으로 이어진다
-export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' | 'sanctum' | 'tent' | 'camp' | 'lake' | 'raid' };
+export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' | 'sanctum' | 'tent' | 'camp' | 'lake' | 'raid' | 'mine' };
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
 // potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
 // level·xp: 주인공 레벨과 현재 레벨에서 쌓인 경험치
@@ -313,6 +317,7 @@ export type World = {
   sparks: Spark[];
   stakes: Cell[]; // 말뚝 방책 칸(부서지면 grid가 열리고 broken에)
   broken: Set<number>;
+  mine: import('./mine').Mine | null; // 보랏빛 광산: 허공·결정·빛 다리(아니면 null)
   fm?: import('./ferryman').FerrymanState; // 뱃사공 결전 상태(처음 움직일 때 생긴다) // 막 내린 나루 칸 번호(벗어나면 -1) — 내리자마자 다시 타지 않게
   logs: Cell[]; // 통나무집 벽(호숫가 '|': 벽과 같고 그림만 통나무 — 호숫가의 다른 벽 '#'은 숲으로 그린다)
   amove: Point | null; // 공격 이동의 목적지(null = 아님)
@@ -472,7 +477,7 @@ export const FIERCE: EliteKind[] = ['frenzied', 'rushing', 'unyielding'];
 export const ELITE_KIND_LIST = (Object.keys(ELITE_KINDS) as EliteKind[]).filter((k) => !FIERCE.includes(k)); // 초원에서 나오는 특성
 export const steady = (e: Entity) => e.eliteKind === 'unyielding'; // 기절·공포·밀쳐내기를 받지 않는다
 // 지역(맵의 종류)과 그곳의 몬스터. 스킨 = 전투 원형(졸개·전사·마법사)에 그림·이름을 바꾸고 체력·이동 속도에 배율을 곱한 것
-export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum' | 'tent' | 'lake' | 'raid'; // camp = 야영지(거점, 몬스터 없음), tent = 2막 원정대 천막(거점), lake = 2막 ① 호숫가
+export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum' | 'tent' | 'lake' | 'raid' | 'mine'; // camp = 야영지(거점, 몬스터 없음), tent = 2막 원정대 천막(거점), lake = 2막 ① 호숫가
 // 거점: 몬스터 없이 쉬고 사고 맡기는 곳(층 번호 0). 죽거나 보스를 깨면 여기로 온다
 export const isHub = (land: Land) => land === 'camp' || land === 'tent';
 export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin' | 'time_warden' | 'plague_villager' | 'plague_ferryman' | 'raider_goblin' | 'raider_chief' | 'raider_orc' | 'swamp_treant';
@@ -511,6 +516,8 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
   // ponytail: 졸개는 「역병 걸린 마을 사람」, 보스는 뱃사공이 생길 때 바꾼다(설계: 2026-11-24-act2-lake-design.md 6·7절)
   lake: { name: '호숫가', unit: '구역', skins: { minion: 'plague_villager', warrior: 'swamp_treant', archer: 'hobgoblin_archer', boss: 'plague_ferryman' } },
   raid: { name: '약탈자 진지', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'raider_orc', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
+  // ponytail: 광산 몬스터(광부 고블린·바위 괴물·결정 궁수)와 감독관 그림이 생기면 바꾼다(설계: 2026-11-25-act2-mine-design.md 2·5절)
+  mine: { name: '보랏빛 광산', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
   sanctum: { name: '무너진 성소', unit: '층', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', king: 'bone_knight', boss: 'fallen_paladin' } },
 };
 // 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.
@@ -625,7 +632,7 @@ export function afterClear(stage: number, cycle: number, land: Land, beat = 0): 
 }
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
 export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
-export const depthOf = (land: Land, n: number) => (isHub(land) ? 0 : land === 'lake' ? 5 * STORY.length + 5 + n : land === 'raid' ? 5 * STORY.length + 10 + n : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25), 호숫가는 성소 다음(26~30), 약탈자 진지는 그다음(31~35)
+export const depthOf = (land: Land, n: number) => (isHub(land) ? 0 : land === 'lake' ? 5 * STORY.length + 5 + n : land === 'raid' ? 5 * STORY.length + 10 + n : land === 'mine' ? 5 * STORY.length + 15 + n : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25), 호숫가는 성소 다음(26~30), 약탈자 진지는 그다음(31~35), 광산은 그다음(36~40)
 // 장비 최고 단계는 지역마다 하나씩 열린다: 초원 2, 설원 3, 그다음부터 4(정예·상자·시련은 +1). 깊이 0(야영지)은 초원과 같다
 export const tierOf = (depth: number) => Math.min(4, 2 + Math.floor(Math.max(0, depth - 1) / 5));
 
