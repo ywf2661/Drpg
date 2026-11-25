@@ -135,6 +135,9 @@ LEGEND_LAYERS = {
     'necromancer_off_skull': ('necromancer', None, ('orb', (60, 255, 170))),
     'ranger_main_storm': ('ranger', 'longbow@storm', ('storm', (110, 190, 255))),
     'hero_main_hammer': ('hero', 'maul', ('edge', (255, 110, 40))),
+    'ranger_off_twin': ('ranger', 'longbow', ('mirror', None)),  # 사냥꾼의 쌍궁(2막): 왼손에 든 둘째 활 = 좌우 대칭 방향의 장궁을 뒤집은 것
+    'wizard_main_well': ('wizard', 'greatstaff@frost', ('gemdrip', (60, 170, 255))),  # 우물 사제의 홀(2막): 물빛 보석 + 떨어지는 물방울
+    'necromancer_off_plague': ('necromancer', None, ('orb', (150, 230, 60))),  # 역병 의사의 지팡이(2막): 왼손 위 독기 해골
     'hero_main_axe': ('hero', 'hand_axe', ('edge', (150, 200, 255))),  # 돌아오는 도끼날(1막): 한손 도끼 + 서늘한 쇠빛, 방패는 그대로
     'hero_main_spear': ('hero', 'staff', ('spear', (60, 110, 220)), 1.2),  # 원정대 깃발창(2막): FLARE엔 창이 없어 장대 끝에 창날·깃발을 덧그린다  # 우두머리의 화약 망치(2막): 양손 망치 + 잉걸불 빛
 }
@@ -487,6 +490,9 @@ def legend_frames(cls, src, fx, grow=1):
                     if bb:
                         orb = skull_orb(color)
                         c.alpha_composite(orb, (round((bb[0] + bb[2]) / 2 - orb.width / 2), round((bb[1] + bb[3]) / 2 - ORB['lift'] - orb.height / 2)))
+                elif kind == 'mirror':  # 발이 캔버스 가운데라 좌우로 뒤집으면 대칭 방향의 오른손 그림이 이 방향의 왼손 그림
+                    base.draw(c, s, i, MIRROR_DIR[d])
+                    c = ImageOps.mirror(c)
                 else:
                     base.draw(c, s, i, d)
                     if grow != 1:
@@ -503,9 +509,34 @@ def legend_frames(cls, src, fx, grow=1):
                     c = glow_band(c, mask, color)
                     if kind.endswith('storm'):
                         c = bolts(c, mask, color, seed)
+                    if kind == 'gemdrip':
+                        c = drips(c, gem, color, i)
                 bb = c.getbbox() or (FOOT[0], FOOT[1], FOOT[0] + 1, FOOT[1] + 1)
                 frames[(anim, d, i)] = (c.crop(bb), bb[:2])
     return frames, meta
+
+
+MIRROR_DIR = [6, 5, 4, 3, 2, 1, 0, 7]  # DIRS 좌우 대칭: SW↔SE, W↔E, NW↔NE, N·S 그대로
+DRIP = {'n': 2, 'fall': 9, 'span': 30, 'r': 2}  # 물방울 수, 프레임마다 떨어지는 px, 떨어지는 거리, 반지름(원본 px)
+
+
+def drips(c, gem, color, i):
+    """보석 아래로 떨어지는 물방울(프레임 i마다 아래로, 거리를 넘으면 다시 위에서)"""
+    bb = gem.getbbox()
+    if not bb:
+        return c
+    px = gem.crop(bb).load()  # 보석 표시는 자루 끝에도 조금 있어, 점이 가장 많이 모인 둘레(큰 결정)만 머리로 본다
+    pts = [(bb[0] + x, bb[1] + y) for y in range(bb[3] - bb[1]) for x in range(bb[2] - bb[0]) if px[x, y]]
+    near = lambda q: [p for p in pts if abs(p[0] - q[0]) + abs(p[1] - q[1]) < 24]
+    head = near(max(pts[::4], key=lambda q: len(near(q))))
+    d = ImageDraw.Draw(c)
+    cx, y0 = sum(p[0] for p in head) // len(head), max(p[1] for p in head)
+    for k in range(DRIP['n']):
+        y = y0 + (i * DRIP['fall'] + k * DRIP['span'] // DRIP['n']) % DRIP['span']
+        x = cx + (k * 2 - 1) * 2
+        r = DRIP['r']
+        d.ellipse((x - r, y - r, x + r, y + r + 1), fill=(*color, 255))
+    return c
 
 
 def knight_palette():

@@ -85,7 +85,7 @@ test('주인공 시트: 레이어 6종 × 4단계가 모두 있다(칸 정보는
 
 test('전설 무기 레이어 시트(tools/sprites.py LEGEND_LAYERS): 칼리버X·엘리멘탈 다섯 색·해골 구슬·천둥새', () => {
   const files = Object.keys(import.meta.glob('../assets/sprites/*.png')).map((p) => p.split('/').pop());
-  const want = ['hero_main_caliburx', ...['base', 'fire', 'frost', 'bolt', 'void'].map((e) => `wizard_main_elem${e}`), 'necromancer_off_skull', 'ranger_main_storm', 'hero_main_hammer', 'hero_main_spear', 'hero_main_axe'];
+  const want = ['hero_main_caliburx', ...['base', 'fire', 'frost', 'bolt', 'void'].map((e) => `wizard_main_elem${e}`), 'necromancer_off_skull', 'ranger_main_storm', 'hero_main_hammer', 'hero_main_spear', 'hero_main_axe', 'ranger_off_twin', 'wizard_main_well', 'necromancer_off_plague'];
   for (const n of want) expect(files).toContain(`${n}.png`);
 });
 

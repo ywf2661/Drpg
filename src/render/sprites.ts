@@ -201,6 +201,9 @@ const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, s
   caliburx: () => ({ main: 'hero_main_caliburx', off: null }),
   powderHammer: () => ({ main: 'hero_main_hammer', off: null }),
   boomerang: () => ({ main: 'hero_main_axe' }), // 한손 도끼(FLARE hand_axe), 방패는 그대로
+  twinBows: () => ({ off: 'ranger_off_twin' }), // 왼손에 둘째 장궁(좌우 대칭 방향을 뒤집은 그림)
+  wellScepter: () => ({ main: 'wizard_main_well' }), // 물빛 보석 + 떨어지는 물방울
+  plagueStaff: () => ({ off: 'necromancer_off_plague' }), // 왼손 위 독기 해골
   bannerSpear: () => ({ main: 'hero_main_spear', off: null }), // 장대 + 창날·원정대 깃발(tools/sprites.py spearhead) // 양손 망치(FLARE maul + 잉걸불 빛)
   elemStaff: (e) => ({ main: `wizard_main_elem${ELEM_SHEET[e] ?? 'base'}` }),
   graveSkull: () => ({ main: 'necromancer_main_4', off: 'necromancer_off_skull' }),
@@ -257,7 +260,7 @@ async function heroSheet(g: Gear, cls: HeroClass, looks: Looks): Promise<THREE.T
       const url = over === undefined ? layerUrl(l, g, cls) : over ? HERO_URLS[`../assets/sprites/${over}.png`] : undefined;
       if (!url) return; // 그 직업에 없는 레이어(또는 전설 무기가 지운 방패)
       if (!layerImages.has(url)) layerImages.set(url, new THREE.ImageLoader().loadAsync(url));
-      const color = looks[HERO_LAYERS[l]];
+      const color = over && l !== 'main' ? undefined : looks[HERO_LAYERS[l]]; // 전설이 덧댄 왼손 그림(해골·둘째 활)은 갑옷 색으로 물들이지 않는다
       imgs[l] = color ? await tinted(url, color) : await layerImages.get(url)!;
     }),
   );
