@@ -904,7 +904,7 @@ function raidDeco(world: World): THREE.Object3D[] {
 
 // 매 프레임: 부서진 말뚝·터진 통은 숨기고, 불붙은 통은 붉게 깜빡이고, 다 탄 도화선은 지우고, 기어가는 불꽃을 그린다
 export function syncRaid(world: World, time: number) {
-  if (!stakeCards.length && !kegCards.length) return;
+  if (!stakeCards.length && !kegCards.length && !world.kegs.length) return; // 화약 망치 통은 어느 땅에서나 생긴다
   for (const s of stakeCards) s.c.mesh.visible = !world.broken.has(s.i);
   while (kegCards.length < world.kegs.length) {
     const g = world.kegs[kegCards.length]; // 우두머리가 던진 통

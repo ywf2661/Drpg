@@ -6,6 +6,7 @@ import { arrowHit } from './ranger';
 import { landSword } from './paladin';
 import { temper } from './temper';
 import { crossSegs, echoCut, halfSegs, ringSegs } from './iaido';
+import { hammerKeg } from './powder';
 import { finaleStat, hitOf, emberLine, hasUnique, axeStat, bounceStat, heavy, burstStat, canHit, cellOf, cleaveStat, clearLine, cutCd, dashStat, dist, executeStat, face, friends, heroMax, hurt, keyOf, knock, leapStat, makeEntity, mastered, pathTo, rank, roll, shoutStat, skillHit, trailStat, walk, waypoints, whirlStat } from './core';
 
 // 기사 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 칸의 재사용 대기는 world의 cast가 적는다
@@ -157,6 +158,7 @@ export function cleave(w: World, hero: Entity) {
   }
   if (rank(w, 'burst')) burst(w, hero, killed);
   temper(w, hero, hit);
+  if (hasUnique(w, 'powderHammer')) hammerKeg(w, hero);
   w.cleaves++;
   const r = cleaveStat(w).radius;
   echoCut(w, 'cleave', () => (mastered(w, 'cleave') ? ringSegs(hero.x, hero.z, r) : halfSegs(hero, r)), hit); // 칼의 여운: 벤 모양 그대로

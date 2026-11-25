@@ -184,7 +184,7 @@ export const UNIQUE_COLOR = { legend: '#ff5e14', set: '#b86bff' };
 export const GRADE_COLOR = { magic: '#7d9bff', rare: '#ffe94a' }; // 바닥 고리·짧은 기둥(index.html --magic·--rare와 같게)
 // 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
 // prayer: 기도하는 자를 쓰러뜨리면 평소 드롭과 따로 이 확률로 지금 직업의 전설 무기(PRAYER_WEAPON)
-export const LEGEND2 = { kegMult: 3, bannerCd: 30, bannerLife: 15, bannerHp: 1.5, bannerMult: 1, poolR: 1.5, poolT: 4, plagueLife: 10, marchCd: 12, marchSpeed: 9, marchMult: 1.5, marchDist: 8, galeR: 3, galePull: 4, galeT: 1.5, twinMult: 0.5, crownPer: 4, crownMax: 60, decoyT: 2, decoyR: 6, sackMax: 25, sackSpill: 1 / 3 }; // 2막 전설 수치
+export const LEGEND2 = { kegMult: 3, kegRoll: 3, bannerCd: 30, bannerLife: 15, bannerHp: 1.5, bannerMult: 1, poolR: 1.5, poolT: 4, plagueLife: 10, marchCd: 12, marchSpeed: 9, marchMult: 1.5, marchDist: 8, galeR: 3, galePull: 4, galeT: 1.5, twinMult: 0.5, crownPer: 4, crownMax: 60, decoyT: 2, decoyR: 6, sackMax: 25, sackSpill: 1 / 3 }; // 2막 전설 수치
 export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100, prayer: 0.4 };
 export const PRAYER_WEAPON: Record<HeroClass, UniqueId> = { knight: 'caliburx', wizard: 'elemStaff', necromancer: 'graveSkull', ranger: 'stormBow' };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
@@ -261,7 +261,7 @@ export const SLUICE = { speed: 30, spawn: 4, alive: 3, near: 14 }; // 물이 차
 export const PUDDLE = { r: 0.8, t: 4, slow: 0.6 }; // 역병 마을 사람이 쓰러진 자리의 검은 웅덩이: 반경·시간·밟은 주인공 걸음 배율
 export const LURK = 6; // 물가에 잠긴 마을 사람이 깨어나는 거리(m)
 // 약탈자 진지 화약통·도화선(설계: 2026-11-24-act2-raid-design.md 3절). fuse = 터지기까지 남은 초(-1 = 안 붙음), lit = 보이게 타는 중(누름·곁 폭발 — 도화선으로 올 차례는 false), wall = 방책 속(누를 수 없다)
-export type Keg = { x: number; z: number; fuse: number; lit: boolean; wall: boolean; done: boolean; chest: number; fx?: number; fz?: number; roll?: [number, number]; bump?: boolean }; // fx·fz: 칸 사이 자리(구르는 통), roll: 굴러가는 목적지(멈추면 없음), bump: 우두머리가 들이받은 통(주인공은 안 다친다)
+export type Keg = { x: number; z: number; fuse: number; lit: boolean; wall: boolean; done: boolean; chest: number; fx?: number; fz?: number; roll?: [number, number]; bump?: boolean; dmg?: number }; // fx·fz: 칸 사이 자리(구르는 통), roll: 굴러가는 목적지(멈추면 없음), bump: 우두머리가 들이받은 통(주인공은 안 다친다)
 export type Spark = { cells: number[]; d: number[]; t: number }; // 도화선을 기어가는 불꽃: 칸 번호, 그 칸까지 걸음 수, 지난 초
 export const POWDER = { fuse: 1.5, chain: 0.25, r: 2.5, spark: 6, hero: 0.25, mob: 0.7, boss: 0.1, roll: 3.5 }; // roll: 구르는 통 빠르기(m/s)
 export type Ride = { line: number; from: 0 | 1; s: number; to: number; riders: number[]; hand: { s: number; t: number } | null }; // 타고 건너는 중: s = 간 거리(m), to = 배가 가는 곳(m, 누른 곳), riders = 배에 기어오른 몬스터, hand = 물속 손(t: 예고 뒤 지난 초, 음수 = 아직 예고 전)
