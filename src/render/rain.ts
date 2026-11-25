@@ -49,6 +49,7 @@ function ringAt(i: number) {
 const galeGeo = new THREE.RingGeometry(0.9, 1, 32, 1, 0, Math.PI * 1.4).rotateX(-Math.PI / 2); // 끊긴 고리(도는 게 보이게)
 const gales: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>[] = [];
 let galeT = 0;
+const pools: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>[] = [];
 
 // 흙먼지: 바닥에 눕힌 원이 커지며 옅어진다
 const puffs: { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
@@ -146,6 +147,20 @@ export function syncRain(world: World, dt: number, land: (x: number, z: number, 
       m.material.opacity = 0.5 * Math.min(1, g.t / 0.3) * (0.3 + 0.7 * f);
     }
   for (; gn < gales.length; gn++) gales[gn].visible = false;
+
+  // 「우물 사제의 홀」 물웅덩이: 맑은 물빛 원판(사라질 때 옅어진다)
+  world.pools.forEach((p, k) => {
+    if (!pools[k]) {
+      pools[k] = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x5fb8d8, transparent: true, depthWrite: false }));
+      rainGroup.add(pools[k]);
+    }
+    const m = pools[k];
+    m.visible = true;
+    m.position.set(p.x, 0.025, p.z);
+    m.scale.setScalar(LEGEND2.poolR);
+    m.material.opacity = 0.45 * Math.min(1, p.t / 0.6);
+  });
+  for (let k = world.pools.length; k < pools.length; k++) pools[k].visible = false;
 }
 
 // 층이 바뀌면 남은 그림을 치운다

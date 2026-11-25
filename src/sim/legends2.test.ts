@@ -44,7 +44,7 @@ test('약탈자 우두머리는 기사에게만 화약 망치를 따로 굴린�
 
 import { cleave } from './abilities';
 import { step, makeUnique } from './world';
-import { roll } from './core';
+import { roll, skillHit } from './core';
 
 const wearing = (w: World, u: Parameters<typeof makeUnique>[1]) => {
   const it = makeUnique(w, u, 0, 0, 4);
@@ -196,4 +196,22 @@ test('도망자의 장화: 구르면 허수아비가 남아 2초 동안 둘레 �
   run(w, 2.5);
   expect(w.allies.some((a) => a.decoy)).toBe(false);
   expect(m.target === null || m.target === hero.id).toBe(true);
+});
+
+test('우물 사제의 홀: 냉기로 맞히면 웅덩이, 웅덩이 위 적이 번개에 맞으면 웅덩이 위 모두 감전', () => {
+  const w = createWorld(21, ['H...mm', '......']);
+  w.cls = 'wizard';
+  w.mods.weapon = [{ kind: 'unique', value: 0, u: 'wellScepter' }];
+  const [a, b] = w.entities.filter((e) => e.kind === 'minion');
+  for (const e of [a, b]) Object.assign(e, { hp: 99999, maxHp: 99999, asleep: true });
+  b.x = a.x + 0.8;
+  w.elem = 1;
+  skillHit(w, a, 10);
+  expect(w.pools.length).toBe(1);
+  const hb = b.hp;
+  w.elem = 2;
+  skillHit(w, a, 50);
+  expect(b.hp).toBeLessThan(hb);
+  run(w, 4.1);
+  expect(w.pools.length).toBe(0);
 });

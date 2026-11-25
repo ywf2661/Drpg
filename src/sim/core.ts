@@ -121,10 +121,23 @@ export function skillHit(w: World, e: Entity, raw: number) {
   const r = 1 + rage(w);
   hurt(w, e, kind ? Math.round(raw * r * COMBO[kind]) : r === 1 ? raw : Math.round(raw * r), w.entities[0]);
   if (w.elem >= 0 && hasUnique(w, 'elemStaff')) elemHit(w, e, raw);
+  if (w.cls === 'wizard' && hasUnique(w, 'wellScepter')) wellHit(w, e, raw);
   if (kind === 'counter' && hasUnique(w, 'duelist')) {
     for (const k of KEYS) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - LEGEND_FX.duelCd);
     w.res = Math.min(resMax(w), w.res + LEGEND_FX.duelRes);
   }
+}
+// 「우물 사제의 홀」: 냉기 스킬(1번 탭)이 맞힌 적 발밑에 물웅덩이, 번개 스킬(2번 탭)이 웅덩이 위의 적을 맞히면 같은 웅덩이 위의 다른 적도 모두(hurt — 다시 퍼지지 않는다)
+function wellHit(w: World, e: Entity, raw: number) {
+  const on = (p: { x: number; z: number }, t: Entity) => Math.hypot(t.x - p.x, t.z - p.z) <= LEGEND2.poolR;
+  if (w.elem === 1) {
+    const p = w.pools.find((p) => Math.hypot(p.x - e.x, p.z - e.z) < 0.6);
+    if (p) p.t = LEGEND2.poolT;
+    else w.pools.push({ x: e.x, z: e.z, t: LEGEND2.poolT });
+  }
+  if (w.elem !== 2) return;
+  const p = w.pools.find((p) => on(p, e));
+  if (p) for (const o of w.entities) if (o !== e && o.kind !== 'hero' && o.state !== 'dead' && on(p, o)) hurt(w, o, raw, w.entities[0]);
 }
 // 광전사의 손잡이의 분노: 잃은 체력 비율 × LEGEND_FX.rage
 export function rage(w: World) {

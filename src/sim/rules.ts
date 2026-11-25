@@ -364,6 +364,7 @@ export type World = {
   potions: number;
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
+  pools: { x: number; z: number; t: number }[]; // 「우물 사제의 홀」 물웅덩이(남은 초)
   gales: { x: number; z: number; t: number }[]; // 「회오리 깃 활」의 회오리(남은 초)
   twinT: number; // 「사냥꾼의 쌍궁」 다음 저절로 쏘기까지(초)
   sack: number; // 「약탈자의 전리품 자루」에 쌓인 금화(받는 피해 −sack%, 최대 LEGEND2.sackMax)
