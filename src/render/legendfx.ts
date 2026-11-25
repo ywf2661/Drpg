@@ -6,6 +6,7 @@
 // - 천둥새의 장궁: 화살이 지나온 궤적을 따라 지글거리는 번개, 맞힌 적 → 둘레 적으로 뻗는 꺾인 번개 줄기
 import * as THREE from 'three';
 import { FINALE, HIT_AT, hasUnique, type Ally, type World } from '../sim/world';
+import { LEGEND2 } from '../sim/rules';
 import { BLADE, line } from './iaido';
 import { puff } from './rain';
 import { rumble } from './feel';
@@ -462,6 +463,37 @@ function syncScarecrows(world: World, dt: number, time: number) {
   for (const [id, s] of scarecrows) if (!live.has(id)) (s.root.removeFromParent(), scarecrows.delete(id));
 }
 
+// 전리품 자루: 등에 멘 삼베 자루. 쌓인 금화(world.sack)만큼 부풀고, 늘면 출렁·흘리면 흔들린다
+const SACKFX = { min: 0.55, max: 1.15, back: 0.28, y: 0.95, bounce: 3 };
+let sackFx: { root: THREE.Group; n: number; wob: number } | null = null;
+function makeSack(): THREE.Group {
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(SACK, 0.15));
+  body.scale.set(1, 1.15, 0.85);
+  const neck = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.16, 6), mat(SACK, 0.15));
+  neck.position.y = 0.27;
+  const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.015, 8), mat(BONE.gold, 0.6));
+  coin.position.set(0.04, 0.37, 0);
+  coin.rotation.x = 1.1;
+  root.add(body, neck, box(0.13, 0.03, 0.13, WOOD, 0, 0.22, 0), coin, box(0.03, 0.5, 0.03, WOOD, -0.12, 0.05, 0.12, 0.6, 0, 0.4));
+  legendGroup.add(root);
+  return root;
+}
+function syncSack(world: World, dt: number, time: number) {
+  const hero = world.entities[0];
+  const on = hasUnique(world, 'lootSack') && hero.state !== 'dead';
+  if (!on) return void (sackFx && (sackFx.root.removeFromParent(), (sackFx = null)));
+  if (!sackFx) sackFx = { root: makeSack(), n: world.sack, wob: 0 };
+  if (world.sack !== sackFx.n) sackFx.wob = 1; // 찼거나 흘렸다
+  sackFx.n = world.sack;
+  sackFx.wob = Math.max(0, sackFx.wob - dt * SACKFX.bounce);
+  const f = world.sack / LEGEND2.sackMax;
+  const r = sackFx.root;
+  r.position.set(hero.x - Math.sin(hero.facing) * SACKFX.back, SACKFX.y, hero.z - Math.cos(hero.facing) * SACKFX.back);
+  r.rotation.set(0, hero.facing, Math.sin(time * 25) * 0.25 * sackFx.wob);
+  r.scale.setScalar((SACKFX.min + (SACKFX.max - SACKFX.min) * f) * (1 + 0.12 * sackFx.wob));
+}
+
 // 렌더 프레임마다. dt = 0이면 멈춤(자리만 맞춘다)
 export function legendFx(world: World, dt: number, time: number) {
   const live = new Set<number>();
@@ -474,6 +506,7 @@ export function legendFx(world: World, dt: number, time: number) {
   }
   for (const [id, k] of kings) if (!live.has(id) && !sinkKing(k, dt)) (k.root.removeFromParent(), kings.delete(id));
   syncScarecrows(world, dt, time);
+  syncSack(world, dt, time);
   syncFinales(world);
   syncStorm(world);
   tickBits(dt);
@@ -484,6 +517,8 @@ export function resetLegendFx(world: World) {
   kings.clear();
   for (const s of scarecrows.values()) s.root.removeFromParent();
   scarecrows.clear();
+  sackFx?.root.removeFromParent();
+  sackFx = null;
   trails.clear();
   for (const b of bits) b.m.removeFromParent();
   bits = [];
