@@ -51,4 +51,5 @@
 - 길: `.blend` → `blender -b <파일> --python tools/boss3d/blend2glb.py -- tools/.cache/models/<이름>.glb [남길 메시] [메시=텍스처.png]` → `python tools/boss3d/render.py <시트 이름>`.
   render.py의 `MODELS`에 키(h, m)·동작 이름 짝(게임 stance·move·attack·hit·die ← 모델 동작, 프레임 수, ms, 반복, 시작~끝 비율)을 적으면 `glb.js`가 같은 카메라로 찍는다.
 - 옛 파일 주의: 재질에 그림이 안 이어져 있으면 `메시=텍스처`로 다시 잇고, 앞이 어두우면 `'normals': 1`(법선 다시 계산).
-- 넣은 것: 약탈자 오크(`raider_orc`, orc 1.45m, 진지 전사), 늪 나무 괴물(`swamp_treant`, forest monster 2.6m — 사용자가 더 크게, 호숫가 전사).
+- 넣은 것: 약탈자 오크(`raider_orc`, orc 1.8m, 진지 전사), 늪 나무 괴물(`swamp_treant`, forest monster 2.6m — 사용자가 더 크게, 호숫가 전사).
+- 약탈자 우두머리는 시트가 세로 한계(4096px)에 닿아 더 크게 못 뽑으므로 게임에서 1.3배로 키워 그린다(src/render/sprites.ts SKIN_SIZE).

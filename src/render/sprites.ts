@@ -78,6 +78,8 @@ const WHITE = new THREE.Color(1, 1, 1);
 const ELITE_SIZE = 1.25;
 const KING_TINT = new THREE.Color(0.95, 0.6, 1.35);
 const KING_SIZE = 1.5;
+// 그림을 키워 그리는 모습: 원본 그림이 작거나(와이번), 시트가 세로 한계에 닿아 더 크게 못 뽑는 보스(약탈자 우두머리)
+const SKIN_SIZE: Partial<Record<Skin, number>> = { wyvern: KING_SIZE, treasure: ELITE_SIZE, raider_chief: 1.3 };
 const GOLD_TINT = new THREE.Color(1.6, 1.25, 0.35); // 보물 고블린
 export const ALLY_TINT = new THREE.Color(0.6, 1.3, 0.75); // 강령술사의 해골 병사: 초록빛
 
@@ -316,9 +318,7 @@ export function makeSprite(e: Entity): Sprite {
   const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.y = Math.PI / 4; // 카메라(+x+z) 쪽을 향한다
-  if (e.elite || e.kind === 'king') mesh.scale.setScalar(e.kind === 'king' ? KING_SIZE : ELITE_SIZE);
-  if (e.skin === 'wyvern') mesh.scale.setScalar(KING_SIZE); // 원본 그림이 작다 — 보스답게
-  if (e.skin === 'treasure') mesh.scale.setScalar(ELITE_SIZE);
+  mesh.scale.setScalar((e.elite || e.kind === 'king' ? (e.kind === 'king' ? KING_SIZE : ELITE_SIZE) : 1) * (e.skin ? (SKIN_SIZE[e.skin] ?? 1) : 1));
   const s: Sprite = { mesh, mat, info, anim: 'stance', t: 0, hp: e.hp, maxHp: e.maxHp, hitT: 0, castT: 0, tint: e.kind === 'king' ? KING_TINT : e.skin === 'treasure' ? GOLD_TINT : WHITE };
   if (e.eliteKind) {
     // 정예: 특성 색으로 물들이고, 어두운 곳에서도 보이게 발밑에 빛나는 고리(불빛을 받지 않는다)

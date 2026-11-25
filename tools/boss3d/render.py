@@ -29,7 +29,7 @@ BOSSES = {
 }
 # 받은 모델(tools/art/models → blend2glb.py → tools/.cache/models/<glb>.glb): 키 h(m), 앞 방향 yaw, 동작마다 (모델 동작 이름, 프레임 수, ms, 반복, 시작~끝 비율)
 MODELS = {
-    'raider_orc': {'glb': 'orc', 'h': 1.45, 'yaw': 0, 'normals': 1, 'anims': {
+    'raider_orc': {'glb': 'orc', 'h': 1.8, 'yaw': 0, 'normals': 1, 'anims': {
         'stance': ('wait', 8, 1600, 'looped', 0, 1), 'move': ('walk', 8, 900, 'looped', 0, 1), 'attack': ('attack', 8, 700, 'play_once', 0, 1),
         'hit': ('die', 2, 200, 'play_once', 0, 0.12), 'die': ('die', 8, 900, 'play_once', 0, 1)}},
     'swamp_treant': {'glb': 'forest_monster', 'h': 2.6, 'yaw': 0, 'normals': 1, 'anims': {
