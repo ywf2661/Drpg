@@ -82,7 +82,6 @@ const KING_SIZE = 1.5;
 const SKIN_SIZE: Partial<Record<Skin, number>> = { wyvern: KING_SIZE, treasure: ELITE_SIZE, raider_chief: 1.3 };
 const GOLD_TINT = new THREE.Color(1.6, 1.25, 0.35); // 보물 고블린
 export const ALLY_TINT = new THREE.Color(0.6, 1.3, 0.75); // 강령술사의 해골 병사: 초록빛
-export const STRAW = new THREE.Color(1.3, 1.1, 0.55); // 허수아비(도망자의 장화). ponytail: 허수아비 그림이 생기면 전사 그림 대신 그것으로
 
 // 주인공 = 부위별 레이어 시트(기사 hero_<레이어>_<단계>.png, 마법사 wizard_…, 궁수 ranger_…, 강령술사 necromancer_…)를 방향마다 heroOrder(뒤에 깔리는 것부터) 순서로 겹친 그림.
 // URL만 알고, 그림은 장착할 때 불러온다. 레이어 → 단계를 정하는 장비 부위(lower = 다리·손). 마법사·궁수는 방패(off)가 없다
@@ -334,6 +333,30 @@ export function makeSprite(e: Entity): Sprite {
   if (e.kind === 'hero') heroSprite = s;
   return s;
 }
+
+// 원정대 병사(원정대 깃발창): 고정 장비(사슬 갑옷·숏소드)를 입힌 기사 시트의 판자. 시트는 처음 부를 때 한 번 만들고, 그동안은 지금 주인공 시트
+let soldierTex: Promise<THREE.Texture> | null = null;
+export function soldierSprite(a: Entity): Sprite {
+  const info = SHEETS.hero.info;
+  if (!geometries.has('hero')) geometries.set('hero', cardGeometry(info));
+  const map = textures.get('hero')!.clone();
+  map.repeat.set(1 / info.cols, 1 / info.rows);
+  const mat = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, toneMapped: false });
+  const mesh = new THREE.Mesh(geometries.get('hero')!, mat);
+  mesh.rotation.y = Math.PI / 4;
+  soldierTex ??= heroSheet({ weapon: 2, armor: 3, helm: 3, boots: 2 }, 'knight', {});
+  void soldierTex.then((t) => {
+    const old = mat.map!;
+    const m = t.clone();
+    m.repeat.copy(old.repeat);
+    m.offset.copy(old.offset);
+    mat.map = m;
+    mat.needsUpdate = true;
+    old.dispose();
+  });
+  return { mesh, mat, info, anim: 'stance', t: 0, hp: a.hp, maxHp: a.maxHp, hitT: 0, castT: 0, tint: SOLDIER_TINT };
+}
+const SOLDIER_TINT = new THREE.Color(0.85, 0.95, 1.2); // 원정대의 푸른빛
 
 // 잔상(마법사): 지금 주인공 시트를 복제한 반투명 판자. 주인공 판자로 기억하지 않고, 후광·고리도 달지 않는다
 export function ghostSprite(hero: Entity): Sprite {

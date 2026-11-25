@@ -429,6 +429,39 @@ function syncStorm(world: World) {
   }
 }
 
+// 허수아비(도망자의 장화): 장대·가로대·누더기 웃옷·자루 머리·밀짚모자·소매 짚. 맞으면 흔들린다
+const scarecrows = new Map<number, { root: THREE.Group; hp: number; wob: number }>();
+const WOOD = 0x6b4a2b, CLOTH = 0x7d6a4a, SACK = 0xc9a66b, HAT = 0x5a4126, STRAW = 0xe0c060;
+function makeScarecrow(): THREE.Group {
+  const root = new THREE.Group();
+  root.add(box(0.07, 1.5, 0.07, WOOD, 0, 0.75, 0), box(1.0, 0.06, 0.06, WOOD, 0, 1.15, 0), box(0.42, 0.5, 0.22, CLOTH, 0, 1.0, 0));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), mat(SACK, 0.15));
+  head.position.y = 1.42;
+  const crown = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.2, 6), mat(HAT, 0.1));
+  crown.position.y = 1.68;
+  root.add(head, crown, box(0.42, 0.04, 0.42, HAT, 0, 1.57, 0));
+  for (const s of [-1, 1]) root.add(box(0.12, 0.16, 0.1, STRAW, s * 0.52, 1.1, 0, 0, 0, s * 0.4, 0.2), box(0.1, 0.14, 0.08, STRAW, s * 0.08, 0.7, 0, 0, 0, s * 0.3, 0.2));
+  root.rotation.y = Math.PI / 4; // 가로대가 카메라를 본다
+  legendGroup.add(root);
+  return root;
+}
+function syncScarecrows(world: World, dt: number, time: number) {
+  const live = new Set<number>();
+  for (const a of world.allies) {
+    if (!a.decoy) continue;
+    live.add(a.id);
+    let s = scarecrows.get(a.id);
+    if (!s) scarecrows.set(a.id, (s = { root: makeScarecrow(), hp: a.hp, wob: 0 }));
+    if (a.hp < s.hp) s.wob = 1; // 맞았다
+    s.hp = a.hp;
+    s.wob = Math.max(0, s.wob - dt * 2.5);
+    s.root.position.set(a.x, 0, a.z);
+    s.root.rotation.z = Math.sin(time * 30) * 0.15 * s.wob;
+    s.root.scale.setScalar(Math.min(1, a.life / 0.25)); // 사라질 때 쪼그라든다
+  }
+  for (const [id, s] of scarecrows) if (!live.has(id)) (s.root.removeFromParent(), scarecrows.delete(id));
+}
+
 // 렌더 프레임마다. dt = 0이면 멈춤(자리만 맞춘다)
 export function legendFx(world: World, dt: number, time: number) {
   const live = new Set<number>();
@@ -440,6 +473,7 @@ export function legendFx(world: World, dt: number, time: number) {
     placeKing(k, a, world, dt, time);
   }
   for (const [id, k] of kings) if (!live.has(id) && !sinkKing(k, dt)) (k.root.removeFromParent(), kings.delete(id));
+  syncScarecrows(world, dt, time);
   syncFinales(world);
   syncStorm(world);
   tickBits(dt);
@@ -448,6 +482,8 @@ export function legendFx(world: World, dt: number, time: number) {
 export function resetLegendFx(world: World) {
   for (const k of kings.values()) k.root.removeFromParent();
   kings.clear();
+  for (const s of scarecrows.values()) s.root.removeFromParent();
+  scarecrows.clear();
   trails.clear();
   for (const b of bits) b.m.removeFromParent();
   bits = [];

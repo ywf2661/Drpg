@@ -34,7 +34,7 @@ import { legendFx, legendGroup, resetLegendFx } from './legendfx';
 import { EDGE_COLOR, splitLost } from './edge';
 import type { EdgeHit } from '../sim/rules';
 import { edgeColor, mixColor } from './edge';
-import { ALLY_TINT, STRAW, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
+import { ALLY_TINT, soldierSprite, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 import { warded } from '../sim/sanctum';
 import { outroFx, outroGroup, outroLight } from './ending';
 
@@ -346,13 +346,13 @@ export function draw(world: World, dt: number) {
   for (const a of world.allies) {
     let s = allySprites.get(a.id);
     if (!s) {
-      s = makeSprite(a);
-      s.tint = a.decoy ? STRAW : ALLY_TINT; // 허수아비는 짚빛
+      s = a.from === 'banner' ? soldierSprite(a) : makeSprite(a); // 원정대 병사는 기사 그림
+      if (a.from !== 'banner') s.tint = ALLY_TINT;
       allySprites.set(a.id, s);
       scene.add(s.mesh);
     }
     updateSprite(s, a, dt, a.interval);
-    s.mesh.visible = a.from !== 'graveKing'; // 무덤 왕은 3D 모형(legendfx.ts)
+    s.mesh.visible = a.from !== 'graveKing' && !a.decoy; // 무덤 왕·허수아비는 3D 모형(legendfx.ts)
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(light(a.x, a.z) * (0.45 + (0.55 * a.hp) / a.maxHp)); // 맞을수록 어두워진다
   }
   markT -= dt;

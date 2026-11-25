@@ -7,11 +7,6 @@ import rangerSkillIcons from './assets/sprites/ranger_skill_icons.png';
 import necroSkillIcons from './assets/sprites/necro_skill_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
 import runesUrl from './assets/sprites/runes.png';
-import haloArt from './assets/legend/crackedHalo.png';
-import caliburxArt from './assets/legend/caliburx.png';
-import elemStaffArt from './assets/legend/elemStaff.png';
-import graveSkullArt from './assets/legend/graveSkull.png';
-import stormBowArt from './assets/legend/stormBow.png';
 import runesInfo from './assets/sprites/runes.json';
 import skillIcon from './assets/sprites/skill_icon.png';
 import dashIcon from './assets/sprites/dash_icon.png';
@@ -69,7 +64,8 @@ let cls: HeroClass = 'knight'; // 지금 판의 직업(장비 이름·아이콘�
 const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizardGearIcons, ranger: rangerGearIcons, necromancer: wizardGearIcons };
 const nameOf = (kind: Slot, tier: number, affixes: Affix[]) => gearName(kind, tier, affixes, cls);
 // 기도하는 자의 전설(빛 고리·전설 무기 넷): 아이콘 줄 대신 가방 칸 크기(2×2·2×3)에 맞춘 그림 한 장(src/assets/legend)
-const LEGEND_ART: Partial<Record<UniqueId, string>> = { crackedHalo: haloArt, caliburx: caliburxArt, elemStaff: elemStaffArt, graveSkull: graveSkullArt, stormBow: stormBowArt };
+// 전설 그림: assets/legend/<전설 id>.png를 넣으면 저절로 붙는다(무기·갑옷 192×288, 둥근 것 192×192)
+const LEGEND_ART = Object.fromEntries(Object.entries(import.meta.glob<string>('./assets/legend/*.png', { eager: true, import: 'default' })).map(([f, url]) => [f.slice(f.lastIndexOf('/') + 1, -4), url])) as Partial<Record<UniqueId, string>>;
 const artOf = (it: GearItem) => { const u = uniqueOf(it); return u && LEGEND_ART[u]; };
 // 아이콘 칸에 그림을 단다: 전설 그림이 있으면 그것(칸에 맞춰 contain), 없으면 직업 장비 줄의 그 단계 칸
 function setIcon(el: HTMLElement, it: GearItem) {
@@ -1125,18 +1121,24 @@ const ALLY_END = 3; // 남은 시간이 이만큼(초)이면 깜빡인다
 const allyCards = new Map<number, HTMLElement>();
 function showAllies(w: World) {
   const box = $('#allies');
-  const live = new Set(w.allies.map((a) => a.id));
+  const shown = w.allies.filter((a) => !a.decoy); // 허수아비는 초상화가 없다
+  const live = new Set(shown.map((a) => a.id));
   for (const [id, card] of allyCards) {
     if (live.has(id)) continue;
     card.remove();
     allyCards.delete(id);
   }
-  for (const a of w.allies) {
+  for (const a of shown) {
     let card = allyCards.get(a.id);
     if (!card) {
-      card = Object.assign(document.createElement('div'), { className: `ally ${a.kind}`, title: ALLY_NAME[a.kind] ?? '' });
+      card = Object.assign(document.createElement('div'), { className: `ally ${a.kind}`, title: a.from === 'banner' ? '원정대 병사' : (ALLY_NAME[a.kind] ?? '') });
       card.innerHTML = '<div class="pic"></div><div class="hp"><i></i></div>';
-      paintPortrait(card.firstElementChild as HTMLElement, a, 28);
+      if (a.from === 'banner') {
+        const c = document.createElement('canvas'); // 원정대 병사: 기사(주인공) 얼굴
+        drawHeroPortrait(c, 0.5);
+        Object.assign(c.style, { width: '100%', height: '100%', imageRendering: 'pixelated' });
+        card.firstElementChild!.append(c);
+      } else paintPortrait(card.firstElementChild as HTMLElement, a, 28);
       allyCards.set(a.id, card);
       box.append(card);
     }
