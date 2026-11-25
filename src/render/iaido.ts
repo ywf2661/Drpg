@@ -244,6 +244,7 @@ type Floor = { meshes: THREE.Mesh[]; core: THREE.MeshBasicMaterial; glow: THREE.
 const floors = new Map<number, Floor>();
 const snapSeen = new Set<number>();
 let clock = 0;
+let cutFxSeen = 0; // 본 내리베기 타격 수
 
 const ICE_COLOR = 0x7fdcff; // 결빙의 궤적(틈에서 나온 자 2부위)
 const colorOf = (c: Cut) => (c.src === 'echo' ? ECHO_COLOR : c.src === 'ice' ? ICE_COLOR : 0xffffff);
@@ -275,6 +276,13 @@ function drop(id: number, f: Floor) {
 
 export function cutsFx(world: World, dt: number) {
   clock += dt;
+  if (world.cutFx.n > cutFxSeen) {
+    const [x0, z0, x1, z1] = world.cutFx.seg; // 내리베기: 벤 직선을 따라 금빛 칼날 빛
+    const full = world.cutFx.full;
+    line(new THREE.Vector3(x0, SNAP.y, z0), new THREE.Vector3(x1, SNAP.y, z1), { geo: LENS, color: ECHO_COLOR, width: full ? 0.9 : 0.5, life: 0.4 });
+    rumble(full ? 0.35 : 0.12);
+  }
+  cutFxSeen = world.cutFx.n;
   const live = new Set<number>();
   for (const c of world.cuts) {
     live.add(c.id);
@@ -311,6 +319,7 @@ export function cutsFx(world: World, dt: number) {
 // 층이 바뀔 때 옛 좌표의 상태를 비운다
 export function resetIaido() {
   hop = null;
+  cutFxSeen = 0; // 새 층의 내리베기 타격은 0부터 센다
   bursts.length = 0;
   starAt = null;
   starT = GLINT;

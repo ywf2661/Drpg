@@ -7,7 +7,7 @@ import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
-import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setWorld } from './render/render';
+import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
@@ -15,10 +15,10 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower, hitScale } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
-import { toughenBoss } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
+import { DOWNCUT, downcutStat, toughenBoss } from './sim/world';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -58,9 +58,11 @@ let relicMiss = [0, 0, 0, 0];
 let stash: BagItem[] = [];
 let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
+let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
+let patrolOn = false; // 신호 형상이 서 있다(대화창이 닫히면 끊긴다)
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
 // ponytail: 2막 땅이 생기면 여기에 더한다(지금은 호숫가)
-const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' ? 'tent' : 'camp');
+const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' || l === 'mine' ? 'tent' : 'camp');
 // ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
 let captainLine: string[] | null = null;
 // 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
@@ -94,13 +96,13 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', priest: '사제', sick: '앓는 주민', keg: '화약통' };
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
 const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' ? act2 < 2 : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
-  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid'] as const) {
+  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid', 'mine'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
     const mark = to === 'sanctum' ? '▼' : '▶';
     if (cells.length) out.push({ ...middle(cells), text: isHub(to) ? `${mark} ${LANDS[to].name}` : `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
@@ -114,13 +116,13 @@ function signsOf(w: World): Sign[] {
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2 }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1 }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.stashLegends = stash.map(uniqueOf).filter((u) => u !== undefined); // 수집가의 왕관
   w.hitScale = hitScale(depth, cycle); // 2막·1막 2회차 이상: 몬스터 한 방을 기준 체력의 %로
@@ -216,6 +218,7 @@ const chat = () => { const lines = relicCount(relics) >= 2 ? [...VILLAGER, MURMU
 let chatter = 0;
 let kegsBlown = 0; // 이 맵에서 터진 화약통 수(이름표를 다시 달 때)
 let kegHint = false;
+let crystalHint = false; // 광산: 결정 안내 한 줄을 보였다(판마다 한 번)
 let chiefHint = false; // 우두머리 안내 한 줄(판마다 한 번) // 화약통 안내 한 줄을 보였다(판마다 한 번)
 
 // NPC·단서를 누르면(sim이 w.talk를 남긴다)
@@ -404,7 +407,8 @@ function goCamp() {
   if (after.newCycle) marksBy = [0, 0, 0, 0];
   if (land === 'sanctum') [news, captainLine] = [true, world.horseDrop && !act2 ? [SANCTUM_DONE, ACT2_OPEN] : [SANCTUM_DONE]];
   if (land === 'lake') [act2, news, captainLine] = [Math.max(act2, 3), true, [LAKE_DONE]];
-  if (land === 'raid') [act2, news, captainLine] = [Math.max(act2, 4), true, [RAID_DONE]]; // 약탈자 우두머리: 다음 곳(광산) 이야기 // 뱃사공: 원정대 천막의 순찰대장이 다음 길 이야기
+  if (land === 'raid') [act2, news, captainLine] = [Math.max(act2, 4), true, [RAID_DONE]];
+  if (land === 'mine') [act2, news, captainLine] = [Math.max(act2, 5), true, [MINE_DONE]]; // 광산 감독관: 다음 곳(신전) 이야기 // 약탈자 우두머리: 다음 곳(광산) 이야기 // 뱃사공: 원정대 천막의 순찰대장이 다음 길 이야기
   if (land === 'sanctum' && world.horseDrop) act2 = Math.max(act2, 1); // 처음 쓰러뜨렸다: 2막이 열린다(야영지 북쪽 원정길)
   toCamp(carryOf(world), after.advanced && (!was || after.newCycle)); // 2회차부터 순찰대장은 회차가 넘어갈 때만 새로 말한다
   if (after.newCycle) say(`${cycle + 1}회차 — 몬스터가 강해졌다`);
@@ -493,7 +497,7 @@ const emptyKey = (key: SkillName) => (world.points ? openTree() : sayLocked(key)
 // 칸의 스킬을 쓸 기력·마나가 모자라면 알리고 true(조준도 시작하지 않는다)
 const short = (cmd: Exclude<AimCmd, 'roll'>) => {
   const id = world.keys[CMD_SKILL[cmd]];
-  if (!id || canAfford(world, id)) return false;
+  if (!id || canAfford(world, id) || charging(cmd)) return false; // 모으던 내리베기는 모자라도 벤다(터치 탭도)
   sayShort(world, id);
   return true;
 };
@@ -510,7 +514,6 @@ const AIM: Partial<Record<SkillId, (w: World) => AimShape>> = {
   graze: () => ({ kind: 'line', len: GRAZE.dist, width: GRAZE.near * 2 }),
   throw: AXE_LINE,
   bounce: AXE_LINE,
-  execute: () => ({ kind: 'circle', range: EXECUTE.reach, r: 0.6 }),
   leap: (w) => ({ kind: 'circle', range: LEAP.range, r: leapStat(w).radius }),
   fireball: () => ({ kind: 'line', len: FIREBALL.flight, width: FIREBALL.hit * 2 }),
   firefield: (w) => ({ kind: 'circle', range: FIREFIELD.range, r: firefieldStat(w).radius }),
@@ -553,16 +556,28 @@ let smartKey = (() => {
     return false;
   }
 })();
+// 내리베기를 모으는 중인가(이 칸에 끼워져 있고, 모으기 시작 명령이 아직 sim에 안 들어갔어도)
+const charging = (cmd: Exclude<AimCmd, 'roll'>) => world.keys[CMD_SKILL[cmd]] === 'downcut' && (world.cut >= 0 || commands.some((c) => c.type === cmd));
 // 스킬 키(Q W E R): 조준할 스킬이면 조준 시작 → 좌클릭(또는 같은 키 한 번 더)에 쓴다. 재사용 대기 중이면 조준하지 않는다.
 // 조준 표(AIM)에 없는 스킬(가르기·함성·소환 등)은 바로 쓴다(가르기는 가까운 적 쪽 — 커서 쪽은 우클릭)
 function skillKey(cmd: Exclude<AimCmd, 'roll'>) {
   if (!world.keys[CMD_SKILL[cmd]]) return emptyKey(CMD_SKILL[cmd]);
+  if (charging(cmd)) return commands.push({ type: cmd, ...(aim() ?? {}) }); // 모으던 내리베기: 커서 쪽으로 벤다(기력이 모자라도)
   if (short(cmd)) return void (aiming === cmd && cancelAim()); // 모자라면 조준하지 않고 알린다
   const shape = aimShape(cmd);
   if (!shape) return commands.push({ type: cmd });
   if (smartKey) return commands.push({ type: cmd, ...(aim() ?? {}) });
   if (aiming === cmd) return fireAim();
   if (world[COOLDOWN[cmd]] <= 0 && world.entities[0].state !== 'dead') startAim(cmd);
+}
+// 내리베기를 모으는 동안: 벨 직선(커서 쪽, 마우스가 없으면 바라보는 쪽, 길이 = 지금 모은 만큼). 다 모이면 굵게
+function cutGuide() {
+  const hero = world.entities[0];
+  const p = aim();
+  const d = p ? Math.hypot(p.x - hero.x, p.z - hero.z) : 0;
+  const [dx, dz] = d > 1e-6 ? [(p!.x - hero.x) / d, (p!.z - hero.z) / d] : [Math.sin(hero.facing), Math.cos(hero.facing)];
+  const st = downcutStat(world);
+  return { kind: 'line' as const, x: hero.x, z: hero.z, dx, dz, len: st.len, width: DOWNCUT.width * (st.p >= 1 ? 1.5 : 1) };
 }
 // 조준 표시: 직선은 주인공에서 커서 쪽으로 사거리만큼(벽·닫힌 문에서 끊음), 원은 커서 지점(사거리까지로 당김). 커서가 없으면 null
 function aimGuide() {
@@ -592,7 +607,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash, act2] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], [], 0];
+  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash, act2, signal1] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], [], 0, false];
   begin(0, startOf(cls));
   if (!slots.some(Boolean)) help.showModal();
 };
@@ -622,6 +637,7 @@ initHud({
     name = saved.name;
     stats = { ...saved.stats };
     ({ cycle, stage, land, from, marks, news, took, beat, relics, act2 } = saved);
+    signal1 = !!saved.heard;
     if (hasHorse(relics) && !act2) [act2, news, captainLine] = [1, true, [ACT2_OPEN]]; // 2막이 생기기 전에 기도하는 자를 쓰러뜨린 판
     marksBy = [...saved.marksBy];
     relicMiss = [...saved.relicMiss];
@@ -667,6 +683,7 @@ addEventListener('keydown', (e) => {
   }
   if (document.querySelector('dialog[open]')) return; // 창을 보는 동안은 게임 키를 쌓지 않는다
   if (e.shiftKey && SKILL_KEYS[e.code]) return learn(SKILL_KEYS[e.code]); // Shift + 스킬 키 = 포인트로 단계 올리기
+  if (e.repeat && SKILL_KEYS[e.code] && world.keys[SKILL_KEYS[e.code]] === 'downcut') return; // 내리베기는 꾹 누르는 동안 모은다(키 반복으로 베지 않게)
   if (e.code === 'KeyQ') skillKey('skill');
   else if (e.code === 'KeyW') skillKey('dash');
   else if (e.code === 'KeyE') skillKey('shout');
@@ -676,6 +693,12 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'Space') (e.preventDefault(), roll(true));
   else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
+});
+// 내리베기: 누르고 있던 키를 떼면 벤다(한 번 더 눌러도 벤다)
+const SLOT_CMD = { cleave: 'skill', dash: 'dash', shout: 'shout', throw: 'throw' } as const;
+addEventListener('keyup', (e) => {
+  const slot = SKILL_KEYS[e.code];
+  if (slot && !e.shiftKey && !document.querySelector('dialog[open]') && charging(SLOT_CMD[slot])) skillKey(SLOT_CMD[slot]);
 });
 // 테스터 모드: 주소 끝에 ?test를 붙이면 왼쪽 위에 레벨 +5·다음 층 버튼(배포판에서도 폰으로 시험할 수 있게)
 // ponytail: 진행 저장에도 그대로 남는다(테스트로 올린 레벨·층). 섞이는 게 싫으면 테스터 모드에서는 saveRun을 건너뛸 것
@@ -780,7 +803,7 @@ requestAnimationFrame(function frame(now) {
   if (cut) commands.length = 0;
   if (intro) introStep(dt, cut);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
-  setAim(aiming ? aimGuide() : null);
+  setAim(aiming ? aimGuide() : world.cut >= 0 ? cutGuide() : null);
   renderer.domElement.classList.toggle('aiming', !!aiming || amoving);
   if (paused || hitstop > 0) acc = 0; // 타격 멈춤 동안은 sim이 서 있다(명령은 큐에 남는다)
   else for (acc += dt; acc >= DT; acc -= DT) step(world, commands.splice(0));
@@ -803,10 +826,24 @@ requestAnimationFrame(function frame(now) {
       say(KEG_HINT);
     }
   }
+  // 광산 4구역: 출구 섬에 처음 닿으면 타임패트롤 신호(저장에 한 번). 대화창이 닫히면 형상도 끊긴다
+  if (land === 'mine' && floor === FLOORS - 1 && !signal1 && world.exits.some((e) => Math.hypot(e.x + 0.5 - world.entities[0].x, e.z + 0.5 - world.entities[0].z) < 9)) {
+    [signal1, patrolOn] = [true, true];
+    setPatrol({ x: world.entities[0].x + 1.3, z: world.entities[0].z - 1.3 });
+    showTalks(PATROL1.map((l): [string, string] => ['???', l]));
+  } else if (patrolOn && !talking()) {
+    patrolOn = false;
+    setPatrol(null);
+  }
+  // 광산: 처음 결정 곁에 오면 한 줄(무엇이 생기는지는 말하지 않는다)
+  if (world.mine && !crystalHint && world.mine.crystals.some((c) => Math.hypot(c.x + 0.5 - world.entities[0].x, c.z + 0.5 - world.entities[0].z) < 4)) {
+    crystalHint = true;
+    say(CRYSTAL_HINT);
+  }
   // 약탈자 우두머리: 처음 막혔을 때 한 줄(통을 쓰라는 것까지만)
-  if (land === 'raid' && !chiefHint && world.combos.some((c) => c.kind === 'ward')) {
+  if ((land === 'raid' || land === 'mine') && !chiefHint && world.combos.some((c) => c.kind === 'ward')) {
     chiefHint = true;
-    say(CHIEF_HINT);
+    say(land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
   }
   if (world.cleansed) {
     world.cleansed = false;

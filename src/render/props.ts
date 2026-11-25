@@ -2,7 +2,7 @@
 import { impact, pause, rumble } from './feel';
 import { slashBurst } from './iaido';
 import * as THREE from 'three';
-import { POWDER } from '../sim/rules';
+import { GREATSWORD, POWDER } from '../sim/rules';
 import { CHEST, COMET, GRADE_COLOR, quality, RUNE_COLOR, runeGrade, runeIcon, SPIKE, UNIQUE_COLOR, uniqueOf, type HeroClass, type Item, type Prop, type World } from '../sim/world';
 import { relicCount, SANCTUM } from '../sim/sanctum';
 import { litBeams, paladinOf } from '../sim/paladin';
@@ -570,8 +570,9 @@ export function syncEffects(world: World) {
   if (world.cleaves > cleavesSeen) {
     const hero = world.entities[0];
     const c = card(cleaveFx, 'cleave', hero.x, hero.z, false);
-    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing + (world.spinT > 0 ? (world.cleaves * Math.PI) / 2 : 0)) }); // 회오리: 벨 때마다 90°씩 돌아간다
+    Object.assign(c, { t: 0, glow: 1, dir: dirIndex(hero.facing) });
     c.mesh.renderOrder = 2;
+    if (world.bigT > 0) c.mesh.scale.setScalar(GREATSWORD.radius); // 거인의 칼: 휘두르기 자국도 크게
     if (world.markSlashes > markSeen) {
       // 그어두기: 가늘고 흰 초승달, 빠르게(0.12초)
       Object.assign(c, { tint: MARK_FX, clip: { ...c.clip, ms: 120 } });
@@ -1026,9 +1027,9 @@ export function buildProps(world: World): THREE.Group {
       if (ch.kind === 'sick') c.tint = SICK_SKIN; // 낫기 전엔 웅크린다(syncChests)
       return { card: c, open: c.clip };
     }
-    if (ch.kind === 'wheel' || ch.kind === 'well' || ch.kind === 'keg') {
+    if (ch.kind === 'wheel' || ch.kind === 'well' || ch.kind === 'keg' || ch.kind === 'crystal') {
       const c = card(props, 'barrel', ch.x + 0.5, ch.z + 0.5, false);
-      c.mesh.visible = false; // 3D 모형(water.ts)·화약통(raidDeco)
+      c.mesh.visible = false; // 3D 모형(water.ts)·화약통(raidDeco)·광산 결정(abyss.ts)
       return { card: c, open: c.clip };
     }
     if (ch.kind === 'beacon') {

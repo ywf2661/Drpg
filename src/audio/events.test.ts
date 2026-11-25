@@ -91,6 +91,26 @@ test('가르기 타격', () => {
   expect(names(soundEvents(prev, w))).toEqual(['cleave']);
 });
 
+test('내리베기: 다 모은 베기는 가르기 소리에 무거운 소리가 겹친다, 덜 모으면 가르기 소리만', () => {
+  const w = createWorld(1, ['H..']);
+  let prev = snapshot(w);
+  Object.assign(w, { cleaves: 1, cutFx: { n: 1, seg: [0, 0, 1, 0], full: true } });
+  expect(names(soundEvents(prev, w))).toEqual(['cleave', 'blast']);
+  prev = snapshot(w);
+  Object.assign(w, { cleaves: 2, cutFx: { n: 2, seg: [0, 0, 1, 0], full: false } });
+  expect(names(soundEvents(prev, w))).toEqual(['cleave']);
+});
+
+test('거인의 칼: 켤 때 한 번 쇠 소리', () => {
+  const w = createWorld(1, ['H..']);
+  let prev = snapshot(w);
+  w.bigT = 6;
+  expect(names(soundEvents(prev, w))).toEqual(['equip_weapon']);
+  prev = snapshot(w);
+  w.bigT = 5.9;
+  expect(names(soundEvents(prev, w))).toEqual([]);
+});
+
 test('일섬·납도·그어두기 터짐 소리', () => {
   const w = createWorld(1, ['H..']);
   let prev = snapshot(w);

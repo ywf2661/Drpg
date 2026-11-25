@@ -1,6 +1,6 @@
 // three.js 렌더링. sim 상태를 읽기만 하고 수정하지 않는다.
 import * as THREE from 'three';
-import { attackInterval, hasUnique, hidden, winding, type World } from '../sim/world';
+import { downcutStat, attackInterval, hasUnique, hidden, winding, type World } from '../sim/world';
 import { REWIND } from '../sim/rules';
 import floorUrl from '../assets/tiles/floor.png';
 import wallUrl from '../assets/tiles/wall.png';
@@ -14,6 +14,7 @@ import ruinsFloorUrl from '../assets/tiles/floor_ruins.png';
 import plankUrl from '../assets/tiles/plank.png';
 import logUrl from '../assets/tiles/wall_log.png';
 import { buildWater, tickWater } from './water';
+import { buildAbyss, tickAbyss } from './abyss';
 import { barricadeAt, fadeTrees, syncRaid } from './props';
 import { dirtGround } from './ground';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
@@ -54,6 +55,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   sanctum: { torch: 0xe0705a, range: 10, tint: [1, 0.78, 0.72], sky: 0.22, sun: 0, bg: 0x000000 }, // 무너진 성소: 폐허 타일에 칠흑과 핏빛 횃불
   lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
   raid: { torch: 0xffc890, range: 12, tint: [1.05, 0.9, 0.76], sky: 1.9, sun: 3.0, bg: 0x2a1a10 }, // 약탈자 진지: 먼지 낀 붉은 해
+  mine: { torch: 0xffc890, range: 12, tint: [0.98, 0.9, 1.08], sky: 1.1, sun: 1.0, bg: 0x0d0618 }, // 보랏빛 광산: 어둡고, 허공 밑에서 보랏빛이 올라온다
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -63,6 +65,7 @@ const SUN_BOX = 20; // 그림자를 그리는 범위(m, 화면보다 넉넉히)
 const WINDUP = new THREE.Color(2.2, 0.2, 0.12); // 공격 준비(평타·내려찍기·돌진 예고) 색
 const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
 const BLOOD = new THREE.Color(3, 0.25, 0.2); // 종언: 체력을 내준 순간 주인공이 붉게
+const GOLD = new THREE.Color(2.6, 1.9, 0.6); // 내리베기를 모으는 중·거인의 칼
 const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -209,6 +212,7 @@ export async function initRender(world: World, theme: Theme) {
   tex.ruins = { floor: rf, wall: rw };
   tex.sanctum = tex.ruins;
   tex.raid = { floor: ff, wall: fw }; // 약탈자 진지: 초원 그림을 메마른 흙·붉은 바위로 물들인다(buildMap)
+  tex.mine = { floor: cf, wall: cw }; // 보랏빛 광산: 동굴 바위(buildMap이 잿빛 보라로 물들인다)
   tex.lake = { floor: ff, wall: lg }; // 호숫가: 풀은 초원 그림(색만 서늘하게), 벽 상자는 통나무집뿐('#'은 숲으로 그린다)
   plankTex = pk;
   setWorld(world, theme);
@@ -259,10 +263,44 @@ export function headOf(id: number): THREE.Vector3 | null {
   return s.mesh.position.clone().add(new THREE.Vector3(0, s.info.cell[1] / s.info.ppm + 0.1, 0));
 }
 
+// 타임패트롤 신호(설계: 2026-11-24-act2-expedition-design.md 4절): 주인공 그림을 푸르스름하게 비춘 흐릿한 형상이 (x, z)에 깜빡이며 선다.
+// 주인공의 지금 동작 칸을 그대로 따라 그리고, 가끔 끊기듯 사라지거나 옆으로 어긋난다(노이즈). null = 없음
+let patrolAt: { x: number; z: number } | null = null;
+let patrol: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; of: Sprite } | null = null;
+export const setPatrol = (p: { x: number; z: number } | null) => (patrolAt = p);
+function drawPatrol() {
+  const hero = sprites[0];
+  if (patrol && (!patrolAt || patrol.of !== hero)) {
+    patrol.mesh.removeFromParent();
+    patrol.mat.map?.dispose();
+    patrol.mat.dispose();
+    patrol = null;
+  }
+  if (!patrolAt || !hero?.mat.map) return;
+  if (!patrol) {
+    const mat = new THREE.MeshBasicMaterial({ map: hero.mat.map.clone(), transparent: true, depthWrite: false, toneMapped: false, color: 0x8ad0ff, blending: THREE.AdditiveBlending }); // 빛이 더해져 신호처럼
+    const mesh = new THREE.Mesh(hero.mesh.geometry, mat);
+    mesh.renderOrder = 3;
+    scene.add(mesh);
+    patrol = { mesh, mat, of: hero };
+  }
+  const map = patrol.mat.map!;
+  map.repeat.copy(hero.mat.map.repeat);
+  map.offset.copy(hero.mat.map.offset);
+  const k = Math.floor(time * 12);
+  const cut = Math.sin(k * 91.7) > 0.82; // 끊김
+  const jx = Math.sin(k * 37.1) > 0.7 ? 0.25 * Math.sin(k * 13.3) : 0; // 옆으로 어긋남
+  patrol.mesh.position.set(patrolAt.x + jx, 0, patrolAt.z - jx);
+  patrol.mesh.quaternion.copy(hero.mesh.quaternion);
+  patrol.mat.opacity = cut ? 0.1 : 0.8 + 0.2 * Math.sin(time * 9);
+}
+
 export function draw(world: World, dt: number) {
   const hero = world.entities[0];
   time += dt;
   tickWater(time, world);
+  tickAbyss(time, world);
+  drawPatrol();
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;
@@ -340,6 +378,10 @@ export function draw(world: World, dt: number) {
     if (e.stunT > 0 || e.asleep) s.mat.color.lerp(STUNNED, 0.5); // 잠든(얼어붙은) 몬스터도 푸르게
     if (e.fearT > 0 && e.skin !== 'treasure') s.mat.color.lerp(SCARED, 0.5); // 보물 고블린은 도망쳐도 금빛
     if (e === hero && world.finales.some((f) => f.age < 0.15)) s.mat.color.lerp(BLOOD, 0.6);
+    if (e === hero && world.cut >= 0) {
+      const p = downcutStat(world).p; // 내리베기를 모은다: 금빛이 차오르고, 다 모이면 맥동
+      s.mat.color.lerp(GOLD, p < 1 ? 0.45 * p : 0.55 + 0.25 * Math.sin(time * 20));
+    } else if (e === hero && world.bigT > 0) s.mat.color.lerp(GOLD, 0.2); // 거인의 칼
   }
   // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
   dropAllies(new Set(world.allies.map((a) => a.id)));
@@ -479,6 +521,7 @@ function buildMap(world: World, theme: Theme) {
   // 호숫가 바닥 색: 풀은 이끼 낀 서늘한 초록, 숲 바닥은 어두운 덤불
   if (forest) for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(0.74, 0.88, 0.8));
   if (theme === 'raid') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) dirtGround(mesh.material as THREE.MeshStandardMaterial); // 밟아 다진 흙(셰이더)
+  if (theme === 'mine') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(1.35, 1.25, 1.5)); // 잿빛 보라 바위(동굴 바닥 그림이 어두워 밝게)
   for (const [cells, rgb] of [[undergrowth, theme === 'raid' ? 0x6a5444 : 0x75876a]] as const) {
     if (!cells.length) continue;
     const mat = stone(floorTex, 4, FLOOR_VARIANTS);
@@ -489,6 +532,8 @@ function buildMap(world: World, theme: Theme) {
     mesh.receiveShadow = true;
     mapGroup.add(mesh);
   }
+  const abyss = buildAbyss(world, wallTex); // 광산: 허공 밑 깊이·절벽 면·빛 다리·결정
+  if (abyss) mapGroup.add(abyss);
   const water = buildWater(world);
   if (water) mapGroup.add(water);
   for (let v = 0; v < 4 && planks.length; v++) {

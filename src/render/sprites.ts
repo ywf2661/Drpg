@@ -57,6 +57,14 @@ import raiderOrcInfo from '../assets/sprites/raider_orc.json';
 import raiderOrcUrl from '../assets/sprites/raider_orc.png';
 import treantInfo from '../assets/sprites/swamp_treant.json';
 import treantUrl from '../assets/sprites/swamp_treant.png';
+import foremanInfo from '../assets/sprites/mine_foreman.json';
+import foremanUrl from '../assets/sprites/mine_foreman.png';
+import golemInfo from '../assets/sprites/rock_golem.json';
+import golemUrl from '../assets/sprites/rock_golem.png';
+import minerInfo from '../assets/sprites/miner_goblin.json';
+import minerUrl from '../assets/sprites/miner_goblin.png';
+import shardArcherInfo from '../assets/sprites/crystal_archer.json';
+import shardArcherUrl from '../assets/sprites/crystal_archer.png';
 import ferrymanUrl from '../assets/sprites/plague_ferryman.png';
 import timeWardenUrl from '../assets/sprites/time_warden.png';
 
@@ -65,7 +73,7 @@ export type Clip = { row: number; frames: number; ms: number; loop: 'back_forth'
 export type SheetInfo = { cell: number[]; anchor: number[]; ppm: number; cols: number; rows: number; anims: Record<string, Clip> };
 // tint: 불빛에 곱하는 고유 색(정예는 특성 색). ring: 정예의 발밑 고리
 // halo: 기도하는 자(성기사 그림)의 후광(k = 켜짐 정도 0~1, t = 맥동 시간). hero = 주인공의 「금 간 빛 고리」(고리만, 머리 위)
-export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number; hero?: boolean } };
+export type Sprite = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; info: SheetInfo; anim: Anim; t: number; hp: number; maxHp: number; hitT: number; castT: number; tint: THREE.Color; fall?: number; ring?: THREE.Mesh; halo?: { glow: THREE.Mesh; ring: THREE.Mesh; k: number; t: number; hero?: boolean } };
 // 후광: 맥동 주기(초)·빛무리 밝기 범위, 켜지고 꺼지는 시간(초). 고리 밝기 = ring + 맥동의 0.2배(빛무리보다 또렷하게)
 export const HALO = { period: 2.6, min: 0.45, max: 0.75, fade: 1.2, ring: 0.75 };
 // 주인공 머리 위 고리: y = 발에서 높이(m), broken = 되감기를 막 쓴 밝기 → 다시 쓸 수 있으면 1(그 사이는 차오름)
@@ -124,6 +132,10 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   raider_goblin: { info: raiderInfo as SheetInfo, url: raiderUrl }, // 뒤틀린 고블린(tools/raider.py)
   swamp_treant: { info: treantInfo as SheetInfo, url: treantUrl }, // 늪 나무 괴물(받은 3D 모델, tools/boss3d/render.py swamp_treant)
   raider_orc: { info: raiderOrcInfo as SheetInfo, url: raiderOrcUrl }, // 약탈자 오크(받은 3D 모델, tools/boss3d/render.py raider_orc)
+  rock_golem: { info: golemInfo as SheetInfo, url: golemUrl }, // 바위 괴물(tools/boss3d로 렌더)
+  mine_foreman: { info: foremanInfo as SheetInfo, url: foremanUrl }, // 광산 감독관(tools/boss3d로 렌더)
+  miner_goblin: { info: minerInfo as SheetInfo, url: minerUrl }, // 광부 고블린(tools/miner.py)
+  crystal_archer: { info: shardArcherInfo as SheetInfo, url: shardArcherUrl }, // 결정 궁수(tools/miner.py)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때
@@ -194,7 +206,7 @@ function pixelated<T extends THREE.Texture>(tex: T): T {
 }
 
 // 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색. layers: 전설 무기가 바꾸는 레이어 → 시트 이름(null = 그리지 않음)
-export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null> };
+export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null>; big?: true }; // big: 거인의 칼(무기 레이어를 키운다)
 const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → wizard_main_elem<색>(tools/sprites.py LEGEND_LAYERS)
 // 전설 무기의 레이어(설계 2026-11-20): 칼리버X = 츠바이헨더·방패 없음, 엘리멘탈 스태프 = 마지막 속성 색, 두개골 = 4단계 로드 + 해골 구슬, 천둥새 = 번개 장궁
 const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
@@ -210,7 +222,7 @@ const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, s
   stormBow: () => ({ main: 'ranger_main_storm' }),
 };
 // 벼림으로 칼을 강화한 동안은 무기 색이 강화 색(전설 원색보다 먼저)
-export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'elem'>>): Looks {
+export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'elem' | 'bigT'>>): Looks {
   const out: Looks = {};
   for (const s of SLOTS) {
     const u = uniqueOf({ affixes: w.mods[s] });
@@ -218,6 +230,7 @@ export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'e
     if (u && LEGEND_LAYERS[u]) out.layers = { ...out.layers, ...LEGEND_LAYERS[u]!(w.elem ?? -1) };
   }
   if (w.edge?.kind) out.weapon = EDGE_COLOR[w.edge.kind];
+  if (w.bigT) out.big = true;
   return out;
 }
 export const heroKey = (g: Gear, cls: HeroClass, looks: Looks) => JSON.stringify([g, cls, looks]);
@@ -264,11 +277,56 @@ async function heroSheet(g: Gear, cls: HeroClass, looks: Looks): Promise<THREE.T
       imgs[l] = color ? await tinted(url, color) : await layerImages.get(url)!;
     }),
   );
+  if (looks.big && imgs.main) imgs.main = enlarged(imgs.main as HTMLCanvasElement, info);
   const [w, ch] = [info.cols * info.cell[0], info.cell[1]];
   const canvas = Object.assign(document.createElement('canvas'), { width: w, height: info.rows * ch });
   const ctx = canvas.getContext('2d')!;
   for (let r = 0; r < info.rows; r++) for (const l of HERO_ORDER[r % 8]) if (imgs[l]) ctx.drawImage(imgs[l], 0, r * ch, w, ch, 0, r * ch, w, ch);
   return pixelated(new THREE.CanvasTexture(canvas));
+}
+
+// 칼자루: 칸 안에서 (cx, cy)(몸 중심)에 가장 가까운 불투명 픽셀. 무기가 없으면 null
+export function gripOf(px: Uint8ClampedArray, w: number, h: number, cx: number, cy: number): [number, number] | null {
+  let best: [number, number] | null = null;
+  let bd = Infinity;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4 + 3] < 128) continue;
+      const d = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d < bd) [bd, best] = [d, [x, y]];
+    }
+  return best;
+}
+// 거인의 칼: 무기 레이어를 칸마다 칼자루를 중심으로 BIG_WEAPON배 키운다(칸 밖은 잘린다). 그림마다 한 번
+const BIG_WEAPON = 3; // 정수배여야 도트가 토막 나지 않는다
+const BODY_Y = 24; // 몸 중심 = 발 기준점에서 이만큼 위(px)
+const bigLayers = new WeakMap<CanvasImageSource, HTMLCanvasElement>();
+function enlarged(img: CanvasImageSource & { width: number; height: number }, info: SheetInfo): HTMLCanvasElement {
+  const done = bigLayers.get(img);
+  if (done) return done;
+  const [cw, ch] = info.cell;
+  const src = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+  const sx = src.getContext('2d', { willReadFrequently: true })!;
+  sx.drawImage(img, 0, 0);
+  const out = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+  const ox = out.getContext('2d')!;
+  ox.imageSmoothingEnabled = false;
+  for (let r = 0; r * ch < img.height; r++)
+    for (let c = 0; c * cw < img.width; c++) {
+      const g = gripOf(sx.getImageData(c * cw, r * ch, cw, ch).data, cw, ch, info.anchor[0], info.anchor[1] - BODY_Y);
+      if (!g) continue;
+      const [gx, gy] = [c * cw + g[0], r * ch + g[1]];
+      ox.save();
+      ox.beginPath();
+      ox.rect(c * cw, r * ch, cw, ch);
+      ox.clip();
+      ox.translate(gx, gy);
+      ox.scale(BIG_WEAPON, BIG_WEAPON);
+      ox.drawImage(src, c * cw, r * ch, cw, ch, c * cw - gx, r * ch - gy, cw, ch);
+      ox.restore();
+    }
+  bigLayers.set(img, out);
+  return out;
 }
 
 export async function loadSprites() {
@@ -468,7 +526,9 @@ export function updateSprite(s: Sprite, e: Entity, dt: number, interval: number)
   const f = casting ? Math.min(c.frames - 1, Math.floor((1 - s.castT / CAST_SHOW) * c.frames)) : anim === 'attack' ? Math.min(c.frames - 1, Math.floor((e.attackT / interval) * c.frames)) : frameAt(c, s.t);
   const row = c.row + dirIndex(e.facing);
   s.mat.map!.offset.set(f / s.info.cols, 1 - (row + 1) / s.info.rows);
-  s.mesh.position.set(e.x, 0, e.z);
+  // 광산: 허공에 떨어진 몬스터는 아래로 떨어지며 사라지고, 매달린 정예·보스는 가장자리 아래로 몸이 내려가 있다
+  if (e.fell) s.fall = (s.fall ?? 0) + dt;
+  s.mesh.position.set(e.x, e.fell ? -Math.min(30, 4.9 * s.fall! ** 2) : e.hangT ? -0.9 : 0, e.z);
   // 시체는 벽보다 뒤, 산 캐릭터보다 먼저 그리고 깊이를 남기지 않는다 → 그 뒤를 지나가는 캐릭터를 가리지 않는다
   const dead = e.state === 'dead';
   s.mesh.renderOrder = dead ? 1 : 2;

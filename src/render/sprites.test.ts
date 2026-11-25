@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
 import heads from '../assets/sprites/fallen_paladin_heads.json';
 import { createWorld } from '../sim/world';
-import { heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, HERO_RING, heroRingLevel, setHeroRing, type Sprite } from './sprites';
+import { gripOf, heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, HERO_RING, heroRingLevel, setHeroRing, type Sprite } from './sprites';
 
 test('후광 맥동: min~max 사이를 period 주기로 오르내린다', () => {
   const xs = Array.from({ length: 200 }, (_, i) => haloLevel((i / 200) * HALO.period));
@@ -172,4 +172,19 @@ test('주인공 「금 간 빛 고리」: 고리만 머리 위에, 안 쓰면 �
   expect(s.halo!.k).toBe(HERO_RING.broken);
   expect(heroRingLevel(60, 120)).toBeGreaterThan(HERO_RING.broken);
   expect(heroRingLevel(60, 120)).toBeLessThan(1);
+});
+
+test('거인의 칼: 켜져 있으면 외형에 big, 꺼지면 없다', () => {
+  const mods = { weapon: [], armor: [], helm: [], boots: [] };
+  expect(looksOf({ mods, bigT: 3 }).big).toBe(true);
+  expect(looksOf({ mods, bigT: 0 }).big).toBeUndefined();
+});
+
+test('칼자루 찾기: 몸 중심에 가장 가까운 불투명 픽셀, 없으면 null', () => {
+  const [w, h] = [10, 10];
+  const px = new Uint8ClampedArray(w * h * 4);
+  const on = (x: number, y: number) => (px[(y * w + x) * 4 + 3] = 255);
+  on(9, 0); on(6, 4); on(1, 9); // 칼끝·칼자루·먼 점
+  expect(gripOf(px, w, h, 5, 5)).toEqual([6, 4]);
+  expect(gripOf(new Uint8ClampedArray(w * h * 4), w, h, 5, 5)).toBeNull();
 });

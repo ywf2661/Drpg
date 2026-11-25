@@ -9,7 +9,7 @@ export type Stats = { time: number; kills: number; deaths: number }; // 이번 �
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[]; relics: number; relicMiss: number[]; stash: BagItem[]; act2: number }; // act2: 2막 진행(0 = 아직, sim/act2.ts) // stash: 야영지 창고(STASH 격자) // relics·relicMiss: 무너진 성소의 성물(비트 0~3, 4 = 작은 목마 → 0~31)·지역마다 놓친 횟수(0~2) // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
+export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[]; relics: number; relicMiss: number[]; stash: BagItem[]; act2: number; heard?: boolean }; // heard: 타임패트롤 신호 1(광산 4구역)을 들었다 // act2: 2막 진행(0 = 아직, sim/act2.ts) // stash: 야영지 창고(STASH 격자) // relics·relicMiss: 무너진 성소의 성물(비트 0~3, 4 = 작은 목마 → 0~31)·지역마다 놓친 횟수(0~2) // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
 const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
 const KEY = 'drpg-save'; // 슬롯 이전의 한 칸 저장. 지금은 KEY-0 ~ KEY-2
 export const SLOT_COUNT = 3;
@@ -17,7 +17,7 @@ export const NAME_MAX = 12;
 let slot = 0; // 지금 판이 저장되는 슬롯
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks, news: r.news, took: r.took, runes: r.runes, beat: r.beat, marksBy: r.marksBy, relics: r.relics, relicMiss: r.relicMiss, stash: r.stash, act2: r.act2 });
+  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks, news: r.news, took: r.took, runes: r.runes, beat: r.beat, marksBy: r.marksBy, relics: r.relics, relicMiss: r.relicMiss, stash: r.stash, act2: r.act2, heard: r.heard });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -102,8 +102,8 @@ export function decodeSave(text: string | null): Run | null {
   if (!text) return null;
   let d: Record<string, unknown>;
   try {
-    // 발도를 고쳐 짜며 바뀐 스킬 이름(단계·칸·장비 옵션 어디에 있든): 납도 → 스쳐 베기, 검의 기억 → 칼의 여운
-    d = JSON.parse(text.replace(/"sheathe"/g, '"graze"').replace(/"memory"/g, '"echo"'));
+    // 고쳐 짜며 바뀐 스킬 이름(단계·칸·장비 옵션·룬 어디에 있든): 납도 → 스쳐 베기, 검의 기억 → 칼의 여운, 회오리 → 내리베기, 처형 → 거인의 칼
+    d = JSON.parse(text.replace(/"sheathe"/g, '"graze"').replace(/"memory"/g, '"echo"').replace(/"whirl(?=["+])/g, '"downcut').replace(/"execute(?=["+])/g, '"greatsword'));
   } catch {
     return null;
   }
@@ -198,6 +198,7 @@ export function decodeSave(text: string | null): Run | null {
     relicMiss: [...(relicMiss as number[])],
     stash: stashed.bag,
     act2: act2 as number,
+    ...(d.heard === true && { heard: true }), // 타임패트롤 신호 1을 들었다(안 들었으면 칸이 없다)
   };
 }
 

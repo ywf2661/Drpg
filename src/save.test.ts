@@ -183,5 +183,15 @@ test('2막 진행(act2): 되읽고, 없으면 0, 범위 밖·2막 전에 천막�
   const { act2: _, ...before } = run;
   expect(decodeSave(JSON.stringify({ v: 2, ...before }))!.act2).toBe(0);
   expect(decodeSave(encodeSave({ ...run, act2: 9 }))).toBeNull();
+  expect(decodeSave(encodeSave({ ...run, heard: true }))?.heard).toBe(true); // 타임패트롤 신호 1을 들었다
   expect(decodeSave(encodeSave({ ...tent, act2: 0 }))).toBeNull();
+});
+
+test('옛 세이브: 회오리·처형 단계와 칸, 룬 주머니, 장비 룬을 내리베기·거인의 칼로 옮긴다', () => {
+  const knight = { ...run, cls: 'knight' as const, ranks: { cleave: 1, whirl: 3, burst: 1, execute: 1 }, keys: { cleave: 'cleave', dash: 'whirl', shout: 'execute', throw: null }, runes: { 'whirl+2': 1 }, mods: { ...run.mods, weapon: [{ kind: 'socket', value: 1 }, { kind: 'skill', value: 1, skill: 'execute', r: 'execute+1' }] } };
+  const r = decodeSave(JSON.stringify({ ...JSON.parse(encodeSave(knight as never)) }));
+  expect(r?.ranks).toEqual({ cleave: 1, downcut: 3, burst: 1, greatsword: 1 });
+  expect(r?.keys).toEqual({ cleave: 'cleave', dash: 'downcut', shout: 'greatsword', throw: null });
+  expect(r?.runes).toEqual({ 'downcut+2': 1 });
+  expect(r?.mods.weapon.map((a) => a.r)).toEqual([undefined, 'greatsword+1']);
 });

@@ -27,7 +27,7 @@ test('스킬 +N: 배운 스킬에 장비 보너스를 더하고, 초월 상한�
   w.mods.armor = [{ kind: 'allSkills', value: 1 }];
   w.mods.boots = [skill('cleave', 5)];
   expect(rank(w, 'cleave')).toBe(RANK_MAX + RANK_OVER);
-  expect(rank(w, 'whirl')).toBe(0); // 안 배운 스킬은 장비로 생기지 않는다
+  expect(rank(w, 'downcut')).toBe(0); // 안 배운 스킬은 장비로 생기지 않는다
   w.mods = { weapon: [], armor: [], helm: [], boots: [] };
   expect(rank(w, 'cleave')).toBe(3); // 벗으면 내려간다
 });

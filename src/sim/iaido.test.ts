@@ -108,10 +108,10 @@ test('칼의 여운: 베는 스킬 두 번이면 가득, 발도 스킬은 쓰지
 test('칼의 여운: 안 배웠으면 칸이 차지 않는다', () => {
   const w = arena(['Hm...'], { mark: 1 }); runFor(w, 0.6, [{ type: 'skill' }]); expect(w.echo).toBe(0);
 });
-test('칼의 여운: 회오리는 다 돈 자리에 원, 돌진 베기는 직선', () => {
-  const spin = arena(['Hm...'], { echo: 1, whirl: 1 }); Object.assign(spin, { echo: 2 }); spin.keys.throw = 'whirl';
-  runFor(spin, 2.1, [{ type: 'throw' }]);
-  const ring = spin.cuts.find((c) => c.src === 'echo'); expect(ring?.segs).toHaveLength(24); expect(ring?.hit).toContain(spin.entities[1].id);
+test('칼의 여운: 내리베기는 벤 직선, 돌진 베기는 직선', () => {
+  const cut = arena(['Hm...'], { echo: 1, downcut: 1 }); Object.assign(cut, { echo: 2 }); cut.keys.throw = 'downcut';
+  runFor(cut, 0.1, [{ type: 'throw', x: 4.5, z: 0.5 }]); runFor(cut, 0.1, [{ type: 'throw', x: 4.5, z: 0.5 }]);
+  const line = cut.cuts.find((c) => c.src === 'echo'); expect(line?.segs).toHaveLength(1); expect(line?.hit).toContain(cut.entities[1].id);
   const dash = arena(['H.m....'], { echo: 1, dash: 1 }); Object.assign(dash, { echo: 2 }); dash.keys.throw = 'dash';
   runFor(dash, 0.8, [{ type: 'throw', x: 6.5, z: 0.5 }]);
   expect(dash.cuts.find((c) => c.src === 'echo')?.segs).toHaveLength(1);

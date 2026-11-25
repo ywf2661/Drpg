@@ -70,7 +70,7 @@ test('꽂기·빼기: 빈 소켓에만, 주머니에서 빠지고 돌아온다. 
   expect(socketRune(w, 'weapon', 'gale')).toBe(true);
   expect(worn(w, 'move')).toBe(4); // 어느 부위든 스탯은 합쳐진다
   expect(runesIn(w.mods.weapon).map((a) => a.r)).toEqual(['cleave+2', 'gale']);
-  expect(socketRune(w, 'weapon', 'whirl+1')).toBe(false); // 주머니에 없다
+  expect(socketRune(w, 'weapon', 'downcut+1')).toBe(false); // 주머니에 없다
 });
 
 test('보관함 장비에도 꽂고, 버리면 꽂힌 룬은 주머니로', () => {
