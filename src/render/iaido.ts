@@ -245,8 +245,6 @@ const floors = new Map<number, Floor>();
 const snapSeen = new Set<number>();
 let clock = 0;
 let cutFxSeen = 0; // 본 내리베기 타격 수
-const BIG_BLADE = { y: 0.6, len: 2.6, width: 0.7 }; // 거인의 칼 칼날: 높이, 길이(주인공에서), 폭
-let bigBlade: Line | null = null;
 
 const colorOf = (c: Cut) => (c.src === 'echo' ? ECHO_COLOR : 0xffffff);
 function floorOf(c: Cut): Floor {
@@ -284,22 +282,6 @@ export function cutsFx(world: World, dt: number) {
     rumble(full ? 0.35 : 0.12);
   }
   cutFxSeen = world.cutFx.n;
-  // 거인의 칼: 켜져 있는 동안 주인공 앞에 금빛 큰 칼날(바라보는 쪽, 허리 높이)
-  const hero = world.entities[0];
-  if (world.bigT > 0 && hero.state !== 'dead') {
-    const [fx, fz] = [Math.sin(hero.facing), Math.cos(hero.facing)];
-    const a = new THREE.Vector3(hero.x + fx * 0.3, BIG_BLADE.y, hero.z + fz * 0.3);
-    const b = new THREE.Vector3(hero.x + fx * BIG_BLADE.len, BIG_BLADE.y, hero.z + fz * BIG_BLADE.len);
-    if (!bigBlade) bigBlade = line(a, b, { geo: BLADE, color: ECHO_COLOR, width: BIG_BLADE.width, life: 1, live: true });
-    bigBlade.a.copy(a);
-    bigBlade.b.copy(b);
-    bigBlade.width = BIG_BLADE.width * (0.85 + 0.15 * Math.sin(clock * 6)); // 숨 쉬듯
-    place(bigBlade);
-  } else if (bigBlade) {
-    Object.assign(bigBlade, { live: false, age: bigBlade.life });
-    place(bigBlade);
-    bigBlade = null;
-  }
   const live = new Set<number>();
   for (const c of world.cuts) {
     live.add(c.id);
@@ -337,8 +319,6 @@ export function cutsFx(world: World, dt: number) {
 export function resetIaido() {
   hop = null;
   cutFxSeen = 0; // 새 층의 내리베기 타격은 0부터 센다
-  if (bigBlade) Object.assign(bigBlade, { live: false, age: bigBlade.life }), place(bigBlade); // 칼날 판자는 재사용 대기열로
-  bigBlade = null;
   bursts.length = 0;
   starAt = null;
   starT = GLINT;

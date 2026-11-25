@@ -194,7 +194,7 @@ function pixelated<T extends THREE.Texture>(tex: T): T {
 }
 
 // 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색. layers: 전설 무기가 바꾸는 레이어 → 시트 이름(null = 그리지 않음)
-export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null> };
+export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null>; big?: true }; // big: 거인의 칼(무기 레이어를 키운다)
 const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → wizard_main_elem<색>(tools/sprites.py LEGEND_LAYERS)
 // 전설 무기의 레이어(설계 2026-11-20): 칼리버X = 츠바이헨더·방패 없음, 엘리멘탈 스태프 = 마지막 속성 색, 두개골 = 4단계 로드 + 해골 구슬, 천둥새 = 번개 장궁
 const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
@@ -204,7 +204,7 @@ const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, s
   stormBow: () => ({ main: 'ranger_main_storm' }),
 };
 // 벼림으로 칼을 강화한 동안은 무기 색이 강화 색(전설 원색보다 먼저)
-export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'elem'>>): Looks {
+export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'elem' | 'bigT'>>): Looks {
   const out: Looks = {};
   for (const s of SLOTS) {
     const u = uniqueOf({ affixes: w.mods[s] });
@@ -212,6 +212,7 @@ export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'e
     if (u && LEGEND_LAYERS[u]) out.layers = { ...out.layers, ...LEGEND_LAYERS[u]!(w.elem ?? -1) };
   }
   if (w.edge?.kind) out.weapon = EDGE_COLOR[w.edge.kind];
+  if (w.bigT) out.big = true;
   return out;
 }
 export const heroKey = (g: Gear, cls: HeroClass, looks: Looks) => JSON.stringify([g, cls, looks]);
@@ -253,11 +254,56 @@ async function heroSheet(g: Gear, cls: HeroClass, looks: Looks): Promise<THREE.T
       imgs[l] = color ? await tinted(url, color) : await layerImages.get(url)!;
     }),
   );
+  if (looks.big && imgs.main) imgs.main = enlarged(imgs.main as HTMLCanvasElement, info);
   const [w, ch] = [info.cols * info.cell[0], info.cell[1]];
   const canvas = Object.assign(document.createElement('canvas'), { width: w, height: info.rows * ch });
   const ctx = canvas.getContext('2d')!;
   for (let r = 0; r < info.rows; r++) for (const l of HERO_ORDER[r % 8]) if (imgs[l]) ctx.drawImage(imgs[l], 0, r * ch, w, ch, 0, r * ch, w, ch);
   return pixelated(new THREE.CanvasTexture(canvas));
+}
+
+// 칼자루: 칸 안에서 (cx, cy)(몸 중심)에 가장 가까운 불투명 픽셀. 무기가 없으면 null
+export function gripOf(px: Uint8ClampedArray, w: number, h: number, cx: number, cy: number): [number, number] | null {
+  let best: [number, number] | null = null;
+  let bd = Infinity;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4 + 3] < 128) continue;
+      const d = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d < bd) [bd, best] = [d, [x, y]];
+    }
+  return best;
+}
+// 거인의 칼: 무기 레이어를 칸마다 칼자루를 중심으로 BIG_WEAPON배 키운다(칸 밖은 잘린다). 그림마다 한 번
+const BIG_WEAPON = 3; // 정수배여야 도트가 토막 나지 않는다
+const BODY_Y = 24; // 몸 중심 = 발 기준점에서 이만큼 위(px)
+const bigLayers = new WeakMap<CanvasImageSource, HTMLCanvasElement>();
+function enlarged(img: CanvasImageSource & { width: number; height: number }, info: SheetInfo): HTMLCanvasElement {
+  const done = bigLayers.get(img);
+  if (done) return done;
+  const [cw, ch] = info.cell;
+  const src = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+  const sx = src.getContext('2d', { willReadFrequently: true })!;
+  sx.drawImage(img, 0, 0);
+  const out = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+  const ox = out.getContext('2d')!;
+  ox.imageSmoothingEnabled = false;
+  for (let r = 0; r * ch < img.height; r++)
+    for (let c = 0; c * cw < img.width; c++) {
+      const g = gripOf(sx.getImageData(c * cw, r * ch, cw, ch).data, cw, ch, info.anchor[0], info.anchor[1] - BODY_Y);
+      if (!g) continue;
+      const [gx, gy] = [c * cw + g[0], r * ch + g[1]];
+      ox.save();
+      ox.beginPath();
+      ox.rect(c * cw, r * ch, cw, ch);
+      ox.clip();
+      ox.translate(gx, gy);
+      ox.scale(BIG_WEAPON, BIG_WEAPON);
+      ox.drawImage(src, c * cw, r * ch, cw, ch, c * cw - gx, r * ch - gy, cw, ch);
+      ox.restore();
+    }
+  bigLayers.set(img, out);
+  return out;
 }
 
 export async function loadSprites() {
