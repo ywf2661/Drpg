@@ -480,8 +480,9 @@ function cast(w: World, hero: Entity, c: Command) {
   }
   const key = CMD_KEY[c.type];
   const id = key && w.keys[key];
-  if (!key || !id || !rank(w, id) || w[KEY_CD[key]] > 0) return; // 빈 칸·재사용 대기 중
-  if (!canAfford(w, id) && !(id === 'downcut' && w.cut >= 0)) return; // 기력·마나 부족(모으던 내리베기는 그래도 벤다, 비용은 벨 때)
+  const striking = id === 'downcut' && w.cut >= 0; // 모으던 내리베기를 벤다: 칸의 재사용 대기·기력과 상관없이
+  if (!key || !id || !rank(w, id) || (w[KEY_CD[key]] > 0 && !striking)) return; // 빈 칸·재사용 대기 중
+  if (!canAfford(w, id) && !striking) return; // 기력·마나 부족(모으던 내리베기는 그래도 벤다, 비용은 벨 때)
   const [x, z] = ['x' in c ? c.x : undefined, 'z' in c ? c.z : undefined];
   const cd = echoCast(w, id, () => CASTS[id]?.(w, hero, x, z) ?? 0);
   if (cd > 0) {

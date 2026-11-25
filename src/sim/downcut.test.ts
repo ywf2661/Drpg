@@ -150,3 +150,15 @@ test('시체 폭발·벼림·칼의 여운이 붙는다', () => {
   expect(e.cuts).toHaveLength(1);
   expect(e.cuts[0].segs).toHaveLength(1);
 });
+
+test('모으는 중에 재사용 대기 중인 칸으로 옮겨도 그 칸으로 벨 수 있다(갇히지 않는다)', () => {
+  const w = make(['Hm...'], 1, { throw: 1 });
+  w.keys.dash = 'throw';
+  w.dashCd = 5;
+  step(w, [east(w)]);
+  bind(w, 'dash', 'downcut');
+  expect(w.keys.dash).toBe('downcut');
+  step(w, [{ ...east(w), type: 'dash' }]);
+  expect(w.cut).toBe(-1);
+  expect(lost(w)).toBeGreaterThan(0);
+});

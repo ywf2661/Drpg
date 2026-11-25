@@ -488,7 +488,7 @@ const emptyKey = (key: SkillName) => (world.points ? openTree() : sayLocked(key)
 // 칸의 스킬을 쓸 기력·마나가 모자라면 알리고 true(조준도 시작하지 않는다)
 const short = (cmd: Exclude<AimCmd, 'roll'>) => {
   const id = world.keys[CMD_SKILL[cmd]];
-  if (!id || canAfford(world, id)) return false;
+  if (!id || canAfford(world, id) || charging(cmd)) return false; // 모으던 내리베기는 모자라도 벤다(터치 탭도)
   sayShort(world, id);
   return true;
 };
