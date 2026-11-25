@@ -17,6 +17,7 @@ import { makeSluice } from './sluice';
 import { makeMine } from './mine';
 import { ferryman } from './ferryman';
 import { chief } from './chief';
+import { foreman } from './foreman';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
 import { FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World } from './rules';
@@ -601,6 +602,9 @@ function act(w: World, e: Entity) {
   }
   if (e.skin === 'fallen_paladin' && paladin(w, e, t)) return; // 성기사 전용 기술(성검의 비·심판)
   if (e.skin === 'raider_chief' && chief(w, e, t)) return; // 약탈자 우두머리: 통 들이받기·내려찍기·통 던지기(돌진은 아래 charge)
+  if (e.skin === 'mine_foreman') {
+    if (foreman(w, e, t)) return; // 광산 감독관: 내려찍기·결정 조각·다리 바꾸기(돌진은 안 한다 — 허공으로 뛰어들지 않게)
+  } else
   if (e.skin === 'plague_ferryman') {
     if (ferryman(w, e, t)) return; // 뱃사공: 물 위·나루·배에 오르기(돌진은 안 한다)
   } else

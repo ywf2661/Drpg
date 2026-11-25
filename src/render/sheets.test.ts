@@ -21,6 +21,7 @@ import timeWarden from '../assets/sprites/time_warden.json';
 import ferryman from '../assets/sprites/plague_ferryman.json';
 import chief from '../assets/sprites/raider_chief.json';
 import golem from '../assets/sprites/rock_golem.json';
+import foremanSheet from '../assets/sprites/mine_foreman.json';
 
 const ANIMS = ['stance', 'move', 'attack', 'hit', 'die'] as const;
 
@@ -36,6 +37,7 @@ test.each([
   ['plague_ferryman', ferryman],
   ['raider_chief', chief],
   ['rock_golem', golem],
+  ['mine_foreman', foremanSheet],
 ])('%s 시트: 모든 동작 × 8방향이 시트 범위 안에 있다', (_, info) => {
   expect(info.ppm).toBe(30);
   expect(info.rows).toBe(ANIMS.length * 8);

@@ -26,6 +26,7 @@ BOSSES = {
     'time_warden': {'stance': (12, 2400, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1300, 'play_once')},
     'raider_chief': {'stance': (12, 2200, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
     'plague_ferryman': {'stance': (12, 2600, 'looped'), 'move': (12, 1200, 'looped'), 'attack': (13, 1200, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
+    'mine_foreman': {'stance': (12, 2400, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
     'rock_golem': {'stance': (8, 2400, 'looped'), 'move': (10, 1200, 'looped'), 'attack': (11, 1200, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (8, 1200, 'play_once')},
 }
 # 받은 모델(tools/art/models → blend2glb.py → tools/.cache/models/<glb>.glb): 키 h(m), 앞 방향 yaw, 동작마다 (모델 동작 이름, 프레임 수, ms, 반복, 시작~끝 비율)

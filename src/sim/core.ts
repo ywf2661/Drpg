@@ -4,6 +4,7 @@ import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR
 import { HORSE, warded } from './sanctum';
 import { MINE } from './rules';
 import { edgeFall } from './mine';
+import { FOREMAN } from './foreman';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -506,6 +507,10 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   // 궁수의 명사수: 멀리 있는 적에게 더 아프게
   let dmg = from?.kind === 'hero' && t.kind !== 'hero' && w.cls === 'ranger' && dist(from, t) > RANGER.far ? Math.round(raw * RANGER.farMult) : raw;
   if (t.hangT) dmg = Math.round(dmg * MINE.hangMult); // 광산: 허공에 매달린 정예·보스
+  else if (t.skin === 'mine_foreman' && t.state !== 'dead') {
+    dmg = Math.max(1, Math.round(dmg * FOREMAN.armor)); // 광산 감독관: 결정 갑옷(매달렸을 때만 제대로 맞는다)
+    if (from?.kind === 'hero' && !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 });
+  }
   // 강령술사의 표식: 구역 안의 적은 모든 피해를 더 받는다(겹치면 가장 센 것. 역병 구역은 0)
   const amp = t.kind !== 'hero' && t.id >= 0 ? Math.max(0, ...w.curses.filter((c) => Math.hypot(t.x - c.x, t.z - c.z) <= c.r).map((c) => c.amp)) : 0;
   if (amp) dmg = Math.round(dmg * (1 + amp));

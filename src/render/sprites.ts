@@ -57,6 +57,8 @@ import raiderOrcInfo from '../assets/sprites/raider_orc.json';
 import raiderOrcUrl from '../assets/sprites/raider_orc.png';
 import treantInfo from '../assets/sprites/swamp_treant.json';
 import treantUrl from '../assets/sprites/swamp_treant.png';
+import foremanInfo from '../assets/sprites/mine_foreman.json';
+import foremanUrl from '../assets/sprites/mine_foreman.png';
 import golemInfo from '../assets/sprites/rock_golem.json';
 import golemUrl from '../assets/sprites/rock_golem.png';
 import minerInfo from '../assets/sprites/miner_goblin.json';
@@ -131,6 +133,7 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   swamp_treant: { info: treantInfo as SheetInfo, url: treantUrl }, // 늪 나무 괴물(받은 3D 모델, tools/boss3d/render.py swamp_treant)
   raider_orc: { info: raiderOrcInfo as SheetInfo, url: raiderOrcUrl }, // 약탈자 오크(받은 3D 모델, tools/boss3d/render.py raider_orc)
   rock_golem: { info: golemInfo as SheetInfo, url: golemUrl }, // 바위 괴물(tools/boss3d로 렌더)
+  mine_foreman: { info: foremanInfo as SheetInfo, url: foremanUrl }, // 광산 감독관(tools/boss3d로 렌더)
   miner_goblin: { info: minerInfo as SheetInfo, url: minerUrl }, // 광부 고블린(tools/miner.py)
   crystal_archer: { info: shardArcherInfo as SheetInfo, url: shardArcherUrl }, // 결정 궁수(tools/miner.py)
 };

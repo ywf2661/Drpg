@@ -428,6 +428,7 @@ https://github.com/flareteam/flare-game/wiki/Credits
 역병 걸린 뱃사공(src/assets/sprites/plague_ferryman.png): 스크립트 3D 렌더(tools/boss3d/plague_ferryman.js, three.js 도형). 외부 그림 없음.
 약탈자 우두머리(src/assets/sprites/raider_chief.png): 스크립트 3D 렌더(tools/boss3d/raider_chief.js, three.js 도형). 외부 그림 없음.
 뒤틀린 고블린(src/assets/sprites/raider_goblin.png): Flare 고블린(CC-BY-SA 3.0)의 색을 바꾼 것(tools/raider.py). 가공 결과물도 CC-BY-SA 3.0.
+광산 감독관(src/assets/sprites/mine_foreman.png): 스크립트 3D 렌더(tools/boss3d/mine_foreman.js, three.js 도형 — 뼈대·동작은 raider_chief.js). 외부 그림 없음.
 바위 괴물(src/assets/sprites/rock_golem.png): 스크립트 3D 렌더(tools/boss3d/rock_golem.js, three.js 도형). 외부 그림 없음.
 광부 고블린(src/assets/sprites/miner_goblin.png): Flare 고블린(CC-BY-SA 3.0)의 색을 바꾼 것(tools/miner.py). 가공 결과물도 CC-BY-SA 3.0.
 결정 궁수(src/assets/sprites/crystal_archer.png): Flare: Empyrean Campaign 홉고블린 궁수(CC-BY-SA 3.0)의 색을 바꾼 것(tools/miner.py). 가공 결과물도 CC-BY-SA 3.0.

@@ -4,7 +4,7 @@ import { createWorld, step, type World } from './world';
 import { generateTent } from './wilds';
 import { crystalsOk, generateMine, generateMineArena } from './minemap';
 import { setLit } from './mine';
-import { knock } from './core';
+import { hurt, knock } from './core';
 import { walkable } from './path';
 import type { Cell } from './path';
 
@@ -132,4 +132,32 @@ test('원정대 천막: 우두머리를 쓰러뜨렸으면 남쪽 길 끝에 광
   expect(exits.some((e) => seen[(e.z - 1) * w.grid.w + e.x])).toBe(true);
   expect(generateTent(true, false).join('')).not.toContain('z');
   expect(generateTent(true, true).slice(0, 29)).toEqual(generateTent(true, false).slice(0, 29)); // 남쪽 길 위쪽 모양은 그대로
+});
+
+test('광산 감독관: 처음엔 남쪽 다리가 켜지고, 평소엔 결정 갑옷으로 피해가 줄며, 다리가 꺼지면 매달려 크게 맞는다', () => {
+  const w = createWorld(5, generateMineArena(), 1, 1, { boss: 'mine_foreman' });
+  const hero = w.entities[0];
+  hero.maxHp = hero.hp = 1e9;
+  const boss = w.entities.find((e) => e.kind === 'boss')!;
+  step(w, []);
+  const m = w.mine!;
+  expect(m.lit).toBeGreaterThanOrEqual(0);
+  expect(m.crystals[m.lit].z).toBe(Math.max(...m.crystals.map((c) => c.z))); // 남쪽 섬 결정
+  const hp0 = boss.hp;
+  hurt(w, boss, 100, hero);
+  expect(hp0 - boss.hp).toBe(25);
+  // 켜진 다리 위에 세워 두고 끈다
+  for (let i = 0; i < 30; i++) step(w, []);
+  const b = m.bridges[m.crystals[m.lit].bridge];
+  const c = b.cells[Math.floor(b.cells.length / 2)];
+  Object.assign(boss, { x: (c % w.grid.w) + 0.5, z: Math.floor(c / w.grid.w) + 0.5, path: [] });
+  setLit(w, -1);
+  step(w, []);
+  expect(boss.hangT).toBeGreaterThan(0);
+  const hp1 = boss.hp;
+  hurt(w, boss, 100, hero);
+  expect(hp1 - boss.hp).toBe(200);
+  for (let i = 0; i < 200; i++) step(w, []);
+  expect(boss.hangT).toBe(0);
+  expect(walkable(w.grid, Math.floor(boss.x), Math.floor(boss.z))).toBe(true); // 기어올랐다
 });

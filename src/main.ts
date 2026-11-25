@@ -18,7 +18,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, EXECUTE, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { toughenBoss } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, CRYSTAL_HINT, KEG_HINT, LAKE_DONE, MINE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, CRYSTAL_HINT, FOREMAN_HINT, KEG_HINT, LAKE_DONE, MINE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -806,9 +806,9 @@ requestAnimationFrame(function frame(now) {
     say(CRYSTAL_HINT);
   }
   // 약탈자 우두머리: 처음 막혔을 때 한 줄(통을 쓰라는 것까지만)
-  if (land === 'raid' && !chiefHint && world.combos.some((c) => c.kind === 'ward')) {
+  if ((land === 'raid' || land === 'mine') && !chiefHint && world.combos.some((c) => c.kind === 'ward')) {
     chiefHint = true;
-    say(CHIEF_HINT);
+    say(land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
   }
   if (world.cleansed) {
     world.cleansed = false;
