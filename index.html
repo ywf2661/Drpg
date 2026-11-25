@@ -365,6 +365,8 @@
       #smart-hint { color: var(--ink-faint); font-size: 11px; margin-top: -4px; }
       #tester { position: fixed; left: 16px; top: 58px; z-index: 3; display: flex; gap: 6px; }
       #tester[hidden] { display: none; }
+      #test-legends { position: absolute; top: 100%; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+      #test-legends[hidden] { display: none; }
       #tester button { font: 12px system-ui, sans-serif; color: #8fe6ff; background: #0008; border: 1px dashed #4a8a99; padding: 4px 10px; cursor: pointer; }
       #quest { position: fixed; left: 16px; top: 34px; z-index: 2; font-size: 13px; letter-spacing: 1px; color: var(--ink); opacity: 0.85; text-shadow: 0 1px 2px #000, 0 0 8px #000; pointer-events: none; }
       #floor { position: fixed; left: 16px; top: 12px; z-index: 2; font-size: 15px; letter-spacing: 2px; color: var(--gold); text-shadow: 0 1px 2px #000, 0 0 8px #000; pointer-events: none; }
@@ -489,7 +491,7 @@
     <canvas id="automap"></canvas>
     <div id="floor"></div>
     <div id="quest"></div>
-    <div id="tester" hidden><button id="test-level" title="경험치를 채워 레벨 +5 (스킬 포인트 +5, 체력 회복)">레벨 +5</button><button id="test-floor" title="상점을 건너뛰고 바로 다음 층으로">다음 층 ▼</button><button id="test-land" title="같은 층 번호의 다른 지역으로: 미궁 → 초원 → 설원">다음 지역 ▶</button><button id="test-knight" title="주인공 근처에 타락한 성기사를 불러낸다(야영지, 계단·출구·보스가 없는 구역 제외)">기사 소환</button><button id="test-warden" title="주인공 근처에 시간의 파수꾼(2막 최종 보스, 그림 시험)을 불러낸다. 수치·움직임은 기사 소환과 같고 전용 기술은 없다">파수꾼 소환</button><button id="test-legend" title="지금 직업의 전설 무기(칼리버X·엘리멘탈 스태프·갇힌 왕의 두개골·천둥새의 장궁)를 4단계로 만들어 바로 입는다. 입던 무기는 가방으로">전설 무기</button><button id="test-prayer" title="레벨 40까지 올리고(스킬 포인트도), 정예 사냥꾼 세트 4부위를 4단계로 입고 성물 넷을 챙겨 성소 5층(기도하는 자)으로 간다. 입던 장비는 사라진다">결전 준비</button><button id="test-ending" title="결전 준비를 한 뒤 기도하는 자를 바로 쓰러뜨려, 처음 쓰러뜨릴 때의 엔딩 연출을 본다(목마를 이미 가졌어도)">엔딩 보기</button></div>
+    <div id="tester" hidden><button id="test-level" title="경험치를 채워 레벨 +5 (스킬 포인트 +5, 체력 회복)">레벨 +5</button><button id="test-floor" title="상점을 건너뛰고 바로 다음 층으로">다음 층 ▼</button><button id="test-land" title="같은 층 번호의 다른 지역으로: 미궁 → 초원 → 설원">다음 지역 ▶</button><button id="test-knight" title="주인공 근처에 타락한 성기사를 불러낸다(야영지, 계단·출구·보스가 없는 구역 제외)">기사 소환</button><button id="test-warden" title="주인공 근처에 시간의 파수꾼(2막 최종 보스, 그림 시험)을 불러낸다. 수치·움직임은 기사 소환과 같고 전용 기술은 없다">파수꾼 소환</button><button id="test-legend" title="지금 직업이 쓸 수 있는 전설 무기 목록을 펼친다. 고르면 4단계로 만들어 바로 입는다. 입던 무기는 가방으로">전설 무기 ▾</button><div id="test-legends" hidden></div><button id="test-prayer" title="레벨 40까지 올리고(스킬 포인트도), 정예 사냥꾼 세트 4부위를 4단계로 입고 성물 넷을 챙겨 성소 5층(기도하는 자)으로 간다. 입던 장비는 사라진다">결전 준비</button><button id="test-ending" title="결전 준비를 한 뒤 기도하는 자를 바로 쓰러뜨려, 처음 쓰러뜨릴 때의 엔딩 연출을 본다(목마를 이미 가졌어도)">엔딩 보기</button></div>
     <div id="floor-title"></div>
     <div id="banner"><p>불러오는 중…</p><p id="summary" hidden></p><button id="next-cycle" hidden>야영지로</button><button id="restart" hidden>야영지로 (R)</button></div>
     <div id="title" hidden>

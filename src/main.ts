@@ -15,7 +15,7 @@ import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Sta
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower, hitScale } from './sim/dungeon';
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
-import { isHub, PRAYER_WEAPON, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
+import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss } from './sim/world';
 import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE } from './sim/act2';
@@ -721,17 +721,29 @@ if (new URLSearchParams(location.search).has('test')) {
   $('#test-warden').addEventListener('click', () => {
     if (playing() && canSummonKnight(world)) summonKnight(world, cycle, 'time_warden'); // 그림 시험: 수치는 기사와 같고 전용 기술은 없다
   });
-  // 전설 무기: 지금 직업의 전설 무기를 4단계로 만들어 가방에 넣고 바로 입는다(입던 무기는 가방으로). 가방이 꽉 차면 그냥 입는다(입던 무기는 사라진다)
+  // 전설 무기: 누르면 지금 직업이 쓸 수 있는 전설 무기 목록이 펼쳐지고, 고른 것을 4단계로 만들어 가방에 넣고 바로 입는다(입던 무기는 가방으로). 가방이 꽉 차면 그냥 입는다(입던 무기는 사라진다)
+  const legends = $('#test-legends');
   $('#test-legend').addEventListener('click', () => {
+    if (!(legends.hidden = !legends.hidden)) legends.replaceChildren(...UNIQUE_LIST
+      .filter((u) => UNIQUES[u].slot === 'weapon' && !UNIQUES[u].set && (!UNIQUES[u].cls || UNIQUES[u].cls === world.cls))
+      .map((u) => {
+        const b = document.createElement('button');
+        b.textContent = UNIQUES[u].name;
+        b.title = UNIQUES[u].desc;
+        b.onclick = () => { legends.hidden = true; wearLegend(u); };
+        return b;
+      }));
+  });
+  function wearLegend(u: UniqueId) {
     if (!playing()) return;
     const hero = world.entities[0];
-    const it = makeUnique(world, PRAYER_WEAPON[world.cls], hero.x, hero.z, 4);
+    const it = makeUnique(world, u, hero.x, hero.z, 4);
     const gear = { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! };
     const at = bagSpot(world.bag, gear);
     if (!at) return void wearGear(world, gear);
     world.bag.push({ ...gear, x: at[0], y: at[1] });
     equipFromBag(world, world.bag.length - 1);
-  });
+  }
   // 결전 준비: 레벨 40(스킬 포인트 포함) + 정예 사냥꾼 세트 4부위(4단계, 입던 것은 사라진다) → 성소 5층
   $('#test-prayer').addEventListener('click', () => playing() && readyPrayer());
   // 엔딩 보기: 결전 준비 → 첫 만남 연출을 건너뛰고 성소를 끈 채 기도하는 자를 한 번에 쓰러뜨린다. 목마가 있어도 "처음 쓰러뜨리는 판"으로
