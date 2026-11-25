@@ -24,7 +24,10 @@ import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerF
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
 const help = document.querySelector<HTMLDialogElement>('#help')!;
 const bag = document.querySelector<HTMLDialogElement>('#bag')!;
-bag.addEventListener('close', () => (stashOpen = false));
+bag.addEventListener('close', () => {
+  stashOpen = false;
+  if (world) world.stashLegends = stash.map(uniqueOf).filter((u) => u !== undefined); // 수집가의 왕관
+});
 const tree = document.querySelector<HTMLDialogElement>('#tree')!;
 // 새 판의 시작 상태: 2단계 장비(기사 = 숏소드 + 가죽 갑옷·두건·장화, 마법사 = 마법 막대 + 견습 로브·두건·장화)
 const startOf = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [], runes: {}, autoEquip: true });
@@ -119,6 +122,7 @@ function makeFloor(n: number, carry: Carry): World {
   const depth = depthOf(land, n);
   const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
+  w.stashLegends = stash.map(uniqueOf).filter((u) => u !== undefined); // 수집가의 왕관
   w.hitScale = hitScale(depth, cycle); // 2막·1막 2회차 이상: 몬스터 한 방을 기준 체력의 %로
   w.rest = land === 'field' || land === 'lake' || land === 'raid' || isHub(land); // 초원·호숫가·거점 모닥불에서 쉴 수 있다
   w.land = land;

@@ -362,6 +362,7 @@ export type World = {
   potions: number;
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
+  stashLegends: UniqueId[]; // 창고에 든 전설(수집가의 왕관이 센다). main이 정한다
   hitScale: number; // 몬스터 한 방 = 기준 체력 × HIT 비율 × 이 값(dungeon.ts hitScale). 0 = 예전 공식(1막 첫 판). main이 정한다
   xpCap: number; // 경험치 배율 상한(몬스터 배율이 이보다 커도 경험치는 여기까지): 이야기 깊이로 세진 만큼 레벨이 빨리 올라 상쇄되지 않게
   gear: Gear;

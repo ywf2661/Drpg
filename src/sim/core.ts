@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
-import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, HIT, hitBase, act2Land, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, HIT, hitBase, act2Land, LEGEND2, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -471,11 +471,14 @@ export function roll(w: World, a: Entity) {
   // 주인공의 무기 옵션: 데미지%, 치명타(옵션이 있을 때만 굴림 → 옵션 없는 판은 난수열이 그대로)
   // 몬스터: hitScale이 있으면 기준 체력 × 종류 비율(굴림은 평균 대비 비율로만 쓴다), 없으면 층 배율 공식
   const mob = w.hitScale > 0 ? (hitBase(w.cls) * HIT[a.kind] * w.hitScale) / ((lo + hi) / 2) : (1 + (a.power - 1) * DMG_SCALE) * MONSTER_DMG;
-  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + worn(w, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) : mob * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
+  const scale = a.kind === 'hero' ? (1 + 0.05 * (w.level - 1) + (w.cls === 'knight' ? KNIGHT_LATE.dmg * Math.max(0, w.level - KNIGHT_LATE.from) : 0)) * (1 + worn(w, 'dmg') / 100) * (w.trophies.warlord ? SET_HUNTER.aura : 1) * (w.buff?.kind === 'fury' ? 1 + SHRINE.fury : 1) * (1 + crownBonus(w)) : mob * (a.elite ? ELITE.dmg : 1) * (led(w, a) ? ELITE_FX.auraDmg : 1);
   const crit = a.kind === 'hero' ? worn(w, 'crit') : 0;
   const twice = crit > 0 && rand(w) < crit / 100 ? 2 : 1;
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale * (a.kind === 'hero' ? w.ghostScale : 1)) * twice; // 잔상 몫이면 줄인다
 }
+
+// 「수집가의 왕관」: 창고·가방·몸의 서로 다른 전설 하나마다 피해 +crownPer%(최대 crownMax%)
+export const crownBonus = (w: World) => (hasUnique(w, 'collectorCrown') ? Math.min(LEGEND2.crownMax, LEGEND2.crownPer * new Set([...w.stashLegends, ...w.bag.map(uniqueOf), ...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] }))].filter(Boolean)).size) / 100 : 0);
 
 // 몬스터 기술 한 방: pct(HIT.tell·big)를 주면 hitScale이 켜졌을 때 그 비율로, 아니면 굴림 × mult
 export const hitOf = (w: World, e: Entity, mult: number, pct?: number) => Math.round(roll(w, e) * (w.hitScale > 0 && pct !== undefined ? pct / HIT[e.kind] : mult));

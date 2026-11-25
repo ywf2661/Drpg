@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { createWorld, hurt, rollUnique, uniqueOf, type World } from './world';
 import { act2Land, UNIQUES, type HeroClass } from './rules';
 
+const uOf = (it: { affixes?: Parameters<typeof uniqueOf>[0]['affixes'] }) => uniqueOf({ affixes: it.affixes ?? [] });
 const legendsOf = (w: World) => [...w.items, ...w.bag].map((it) => uniqueOf({ affixes: it.affixes ?? [] })).filter(Boolean);
 
 test('2막 땅 판정', () => {
@@ -13,11 +14,11 @@ test('1막 땅은 1막 전설만, 2막 땅은 2막 전설만(2막 세트가 없�
   for (let s = 1; s <= 200; s++) {
     const a = createWorld(s, ['H']);
     a.land = 'ruins';
-    expect(UNIQUES[uniqueOf(rollUnique(a, 0, 0, 4))!].act2).toBeUndefined();
+    expect(UNIQUES[uOf(rollUnique(a, 0, 0, 4))!].act2).toBeUndefined();
     const b = createWorld(s, ['H']);
     b.land = 'lake';
     b.cls = 'ranger';
-    const u = uniqueOf(rollUnique(b, 0, 0, 4))!;
+    const u = uOf(rollUnique(b, 0, 0, 4))!;
     expect(UNIQUES[u].act2).toBe(true);
     expect(u).not.toBe('powderHammer');
     expect([undefined, 'ranger']).toContain(UNIQUES[u].cls);
@@ -42,7 +43,8 @@ test('약탈자 우두머리는 기사에게만 화약 망치를 따로 굴린�
 });
 
 import { cleave } from './abilities';
-import { step, makeUnique, wear } from './world';
+import { step, makeUnique } from './world';
+import { roll } from './core';
 
 const wearing = (w: World, u: Parameters<typeof makeUnique>[1]) => {
   const it = makeUnique(w, u, 0, 0, 4);
@@ -70,4 +72,17 @@ test('화약 망치: 가르기 → 통이 앞으로 굴러가 터지고 몬스�
   expect(w.kegs[0].done).toBe(true);
   expect(m.hp).toBeLessThan(99999);
   expect(hero.hp).toBe(hp);
+});
+
+test('수집가의 왕관: 서로 다른 전설 하나마다 +4%(왕관 자신 포함), 같은 것은 한 번, 최대 60%', () => {
+  const ratio = (set: (w: World) => void) => {
+    const a = createWorld(5, ['H']), b = createWorld(5, ['H']);
+    b.mods.helm = [{ kind: 'unique', value: 0, u: 'collectorCrown' }];
+    set(b);
+    return roll(b, b.entities[0]) / roll(a, a.entities[0]);
+  };
+  expect(ratio(() => {})).toBeCloseTo(1.04, 1);
+  const duel = { kind: 'helm' as const, tier: 1, x: 0, y: 0, affixes: [{ kind: 'unique' as const, value: 0, u: 'duelist' as const }] };
+  expect(ratio((w) => (w.bag = [duel, { ...duel, x: 2 }]))).toBeCloseTo(1.08, 1);
+  expect(ratio((w) => (w.stashLegends = ['boomerang', 'splitOrb', 'hawkHood', 'boneShroud', 'duelist', 'emberStep', 'berserker', 'crownless', 'caliburx', 'elemStaff', 'graveSkull', 'stormBow', 'galeBow', 'twinBows', 'lootSack', 'runnerBoots', 'boneFlute', 'plagueStaff']))).toBeCloseTo(1.6, 1);
 });
