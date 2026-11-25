@@ -2,6 +2,9 @@
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
 import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World, HIT, hitBase, act2Land, LEGEND2 } from './rules';
 import { HORSE, warded } from './sanctum';
+import { MINE } from './rules';
+import { edgeFall } from './mine';
+import { FOREMAN } from './foreman';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
 export function setLevel(w: World, level: number, xp: number) {
@@ -544,6 +547,11 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   }
   // 궁수의 명사수: 멀리 있는 적에게 더 아프게
   let dmg = from?.kind === 'hero' && t.kind !== 'hero' && w.cls === 'ranger' && dist(from, t) > RANGER.far ? Math.round(raw * RANGER.farMult) : raw;
+  if (t.hangT) dmg = Math.round(dmg * MINE.hangMult); // 광산: 허공에 매달린 정예·보스
+  else if (t.skin === 'mine_foreman' && t.state !== 'dead') {
+    dmg = Math.max(1, Math.round(dmg * FOREMAN.armor)); // 광산 감독관: 결정 갑옷(매달렸을 때만 제대로 맞는다)
+    if (from?.kind === 'hero' && !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 });
+  }
   // 강령술사의 표식: 구역 안의 적은 모든 피해를 더 받는다(겹치면 가장 센 것. 역병 구역은 0)
   const amp = t.kind !== 'hero' && t.id >= 0 ? Math.max(0, ...w.curses.filter((c) => Math.hypot(t.x - c.x, t.z - c.z) <= c.r).map((c) => c.amp)) : 0;
   if (amp) dmg = Math.round(dmg * (1 + amp));
@@ -646,15 +654,17 @@ function trophyKill(w: World, t: Entity) {
 // 스킬에 맞아 밀려남: 단위 방향 (dx, dz)로 d만큼 0.1m씩, 벽 앞에서 멈춘다. 살아 있으면 하던 휘두르기·이동·예고가 끊긴다.
 // 보스·해골 왕은 밀리지도 끊기지도 않는다. 죽은 적도 밀린다(시체가 날아간다). 난수를 쓰지 않는다
 // 밀리지도 끌려오지도 않는 무거운 적
-export const heavy = (e: Entity) => e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave' || steady(e);
+export const heavy = (e: Entity) => e.kind === 'boss' || e.kind === 'king' || e.skin === 'grave' || e.skin === 'rock_golem' || steady(e);
 export function knock(w: World, e: Entity, dx: number, dz: number, d: number) {
   w.impacts++;
   if (heavy(e)) return;
-  for (let i = Math.round(d / 0.1); i > 0 && walkable(w.grid, Math.floor(e.x + dx * 0.1), Math.floor(e.z + dz * 0.1)); i--) {
+  let i = Math.round(d / 0.1);
+  for (; i > 0 && walkable(w.grid, Math.floor(e.x + dx * 0.1), Math.floor(e.z + dz * 0.1)); i--) {
     e.x += dx * 0.1;
     e.z += dz * 0.1;
   }
   if (e.hp > 0) Object.assign(e, { state: 'idle', attackT: 0, path: [], repathT: 0, phase: 'none' }); // 예고 자세(내려찍기)도 끊긴다
+  if (i > 0) edgeFall(w, e, dx, dz); // 광산: 밀리다 허공 가장자리에 걸리면 떨어진다
 }
 
 // 금화 더미(lo..hi × 배율)

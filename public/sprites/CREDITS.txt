@@ -428,6 +428,11 @@ https://github.com/flareteam/flare-game/wiki/Credits
 역병 걸린 뱃사공(src/assets/sprites/plague_ferryman.png): 스크립트 3D 렌더(tools/boss3d/plague_ferryman.js, three.js 도형). 외부 그림 없음.
 약탈자 우두머리(src/assets/sprites/raider_chief.png): 스크립트 3D 렌더(tools/boss3d/raider_chief.js, three.js 도형). 외부 그림 없음.
 뒤틀린 고블린(src/assets/sprites/raider_goblin.png): Flare 고블린(CC-BY-SA 3.0)의 색을 바꾼 것(tools/raider.py). 가공 결과물도 CC-BY-SA 3.0.
+광산 감독관(src/assets/sprites/mine_foreman.png): 스크립트 3D 렌더(tools/boss3d/mine_foreman.js, three.js 도형 — 뼈대·동작은 raider_chief.js). 외부 그림 없음.
+바위 괴물(src/assets/sprites/rock_golem.png): 스크립트 3D 렌더(tools/boss3d/rock_golem.js, three.js 도형). 외부 그림 없음.
+광부 고블린(src/assets/sprites/miner_goblin.png): Flare 고블린(CC-BY-SA 3.0)의 색을 바꾼 것(tools/miner.py). 가공 결과물도 CC-BY-SA 3.0.
+결정 궁수(src/assets/sprites/crystal_archer.png): Flare: Empyrean Campaign 홉고블린 궁수(CC-BY-SA 3.0)의 색을 바꾼 것(tools/miner.py). 가공 결과물도 CC-BY-SA 3.0.
+보랏빛 광산의 허공·절벽 면·빛 다리·결정(src/render/abyss.ts): 셰이더와 three.js 도형. 절벽 면 질감은 동굴 벽(wall_cave.png, Flare CC-BY-SA 3.0).
 약탈자 진지 소품(src/assets/sprites/raid_props.png): rubberduck "isometric props and tents"(OpenGameArt, CC0)의 props_1x1·props_2x2에서 말뚝·화약통·상자·장작·그루터기·솥·화덕을 잘라 줄인 것(tools/raid.py).
 약탈자 오크(src/assets/sprites/raider_orc.png): "Orc (3D)" by GuieA_7 (OpenGameArt, https://opengameart.org/content/orc-3d, CC-BY-SA 4.0)를 Blender로 glb로 바꿔(tools/boss3d/blend2glb.py) 게임 카메라로 8방향 렌더한 것(tools/boss3d/render.py raider_orc). 가공 결과물도 CC-BY-SA 4.0. 원본은 tools/art/models/orc.zip.
 늪 나무 괴물(src/assets/sprites/swamp_treant.png): "Forest Monster" by Čestmír Dammer (CDmir), kelgar.org(OpenGameArt, CC0)를 Blender로 glb로 바꿔(tools/boss3d/blend2glb.py) 게임 카메라로 8방향 렌더한 것(tools/boss3d/render.py swamp_treant). 원본은 tools/art/models/forest-monster.7z.
