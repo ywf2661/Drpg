@@ -152,3 +152,33 @@ test('역병 의사의 지팡이: 저주 안에서 죽은 적이 그 모습 그�
   run(w, 10.2);
   expect(w.allies.length).toBe(0);
 });
+
+import { march, banner, raise } from './necro';
+
+test('뼈 피리 「행진」: 해골이 줄지어 달려가 지나는 적을 친다, 해골이 없으면 못 쓴다', () => {
+  const w = createWorld(15, ['H.......m.']);
+  w.cls = 'necromancer';
+  const [hero] = w.entities;
+  expect(march(w, hero, 9.5, 0.5)).toBe(0);
+  raise(w, hero.x, hero.z, 2);
+  const m = w.entities.find((e) => e.kind === 'minion')!;
+  Object.assign(m, { hp: 99999, maxHp: 99999, asleep: true });
+  expect(march(w, hero, 9.5, 0.5)).toBe(12);
+  run(w, 1.2);
+  expect(m.hp).toBeLessThan(99999);
+  expect(Math.max(...w.allies.map((a) => a.x))).toBeGreaterThan(5);
+});
+
+test('원정대 깃발창 「깃발 꽂기」: 병사 둘, 15초 뒤 사라지고, 다시 쓰면 바뀐다', () => {
+  const w = createWorld(17, ['H.....']);
+  w.cls = 'knight';
+  const [hero] = w.entities;
+  expect(banner(w, hero, 3.5, 0.5)).toBe(30);
+  expect(w.allies.filter((a) => a.from === 'banner').length).toBe(2);
+  const first = w.allies.map((a) => a.id);
+  banner(w, hero, 3.5, 0.5);
+  expect(w.allies.length).toBe(2);
+  expect(w.allies.some((a) => first.includes(a.id))).toBe(false);
+  run(w, 15.2);
+  expect(w.allies.length).toBe(0);
+});

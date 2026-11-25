@@ -16,7 +16,7 @@ export type SkillId =
   | 'flameEdge' | 'frostEdge' | 'reforge' | 'unleash'
   | 'afterimage' | 'swap' | 'lingering' | 'retrace'
   | 'swoop' | 'ride' | 'assist' | 'flock'
-  | 'finale' | 'graveKing'; // 전설 무기가 주는 스킬(GEAR_SKILLS, 트리 밖)
+  | 'finale' | 'graveKing' | 'march' | 'banner'; // 전설 무기가 주는 스킬(GEAR_SKILLS, 트리 밖)
 export type Tab = { name: string; skills: [SkillId, SkillId, SkillId, SkillId] };
 export const TREES: Record<HeroClass, Tab[]> = {
   knight: [
@@ -50,6 +50,8 @@ export const TREES: Record<HeroClass, Tab[]> = {
 export const GEAR_SKILLS: Partial<Record<SkillId, { cls: HeroClass; tab: number; u: UniqueId }>> = {
   finale: { cls: 'knight', tab: 0, u: 'caliburx' },
   graveKing: { cls: 'necromancer', tab: 0, u: 'graveSkull' },
+  march: { cls: 'necromancer', tab: 0, u: 'boneFlute' }, // 2막 전설
+  banner: { cls: 'knight', tab: 1, u: 'bannerSpear' },
 };
 export const GEAR_SKILL_LIST = Object.keys(GEAR_SKILLS) as SkillId[];
 export const SKILLS = Object.fromEntries([
@@ -124,7 +126,7 @@ export type Entity = {
 };
 
 // 강령술사의 소환수(해골 검사·궁수·법사, 시체 거인, 해골 왕): life초 뒤 사라진다
-export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId; escort?: true }; // escort: 적을 쫓지 않고 주인공 곁을 따라다니며 reach 안의 적 모두를 친다(무덤 왕) // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
+export type Ally = Entity & { life: number; lifeMax: number; mult: number; reach: number; interval: number; splash?: number; from?: SkillId; escort?: true; rush?: { dx: number; dz: number; left: number; hit: number[] } }; // rush: 「행진」으로 한 줄 돌격 중(남은 m, 이미 친 적) // escort: 적을 쫓지 않고 주인공 곁을 따라다니며 reach 안의 적 모두를 친다(무덤 왕) // mult: 한 대 배율(× 강령술사 굴림), splash: 맞은 적 둘레도 함께, from: 부른 스킬(다시 쓰면 그 스킬의 소환수는 물러난다)
 
 // 소품(칸 좌표). 막힘은 grid에 있고, 이것은 렌더용 기록이다
 export type Prop = { kind: 'brazier' | 'prop' | 'debris' | 'tent' | 'tentBig' | 'pad'; x: number; z: number; gone?: boolean }; // gone: 폭발에 쓰러진 천막 // tent·tentBig: 천막(2×2·4×4 칸, 글자는 왼쪽 위 칸), pad: 천막이 덮는 나머지 칸(막고 그림 없음)

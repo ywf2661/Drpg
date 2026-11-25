@@ -4,7 +4,7 @@ import { walkable, type Cell, type Grid } from './path';
 import type { Side } from './wilds';
 import { hasUnique, gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickGales, tickTraps, tickTwin, tickVolleys, trap } from './ranger';
-import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
+import { banner, march, graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, execute, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, spin, summon, throwAxe, tickFires, tickZones, whirl } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
@@ -451,7 +451,7 @@ function command(w: World, hero: Entity, c: Command) {
 type Cast = (w: World, hero: Entity, x?: number, z?: number) => number;
 const CASTS: Partial<Record<SkillId, Cast>> = {
   cleave: cleaveStart, mark: markStart, graze, flash, flameEdge, frostEdge, unleash, whirl, execute, dash: dashStart, shout, leap, throw: throwAxe, bounce: bounceAxe,
-  finale, graveKing,
+  finale, graveKing, march, banner,
   fireball, firefield, comet, frost, ward, blizzard, lightning, chain: chainLightning, tempest, afterimage, swap, retrace, swoop, ride, flock,
   pierce, spread: spreadShot, focus, trap, push: pushShot, hunt, rain, fireRain, arrowStorm,
   bones, giant, lord, curse, plague, corpseBlast, spear, boneArmor, prison,
