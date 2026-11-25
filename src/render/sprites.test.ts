@@ -148,7 +148,7 @@ test('원색 외형: 특출난 전설을 입으면 그 부위 레이어 색, 아
   expect(looksOf(w)).toEqual({});
   w.mods.armor = [{ kind: 'unique', value: 0, u: 'crownless' }];
   w.mods.weapon = [{ kind: 'unique', value: 0, u: 'boomerang' }]; // 원색이 없는 전설
-  expect(looksOf(w)).toEqual({ armor: '#f5c400' });
+  expect(looksOf(w)).toEqual({ armor: '#f5c400', layers: { main: 'hero_main_axe' } }); // 도끼날은 색 대신 도끼 그림
   expect(heroKey(w.gear, 'knight', looksOf(w))).not.toBe(heroKey(w.gear, 'knight', {}));
 });
 

@@ -26,7 +26,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { isHub, LEGEND2, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
+import { isHub, LEGEND2, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, RIFT, type SetId, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, EXECUTE, executeStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, whirlStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World } from './sim/world';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -509,7 +509,7 @@ export function showTree(w: World, h: { learn(id: SkillId): void; bind(key: Skil
 // 옵션 한 줄 설명
 // 스킬 옵션: 대상 스킬·탭 이름, 안 배운 스킬이면 표시(learned는 장비 칸·보관함을 그릴 때 맞춘다)
 let learned: World['ranks'] = {};
-let setNow = 0; // 입은 정예 사냥꾼 조각 수(세트 줄을 밝힐 때)
+let setNow: Record<SetId, number> = { hunter: 0, rift: 0 }; // 입은 세트 조각 수(세트 줄을 밝힐 때)
 const skillAffix = (a: Affix) => `${SKILL_TEXT[a.skill!].name} +${a.value}${learned[a.skill!] ? '' : ' (배우지 않음)'}`;
 const AFFIX_TEXT: Record<Affix['kind'], (v: number, a: Affix) => string> = {
   dmg: (v) => `데미지 +${v}%`,
@@ -542,11 +542,18 @@ const runeEffect = (a: Affix) => (a.kind === 'skill' ? `${SKILL_TEXT[a.skill!].n
 // 소켓 줄: 꽂힌 룬(◆ 이름: 효과)과 빈 소켓(◇)
 const socketLines = (list: Affix[]) => [...runesIn(list).map((a) => `◆ ${runeName(a.r!)}: ${runeEffect(a)}`), ...Array.from({ length: socketsOf(list) - runesIn(list).length }, () => '◇ 빈 소켓')];
 
-// 정예 사냥꾼 세트 효과 줄(입은 수만큼 ●)
-const SET_LINES: [number, string][] = [
-  [2, `정예·보스에게 주는 피해 +${Math.round((SET_HUNTER.dmg - 1) * 100)}%, 정예를 잡으면 기력·마나 +${SET_HUNTER.res}`],
-  [4, `정예를 잡으면 ${SET_HUNTER.time}초 동안 그 정예의 특성을 얻는다`],
-];
+// 세트 이름과 효과 줄(입은 수만큼 ●)
+const SET_NAME: Record<SetId, string> = { hunter: '정예 사냥꾼', rift: '틈에서 나온 자' };
+const SET_LINES: Record<SetId, [number, string][]> = {
+  hunter: [
+    [2, `정예·보스에게 주는 피해 +${Math.round((SET_HUNTER.dmg - 1) * 100)}%, 정예를 잡으면 기력·마나 +${SET_HUNTER.res}`],
+    [4, `정예를 잡으면 ${SET_HUNTER.time}초 동안 그 정예의 특성을 얻는다`],
+  ],
+  rift: [
+    [2, `결빙의 궤적 — 스킬에 맞은 적의 발밑에 얼음 궤적이 생기고, ${CUT.delay}초 뒤 터지며 냉기 피해를 주고 ${RIFT.freeze}초 얼린다`],
+    [4, `잔상 — 스킬을 쓰면 얼음 분신이 직전에 쓴 다른 스킬을 함께 쓴다(피해 ${Math.round(RIFT.echoMult * 100)}%, 기력·마나와 재사용 대기 없음)`],
+  ],
+};
 
 // 장비 설명의 조각: 기본 수치, 고유 효과, 옵션 줄들, 세트 효과([줄, 켜짐] — 세트 조각만)
 function gearParts(it: GearItem) {
@@ -565,14 +572,16 @@ function gearParts(it: GearItem) {
     desc: u ? UNIQUES[u].desc : '',
     affixes: plainAffixes(it.affixes).map((a) => AFFIX_TEXT[a.kind](a.value, a)).filter(Boolean),
     sockets: socketLines(it.affixes),
-    set: u && UNIQUES[u].set ? SET_LINES.map(([n, t]): [string, boolean] => [`${n}부위: ${t}`, setNow >= n]) : null,
+    set: u && UNIQUES[u].set ? setOf(UNIQUES[u].set!) : null,
   };
 }
+
+const setOf = (id: SetId) => ({ title: `${SET_NAME[id]} (${setNow[id]}/4)`, lines: SET_LINES[id].map(([n, t]): [string, boolean] => [`${n}부위: ${t}`, setNow[id] >= n]) });
 
 // 장비의 수치·옵션 설명 줄들(한 줄 요약용)
 function gearLines(it: GearItem): string[] {
   const p = gearParts(it);
-  const set = p.set ? [`정예 사냥꾼 (${setNow}/4)`, ...p.set.map(([t, on]) => `${on ? '●' : '○'} ${t}`)] : [];
+  const set = p.set ? [p.set.title, ...p.set.lines.map(([t, on]) => `${on ? '●' : '○'} ${t}`)] : [];
   return [p.base, ...(p.desc ? [`★ ${p.desc}`] : []), ...p.affixes, ...p.sockets, ...set];
 }
 
@@ -629,7 +638,7 @@ function fillTip(it: GearItem, note: string, foot: string) {
   }
   if (p.set) {
     const s = mk('section', 'set');
-    s.append(mk('div', 'set-name', `정예 사냥꾼 (${setNow}/4)`), ...p.set.map(([t, on]) => mk('div', on ? '' : 'off', `${on ? '●' : '○'} ${t}`)));
+    s.append(mk('div', 'set-name', p.set.title), ...p.set.lines.map(([t, on]) => mk('div', on ? '' : 'off', `${on ? '●' : '○'} ${t}`)));
     parts.push(s);
   }
   if (note) parts.push(mk('section', note.startsWith('▲') ? 'up' : note.startsWith('▼') ? 'down' : 'worn', note));
@@ -690,7 +699,7 @@ const iconX = (it: GearItem) => `${-(SLOTS.indexOf(it.kind) * 4 + iconTier(it) -
 // 장비 칸: 아이콘과 이름·수치·옵션(툴팁)
 function showGear(w: World) {
   learned = w.ranks;
-  setNow = setCount(w);
+  setNow = { hunter: setCount(w, 'hunter'), rift: setCount(w, 'rift') };
   for (const kind of SLOTS) {
     const it: GearItem = { kind, tier: w.gear[kind], affixes: w.mods[kind] };
     const slot = gearSlots[kind];
@@ -903,7 +912,7 @@ function dollUnder(el: HTMLElement, kind: Slot, x: number, y: number): HTMLEleme
 export function showBag(w: World, h: { equip(i: number): boolean; discard(i: number): void; move(i: number, x: number, y: number): void; auto(on: boolean): void; socket(t: RuneTarget, r: Rune): boolean; unsocket(t: RuneTarget, k: number): void }, stash?: Stash) {
   const again = () => showBag(w, h, stash);
   learned = w.ranks;
-  setNow = setCount(w);
+  setNow = { hunter: setCount(w, 'hunter'), rift: setCount(w, 'rift') };
   const mark = (it: GearItem) => {
     const d = gearDiff(w, it);
     return d > 1e-9 ? ' ▲' : d < -1e-9 ? ' ▼' : '';

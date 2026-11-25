@@ -91,7 +91,7 @@ export const KEY_LABEL: Record<SkillName, string> = { cleave: 'Q', dash: 'W', sh
 
 export type Point = [x: number, z: number];
 // 칼선(발도): 바닥의 선분들. t초 뒤 베인다. 그을 때 벤 적(hit)은 어디 있든, 그 순간 선 가까이 있는 적도 맞는다. src = 남긴 스킬
-export type Cut = { id: number; segs: [x0: number, z0: number, x1: number, z1: number][]; t: number; mult: number; hit: number[]; src: SkillId };
+export type Cut = { id: number; segs: [x0: number, z0: number, x1: number, z1: number][]; t: number; mult: number; hit: number[]; src: SkillId | 'ice' }; // ice = 결빙의 궤적(틈에서 나온 자 2부위)
 
 export type Entity = {
   id: number;
@@ -145,11 +145,13 @@ export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: num
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
 export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots' | 'caliburx' | 'elemStaff' | 'graveSkull' | 'stormBow'
-  | 'powderHammer' | 'bannerSpear' | 'wellScepter' | 'plagueStaff' | 'boneFlute' | 'galeBow' | 'twinBows' | 'collectorCrown' | 'runnerBoots' | 'lootSack'; // 2막 전설(act2)
+  | 'powderHammer' | 'bannerSpear' | 'wellScepter' | 'plagueStaff' | 'boneFlute' | 'galeBow' | 'twinBows' | 'collectorCrown' | 'runnerBoots' | 'lootSack' // 2막 전설(act2)
+  | 'riftWeapon' | 'riftArmor' | 'riftHelm' | 'riftBoots'; // 2막 세트 「틈에서 나온 자」
 // name의 %는 그 단계의 기본 이름. cls: 그 직업일 때만 떨어진다. fixed: 고정 옵션(tab = 탭 하나 +1, tier1 = 1단계 스킬 하나 +1을 드롭 때 굴림).
 // look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER). only: 무작위 전설에 안 나온다(정해진 보스만)
 // act2: 2막 땅에서만 나온다(1막 땅은 act2 없는 것만 — rollUnique)
-export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; only?: true; act2?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
+export type SetId = 'hunter' | 'rift';
+export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: SetId; only?: true; act2?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
   crackedHalo: { name: '금 간 빛 고리', slot: 'helm', only: true, fixed: [{ kind: 'life', value: 20 }], desc: '쓰러질 만큼 맞으면 3초 전의 자리와 체력으로 되감긴다(120초에 한 번)' }, // 기도하는 자만
   boomerang: { name: '돌아오는 도끼날', slot: 'weapon', cls: 'knight', fixed: [{ kind: 'skill', value: 2, skill: 'throw' }], desc: '도끼 던지기의 도끼가 끝에서 돌아오며 한 번 더 맞힌다' },
   splitOrb: { name: '쪼개지는 구슬', slot: 'weapon', cls: 'wizard', fixed: [{ kind: 'skill', value: 2, skill: 'fireball' }], look: '#e8261c', desc: '화염구가 터지면 작은 화염구 3개가 사방으로 퍼진다' },
@@ -164,10 +166,10 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   elemStaff: { name: '엘리멘탈 스태프', slot: 'weapon', cls: 'wizard', only: true, fixed: [{ kind: 'allSkills', value: 1 }], desc: '마지막에 쓴 스킬의 속성으로 빛나고, 스킬이 맞히면 그 속성으로 한 번 더 피해를 준다' },
   graveSkull: { name: '갇힌 왕의 두개골', slot: 'weapon', cls: 'necromancer', only: true, fixed: [{ kind: 'tab', value: 1, tab: 0 }], desc: '소환 탭에 「무덤 왕의 귀환」이 생긴다' },
   stormBow: { name: '천둥새의 장궁', slot: 'weapon', cls: 'ranger', only: true, fixed: [{ kind: 'skill', value: 2, skill: 'pierce' }], desc: '화살이 맞힌 적 근처의 모든 적에게 번개가 튄다' },
-  hunterWeapon: { name: '정예 사냥꾼의 %', slot: 'weapon', set: true, fixed: [{ kind: 'dmg', value: 20 }], desc: '' },
-  hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: true, fixed: [{ kind: 'life', value: 25 }], desc: '' },
-  hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: true, fixed: ['tab'], desc: '' },
-  hunterBoots: { name: '정예 사냥꾼의 장화', slot: 'boots', set: true, fixed: [{ kind: 'move', value: 8 }], desc: '' },
+  hunterWeapon: { name: '정예 사냥꾼의 %', slot: 'weapon', set: 'hunter', fixed: [{ kind: 'dmg', value: 20 }], desc: '' },
+  hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: 'hunter', fixed: [{ kind: 'life', value: 25 }], desc: '' },
+  hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: 'hunter', fixed: ['tab'], desc: '' },
+  hunterBoots: { name: '정예 사냥꾼의 장화', slot: 'boots', set: 'hunter', fixed: [{ kind: 'move', value: 8 }], desc: '' },
   // 2막 전설(설계: docs/superpowers/specs/2026-11-25-act2-loot-growth-design.md 2절). 수치는 LEGEND2
   powderHammer: { name: '우두머리의 화약 망치', slot: 'weapon', cls: 'knight', only: true, act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'cleave' }], desc: '가르기를 쓰면 불붙은 화약통이 앞으로 굴러가 터진다' }, // 약탈자 우두머리만(기사일 때)
   bannerSpear: { name: '원정대 깃발창', slot: 'weapon', cls: 'knight', act2: true, fixed: ['tab'], desc: '「깃발 꽂기」가 생긴다. 꽂으면 원정대 병사 둘이 달려와 함께 싸운다' },
@@ -179,6 +181,10 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   collectorCrown: { name: '수집가의 왕관', slot: 'helm', act2: true, fixed: [{ kind: 'life', value: 20 }], look: '#ffcf33', desc: '창고·가방·몸에 지닌 서로 다른 전설 하나마다 피해 +4%(최대 +60%)' },
   runnerBoots: { name: '도망자의 장화', slot: 'boots', act2: true, fixed: [{ kind: 'move', value: 10 }], look: '#9a6a3a', desc: '구르면 그 자리에 허수아비가 남아 둘레 적들이 2초 동안 허수아비를 친다' },
   lootSack: { name: '약탈자의 전리품 자루', slot: 'armor', act2: true, fixed: [{ kind: 'life', value: 30 }], look: '#a07840', desc: '적을 잡을수록 자루가 차고 받는 피해가 준다(최대 −25%). 맞으면 금화가 흩어진다' },
+  riftWeapon: { name: '틈에서 나온 자의 %', slot: 'weapon', set: 'rift', act2: true, fixed: [{ kind: 'dmg', value: 20 }], look: '#9fdcff', desc: '' },
+  riftArmor: { name: '틈에서 나온 자의 갑주', slot: 'armor', set: 'rift', act2: true, fixed: [{ kind: 'life', value: 25 }], look: '#9fdcff', desc: '' },
+  riftHelm: { name: '틈에서 나온 자의 투구', slot: 'helm', set: 'rift', act2: true, fixed: ['tab'], look: '#9fdcff', desc: '' },
+  riftBoots: { name: '틈에서 나온 자의 장화', slot: 'boots', set: 'rift', act2: true, fixed: [{ kind: 'move', value: 8 }], look: '#9fdcff', desc: '' },
 };
 export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
 // 등급 색(index.html의 --legend·--set과 같다): 빛기둥·지도 점
@@ -190,6 +196,8 @@ export const LEGEND2 = { kegMult: 3, kegRoll: 3, bannerCd: 30, bannerLife: 15, b
 export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100, prayer: 0.4 };
 export const PRAYER_WEAPON: Record<HeroClass, UniqueId> = { knight: 'caliburx', wizard: 'elemStaff', necromancer: 'graveSkull', ranger: 'stormBow' };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
+// 틈에서 나온 자: 얼음 궤적(고리 반지름 m, 고리 조각 수, 굴림 배율, 얼리는 초), 잔상(함께 나간 스킬 피해 배율, 얼음 분신이 서 있는 초, 주인공 뒤 거리 m)
+export const RIFT = { r: 0.6, ring: 8, trailMult: 0.5, freeze: 1, echoMult: 0.6, ghostT: 0.5, behind: 0.8 };
 export const SET_HUNTER = { frenzy: 1.3, rush: 1.3, steady: 0.7, dmg: 1.25, res: 30, time: 20, leech: 0.1, blastR: 1.2, blastMult: 1.5, aura: 1.3, allyLife: 10, allyMax: 3 };
 // 전설 효과 수치
 // 「금 간 빛 고리」 되감기: back초 전으로(틱마다 기록), 한 번 쓰면 cd초
@@ -441,6 +449,7 @@ export type World = {
   flock: Hawk[];
   rideHit: number[]; // 이번 매 타기에서 화살을 맞은 적 id
   memos: Memo[]; // 지나온 길이 기억하는 주인공 주문(오래된 것부터)
+  riftPrev: SkillId | null; // 「잔상」(틈에서 나온 자 4부위): 직전에 쓴 스킬
   ghostScale: number; // 잔상 몫으로 쓰는 동안 주인공 굴림에 곱하는 배율(평소 1)
   swaps: { id: number; x0: number; z0: number; x1: number; z1: number; age: number }[]; // 자리 바꾸기 빛줄기(렌더용)
   throwCd: number; // 도끼 던지기 재사용까지(초)
@@ -925,7 +934,7 @@ export const BLINK = { cd: 3, dist: 5, guard: 0.25 };
 export const AFTERIMAGE = { cd: 10, time: 6, mult: 0.5, max: 1, swapCd: 6, width: 0.6, swap: 1.5, stun: 0.5, linger: 2, retraceCd: 16, memory: 4, retrace: 0.8, group: 1, spread: 1, stay: 1.5, flash: 0.25, swapAge: 0.5 };
 // 잔상: leave = 잔상 남기기, linger = 떠난 자리, retrace = 지나온 길. t 남은 시간, full 처음 시간, aura·auraAcc 잔상 몫 눈보라,
 // flash 따라 쓴 반짝임 남은 시간, wait·queue 지나온 길 잔상이 설 때까지와 그때 다시 쓸 기록(서기 전엔 queue가 차 있다)
-export type Ghost = { id: number; x: number; z: number; facing: number; kind: 'leave' | 'linger' | 'retrace'; t: number; full: number; aura: number; auraAcc: number; flash: number; wait: number; queue: Memo[] };
+export type Ghost = { id: number; x: number; z: number; facing: number; kind: 'leave' | 'linger' | 'retrace' | 'rift'; t: number; full: number; aura: number; auraAcc: number; flash: number; wait: number; queue: Memo[] };
 export type Memo = { id: SkillId; x: number; z: number; ax?: number; az?: number; age: number }; // 주인공이 쓴 주문: 쓴 자리, 조준점(없으면 없음), 흐른 시간
 
 // 궁수. 화살(평타): 사거리, 속도, 비행 거리, 맞는 반경. 명사수: far m 넘게 떨어진 적에게 주는 피해 ×farMult

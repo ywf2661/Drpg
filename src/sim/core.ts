@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
-import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, HIT, hitBase, act2Land, LEGEND2, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, RIFT, CUT, type SetId, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, HIT, hitBase, act2Land, LEGEND2, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -122,10 +122,18 @@ export function skillHit(w: World, e: Entity, raw: number) {
   hurt(w, e, kind ? Math.round(raw * r * COMBO[kind]) : r === 1 ? raw : Math.round(raw * r), w.entities[0]);
   if (w.elem >= 0 && hasUnique(w, 'elemStaff')) elemHit(w, e, raw);
   if (w.cls === 'wizard' && hasUnique(w, 'wellScepter')) wellHit(w, e, raw);
+  if (setCount(w, 'rift') >= 2) iceTrail(w, e);
   if (kind === 'counter' && hasUnique(w, 'duelist')) {
     for (const k of KEYS) w[KEY_CD[k]] = Math.max(0, w[KEY_CD[k]] - LEGEND_FX.duelCd);
     w.res = Math.min(resMax(w), w.res + LEGEND_FX.duelRes);
   }
+}
+// 결빙의 궤적(틈에서 나온 자 2부위): 맞은 적 발밑에 둥근 얼음 고리(칼선 RIFT.ring조각). 적마다 하나(터지면 iaido snap이 얼린다)
+function iceTrail(w: World, e: Entity) {
+  if (w.cuts.some((c) => c.src === 'ice' && c.hit.includes(e.id))) return;
+  const at = (k: number) => [e.x + Math.cos((k / RIFT.ring) * 2 * Math.PI) * RIFT.r, e.z + Math.sin((k / RIFT.ring) * 2 * Math.PI) * RIFT.r] as const;
+  const segs = Array.from({ length: RIFT.ring }, (_, k): [number, number, number, number] => [...at(k), ...at(k + 1)]);
+  w.cuts.push({ id: w.nextItem++, segs, t: CUT.delay, mult: RIFT.trailMult, hit: e.state === 'dead' ? [] : [e.id], src: 'ice' });
 }
 // 「우물 사제의 홀」: 냉기 스킬(1번 탭)이 맞힌 적 발밑에 물웅덩이, 번개 스킬(2번 탭)이 웅덩이 위의 적을 맞히면 같은 웅덩이 위의 다른 적도 모두(hurt — 다시 퍼지지 않는다)
 function wellHit(w: World, e: Entity, raw: number) {
@@ -370,11 +378,11 @@ export function rollSkillAffix(w: World, rare: boolean): Affix {
 // 고유 장비(전설·세트): 옵션 목록 맨 앞의 표식으로 알아본다
 export const uniqueOf = (it: { affixes: Affix[] }): UniqueId | undefined => (it.affixes[0]?.kind === 'unique' ? it.affixes[0].u : undefined);
 export const hasUnique = (w: World, id: UniqueId) => SLOTS.some((s) => uniqueOf({ affixes: w.mods[s] }) === id);
-// 입은 세트 조각 수
-export function setCount(w: World) {
+// 입은 세트 조각 수(세트마다)
+export function setCount(w: World, set: SetId = 'hunter') {
   return SLOTS.filter((s) => {
     const u = uniqueOf({ affixes: w.mods[s] });
-    return !!u && !!UNIQUES[u].set;
+    return !!u && UNIQUES[u].set === set;
   }).length;
 }
 // 등급: 0 일반, 1 마법, 2 희귀, 3 전설, 4 세트

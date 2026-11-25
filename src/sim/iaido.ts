@@ -1,9 +1,9 @@
 // 발도 탭(기사 넷째): 바닥에 칼선을 긋고, 1초 뒤 한꺼번에 베인다. 설계: docs/superpowers/specs/2026-11-18-iaido-cutline-design.md
 import { cleaveStart } from './abilities';
-import { clearLine, cutCd, dist, echoStat, flashStat, grazeStat, markStat, mastered, pathTo, rank, roll, skillHit } from './core';
+import { clearLine, cutCd, dist, echoStat, flashStat, grazeStat, markStat, mastered, pathTo, rank, roll, skillHit, hurt } from './core';
 import { walkable } from './path';
 import { temper } from './temper';
-import { CUT, DT, ECHO, FLASH, GRAZE, SKILL, type Cut, type Entity, type Point, type SkillId, type World } from './rules';
+import { RIFT, CUT, DT, ECHO, FLASH, GRAZE, SKILL, type Cut, type Entity, type Point, type SkillId, type World } from './rules';
 
 type Seg = Cut['segs'][number];
 
@@ -49,6 +49,13 @@ function snap(w: World, hero: Entity, c: Cut): void {
   for (const e of w.entities) {
     if (e === hero || e.state === 'dead') continue;
     if (!c.hit.includes(e.id) && !c.segs.some((s) => segDist(e.x, e.z, s) <= CUT.near)) continue;
+    if (c.src === 'ice') {
+      // 결빙의 궤적: 스킬 피해가 아니라(다시 궤적을 만들지 않게) 그냥 피해 + 얼림
+      hurt(w, e, Math.round(roll(w, hero) * c.mult), hero);
+      if (e.kind !== 'boss' && e.kind !== 'king') e.stunT = Math.max(e.stunT, RIFT.freeze);
+      w.blasts.push({ id: w.nextItem++, x: e.x, z: e.z, age: 0, kind: 'frost', n: 1 });
+      continue;
+    }
     skillHit(w, e, Math.round(roll(w, hero) * c.mult));
     w.blasts.push({ id: w.nextItem++, x: e.x, z: e.z, age: 0, kind: 'slash', n: 1 });
     if (e.hp <= 0) killed = true;

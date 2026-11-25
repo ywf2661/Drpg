@@ -1,10 +1,11 @@
 // 잔상 탭(마법사 넷째): 잔상은 주인공이 쓰는 주문을 제 자리에서 똑같이 따라 쓴다.
 // 잔상 남기기·자리 바꾸기·떠난 자리(패시브)·지나온 길(궁극). 설계: docs/superpowers/specs/2026-11-19-afterimage-tab-design.md
 // 주문 함수는 world의 CASTS에 있어(순환 import를 피하려고) 다시 쓰는 길을 Recast로 받는다.
-import { AFTERIMAGE, BLINK, BLIZZARD, DT, ROLL, type Entity, type Ghost, type SkillId, type World } from './rules';
+import { RIFT, AFTERIMAGE, BLINK, BLIZZARD, DT, ROLL, type Entity, type Ghost, type SkillId, type World } from './rules';
 import { cdExt, ext, mastered, rank, roll, skillHit, syn } from './core';
 import { auraHit, blast, blizzardStat, bolt, foes, stun } from './wizard';
 import { segDist } from './iaido';
+import { walkable } from './path';
 
 export type Recast = (w: World, id: SkillId, p: Entity, x?: number, z?: number) => number;
 
@@ -18,7 +19,7 @@ const NO_COPY: SkillId[] = [...OWN, 'ward']; // 잔상이 따라 하지 않는 �
 const NO_MEMO: SkillId[] = [...NO_COPY, 'blizzard']; // 지나온 길이 기억하지 않는 것
 
 // 주인공 주문을 따라 쓰는 잔상: 남기기·떠난 자리(지나온 길 잔상은 아니다)
-const copying = (w: World) => w.ghosts.filter((g) => g.kind !== 'retrace' && g.t > 0);
+const copying = (w: World) => w.ghosts.filter((g) => g.kind !== 'retrace' && g.kind !== 'rift' && g.t > 0);
 // 잔상 자리에 선 주인공 사본
 const stand = (hero: Entity, g: Ghost): Entity => ({ ...hero, x: g.x, z: g.z, facing: g.facing, path: [] });
 
@@ -56,6 +57,16 @@ export function copyCast(w: World, hero: Entity, id: SkillId, x: number | undefi
     if (id === 'blizzard') Object.assign(g, { aura: blizzardStat(w).time, auraAcc: BLIZZARD.tick, flash: AFTERIMAGE.flash });
     else asGhost(w, hero, g, scale, (p) => recast(w, id, p, x, z));
   }
+}
+
+// 잔상(틈에서 나온 자 4부위): 주인공 자리에 얼음 분신이 잠깐 서서 직전 스킬 prev를 같은 조준점으로 RIFT.echoMult 피해로 쓴다.
+// 분신이 쓰니 몸이 움직이는 스킬도 주인공은 그대로. 비용·재사용 대기는 cast 밖이라 들지 않는다. 소환·버프·잔상 탭은 따라 하지 않는다
+const NO_RIFT: SkillId[] = [...NO_COPY, 'focus', 'flameEdge', 'frostEdge', 'boneArmor', 'bones', 'giant', 'lord', 'graveKing', 'march', 'banner'];
+export function riftEcho(w: World, hero: Entity, prev: SkillId, x: number | undefined, z: number | undefined, recast: Recast) {
+  if (NO_RIFT.includes(prev)) return;
+  const [bx, bz] = [hero.x - Math.sin(hero.facing) * RIFT.behind, hero.z - Math.cos(hero.facing) * RIFT.behind]; // 주인공 바로 뒤(벽이면 제자리)
+  const [gx, gz] = walkable(w.grid, Math.floor(bx), Math.floor(bz)) ? [bx, bz] : [hero.x, hero.z];
+  asGhost(w, hero, addGhost(w, hero, 'rift', RIFT.ghostT, gx, gz), RIFT.echoMult, (p) => recast(w, prev, p, x, z));
 }
 
 // 주인공 마력탄(평타): 잔상도 같은 적에게 쏜다

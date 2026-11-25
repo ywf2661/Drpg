@@ -245,7 +245,8 @@ const floors = new Map<number, Floor>();
 const snapSeen = new Set<number>();
 let clock = 0;
 
-const colorOf = (c: Cut) => (c.src === 'echo' ? ECHO_COLOR : 0xffffff);
+const ICE_COLOR = 0x7fdcff; // 결빙의 궤적(틈에서 나온 자 2부위)
+const colorOf = (c: Cut) => (c.src === 'echo' ? ECHO_COLOR : c.src === 'ice' ? ICE_COLOR : 0xffffff);
 function floorOf(c: Cut): Floor {
   const mat = () => new THREE.MeshBasicMaterial({ color: colorOf(c), transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
   const f: Floor = { meshes: [], core: mat(), glow: mat(), die: -1 };
