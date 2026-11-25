@@ -341,7 +341,7 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   cells[hero[1]][hero[0]] = 'H';
   // 호숫가: 길이 물·여울을 지난 칸은 판자 다리(걸을 수 있다)
   if (land === 'raid' && floor < FLOORS && !raidFort(cells, rand, floor, exits[0])) return wild(seed + 1, floor, land, from); // 약탈자 진지 요새
-  if (land === 'lake' && !isle) sluiceMap(cells, rand, floor, from, exits[0]); // 호숫가 퍼즐: 검은 샘·물길·바퀴·우물
+  if (land === 'lake' && !isle) sluiceMap(cells, rand, floor, from, exits[0], square); // 호숫가 퍼즐: 검은 샘·물길·바퀴·우물
   if (land === 'lake' && !isle) for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (cells[z][x] === '=' && wet[z * N + x]) cells[z][x] = '_';
 
   // 5. 주인공에서 걸어서 닿는 땅만 남긴다
@@ -627,20 +627,23 @@ function gimmicks(cells: string[][], r2: () => number, floor: number, land: Wild
 }
 
 // 호숫가 퍼즐(설계: 2026-11-24-act2-lake-design.md '퍼즐' 절). 기준 가장자리(t = 가장자리를 따라, k = 안쪽으로)에서 그린다.
-// 2~3구역(출구 가장자리 기준, 순서 퍼즐): 검은 샘 0 → 갈림 1(바퀴 5) → [1: 출구를 U자로 둘러막는 물길 | 2: 안쪽으로] → 갈림 2(바퀴 6) → [3: 해자(늪) | 4: 우물 9로].
-//   바퀴 5는 샘·물길 2·해자 3·맵 가장자리가 둘러싼 주머니 땅 안에 있다. 처음 그대로 5를 돌리면 물이 2→3으로 흘러 주머니에 갇힌다(5를 되돌리면 나온다).
-//   먼저 바깥의 6을 우물 쪽(4)으로 돌려 두고 5를 돌려야 마른 해자로 걸어 나와 출구로 간다. 6을 다시 해자 쪽으로 돌리면 우물이 맑아져 정화.
-// 1구역(출구·들어온 곳이 아닌 가장자리): 샘 0 → 갈림 1 → [1: 우물로 | 2: 늪 구덩이]. 물길은 2칸 폭, 둘레의 물웅덩이·다리는 땅으로.
+// 2~3구역(출구 가장자리 기준): 검은 샘 0 → 갈림 1(바퀴 5) → [1: 출구를 U자로 둘러막는 물길 | 2: 안쪽으로] → 갈림 2(바퀴 6) → [3: 우물 9로 | 4: 늪 구덩이].
+//   5를 돌리면 U가 빠져 출구가 열리지만 물이 우물로 가 마을 사람이 기어 나온다 → 6을 돌리면 늪으로 빠져 정화. 바퀴 둘은 늘 바깥(어느 차례로 돌려도 갇히지 않는다).
+// 1구역(사제 광장 곁): 샘 0 → 갈림 1 → [1: 광장 우물로 | 2: 늪 구덩이]. 광장에서 가장 먼 빈 가장자리 쪽으로 그려 우물이 광장 바로 바깥에 온다.
+//   물길은 2칸 폭, 둘레의 물웅덩이·다리는 땅으로.
 // 돌려주는 것 = 우물 칸
-function sluiceMap(cells: string[][], rand: () => number, floor: number, from: Side, exit: { side: Side; t: number }): Cell {
+function sluiceMap(cells: string[][], rand: () => number, floor: number, from: Side, exit: { side: Side; t: number }, square: Cell | null): Cell {
   const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
   const ok = (x: number, z: number) => x > 0 && z > 0 && x < N - 1 && z < N - 1;
   let side = exit.side;
   let te = exit.t;
-  if (floor === 1) {
-    const free = SIDES.filter((x) => x !== from && x !== exit.side);
-    side = free[int(0, free.length - 1)];
-    te = int(N / 2 - 12, N / 2 + 12);
+  let k0 = 0; // 1구역: 그림 전체를 안쪽으로 미는 양(우물이 광장 바로 바깥에 오게)
+  const m1 = int(4, 6);
+  if (floor === 1 && square) {
+    const depth = (sd: Side) => (sd === 'n' ? square[1] : sd === 's' ? N - 1 - square[1] : sd === 'w' ? square[0] : N - 1 - square[0]);
+    side = SIDES.filter((x) => x !== from && x !== exit.side).reduce((a, b) => (depth(b) > depth(a) ? b : a));
+    te = side === 'n' || side === 's' ? square[0] : square[1];
+    k0 = Math.max(0, depth(side) - 4 - (10 + m1));
   }
   const s = te < N / 2 ? 1 : -1;
   const L = (t: number, k: number): Cell => at(side, t, k);
@@ -660,14 +663,14 @@ function sluiceMap(cells: string[][], rand: () => number, floor: number, from: S
   let wheels: [string, number, number][];
   let wellAt: [number, number];
   if (floor === 1) {
-    const [m, p] = [int(9, 12), int(8, 11)];
-    pool(te, 3, 2.2, '0');
-    run(te, 3, te, 6, '0');
-    run(te, 8, te, 8 + m, '1');
-    wellAt = [te, 8 + m + 2];
-    run(te + s * 2, 6, te + s * (2 + p), 6, '2');
-    pool(te + s * (3 + p), 7, 2.4, '2');
-    wheels = [['5', te - s * 2, 8]];
+    const [m, p, K] = [m1, int(7, 9), k0];
+    pool(te, K + 3, 2.2, '0');
+    run(te, K + 3, te, K + 6, '0');
+    run(te, K + 8, te, K + 8 + m, '1');
+    wellAt = [te, K + 8 + m + 2];
+    run(te + s * 2, K + 6, te + s * (2 + p), K + 6, '2');
+    pool(te + s * (3 + p), K + 7, 2.4, '2');
+    wheels = [['5', te - s * 2, K + 8]];
   } else {
     const R = int(8, 10);
     const F = te + s * (R + 4);
@@ -680,12 +683,12 @@ function sluiceMap(cells: string[][], rand: () => number, floor: number, from: S
     run(te - s * R, R, te - s * R, 1, '1');
     const k2 = 8 + l;
     run(F, 8, F, k2, '2');
-    const T3 = F + s * (2 + m);
-    run(F + s * 2, k2, T3, 1, '3'); // 주머니 땅을 둘러막는 해자: 갈림에서 옆으로, 꺾어서 가장자리까지
-    pool(T3, k2, 2.4, '3'); // 꺾이는 곳의 늪
-    run(F, k2 + 2, F, k2 + 2 + p, '4');
+    const T4 = F + s * (2 + m);
+    run(F + s * 2, k2, T4, k2, '4'); // 늪으로: 갈림에서 옆으로(가장자리까지 가지 않는다 — 둘러막인 땅이 생기지 않게)
+    pool(T4, k2, 2.4, '4');
+    run(F, k2 + 2, F, k2 + 2 + p, '3');
     wellAt = [F, k2 + 4 + p];
-    wheels = [['5', F + s * 3, 9], ['6', F - s * 2, k2 + 1]];
+    wheels = [['5', F - s * 2, 9], ['6', F - s * 2, k2 + 1]];
   }
   for (const [[x, z]] of marks)
     for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (ok(x + dx, z + dz) && 'uv_'.includes(cells[z + dz][x + dx])) cells[z + dz][x + dx] = '.';
@@ -697,7 +700,7 @@ function sluiceMap(cells: string[][], rand: () => number, floor: number, from: S
   return w;
 }
 
-// 바퀴 상태 조합마다(물이 차는 조각은 물 'u', 빠진 조각은 땅): 주인공이 바퀴·우물 곁에 닿고,
+// 바퀴 상태 조합마다(물이 차는 조각은 물 'u', 빠진 조각은 땅): 주인공이 바퀴·우물 곁에 닿고(= 어느 바퀴를 어느 차례로 돌려도 갇히지 않는다),
 // 출구는 barrier(2~3구역)면 갈림 1이 U(조각 1)를 빠지게 했을 때만, 아니면 늘 닿아야 한다
 function puzzleOk(cells: string[][], hero: Cell, exit: Cell, barrier: boolean): boolean {
   const has = (c: string) => cells.some((r) => r.includes(c));
@@ -709,8 +712,7 @@ function puzzleOk(cells: string[][], hero: Cell, exit: Cell, barrier: boolean): 
         const c = cells.map((r) => r.map((ch) => ('012347'.includes(ch) ? (flows(sl, +ch) ? 'u' : '.') : ch)));
         const d = walkDistances(c, hero[0], hero[1]);
         const near = (x: number, z: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => d[(z + dz) * N + x + dx] >= 0);
-        const trap = barrier && g5 === 1 && g6 === 0; // 순서 퍼즐: 이때 바퀴 5의 주머니 땅은 물에 갇혀야 한다(바깥에서 못 닿는다)
-        for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if ('5689'.includes(cells[z][x]) && near(x, z) === (trap && cells[z][x] === '5')) return false;
+        for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if ('5689'.includes(cells[z][x]) && !near(x, z)) return false;
         if (has('5') && d[exit[1] * N + exit[0]] >= 0 !== (!barrier || g5 === 1)) return false;
       }
   return true;

@@ -154,6 +154,7 @@ test('광산 감독관: 처음엔 남쪽 다리가 켜지고, 평소엔 결정 �
   setLit(w, -1);
   step(w, []);
   expect(boss.hangT).toBeGreaterThan(0);
+  expect([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => walkable(w.grid, Math.floor(boss.x + dx * 0.4), Math.floor(boss.z + dz * 0.4)))).toBe(true); // 허공 한가운데가 아니라 낭떠러지 끝을 붙잡았다
   const hp1 = boss.hp;
   hurt(w, boss, 100, hero);
   expect(hp1 - boss.hp).toBe(200);

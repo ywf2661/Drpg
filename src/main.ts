@@ -1,7 +1,7 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud, showForge } from './hud';
+import { $, hint, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud, showForge } from './hud';
 import { awaken, temper } from './sim/forge';
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
@@ -221,7 +221,8 @@ let chatter = 0;
 let kegsBlown = 0; // 이 맵에서 터진 화약통 수(이름표를 다시 달 때)
 let kegHint = false;
 let crystalHint = false; // 광산: 결정 안내 한 줄을 보였다(판마다 한 번)
-let chiefHint = false; // 우두머리 안내 한 줄(판마다 한 번) // 화약통 안내 한 줄을 보였다(판마다 한 번)
+let chiefHint = -Infinity; // 우두머리·감독관 안내를 마지막으로 보인 때(초) — 막힐 때마다 HINT_AGAIN초 간격으로 다시 // 화약통 안내 한 줄을 보였다(판마다 한 번)
+const HINT_AGAIN = 20;
 
 // NPC·단서를 누르면(sim이 w.talk를 남긴다)
 function talkTo(t: NonNullable<World['talk']>) {
@@ -844,6 +845,9 @@ requestAnimationFrame(function frame(now) {
   const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null || ending; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
   const cut = intro === 'walk' || intro === 'look' || outroOn();
   pollInput(world, dt, paused || cut);
+  // 대화창(타임패트롤·엔딩 대사 등)이 떠 있거나 엔딩 연출 중이면 주인공은 선다 — 멈춘 sim 속에서 달리기 그림만 돌지 않게
+  const me = world.entities[0];
+  if ((talking() || outroOn()) && me.state === 'move' && me.phase === 'none') Object.assign(me, { state: 'idle', path: [] });
   if (cut) commands.length = 0;
   if (intro) introStep(dt, cut);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
@@ -867,7 +871,7 @@ requestAnimationFrame(function frame(now) {
     const h = world.entities[0];
     if (!kegHint && world.kegs.some((k) => k.chest >= 0 && !k.done && Math.hypot(k.x + 0.5 - h.x, k.z + 0.5 - h.z) < 4)) {
       kegHint = true;
-      say(KEG_HINT);
+      hint(KEG_HINT);
     }
   }
   // 광산 4구역: 출구 섬에 처음 닿으면 타임패트롤 신호(저장에 한 번). 대화창이 닫히면 형상도 끊긴다
@@ -882,12 +886,12 @@ requestAnimationFrame(function frame(now) {
   // 광산: 처음 결정 곁에 오면 한 줄(무엇이 생기는지는 말하지 않는다)
   if (world.mine && !crystalHint && world.mine.crystals.some((c) => Math.hypot(c.x + 0.5 - world.entities[0].x, c.z + 0.5 - world.entities[0].z) < 4)) {
     crystalHint = true;
-    say(CRYSTAL_HINT);
+    hint(CRYSTAL_HINT);
   }
-  // 약탈자 우두머리: 처음 막혔을 때 한 줄(통을 쓰라는 것까지만)
-  if ((land === 'raid' || land === 'mine') && !chiefHint && world.combos.some((c) => c.kind === 'ward')) {
-    chiefHint = true;
-    say(land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
+  // 약탈자 우두머리·광산 감독관: 막히면 힌트(통·다리를 쓰라는 것까지만). 계속 막히면 HINT_AGAIN초마다 다시
+  if ((land === 'raid' || land === 'mine') && now / 1000 - chiefHint > HINT_AGAIN && world.combos.some((c) => c.kind === 'ward')) {
+    chiefHint = now / 1000;
+    hint(land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
   }
   if (world.cleansed) {
     world.cleansed = false;

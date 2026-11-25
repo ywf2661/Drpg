@@ -36,7 +36,7 @@ export const PRIEST = [
   '근원을 막을 방법은… 남쪽 사막의 옛 신전에 정화 의식이 전해 온다고 들었네. 거기 가려면 호수를 건너야 하는데, 뱃사공이 병에 걸린 뒤로 뱃길이 엉망이야.',
 ];
 export const PRIEST_AGAIN = '바퀴를 돌려 검은 물을 늪으로 보내게. 물이 어디로 흐르는지 잘 보고.';
-export const SICK = { ill: '…물이… 물이 검어요… 우물에서 썩은 냄새가…', well: '…고맙소. 이제 좀 살 것 같구려. 이거라도 받아 주시오.' };
+export const SICK = { ill: '…우물물이… 새까맣게 변했어요… 썩은 내가 나요…', well: '…고맙소. 이제 좀 살 것 같구려. 이거라도 받아 주시오.' };
 export const WELL = { dirty: '검은 물이 우물로 흘러들고 있다. 물길을 다른 데로 돌려야 한다.', clean: '우물 물이 맑다.' };
 export const CLEANSED = '검은 물이 늪으로 빠졌다. 우물이 맑아졌다!';
 export const act2Step = (act2: number) => ACT2[Math.min(Math.max(act2, 1), ACT2.length) - 1]; // 0(시험용 바로 가기 등)이면 첫 단계

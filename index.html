@@ -433,6 +433,8 @@
       @keyframes pick-in-left { from { transform: translateX(-40px); opacity: 0; } }
       #toast { position: fixed; left: 0; right: 0; bottom: 84px; z-index: 2; text-align: center; font-size: 19px; letter-spacing: 1px; color: var(--gold-hi); text-shadow: 0 1px 3px #000, 0 0 10px #000; pointer-events: none; opacity: 0; }
       #toast.show { animation: floor-title 2s ease-out; }
+      #toast.show.hint { animation: hint 7s ease-out; } /* hud.ts HINT_SHOW */
+      @keyframes hint { 0% { opacity: 0; } 5%, 88% { opacity: 1; } 100% { opacity: 0; } }
       @media (max-width: 600px) { #toast { bottom: 150px; } #hud > .slot { display: none; } } /* 좁은 화면: 장비 칸은 가방(인형)에서만 → HUD 두 줄, 알림은 그 위로 */
       /* 터치 화면: 스킬·구르기·물약을 오른쪽 아래 엄지 자리에 크게. 모서리에 구르기, 그 둘레 반지름 120px 부채꼴에 Q W E R, 바깥에 물약
          (스킬 그림 크기는 hud.ts의 SKILL_PX와 맞출 것) */

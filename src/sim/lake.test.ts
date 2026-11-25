@@ -184,7 +184,7 @@ test('뱃사공: 물 위를 돌며 등불을 던지고(근접은 못 닿는다),
   expect(reboard).toBe(true);
 });
 
-test('수문 순서 퍼즐(2~3구역): 처음 그대로 바퀴 5를 돌리면 그 주머니 땅이 물에 갇히고, 6을 우물 쪽으로 먼저 돌려 두면 마른 해자로 나와 출구로 간다. 6을 되돌리면 정화', { timeout: 120_000 }, () => {
+test('수문 퍼즐(2~3구역): 5를 돌리면 출구가 열리고 물이 우물로 가 더럽혀진다, 6을 돌리면 늪으로 빠져 정화. 어느 차례로 돌려도 바퀴 둘에 늘 닿는다(갇히지 않는다)', { timeout: 120_000 }, () => {
   for (const floor of [2, 3])
     for (let seed = 1; seed <= 4; seed++) {
       const w = createWorld(1, generateWild(seed, floor, 'lake', 'w', ['lake']));
@@ -201,9 +201,23 @@ test('수문 순서 퍼즐(2~3구역): 처음 그대로 바퀴 5를 돌리면 �
         return (x: number, z: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => seen[(z + dz) * g.w + x + dx]);
       };
       Object.assign(w.entities[0], { hp: 1e9, maxHp: 1e9 });
-      expect(settle(1, 0)(g5.x, g5.z)).toBe(false); // 바깥에서 주머니 땅으로 못 들어간다
-      expect(settle(1, 1)(g5.x, g5.z)).toBe(true); // 해자가 말랐다
       settle(1, 0);
+      expect(sl.wells[0].dirty).toBe(true);
+      expect(sl.purified).toBe(false);
+      for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
+        const near = settle(a, b);
+        expect(near(g5.x, g5.z) && near(g6.x, g6.z)).toBe(true);
+      }
       expect(sl.purified).toBe(true);
     }
+});
+
+test('수문 퍼즐(1구역): 우물은 사제 광장 바로 곁, 바퀴도 광장 가까이', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const map = generateWild(seed, 1, 'lake', 'w', ['lake']);
+    const find = (c: string) => { const z = map.findIndex((r) => r.includes(c)); return [map[z].indexOf(c), z]; };
+    const [p, well, wheel] = [find('t'), find('9'), find('5')];
+    expect(Math.hypot(p[0] - well[0], p[1] - well[1])).toBeLessThan(9);
+    expect(Math.hypot(p[0] - wheel[0], p[1] - wheel[1])).toBeLessThan(18);
+  }
 });

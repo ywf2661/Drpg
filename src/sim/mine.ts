@@ -1,7 +1,7 @@
 // 보랏빛 광산 퍼즐: 결정 빛 다리(설계: docs/superpowers/specs/2026-11-25-act2-mine-design.md 3절). three.js·Math.random 금지.
 // 맵: '-' 허공(못 걷고 시야·투사체는 지나감), '+' 빛 다리, 'd' 결정. 결정 곁(체비쇼프 2칸 안)의 빛 다리 토막이 그 결정의 다리다(양 끝에 결정 둘).
 // 결정을 누르면 켜지고 다시 누르면 꺼진다. 켜진 결정은 하나뿐 — 다른 결정을 켜면 앞의 것은 꺼진다.
-// 다리는 켜지고 MINE.appear초 뒤부터 밟힌다. 꺼질 때 위에 있던 일반 몬스터는 떨어지고(죽음), 정예·보스는 MINE.hang초 매달린다(받는 피해 ×hangMult, 그다음 가까운 땅으로).
+// 다리는 켜지고 MINE.appear초 뒤부터 밟힌다. 꺼질 때 위에 있던 일반 몬스터는 떨어지고(죽음), 정예·보스는 가장 가까운 낭떠러지 끝을 붙잡고 MINE.hang초 매달린다(받는 피해 ×hangMult, 그다음 그 땅으로 기어오른다).
 // 주인공은 떨어지지 않는다: 주인공이 선 다리는 내려설 때까지 남는다. 소환수는 주인공 곁으로 옮긴다.
 import { hurt } from './core';
 import type { Cell, Grid } from './path';
@@ -95,6 +95,14 @@ export function tickMine(w: World) {
 export function drop(w: World, e: Entity) {
   if (e.elite || e.kind === 'boss' || e.kind === 'king') {
     Object.assign(e, { hangT: MINE.hang, stunT: Math.max(e.stunT, MINE.hang), state: 'idle', attackT: 0, path: [], phase: 'none' });
+    // 허공 한가운데 떠 있지 않게: 가장 가까운 땅의 낭떠러지 끝을 붙잡는다(땅 칸 가운데에서 CLING m 밖, 땅을 바라본다 — 근접으로도 닿는다)
+    const land = nearestLand(w, e);
+    if (land) {
+      const [lx, lz] = [land[0] + 0.5, land[1] + 0.5];
+      const d = Math.hypot(e.x - lx, e.z - lz) || 1;
+      const [x, z] = [lx + ((e.x - lx) / d) * CLING, lz + ((e.z - lz) / d) * CLING];
+      Object.assign(e, { x, z, facing: Math.atan2(lx - x, lz - z) });
+    }
     return;
   }
   e.fell = true;
@@ -107,10 +115,18 @@ export function edgeFall(w: World, e: Entity, dx: number, dz: number) {
   const [x, z] = [Math.floor(e.x + dx * 0.1), Math.floor(e.z + dz * 0.1)];  if (w.grid.blocked[z * w.grid.w + x] === 2) drop(w, e);
 }
 
+const CLING = 0.65; // 매달린 자리: 땅 칸 가운데에서 허공 쪽으로(칸 가장자리 0.5 바로 너머)
+
+// 6칸 안에서 가장 가까운(직선 거리) 걸을 수 있는 땅 칸
 function nearestLand(w: World, e: Entity): Cell | null {
   const [x0, z0] = [Math.floor(e.x), Math.floor(e.z)];
-  for (let r = 1; r <= 6; r++)
-    for (let dz = -r; dz <= r; dz++)
-      for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dz)) === r && walkable(w.grid, x0 + dx, z0 + dz)) return [x0 + dx, z0 + dz];
-  return null;
+  let best: Cell | null = null;
+  let bd = Infinity;
+  for (let dz = -6; dz <= 6; dz++)
+    for (let dx = -6; dx <= 6; dx++) {
+      const [x, z] = [x0 + dx, z0 + dz];
+      const d = Math.hypot(x + 0.5 - e.x, z + 0.5 - e.z);
+      if (d < bd && (dx || dz) && walkable(w.grid, x, z)) [best, bd] = [[x, z], d];
+    }
+  return best;
 }

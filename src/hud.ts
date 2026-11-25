@@ -756,9 +756,21 @@ export function showPick(p: GearItem & { up: number; worn: boolean }, wear: () =
   pickTimer = window.setTimeout(() => (pickCard.hidden = true), PICK_SHOW * 1000);
 }
 
+let hintUntil = 0; // 힌트가 떠 있는 동안(ms)은 다른 알림이 덮어쓰지 않는다
 export function say(text: string) {
+  if (performance.now() < hintUntil) return;
+  toast.classList.remove('hint');
   toast.textContent = text;
   replay(toast);
+}
+
+// 퍼즐·보스 힌트: 오래(index.html #toast.hint, HINT_SHOW초) 떠 있고 그동안 다른 알림에 덮이지 않는다
+const HINT_SHOW = 7;
+export function hint(text: string) {
+  hintUntil = 0;
+  say(text);
+  toast.classList.add('hint');
+  hintUntil = performance.now() + HINT_SHOW * 1000 * 0.9;
 }
 
 // 기력·마나가 모자란 스킬을 쓰려 할 때
