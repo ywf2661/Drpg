@@ -1,9 +1,9 @@
 // 테스트용 봇: sim만으로 1~5층을 끝까지 플레이한다(밸런스 회귀 테스트·조정용).
-import { bossScale, FLOORS, floorPower } from './dungeon';
+import { bossScale, cyclePower, FLOORS, floorPower, hitScale } from './dungeon';
 import { makeMap, opposite, type Side } from './wilds';
 import { buy, deathGold, sell } from '../shop';
-import { depthOf, tierOf, isPassive, MARK_LETTER, markBit, openLands, STORY } from './rules';
-import { downcutStat, toughenBoss, uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
+import { act2Land, depthOf, LAND_LIST, MAX_LEVEL, tierOf, isPassive, MARK_LETTER, markBit, openLands, STORY } from './rules';
+import { learn, downcutStat, toughenBoss, uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
 const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
@@ -57,7 +57,7 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
   const d = (x: number, z: number) => Math.hypot(x - hero.x, z - hero.z);
   // 닫힌 사슬 문이 있으면 걸어서 갈 수 있는 곳만 상대한다(문 뒤의 적·아이템은 문을 연 뒤에)
   const closed = w.gates.filter((g) => !g.open);
-  const seen = closed.length ? reachable(w, hero.x, hero.z) : null;
+  const seen = closed.length || act2Land(w.land) ? reachable(w, hero.x, hero.z) : null; // 2막 땅: 물·허공·퍼즐 너머의 적은 빼고
   const ok = (x: number, z: number) => !seen || seen[Math.floor(z) * w.grid.w + Math.floor(x)] === 1;
   const foes = w.entities.filter((e) => e.kind !== 'hero' && e.state !== 'dead' && ok(e.x, e.z)).sort((a, b) => d(a.x, a.z) - d(b.x, b.z));
   const near = (r: number) => foes.filter((e) => d(e.x, e.z) < r).length;
@@ -293,4 +293,33 @@ export function story(seed: number, cls: HeroClass = 'knight', build: Build = 'b
     if (!r.cleared) break;
   }
   return out;
+}
+
+// 2막 전투 측정(밸런스): 그 구역을 게임과 같은 세기(깊이·회차 배율, 한 방 %, 보스 깊이 배율)로 만들고 레벨(기본 50)·장비 4단계(옵션 없음) 봇을 time초 둔다.
+// 구역을 깨는지 대신 적 하나를 잡는 데 걸린 시간(처음 맞은 때 → 쓰러진 때)과 받은 피해·사망을 잰다(2막 보스 기믹·퍼즐은 봇이 못 푼다)
+export type Kill = { kind: string; elite: boolean; hp: number; ttk: number };
+export function probe(seed: number, cls: HeroClass, land: Land, n: number, cycle = 1, time = 240, build: Build = 'basic', level = MAX_LEVEL) {
+  const depth = depthOf(land, n);
+  const w = createWorld(seed, makeMap(seed, n, land, 'w', LAND_LIST), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  w.hitScale = hitScale(depth, cycle);
+  loadCarry(w, { ...START(cls), potions: 8, gear: { weapon: 4, armor: 4, helm: 4, boots: 4 }, level, points: level - 1 }, land, tierOf(depth));
+  toughenBoss(w, bossScale(depth));
+  for (let c = think(w, true, true, land, build).find((c) => c.type === 'learn'); c?.type === 'learn'; c = think(w, true, true, land, build).find((c) => c.type === 'learn')) learn(w, c.skill);
+  const hero = w.entities[0];
+  const first = new Map<number, number>(); // 처음 맞은 때(초)
+  const kills: Kill[] = [];
+  let taken = 0;
+  let t = 0;
+  for (; t < time / DT && hero.state !== 'dead'; t++) {
+    const hp = new Map(w.entities.map((e) => [e.id, e.hp]));
+    step(w, t % THINK === 0 ? think(w, true, true, land, build) : []);
+    taken += Math.max(0, hp.get(hero.id)! - hero.hp);
+    for (const e of w.entities) {
+      if (e === hero || e.id < 0 || !hp.has(e.id)) continue; // 소환수·허수아비는 빼고
+      if (e.hp < hp.get(e.id)! && !first.has(e.id)) first.set(e.id, t * DT);
+      if (e.state === 'dead' && hp.get(e.id)! > 0 && first.has(e.id)) kills.push({ kind: e.kind, elite: !!e.elite, hp: e.maxHp, ttk: t * DT - first.get(e.id)! });
+    }
+  }
+  const boss = w.entities.find((e) => e.kind === 'boss');
+  return { kills, taken, dead: hero.state === 'dead', time: t * DT, maxHp: hero.maxHp, boss: boss ? boss.hp / boss.maxHp : -1, left: w.entities.filter((e) => e !== hero && e.state !== 'dead' && e.id >= 0).length };
 }

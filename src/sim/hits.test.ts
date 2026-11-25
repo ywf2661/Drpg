@@ -7,17 +7,17 @@ test('기준 체력: 50레벨 + 4단계 투구', () => {
   expect(hitBase('knight')).toBeCloseTo(620 / 0.7);
 });
 
-test('hitScale: 1막 첫 판은 0, 1막 2회차 1, 2막은 깊이 따라 1→1.2, 회차 +5%씩 최대 +20%', () => {
+test('hitScale: 1막 첫 판은 0, 1막 2회차 1, 2막은 깊이 따라 1.25→1.5, 회차 +5%씩 최대 +20%', () => {
   expect(hitScale(5, 0)).toBe(0);
   expect(hitScale(25, 0)).toBe(0);
   expect(hitScale(0, 1)).toBe(1); // 거점
   expect(hitScale(25, 1)).toBe(1);
-  expect(hitScale(26, 1)).toBe(1);
-  expect(hitScale(50, 1)).toBeCloseTo(1.2);
-  expect(hitScale(60, 1)).toBeCloseTo(1.2);
-  expect(hitScale(26, 2)).toBeCloseTo(1.05);
-  expect(hitScale(26, 9)).toBeCloseTo(1.2);
-  expect(hitScale(26, 0)).toBe(1); // 2막은 회차와 상관없이 켜진다
+  expect(hitScale(26, 1)).toBe(1.25);
+  expect(hitScale(50, 1)).toBeCloseTo(1.5);
+  expect(hitScale(60, 1)).toBeCloseTo(1.5);
+  expect(hitScale(26, 2)).toBeCloseTo(1.25 * 1.05);
+  expect(hitScale(26, 9)).toBeCloseTo(1.5);
+  expect(hitScale(26, 0)).toBe(1.25); // 2막은 회차와 상관없이 켜진다
 });
 
 import { createWorld } from './world';

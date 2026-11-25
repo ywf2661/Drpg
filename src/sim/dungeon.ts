@@ -12,10 +12,12 @@ export const FLOORS = 5;
 export const DEPTH_EXTRA = 0.15;
 export const floorPower = (n: number, cycle = 0, extra = DEPTH_EXTRA) => (1 + 0.15 * (n - 1) + extra * Math.max(0, n - FLOORS)) * cyclePower(cycle);
 // 몬스터 한 방의 깊이·회차 배율(HIT 비율에 곱한다). 0 = 예전 공식(1막 첫 판).
-// 2막(깊이 26~50)은 1 → 1.2로 오르고, 회차는 3회차(cycle 2)부터 회차마다 +5%(최대 +20%)
+// 2막(깊이 26~50)은 ACT2_HIT배에서 시작해 깊이 따라 ×1.2까지(1.25 → 1.5), 회차는 3회차(cycle 2)부터 회차마다 +5%(최대 +20%)
+// ACT2_HIT: 2막 몬스터 체력은 그대로 두고 한 방을 올렸다(2026-11-26, 사용자). 봇 측정: bot.ts probe
 const ACT2_FROM = 5 * STORY.length + 6, ACT2_TO = ACT2_FROM + 5 * ACT2_MAX - 1;
+export const ACT2_HIT = 1.25;
 export const hitScale = (depth: number, cycle: number) =>
-  depth < ACT2_FROM && cycle < 1 ? 0 : (1 + 0.2 * Math.min(1, Math.max(0, depth - ACT2_FROM) / (ACT2_TO - ACT2_FROM))) * (1 + 0.05 * Math.min(4, Math.max(0, cycle - 1)));
+  depth < ACT2_FROM && cycle < 1 ? 0 : (depth >= ACT2_FROM ? ACT2_HIT : 1) * (1 + 0.2 * Math.min(1, Math.max(0, depth - ACT2_FROM) / (ACT2_TO - ACT2_FROM))) * (1 + 0.05 * Math.min(4, Math.max(0, cycle - 1)));
 export const cyclePower = (cycle: number) => 1 + cycle;
 // 보스 깊이 배율: 보스 수치(STATS.boss)는 초원 5구역(이야기 깊이 5) 기준이라, 깊은 지역 보스는 그 구역 몬스터 배율만큼 더 세진다(회차 배율은 따로)
 export const bossScale = (depth: number) => Math.max(1, floorPower(depth) / floorPower(FLOORS));
