@@ -825,7 +825,8 @@ requestAnimationFrame(function frame(now) {
   if (o === 'dead' && lostGold === null) {
     // 죽는 순간 금화 절반을 잃고 야영지로 저장(새로고침으로 '1구역부터' 벌칙을 피할 수 없게)
     lostGold = entry.gold - deathGold(entry.gold);
-    entry = { ...entry, gold: deathGold(entry.gold) };
+    // 레벨·경험치는 지금 값으로 남긴다. 그 구역에서 오른 레벨만큼 스킬 포인트도(찍은 스킬은 구역에 들어설 때로 돌아가므로 이 셈이 맞다)
+    entry = { ...entry, gold: deathGold(entry.gold), level: world.level, xp: world.xp, points: entry.points + world.level - entry.level };
     saveRun({ ...progress(), land: hubOf(land), floor: 0, from: 'w' });
   }
   if (o === 'clear' && !talking() && !outroOn()) clearT += dt; // 엔딩 1이면 레터박스가 걷힌 뒤부터
