@@ -732,8 +732,24 @@ if (new URLSearchParams(location.search).has('test')) {
         b.title = UNIQUES[u].desc;
         b.onclick = () => { legends.hidden = true; wearLegend(u); };
         return b;
-      }));
+      }), riftButton());
   });
+  // 틈에서 나온 자 세트 4부위를 4단계로 한꺼번에 입는다(입던 장비는 사라진다)
+  function riftButton() {
+    const b = document.createElement('button');
+    b.textContent = '틈에서 나온 자 세트(4부위)';
+    b.title = '세트 4부위를 4단계로 입는다. 입던 무기·갑옷·투구·장화는 사라진다';
+    b.onclick = () => {
+      legends.hidden = true;
+      if (!playing()) return;
+      const hero = world.entities[0];
+      for (const u of ['riftWeapon', 'riftArmor', 'riftHelm', 'riftBoots'] as const) {
+        const it = makeUnique(world, u, hero.x, hero.z, 4);
+        wearGear(world, { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! });
+      }
+    };
+    return b;
+  }
   function wearLegend(u: UniqueId) {
     if (!playing()) return;
     const hero = world.entities[0];
