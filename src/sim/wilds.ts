@@ -288,8 +288,8 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   for (let k = 1; k <= 6; k++) for (let s = -1; s <= 1; s++) set(at(from, t0 + s, k), '.');
 
   // 4. 길: 주인공에서 각 출구(마지막 구역은 맞은편 가장자리 가까이의 보스 자리)까지 2칸 폭, 4~8걸음마다 옆으로 1~3칸 휜다
-  const road = (to: Cell) => {
-    let [x, z] = hero;
+  const road = (to: Cell, start: Cell = hero) => {
+    let [x, z] = start;
     let bend = int(4, 8);
     for (let guard = 0; guard < 2000 && (x !== to[0] || z !== to[1]); guard++) {
       const [dx, dz] = [to[0] - x, to[1] - z];
@@ -308,8 +308,19 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
     }
   };
   const ferries = isle ? islands(cells, rand, hero, from, exits[0].side) : [];
+  // 호숫가 1구역: 들어온 곳과 출구 사이 길목에 마을 광장(7×7) — 길이 광장을 지나 사제·앓는 주민을 꼭 만난다
+  let square: Cell | null = null;
+  if (land === 'lake' && floor === 1) {
+    const [ex, ez] = at(exits[0].side, exits[0].t, 1);
+    const spots: Cell[] = [];
+    for (const f of [0.5, 0.4, 0.6]) for (const oz of [0, -4, 4]) for (const ox of [0, -4, 4]) spots.push([Math.round(hero[0] + (ex - hero[0]) * f) + ox, Math.round(hero[1] + (ez - hero[1]) * f) + oz]);
+    const dry = ([cx, cz]: Cell) => cells.slice(cz - 4, cz + 5).every((r) => r.slice(cx - 4, cx + 5).every((c) => '.#'.includes(c)));
+    square = spots.find((p) => inside(p[0] - 4, p[1] - 4) && inside(p[0] + 4, p[1] + 4) && dry(p)) ?? spots[0];
+    for (let z = -3; z <= 3; z++) for (let x = -3; x <= 3; x++) set([square[0] + x, square[1] + z], '.');
+  }
   for (const e of exits) {
-    if (!isle) road(at(e.side, e.t, 1));
+    if (square) road(square);
+    if (!isle) road(at(e.side, e.t, 1), square ?? hero);
     for (let s = -1; s <= 1; s++) {
       for (let k = 1; k <= 2; k++) set(at(e.side, e.t + s, k), '=');
       const [x, z] = at(e.side, e.t + s, 0);
@@ -323,7 +334,7 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   cells[hero[1]][hero[0]] = 'H';
   // 호숫가: 길이 물·여울을 지난 칸은 판자 다리(걸을 수 있다)
   if (land === 'raid' && floor < FLOORS && !raidFort(cells, rand, floor, exits[0])) return wild(seed + 1, floor, land, from); // 약탈자 진지 요새
-  const well = land === 'lake' && !isle ? sluiceMap(cells, rand, floor, from, exits[0]) : null; // 호숫가 퍼즐: 검은 샘·물길·바퀴·우물
+  if (land === 'lake' && !isle) sluiceMap(cells, rand, floor, from, exits[0]); // 호숫가 퍼즐: 검은 샘·물길·바퀴·우물
   if (land === 'lake' && !isle) for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (cells[z][x] === '=' && wet[z * N + x]) cells[z][x] = '_';
 
   // 5. 주인공에서 걸어서 닿는 땅만 남긴다
@@ -342,7 +353,7 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   const near = ([x, z]: Cell, [cx, cz]: Cell, r: number) => Math.max(Math.abs(x - cx), Math.abs(z - cz)) < r;
   const all: Cell[] = [];
   for (let z = 3; z < N - 3; z++) for (let x = 3; x < N - 3; x++) if (cells[z][x] === '.') all.push([x, z]);
-  const keep: Cell[] = [hero, ...exits.map((e) => at(e.side, e.t, 1))]; // 소품·몬스터를 두지 않을 자리
+  const keep: Cell[] = [hero, ...exits.map((e) => at(e.side, e.t, 1)), ...(square ? [square] : [])]; // 소품·몬스터를 두지 않을 자리(광장 포함)
 
   // 6. 동굴 입구(먼 곳, 둘레 5×5칸은 계단 그림 자리) 또는 보스(7×7 빈터)
   if (kinds.includes('dungeon')) {
@@ -460,15 +471,16 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
       const [x, z] = shore.splice(int(0, shore.length - 1), 1)[0];
       if (cells[z][x] === '.') cells[z][x] = 'j';
     }
-    // 1구역: 우물 곁에 사제와 앓는 주민 셋(길을 끊지 않게)
-    if (well && floor === 1)
+    // 1구역: 광장에 사제와 앓는 주민 셋(길가, 길을 끊지 않게). 사제가 없으면 다음 시드로
+    if (square)
       for (const c of ['t', 'p', 'p', 'p'])
         for (let tries = 0; tries < 60; tries++) {
-          const [x, z] = [well[0] + int(-5, 5), well[1] + int(-5, 5)];
-          if (cells[z]?.[x] !== '.' || Math.hypot(x - well[0], z - well[1]) < 2.5) continue;
+          const [x, z] = [square[0] + int(-3, 3), square[1] + int(-3, 3)];
+          if (cells[z]?.[x] !== '.') continue;
           cells[z][x] = c;
           if (connected()) break;
           cells[z][x] = '.';
+          if (c === 't' && tries === 59) return wild(seed + 1, floor, land, from);
         }
   }
   // 나룻배 줄: 만드는 동안은 판자 다리로 쳐서(닿는 땅·몬스터 자리를 그대로 따지게) 이제 물과 배로 되돌린다

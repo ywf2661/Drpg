@@ -24,6 +24,16 @@ test('호숫가 1~3구역: 같은 시드면 같은 맵, 물이 있고 물 건너
       // 출구 칸은 맨 바깥 줄 — 바로 안쪽 칸이 닿으면 닿는 것
       for (const [x, z] of exits) expect([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => d[(z + dz) * WILD + x + dx] >= 0)).toBe(true);
       expect(count(map, '!')).toBe(0); // 아직 안 만든 구역으로 가는 출구는 막혀 있다
+      if (floor === 1) {
+        // 사제는 들어온 곳→출구 길목: 사제를 거쳐 가도 곧장 가는 길보다 10걸음 넘게 돌지 않는다
+        const tz = map.findIndex((r) => r.includes('t'));
+        const tx = map[tz].indexOf('t');
+        const step = (dd: Int32Array | number[], x: number, z: number) => Math.min(...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dz]) => dd[(z + dz) * WILD + x + dx]).filter((v) => v >= 0));
+        const dt = walkDistances(cells, ...([[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dz]) => [tx + dx, tz + dz]).find(([x, z]) => d[z * WILD + x] >= 0) as [number, number]));
+        const [ex, ez] = exits[1];
+        expect(step(d, tx, tz) + step(dt, ex, ez)).toBeLessThanOrEqual(step(d, ex, ez) + 10);
+        expect(count(map, 'p')).toBeGreaterThan(0);
+      }
       for (let z = 0; z < WILD; z++) for (let x = 0; x < WILD; x++) if (OPEN(cells[z][x]) && cells[z][x] !== 'l') expect(d[z * WILD + x]).toBeGreaterThanOrEqual(0); // 갇힌 땅이 없다
     }
   expect(count(generateWild(3, 1, 'lake', 'w', ['lake']), '_')).toBeGreaterThan(0); // 개울을 건너는 다리
