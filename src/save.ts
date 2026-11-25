@@ -102,8 +102,8 @@ export function decodeSave(text: string | null): Run | null {
   if (!text) return null;
   let d: Record<string, unknown>;
   try {
-    // 발도를 고쳐 짜며 바뀐 스킬 이름(단계·칸·장비 옵션 어디에 있든): 납도 → 스쳐 베기, 검의 기억 → 칼의 여운
-    d = JSON.parse(text.replace(/"sheathe"/g, '"graze"').replace(/"memory"/g, '"echo"'));
+    // 고쳐 짜며 바뀐 스킬 이름(단계·칸·장비 옵션·룬 어디에 있든): 납도 → 스쳐 베기, 검의 기억 → 칼의 여운, 회오리 → 내리베기, 처형 → 거인의 칼
+    d = JSON.parse(text.replace(/"sheathe"/g, '"graze"').replace(/"memory"/g, '"echo"').replace(/"whirl(?=["+])/g, '"downcut').replace(/"execute(?=["+])/g, '"greatsword'));
   } catch {
     return null;
   }

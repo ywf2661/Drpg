@@ -3,7 +3,7 @@ import { bossScale, FLOORS, floorPower } from './dungeon';
 import { makeMap, opposite, type Side } from './wilds';
 import { buy, deathGold, sell } from '../shop';
 import { depthOf, tierOf, isPassive, MARK_LETTER, markBit, openLands, STORY } from './rules';
-import { toughenBoss, uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
+import { downcutStat, toughenBoss, uniqueOf, BASIC, canAfford, copyMods, createWorld, exitAt, sideOf, KEY_CD, KEYS, LANDS, learnBlock, newSkills, type Land, DT, isBetter, outcome, RANGE, ROLL, setLevel, step, TELL, TREES, winding, type BagItem, type Command, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './world';
 
 type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: World['mods']; level: number; xp: number; gold: number; ranks: World['ranks']; keys: World['keys']; points: number; bag: BagItem[] };
 const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [] });
@@ -11,7 +11,7 @@ const START = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { we
 // 칸 이름은 옛 이름 그대로다: dash=스쳐 베기, shout=일섬, throw=가르기(칼의 여운이 실린다)
 const IAIDO: SkillId[] = ['mark', 'graze', 'flash', 'cleave']; // 발도 빌드의 칸 순서(Q W E R)
 const IAIDO_LEARN: SkillId[] = [...IAIDO, 'echo'];
-// 회오리 빌드(dash=회오리)와, 거기에 불 벼림 1점만 얹은 벼림 빌드(throw=불 벼림). 벼림 밸런스 측정용
+// 내리베기 빌드(dash=내리베기)와, 거기에 불 벼림 1점만 얹은 벼림 빌드(throw=불 벼림). 벼림 밸런스 측정용
 const DOWNCUT_BUILD: SkillId[] = ['cleave', 'downcut', 'shout', 'throw'];
 const TEMPER: SkillId[] = ['cleave', 'downcut', 'shout', 'flameEdge'];
 // 잔상 빌드: 마법사 기본 빌드의 서리 고리(dash 칸)를 잔상 남기기로. 잔상 밸런스 측정용
@@ -129,10 +129,14 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
     else if (f && d(f.x, f.z) < 2 && ready('cleave')) cmds.push({ type: 'skill', x: f.x, z: f.z });
     if (ready('throw') && near(2) >= 2) cmds.push({ type: 'throw' });
   } else if (skills && w.cls === 'knight' && (build === 'downcut' || build === 'temper')) {
-    // 회오리: 붙은 적이 둘 넘으면 돈다. 벼림 빌드는 칼이 비었으면 그 직전에 불 벼림
+    // 내리베기(W): 가까이 적이 둘 넘거나 보스가 있으면 모으기 시작, 다 모였거나 보스가 예고하면 가장 가까운 적 쪽으로 벤다.
+    // 벼림 빌드는 칼이 비었으면 모으기 직전에 불 벼림
     const big = foes.find((e) => (e.kind === 'boss' || e.kind === 'king') && d(e.x, e.z) < 7);
     if (ready('shout') && (near(3) >= 2 || big?.phase === 'windup')) cmds.push({ type: 'shout' });
-    if (ready('dash') && (near(2) >= 2 || (big && d(big.x, big.z) < 2))) {
+    const f = big ?? foes[0];
+    if (w.cut >= 0) {
+      if (f && (downcutStat(w).p >= 1 || big?.phase === 'windup')) cmds.push({ type: 'dash', x: f.x, z: f.z });
+    } else if (ready('dash') && (near(4) >= 2 || big)) {
       if (build === 'temper' && !w.edge.kind && ready('throw')) cmds.push({ type: 'throw' });
       cmds.push({ type: 'dash' });
     }

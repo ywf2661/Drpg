@@ -371,7 +371,7 @@ export function bind(w: World, key: SkillName, id: SkillId) {
   w.keys[key] = id;
 }
 
-// 금화 RESPEC으로 스킬 포인트를 모두 되돌린다(새 판처럼 첫 스킬만 1단계로 Q에). 하던 회오리·눈보라·칼 강화는 멈춘다
+// 금화 RESPEC으로 스킬 포인트를 모두 되돌린다(새 판처럼 첫 스킬만 1단계로 Q에). 하던 내리베기 모으기·거인의 칼·눈보라·칼 강화는 멈춘다
 export function respec(w: World) {
   const spent = Object.values(w.ranks).reduce((s, r) => s + (r ?? 0), 0) - 1;
   if (w.gold < RESPEC || spent <= 0) return;

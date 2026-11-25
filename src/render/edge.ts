@@ -28,5 +28,5 @@ export function splitLost(lost: number, extra: number): [number, number] {
   return [lost - e, e];
 }
 
-// 마지막으로 한 시각(last, 없으면 처음)에서 gap초가 지났는가 — 회오리처럼 잦은 휘두름에 연출이 겹겹이 쌓이지 않게
+// 마지막으로 한 시각(last, 없으면 처음)에서 gap초가 지났는가 — 잦은 휘두름에 연출이 겹겹이 쌓이지 않게
 export const ready = (last: number | undefined, time: number, gap: number) => last === undefined || time - last >= gap - 1e-9;

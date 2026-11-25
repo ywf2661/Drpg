@@ -326,7 +326,7 @@ export type World = {
   snapped: Cut[]; // 베인 칼선(최근 것만, 렌더용)
   echo: number; // 칼의 여운 칸(0~ECHO.need)
   echoOn: SkillId | null; // 여운을 실은 다른 탭 베기(그 스킬이 벨 때 칼선을 남긴다)
-  echoHit: number[]; // 여운을 실은 회오리가 벤 적 id
+  echoHit: number[]; // 여운을 실은 베기가 벤 적 id
   echoFrom: Point; // 여운을 실은 돌진의 출발점
   grazeFrom: Point; // 스쳐 베기 출발점
   grazeHit: number[]; // 스쳐 베기가 지나친 적 id
@@ -692,7 +692,7 @@ export const SKILL = { cd: 4, radius: 2, mult: 1.5, aim: 2.5 }; // 가르기: �
 
 export const RANK_MAX = 5;
 export const COMBO = { counter: 2, stunned: 1.5, back: 2, age: 0.6 }; // 연계 배율(예고 중·기절 중·도망치는 적에게 스킬), 기록 유지 시간
-export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·회오리·처형으로 죽은 적
+export const BURST = { radius: 1.6, hp: 0.3 }; // 시체 폭발(검술 패시브): 반경, 피해(시체 최대 체력 비율, 단계마다 +0.05). 가르기·내리베기·거인의 칼 평타로 죽은 적
 export const TRAIL = { time: 3, tick: 0.5, width: 0.8, mult: 0.35 }; // 불길(돌격 패시브): 유지 시간, 피해 간격, 길 폭(반경), 한 번 피해 배율(단계마다 +25%). 불바다·잔불·운석도 같은 간격
 // 발도(기사 넷째 탭): 그어두기가 적에게 검흔을 새기고, 납도가 한꺼번에 터뜨린다
 export const CUT = { delay: 1, near: 0.6 }; // 칼선: 그은 뒤 베이기까지(초), 선에서 이 거리 안이면 맞는다(m)
