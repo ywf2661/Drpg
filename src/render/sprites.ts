@@ -200,6 +200,7 @@ const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → w
 const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
   caliburx: () => ({ main: 'hero_main_caliburx', off: null }),
   powderHammer: () => ({ main: 'hero_main_hammer', off: null }),
+  boomerang: () => ({ main: 'hero_main_axe' }), // 한손 도끼(FLARE hand_axe), 방패는 그대로
   bannerSpear: () => ({ main: 'hero_main_spear', off: null }), // 장대 + 창날·원정대 깃발(tools/sprites.py spearhead) // 양손 망치(FLARE maul + 잉걸불 빛)
   elemStaff: (e) => ({ main: `wizard_main_elem${ELEM_SHEET[e] ?? 'base'}` }),
   graveSkull: () => ({ main: 'necromancer_main_4', off: 'necromancer_off_skull' }),
