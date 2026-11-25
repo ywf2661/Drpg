@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
-import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, HIT, hitBase, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
+import { FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, EXECUTE, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, WHIRL, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, HIT, hitBase, act2Land, LEGEND2, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World } from './rules';
 import { HORSE, warded } from './sanctum';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -375,9 +375,10 @@ export function quality(it: { affixes: Affix[] }): number {
 export function rollUnique(w: World, x: number, z: number, tier: number): Item {
   const pick = <T>(list: T[]) => list[Math.floor(rand(w) * list.length)];
   let u: UniqueId;
-  const pool = UNIQUE_LIST.filter((id) => !UNIQUES[id].only); // 정해진 보스만 떨구는 것은 빼고
-  if (rand(w) < LEGEND_DROP.set) {
-    const sets = pool.filter((id) => UNIQUES[id].set);
+  const act2 = act2Land(w.land);
+  const pool = UNIQUE_LIST.filter((id) => !UNIQUES[id].only && !!UNIQUES[id].act2 === act2); // 정해진 보스만 떨구는 것은 빼고, 그 막의 것만
+  const sets = pool.filter((id) => UNIQUES[id].set);
+  if (sets.length && rand(w) < LEGEND_DROP.set) {
     const owned = new Set([...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] })), ...w.bag.map((it) => uniqueOf(it))]);
     const missing = sets.filter((id) => !owned.has(id));
     u = pick(missing.length && rand(w) < LEGEND_DROP.missing ? missing : sets);
@@ -556,6 +557,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   // 기도하는 자: 「금 간 빛 고리」(haloDrop 확률, 아니면 평소 전설)·작은 목마(처음)
   // 처음 쓰러뜨리는 판(horseDrop)은 엔딩의 빛 속에 떨어지도록 바닥에(빛 고리는 시체 머리 쪽), 다시 도전할 땐 가방 먼저
   const prize = (it: Item) => (w.horseDrop ? w.items.push(it) : toBagOrFloor(w, it));
+  if (t.skin === 'raider_chief' && w.cls === 'knight' && rand(w) < LEGEND_DROP.boss) toBagOrFloor(w, makeUnique(w, 'powderHammer', t.x + 0.6, t.z + 0.3, w.maxTier)); // 따로 굴려 화약 망치(기사만)
   if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < LEGEND_DROP.prayer) prize(makeUnique(w, PRAYER_WEAPON[w.cls], t.x + 0.6, t.z + 0.3, w.maxTier)); // 따로 굴려 전설 무기(그가 지키던 무기)
   if (t.kind === 'boss' && w.haloDrop > 0 && rand(w) < w.haloDrop) prize(makeUnique(w, 'crackedHalo', t.x, t.z - 0.6, w.maxTier));
   else if (t.kind === 'boss') dropUnique(w, t, w.sureLegend ? 1 : LEGEND_DROP.boss, true);

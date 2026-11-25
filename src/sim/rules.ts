@@ -142,10 +142,12 @@ export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 
 export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId; key?: SkillName; r?: Rune };
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
-export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots' | 'caliburx' | 'elemStaff' | 'graveSkull' | 'stormBow';
+export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots' | 'caliburx' | 'elemStaff' | 'graveSkull' | 'stormBow'
+  | 'powderHammer' | 'bannerSpear' | 'wellScepter' | 'plagueStaff' | 'boneFlute' | 'galeBow' | 'twinBows' | 'collectorCrown' | 'runnerBoots' | 'lootSack'; // 2막 전설(act2)
 // name의 %는 그 단계의 기본 이름. cls: 그 직업일 때만 떨어진다. fixed: 고정 옵션(tab = 탭 하나 +1, tier1 = 1단계 스킬 하나 +1을 드롭 때 굴림).
 // look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER). only: 무작위 전설에 안 나온다(정해진 보스만)
-export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; only?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
+// act2: 2막 땅에서만 나온다(1막 땅은 act2 없는 것만 — rollUnique)
+export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroClass; set?: true; only?: true; act2?: true; fixed: (Affix | 'tab' | 'tier1')[]; look?: string; desc: string }> = {
   crackedHalo: { name: '금 간 빛 고리', slot: 'helm', only: true, fixed: [{ kind: 'life', value: 20 }], desc: '쓰러질 만큼 맞으면 3초 전의 자리와 체력으로 되감긴다(120초에 한 번)' }, // 기도하는 자만
   boomerang: { name: '돌아오는 도끼날', slot: 'weapon', cls: 'knight', fixed: [{ kind: 'skill', value: 2, skill: 'throw' }], desc: '도끼 던지기의 도끼가 끝에서 돌아오며 한 번 더 맞힌다' },
   splitOrb: { name: '쪼개지는 구슬', slot: 'weapon', cls: 'wizard', fixed: [{ kind: 'skill', value: 2, skill: 'fireball' }], look: '#e8261c', desc: '화염구가 터지면 작은 화염구 3개가 사방으로 퍼진다' },
@@ -164,6 +166,17 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: true, fixed: [{ kind: 'life', value: 25 }], desc: '' },
   hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: true, fixed: ['tab'], desc: '' },
   hunterBoots: { name: '정예 사냥꾼의 장화', slot: 'boots', set: true, fixed: [{ kind: 'move', value: 8 }], desc: '' },
+  // 2막 전설(설계: docs/superpowers/specs/2026-11-25-act2-loot-growth-design.md 2절). 수치는 LEGEND2
+  powderHammer: { name: '우두머리의 화약 망치', slot: 'weapon', cls: 'knight', only: true, act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'cleave' }], desc: '가르기를 쓰면 불붙은 화약통이 앞으로 굴러가 터진다' }, // 약탈자 우두머리만(기사일 때)
+  bannerSpear: { name: '원정대 깃발창', slot: 'weapon', cls: 'knight', act2: true, fixed: ['tab'], desc: '「깃발 꽂기」가 생긴다. 꽂으면 원정대 병사 둘이 달려와 함께 싸운다' },
+  wellScepter: { name: '우물 사제의 홀', slot: 'weapon', cls: 'wizard', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'frost' }], desc: '냉기 스킬이 물웅덩이를 남긴다. 물 위의 적이 번개에 맞으면 웅덩이 위의 적이 모두 감전된다' },
+  plagueStaff: { name: '역병 의사의 지팡이', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'curse' }], desc: '저주받은 채 쓰러진 적이 일어나 10초 동안 함께 싸운다' },
+  boneFlute: { name: '뼈 피리', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], desc: '「행진」이 생긴다. 해골 병사들이 가리킨 쪽으로 줄지어 돌격한다' },
+  galeBow: { name: '회오리 깃 활', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'rain' }], desc: '화살비가 떨어진 자리에 회오리가 일어 둘레의 적을 끌어모은다' },
+  twinBows: { name: '사냥꾼의 쌍궁', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'speed', value: 15 }], desc: '걷는 동안 가장 가까운 적에게 저절로 화살을 쏜다' },
+  collectorCrown: { name: '수집가의 왕관', slot: 'helm', act2: true, fixed: [{ kind: 'life', value: 20 }], desc: '창고·가방·몸에 지닌 서로 다른 전설 하나마다 피해 +4%(최대 +60%)' },
+  runnerBoots: { name: '도망자의 장화', slot: 'boots', act2: true, fixed: [{ kind: 'move', value: 10 }], desc: '구르면 그 자리에 허수아비가 남아 둘레 적들이 2초 동안 허수아비를 친다' },
+  lootSack: { name: '약탈자의 전리품 자루', slot: 'armor', act2: true, fixed: [{ kind: 'life', value: 30 }], desc: '적을 잡을수록 자루가 차고 받는 피해가 준다(최대 −25%). 맞으면 금화가 흩어진다' },
 };
 export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
 // 등급 색(index.html의 --legend·--set과 같다): 빛기둥·지도 점
@@ -171,6 +184,7 @@ export const UNIQUE_COLOR = { legend: '#ff5e14', set: '#b86bff' };
 export const GRADE_COLOR = { magic: '#7d9bff', rare: '#ffe94a' }; // 바닥 고리·짧은 기둥(index.html --magic·--rare와 같게)
 // 고유 장비 드롭: 정예(+ 운 보정, 실패마다 pity만큼 쌓임), 해골 왕·보스, 상자. 성공하면 세트 조각 set 확률, 세트는 없는 부위 missing 확률
 // prayer: 기도하는 자를 쓰러뜨리면 평소 드롭과 따로 이 확률로 지금 직업의 전설 무기(PRAYER_WEAPON)
+export const LEGEND2 = { kegMult: 3, bannerCd: 30, bannerLife: 15, bannerHp: 1.5, bannerMult: 1, poolR: 1.5, poolT: 4, plagueLife: 10, marchCd: 12, marchSpeed: 9, marchMult: 1.5, marchDist: 8, galeR: 3, galePull: 4, galeT: 1.5, twinMult: 0.5, crownPer: 4, crownMax: 60, decoyT: 2, decoyR: 6, sackMax: 25, sackSpill: 1 / 3 }; // 2막 전설 수치
 export const LEGEND_DROP = { elite: 0.06, pity: 0.01, boss: 0.25, chest: 0.01, set: 0.4, missing: 0.7, price: 100, prayer: 0.4 };
 export const PRAYER_WEAPON: Record<HeroClass, UniqueId> = { knight: 'caliburx', wizard: 'elemStaff', necromancer: 'graveSkull', ranger: 'stormBow' };
 // 정예 사냥꾼 세트: 2부위 = 정예·보스 피해 배율·정예 처치 시 자원, 4부위 = 정예를 잡으면 그 특성을 time초(흡혈 leech, 폭발 반경·배율, 통솔 배율, 분열 해골 수명·최대)
@@ -632,6 +646,7 @@ export function afterClear(stage: number, cycle: number, land: Land, beat = 0): 
 }
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
 export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
+export const act2Land = (land: Land) => depthOf(land, 1) >= 5 * STORY.length + 6; // 2막 땅(호숫가부터). 거점은 아니다
 export const depthOf = (land: Land, n: number) => (isHub(land) ? 0 : land === 'lake' ? 5 * STORY.length + 5 + n : land === 'raid' ? 5 * STORY.length + 10 + n : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25), 호숫가는 성소 다음(26~30), 약탈자 진지는 그다음(31~35)
 // 장비 최고 단계는 지역마다 하나씩 열린다: 초원 2, 설원 3, 그다음부터 4(정예·상자·시련은 +1). 깊이 0(야영지)은 초원과 같다
 export const tierOf = (depth: number) => Math.min(4, 2 + Math.floor(Math.max(0, depth - 1) / 5));
