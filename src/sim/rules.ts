@@ -134,7 +134,7 @@ export type Slot = 'weapon' | 'armor' | 'helm' | 'boots';
 export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 // amount: 금화 양(금화만)
-export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | 'relic' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune; relic?: number }; // rune: 룬(룬만), relic: 성물 번호(STORY 순서, 성물만)
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | 'relic' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune; relic?: number; sack?: number }; // sack: 자루에서 흘린 금화(주우면 금화 대신 자루로) // rune: 룬(룬만), relic: 성물 번호(STORY 순서, 성물만)
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
 // skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~4), unique = 고유 장비(전설·세트) 표식(u)
 // socket = 소켓 수(장비마다 하나, 맨 뒤 쪽), keyCd = 칸(key)의 재사용 대기 −value%(칸 룬). r = 꽂힌 룬(그 룬이 주는 옵션 한 줄)
@@ -362,6 +362,7 @@ export type World = {
   potions: number;
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
+  sack: number; // 「약탈자의 전리품 자루」에 쌓인 금화(받는 피해 −sack%, 최대 LEGEND2.sackMax)
   stashLegends: UniqueId[]; // 창고에 든 전설(수집가의 왕관이 센다). main이 정한다
   hitScale: number; // 몬스터 한 방 = 기준 체력 × HIT 비율 × 이 값(dungeon.ts hitScale). 0 = 예전 공식(1막 첫 판). main이 정한다
   xpCap: number; // 경험치 배율 상한(몬스터 배율이 이보다 커도 경험치는 여기까지): 이야기 깊이로 세진 만큼 레벨이 빨리 올라 상쇄되지 않게

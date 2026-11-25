@@ -86,3 +86,24 @@ test('수집가의 왕관: 서로 다른 전설 하나마다 +4%(왕관 자신 �
   expect(ratio((w) => (w.bag = [duel, { ...duel, x: 2 }]))).toBeCloseTo(1.08, 1);
   expect(ratio((w) => (w.stashLegends = ['boomerang', 'splitOrb', 'hawkHood', 'boneShroud', 'duelist', 'emberStep', 'berserker', 'crownless', 'caliburx', 'elemStaff', 'graveSkull', 'stormBow', 'galeBow', 'twinBows', 'lootSack', 'runnerBoots', 'boneFlute', 'plagueStaff']))).toBeCloseTo(1.6, 1);
 });
+
+test('전리품 자루: 잡을수록 피해가 줄고, 맞으면 흘리고, 주우면 되찾는다', () => {
+  const w = createWorld(7, ['H.m']);
+  w.mods.armor = [{ kind: 'unique', value: 0, u: 'lootSack' }];
+  const [hero] = w.entities;
+  const m = w.entities.find((e) => e.kind === 'minion')!;
+  hurt(w, m, 99999, hero);
+  expect(w.sack).toBe(1);
+  w.sack = 20;
+  Object.assign(hero, { hp: 9999, maxHp: 9999 });
+  const got = hurt(w, hero, 1000);
+  expect(got).toBe(800);
+  expect(w.sack).toBe(13);
+  const pile = w.items.find((it) => it.sack)!;
+  expect(pile.sack).toBe(7);
+  const gold = w.gold;
+  Object.assign(hero, { x: pile.x, z: pile.z });
+  step(w, []);
+  expect(w.sack).toBe(20);
+  expect(w.gold).toBe(gold);
+});

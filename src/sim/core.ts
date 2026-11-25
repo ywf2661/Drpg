@@ -477,6 +477,13 @@ export function roll(w: World, a: Entity) {
   return Math.round((lo + Math.floor(rand(w) * (hi - lo + 1))) * scale * (a.kind === 'hero' ? w.ghostScale : 1)) * twice; // 잔상 몫이면 줄인다
 }
 
+// 전리품 자루가 맞으면 쌓인 금화 일부를 등 뒤에 흘린다(주우면 되찾는다)
+function spill(w: World, hero: Entity) {
+  const k = Math.ceil(w.sack * LEGEND2.sackSpill);
+  w.sack -= k;
+  w.items.push({ id: w.nextItem++, x: hero.x - Math.sin(hero.facing) * 0.8, z: hero.z - Math.cos(hero.facing) * 0.8, kind: 'gold', tier: 0, amount: k, sack: k });
+}
+
 // 「수집가의 왕관」: 창고·가방·몸의 서로 다른 전설 하나마다 피해 +crownPer%(최대 crownMax%)
 export const crownBonus = (w: World) => (hasUnique(w, 'collectorCrown') ? Math.min(LEGEND2.crownMax, LEGEND2.crownPer * new Set([...w.stashLegends, ...w.bag.map(uniqueOf), ...SLOTS.map((s) => uniqueOf({ affixes: w.mods[s] }))].filter(Boolean)).size) / 100 : 0);
 
@@ -523,6 +530,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     if (w.buff?.kind === 'guard') dmg = Math.round(dmg * (1 - SHRINE.guard)); // 수호의 성소
     if (w.trophies.unyielding) dmg = Math.round(dmg * SET_HUNTER.steady); // 불굴의 정예에게서 얻은 특성
     dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, CLASSES[w.cls].armors[w.gear.armor - 1].reduce + worn(w, 'guard') / 100)) * (w.shoutT > 0 ? 1 - (w.cls === 'wizard' ? FROST_ARMOR.reduce + FROST_ARMOR.per * ext(w, 'frostArmor') : shoutStat(w).reduce) : 1)));
+    if (hasUnique(w, 'lootSack')) dmg = Math.max(1, Math.round(dmg * (1 - w.sack / 100))); // 전리품 자루
     const absorbed = Math.min(w.wardHp, dmg);
     if (absorbed > 0) {
       w.wardHp -= absorbed;
@@ -533,6 +541,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   }
   const dealt = Math.min(t.hp, dmg);
   t.hp = Math.max(0, t.hp - dmg);
+  if (t.kind === 'hero' && dealt > 0 && w.sack > 0 && hasUnique(w, 'lootSack')) spill(w, t);
   if (t.kind === 'hero' && !t.hp && rewind(w, t)) return dealt; // 「금 간 빛 고리」: 쓰러지는 대신 되감긴다
   const hero = w.entities[0];
   const leech = from?.kind === 'hero' ? Math.round((dealt * worn(w, 'leech')) / 100) + Math.round(dealt * DRAIN.per * rank(w, 'drain')) + (w.trophies.vampiric ? Math.round(dealt * SET_HUNTER.leech) : 0) : 0; // 무기 흡혈 + 생명 흡수(강령술사. 해골이 준 피해도)
@@ -547,6 +556,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (t.kind === 'hero' || t.id < 0) return dealt; // 해골 병사는 경험치도 드롭도 없다(tickAllies가 치운다)
   if (from?.kind === 'hero' && w.focusT > 0 && mastered(w, 'focus')) cutCd(w, 'focus', FOCUS.kill); // 집중 5단계: 처치하면 재사용이 준다
   if (from?.kind === 'hero') trophyKill(w, t);
+  if (hasUnique(w, 'lootSack')) w.sack = Math.min(LEGEND2.sackMax, w.sack + 1); // 전리품 자루가 찬다
   dropRunes(w, t);
   if (t.kind === 'king') {
     // 해골 왕: 최고 단계 장비(마법 이상)·금화·물약 확정
