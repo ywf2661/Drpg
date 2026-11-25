@@ -134,6 +134,7 @@ LEGEND_LAYERS = {
     'wizard_main_elemvoid': ('wizard', 'greatstaff@void', ('gem', (190, 80, 255))),
     'necromancer_off_skull': ('necromancer', None, ('orb', (60, 255, 170))),
     'ranger_main_storm': ('ranger', 'longbow@storm', ('storm', (110, 190, 255))),
+    'hero_main_hammer': ('hero', 'maul', ('edge', (255, 110, 40))),  # 우두머리의 화약 망치(2막): 양손 망치 + 잉걸불 빛
 }
 # 엘리멘탈 스태프 색(시안 staffs.py): 보석 색조(0~255)·밝기 배율, 자루 회색 섞기·RGB 배율. base = 색은 원본, 보석 표식만
 STAFF_TINTS = {'base': None, 'fire': (8, 1.15, 0.2, (1.1, 0.75, 0.6)), 'frost': (133, 1.2, 0.5, (0.85, 1.0, 1.25)),

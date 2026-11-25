@@ -199,6 +199,7 @@ const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → w
 // 전설 무기의 레이어(설계 2026-11-20): 칼리버X = 츠바이헨더·방패 없음, 엘리멘탈 스태프 = 마지막 속성 색, 두개골 = 4단계 로드 + 해골 구슬, 천둥새 = 번개 장궁
 const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
   caliburx: () => ({ main: 'hero_main_caliburx', off: null }),
+  powderHammer: () => ({ main: 'hero_main_hammer', off: null }), // 양손 망치(FLARE maul + 잉걸불 빛)
   elemStaff: (e) => ({ main: `wizard_main_elem${ELEM_SHEET[e] ?? 'base'}` }),
   graveSkull: () => ({ main: 'necromancer_main_4', off: 'necromancer_off_skull' }),
   stormBow: () => ({ main: 'ranger_main_storm' }),
