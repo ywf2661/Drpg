@@ -219,6 +219,7 @@ export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'e
 export const heroKey = (g: Gear, cls: HeroClass, looks: Looks) => JSON.stringify([g, cls, looks]);
 
 // 레이어 그림을 원색으로: 'color' 합성(명암은 그대로, 색상·채도만 바꿈) 뒤 원래 그림의 투명도로 잘라낸다. url + 색마다 한 번
+const TINT_LIFT = 0.3;
 const tintedLayers = new Map<string, Promise<HTMLCanvasElement>>();
 function tinted(url: string, color: string): Promise<HTMLCanvasElement> {
   const key = `${url}|${color}`;
@@ -232,6 +233,10 @@ function tinted(url: string, color: string): Promise<HTMLCanvasElement> {
         x.globalCompositeOperation = 'color';
         x.fillStyle = color;
         x.fillRect(0, 0, c.width, c.height);
+        x.globalCompositeOperation = 'screen'; // 어두운 그림(가죽 두건·활)은 'color'만으론 색이 안 묻어 그 색 쪽으로 살짝 밝힌다
+        x.globalAlpha = TINT_LIFT;
+        x.fillRect(0, 0, c.width, c.height);
+        x.globalAlpha = 1;
         x.globalCompositeOperation = 'destination-in';
         x.drawImage(img, 0, 0);
         return c;

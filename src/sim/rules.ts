@@ -154,10 +154,10 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   boomerang: { name: '돌아오는 도끼날', slot: 'weapon', cls: 'knight', fixed: [{ kind: 'skill', value: 2, skill: 'throw' }], desc: '도끼 던지기의 도끼가 끝에서 돌아오며 한 번 더 맞힌다' },
   splitOrb: { name: '쪼개지는 구슬', slot: 'weapon', cls: 'wizard', fixed: [{ kind: 'skill', value: 2, skill: 'fireball' }], look: '#e8261c', desc: '화염구가 터지면 작은 화염구 3개가 사방으로 퍼진다' },
   hawkHood: { name: '매의 눈 두건', slot: 'helm', cls: 'ranger', fixed: [{ kind: 'skill', value: 2, skill: 'pierce' }], look: '#1fb83c', desc: '관통 사격이 벽에 닿으면 한 번 튕긴다' },
-  boneShroud: { name: '뼈 왕의 수의', slot: 'armor', cls: 'necromancer', fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], desc: '해골 병사가 2마리 더 서고, 쓰러지면 그 자리가 터진다' },
+  boneShroud: { name: '뼈 왕의 수의', slot: 'armor', cls: 'necromancer', fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], look: '#d8ccb0', desc: '해골 병사가 2마리 더 서고, 쓰러지면 그 자리가 터진다' },
   duelist: { name: '결투자의 투구', slot: 'helm', fixed: ['tab'], look: '#1f5fe8', desc: '받아치기에 성공하면 모든 스킬 재사용 대기 −1초, 기력·마나 +15' },
-  emberStep: { name: '불꽃 걸음', slot: 'boots', fixed: ['tab'], desc: '구른 길에 2초 동안 불길이 남는다' },
-  berserker: { name: '광전사의 손잡이', slot: 'weapon', fixed: ['tier1'], desc: '잃은 체력만큼 공격 속도·스킬 피해 증가(최대 +40%)' },
+  emberStep: { name: '불꽃 걸음', slot: 'boots', fixed: ['tab'], look: '#ff5a1a', desc: '구른 길에 2초 동안 불길이 남는다' },
+  berserker: { name: '광전사의 손잡이', slot: 'weapon', fixed: ['tier1'], look: '#c81e1e', desc: '잃은 체력만큼 공격 속도·스킬 피해 증가(최대 +40%)' },
   crownless: { name: '왕관 없는 왕의 망토', slot: 'armor', fixed: [{ kind: 'allSkills', value: 1 }], look: '#f5c400', desc: '모든 스킬 +1, 대신 최대 체력 −15%' },
   // 전설 무기(2026-11-20): 그림이 바뀌는 무기, 기도하는 자만 떨군다(PRAYER_WEAPON, LEGEND_DROP.prayer). 효과는 GEAR_SKILLS·각 직업 파일
   caliburx: { name: '칼리버X', slot: 'weapon', cls: 'knight', only: true, fixed: [{ kind: 'tab', value: 1, tab: 0 }], desc: '무너진 왕국에서 기도하는 자가 구해 낸 마검. 검술 탭에 「종언」이 생긴다' }, // 기도하는 자만
@@ -171,14 +171,14 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   // 2막 전설(설계: docs/superpowers/specs/2026-11-25-act2-loot-growth-design.md 2절). 수치는 LEGEND2
   powderHammer: { name: '우두머리의 화약 망치', slot: 'weapon', cls: 'knight', only: true, act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'cleave' }], desc: '가르기를 쓰면 불붙은 화약통이 앞으로 굴러가 터진다' }, // 약탈자 우두머리만(기사일 때)
   bannerSpear: { name: '원정대 깃발창', slot: 'weapon', cls: 'knight', act2: true, fixed: ['tab'], desc: '「깃발 꽂기」가 생긴다. 꽂으면 원정대 병사 둘이 달려와 함께 싸운다' },
-  wellScepter: { name: '우물 사제의 홀', slot: 'weapon', cls: 'wizard', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'frost' }], desc: '냉기 스킬이 물웅덩이를 남긴다. 물 위의 적이 번개에 맞으면 웅덩이 위의 적이 모두 감전된다' },
-  plagueStaff: { name: '역병 의사의 지팡이', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'curse' }], desc: '저주받은 채 쓰러진 적이 일어나 10초 동안 함께 싸운다' },
-  boneFlute: { name: '뼈 피리', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], desc: '「행진」이 생긴다. 해골 병사들이 가리킨 쪽으로 줄지어 돌격한다' },
-  galeBow: { name: '회오리 깃 활', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'rain' }], desc: '화살비가 떨어진 자리에 회오리가 일어 둘레의 적을 끌어모은다' },
+  wellScepter: { name: '우물 사제의 홀', slot: 'weapon', cls: 'wizard', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'frost' }], look: '#3aa0e0', desc: '냉기 스킬이 물웅덩이를 남긴다. 물 위의 적이 번개에 맞으면 웅덩이 위의 적이 모두 감전된다' },
+  plagueStaff: { name: '역병 의사의 지팡이', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'curse' }], look: '#5dbb3a', desc: '저주받은 채 쓰러진 적이 일어나 10초 동안 함께 싸운다' },
+  boneFlute: { name: '뼈 피리', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], look: '#e8dcc0', desc: '「행진」이 생긴다. 해골 병사들이 가리킨 쪽으로 줄지어 돌격한다' },
+  galeBow: { name: '회오리 깃 활', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'rain' }], look: '#7fe0a0', desc: '화살비가 떨어진 자리에 회오리가 일어 둘레의 적을 끌어모은다' },
   twinBows: { name: '사냥꾼의 쌍궁', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'speed', value: 15 }], desc: '걷는 동안 가장 가까운 적에게 저절로 화살을 쏜다' },
-  collectorCrown: { name: '수집가의 왕관', slot: 'helm', act2: true, fixed: [{ kind: 'life', value: 20 }], desc: '창고·가방·몸에 지닌 서로 다른 전설 하나마다 피해 +4%(최대 +60%)' },
-  runnerBoots: { name: '도망자의 장화', slot: 'boots', act2: true, fixed: [{ kind: 'move', value: 10 }], desc: '구르면 그 자리에 허수아비가 남아 둘레 적들이 2초 동안 허수아비를 친다' },
-  lootSack: { name: '약탈자의 전리품 자루', slot: 'armor', act2: true, fixed: [{ kind: 'life', value: 30 }], desc: '적을 잡을수록 자루가 차고 받는 피해가 준다(최대 −25%). 맞으면 금화가 흩어진다' },
+  collectorCrown: { name: '수집가의 왕관', slot: 'helm', act2: true, fixed: [{ kind: 'life', value: 20 }], look: '#ffcf33', desc: '창고·가방·몸에 지닌 서로 다른 전설 하나마다 피해 +4%(최대 +60%)' },
+  runnerBoots: { name: '도망자의 장화', slot: 'boots', act2: true, fixed: [{ kind: 'move', value: 10 }], look: '#9a6a3a', desc: '구르면 그 자리에 허수아비가 남아 둘레 적들이 2초 동안 허수아비를 친다' },
+  lootSack: { name: '약탈자의 전리품 자루', slot: 'armor', act2: true, fixed: [{ kind: 'life', value: 30 }], look: '#a07840', desc: '적을 잡을수록 자루가 차고 받는 피해가 준다(최대 −25%). 맞으면 금화가 흩어진다' },
 };
 export const UNIQUE_LIST = Object.keys(UNIQUES) as UniqueId[];
 // 등급 색(index.html의 --legend·--set과 같다): 빛기둥·지도 점
