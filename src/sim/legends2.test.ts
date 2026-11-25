@@ -137,3 +137,18 @@ test('회오리 깃 활: 화살비가 떨어진 자리로 둘레 적이 끌려�
   expect(w.gales.length).toBe(1);
   expect(Math.hypot(foe.x - 3.5, foe.z - 5.5)).toBeLessThan(1.5);
 });
+
+test('역병 의사의 지팡이: 저주 안에서 죽은 적이 그 모습 그대로 10초 동안 편이 된다', () => {
+  const w = createWorld(13, ['H..m']);
+  w.cls = 'necromancer';
+  w.mods.weapon = [{ kind: 'unique', value: 0, u: 'plagueStaff' }];
+  const m = w.entities.find((e) => e.kind === 'minion')!;
+  m.skin = 'plague_villager';
+  w.curses.push({ x: m.x, z: m.z, r: 2, t: 20, acc: 0, amp: 0.2, plague: 0 } as World['curses'][number]);
+  hurt(w, m, 99999, w.entities[0]);
+  step(w, []);
+  expect(w.allies.length).toBe(1);
+  expect(w.allies[0].skin).toBe('plague_villager');
+  run(w, 10.2);
+  expect(w.allies.length).toBe(0);
+});

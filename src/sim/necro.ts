@@ -2,7 +2,7 @@
 // 뼈(뼈 창·뼈 갑옷·생명 흡수·뼈 감옥). 스페이스는 기사 구르기. 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다.
 // 표식 배율·생명 흡수는 core의 hurt, 뼈 갑옷은 마나 방패와 같은 흡수(wardHp)
 import { walkable } from './path';
-import { GRAVE_KING, LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
+import { LEGEND2, RANGE, STATS, GRAVE_KING, LEGEND_FX, BONE_ARMOR, BONE_KINDS, BONE_MASTERY, BONES, CORPSE, CURSE, CURSE_MASTERY, DT, GIANT, HIT_AT, LORD, PIERCE, PLAGUE, PRISON, RADIUS, REPATH, SPEAR, WIZ, type Ally, type Entity, type Kind, type SkillId, type World } from './rules';
 import { hasUnique, clearLine, dist, cdExt, ext, face, heroMax, hurt, makeEntity, mastered, pathTo, rank, roll, skillHit, syn, walk } from './core';
 import { burst, openGate } from './abilities';
 import { aimDir, blast, foes, spot, stun } from './wizard';
@@ -224,11 +224,13 @@ export function tickCurses(w: World, hero: Entity) {
       const dmg = Math.round(roll(w, hero) * c.plague);
       for (const e of foes(w, hero)) if (inside(e)) hurt(w, e, dmg, hero);
     }
-    if (c.amp > 0 && mastered(w, 'curse'))
+    const doctor = hasUnique(w, 'plagueStaff');
+    if (c.amp > 0 && (doctor || mastered(w, 'curse')))
       for (const e of w.entities)
         if (e.state === 'dead' && inside(e) && !w.raised.includes(e.id)) {
           w.raised.push(e.id);
-          raise(w, e.x, e.z, 1);
+          if (doctor) spawn(w, e.x, e.z, e.kind, { life: LEGEND2.plagueLife, hp: e.maxHp, mult: 1, reach: RANGE, interval: STATS[e.kind].interval }, (a) => a.from === 'curse', 99, { from: 'curse', skin: e.skin }); // 「역병 의사의 지팡이」: 그 모습 그대로 일어난다
+          else raise(w, e.x, e.z, 1);
         }
     c.t -= DT;
   }
