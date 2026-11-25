@@ -101,7 +101,7 @@ export function giant(w: World, hero: Entity): number {
 export function lord(w: World, hero: Entity): number {
   const st = lordStat(w);
   dismiss(w, 'lord');
-  spawn(w, hero.x, hero.z, 'king', { life: st.life, hp: st.hp, mult: st.mult, reach: LORD.reach, interval: LORD.interval, splash: LORD.splash }, (a) => a.kind === 'king', 1, { from: 'lord' });
+  spawn(w, hero.x, hero.z, 'king', { life: st.life, hp: st.hp, mult: st.mult, reach: LORD.reach, interval: LORD.interval, splash: LORD.splash }, (a) => a.from === 'lord' && a.kind === 'king', 1, { from: 'lord' });
   if (mastered(w, 'lord')) raise(w, hero.x, hero.z, LORD.guard, 'lord');
   w.casts++;
   return st.cd;
@@ -123,7 +123,7 @@ export function graveKing(w: World, hero: Entity, x?: number, z?: number): numbe
 }
 
 export function tickAllies(w: World, hero: Entity) {
-  const aura = w.allies.some((a) => a.kind === 'king') ? LORD.aura : 1;
+  const aura = w.allies.some((a) => a.kind === 'king' && a.from === 'lord') ? LORD.aura : 1;
   const marked = (e: Entity) => w.curses.some((c) => c.amp > 0 && Math.hypot(e.x - c.x, e.z - c.z) <= c.r);
   const near = (a: Ally, list: Entity[]) => list.sort((p, q) => dist(p, a) - dist(q, a))[0] ?? null;
   w.allies.forEach((a, i) => {
