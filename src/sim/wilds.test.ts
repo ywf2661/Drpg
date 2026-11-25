@@ -149,6 +149,8 @@ test('원정대 천막: 48칸, 늘 같은 맵, 화덕·순찰대장·상인·창
   for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'h'), ...find(map, '}'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
   const w = createWorld(1, map);
   expect(w.chests.map((c) => c.kind).sort()).toEqual(['elder', 'merchant', 'smith', 'stash']);
+  const [sx, sz] = find(map, '}')[0];
+  expect(w.grid.blocked[sz * w.grid.w + sx]).toBeGreaterThan(0); // 대장장이는 막는다
   expect(new Set(w.exits.map((e) => e.to))).toEqual(new Set(['camp', 'lake']));
   const north = find(map, 'l');
   expect(north.length).toBe(3);

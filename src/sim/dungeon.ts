@@ -24,7 +24,7 @@ export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins' | 'sanctum' 
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-export const BLOCKS = '#BocCDYQIEVPLsrJkO$heinu!|f5689pt[]{b-+d'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인, 주민, 단서, 잠긴 출구(설원·폐허), 의뢰 대상(봉화·궤·봉인), 야영지 창고, 천막(작은·큰·덮인 칸), 물(호숫가 — 막힘 값은 2: 시야·투사체는 지나감), 잠긴 호숫가 출구, 통나무집 벽, 나룻배(물과 같이 막힘 값 2), 호숫가 퍼즐 바퀴·우물, 앓는 주민·사제, 약탈자 진지 말뚝 방책·도화선이 밑을 지나는 방책·방책 속 화약통·화약통, 광산 허공·빛 다리(막힘 값 2, 다리는 켜지면 0)·결정
+export const BLOCKS = '#BocCDYQIEVPLsrJkO$heinu!|f5689pt[]{b-+d}'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인(대장장이 '}'는 맨 끝), 주민, 단서, 잠긴 출구(설원·폐허), 의뢰 대상(봉화·궤·봉인), 야영지 창고, 천막(작은·큰·덮인 칸), 물(호숫가 — 막힘 값은 2: 시야·투사체는 지나감), 잠긴 호숫가 출구, 통나무집 벽, 나룻배(물과 같이 막힘 값 2), 호숫가 퍼즐 바퀴·우물, 앓는 주민·사제, 약탈자 진지 말뚝 방책·도화선이 밑을 지나는 방책·방책 속 화약통·화약통, 광산 허공·빛 다리(막힘 값 2, 다리는 켜지면 0)·결정
 export const OPEN = (c: string) => !BLOCKS.includes(c); // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 
