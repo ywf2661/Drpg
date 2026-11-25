@@ -107,3 +107,21 @@ test('전리품 자루: 잡을수록 피해가 줄고, 맞으면 흘리고, 주�
   expect(w.sack).toBe(20);
   expect(w.gold).toBe(gold);
 });
+
+test('사냥꾼의 쌍궁: 걷는 동안만 저절로 쏜다', () => {
+  const w = createWorld(9, ['........', 'H.......', '........', '....m...']);
+  w.cls = 'ranger';
+  w.mods.weapon = [{ kind: 'unique', value: 0, u: 'twinBows' }];
+  const m = w.entities.find((e) => e.kind === 'minion')!;
+  Object.assign(m, { hp: 99999, maxHp: 99999, asleep: true });
+  step(w, [{ type: 'move', x: 7.5, z: 1.5 }]);
+  run(w, 1);
+  const n = w.shots.filter((s) => s.kind === 'shaft').length + (99999 - m.hp > 0 ? 1 : 0);
+  expect(n).toBeGreaterThan(0);
+  run(w, 2); // 다 걸었다
+  const before = m.hp;
+  w.shots = [];
+  run(w, 1);
+  expect(w.shots.length).toBe(0);
+  expect(m.hp).toBe(before);
+});

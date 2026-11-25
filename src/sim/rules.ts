@@ -362,6 +362,7 @@ export type World = {
   potions: number;
   gold: number;
   power: number; // 이 층의 몬스터 배율(상자 금화에도)
+  twinT: number; // 「사냥꾼의 쌍궁」 다음 저절로 쏘기까지(초)
   sack: number; // 「약탈자의 전리품 자루」에 쌓인 금화(받는 피해 −sack%, 최대 LEGEND2.sackMax)
   stashLegends: UniqueId[]; // 창고에 든 전설(수집가의 왕관이 센다). main이 정한다
   hitScale: number; // 몬스터 한 방 = 기준 체력 × HIT 비율 × 이 값(dungeon.ts hitScale). 0 = 예전 공식(1막 첫 판). main이 정한다

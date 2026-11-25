@@ -1,8 +1,8 @@
 // 궁수 스킬: 화살(평타), 사격(관통 사격·세 갈래·치명·집중), 사냥(덫·밀쳐내기 사격·덫 숙련·사냥터), 하늘(화살비·불화살·폭우·화살 폭풍). 스페이스는 기사 구르기.
 // 스킬은 쓰이면 재사용 대기(초)를, 쓰지 못했으면 0을 돌려준다. 명사수는 core의 hurt. 떨어지는 화살비·운석(tickVolleys)은 직업과 무관하게 돈다
 import { walkable } from './path';
-import { STORM_BOW, ARROW_STORM, CRIT, DOWNPOUR, DT, FIRE_RAIN, FOCUS, HUNT, KNOCK, PIERCE, PUSH, RAIN, RANGER, SNARE, SPREAD, TRAIL, TRAP, type Entity, type Shot, type World } from './rules';
-import { hasUnique, cdExt, ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
+import { LEGEND2, STORM_BOW, ARROW_STORM, CRIT, DOWNPOUR, DT, FIRE_RAIN, FOCUS, HUNT, KNOCK, PIERCE, PUSH, RAIN, RANGER, SNARE, SPREAD, TRAIL, TRAP, type Entity, type Shot, type World } from './rules';
+import { attackInterval, hasUnique, cdExt, ext, hurt, knock, mastered, rand, rank, roll, skillHit, syn } from './core';
 import { aimDir, blast, foes, nearest, spot, stun } from './wizard';
 import { assist } from './hawk';
 
@@ -40,6 +40,16 @@ export function shaft(w: World, hero: Entity, t: Entity) {
     const [c, sn] = [Math.cos(a), Math.sin(a)];
     w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: dx * c + dz * sn, dz: dz * c - dx * sn, dmg: roll(w, hero) * crit(w), left: RANGER.flight, kind: 'shaft' });
   }
+}
+
+// 「사냥꾼의 쌍궁」: 걷는 동안 무기 간격마다 사거리 안 가장 가까운 적에게 저절로 화살(피해 × twinMult). 멈춰 있으면 평타가 맡는다
+export function tickTwin(w: World, hero: Entity) {
+  if (hero.state !== 'move' || (w.twinT -= DT) > 0) return;
+  const t = w.entities.filter((e) => e !== hero && e.state !== 'dead' && Math.hypot(e.x - hero.x, e.z - hero.z) <= RANGER.range).sort((a, b) => Math.hypot(a.x - hero.x, a.z - hero.z) - Math.hypot(b.x - hero.x, b.z - hero.z))[0];
+  if (!t) return;
+  w.twinT = attackInterval(w, hero);
+  const d = Math.hypot(t.x - hero.x, t.z - hero.z) || 1;
+  w.shots.push({ id: w.nextItem++, x: hero.x, z: hero.z, dx: (t.x - hero.x) / d, dz: (t.z - hero.z) / d, dmg: Math.round(roll(w, hero) * LEGEND2.twinMult), left: RANGER.flight, kind: 'shaft' });
 }
 
 // 천둥새의 장궁: 화살이 맞힌 적 둘레의 다른 모든 적에게 번개(다시 튀지 않는다)
