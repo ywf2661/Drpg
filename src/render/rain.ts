@@ -132,11 +132,11 @@ export function syncRain(world: World, dt: number, land: (x: number, z: number, 
 
   // 「회오리 깃 활」의 회오리: 끊긴 고리 셋이 돌며 가운데로 조여든다
   galeT += dt;
-  let n = 0;
+  let gn = 0;
   for (const g of world.gales)
-    for (let k = 0; k < 3; k++, n++) {
-      if (!gales[n]) rainGroup.add((gales[n] = new THREE.Mesh(galeGeo, glow())));
-      const m = gales[n];
+    for (let k = 0; k < 3; k++, gn++) {
+      if (!gales[gn]) rainGroup.add((gales[gn] = new THREE.Mesh(galeGeo, glow())));
+      const m = gales[gn];
       const f = (galeT * 1.2 + k / 3) % 1; // 바깥에서 안으로
       m.visible = true;
       m.position.set(g.x, 0.05 + k * 0.03, g.z);
@@ -145,7 +145,7 @@ export function syncRain(world: World, dt: number, land: (x: number, z: number, 
       m.material.color.setHex(0xdfe9f0);
       m.material.opacity = 0.5 * Math.min(1, g.t / 0.3) * (0.3 + 0.7 * f);
     }
-  for (; n < gales.length; n++) gales[n].visible = false;
+  for (; gn < gales.length; gn++) gales[gn].visible = false;
 }
 
 // 층이 바뀌면 남은 그림을 치운다
