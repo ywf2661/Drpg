@@ -547,10 +547,13 @@ let smartKey = (() => {
     return false;
   }
 })();
+// 내리베기를 모으는 중인가(이 칸에 끼워져 있고, 모으기 시작 명령이 아직 sim에 안 들어갔어도)
+const charging = (cmd: Exclude<AimCmd, 'roll'>) => world.keys[CMD_SKILL[cmd]] === 'downcut' && (world.cut >= 0 || commands.some((c) => c.type === cmd));
 // 스킬 키(Q W E R): 조준할 스킬이면 조준 시작 → 좌클릭(또는 같은 키 한 번 더)에 쓴다. 재사용 대기 중이면 조준하지 않는다.
 // 조준 표(AIM)에 없는 스킬(가르기·함성·소환 등)은 바로 쓴다(가르기는 가까운 적 쪽 — 커서 쪽은 우클릭)
 function skillKey(cmd: Exclude<AimCmd, 'roll'>) {
   if (!world.keys[CMD_SKILL[cmd]]) return emptyKey(CMD_SKILL[cmd]);
+  if (charging(cmd)) return commands.push({ type: cmd, ...(aim() ?? {}) }); // 모으던 내리베기: 커서 쪽으로 벤다(기력이 모자라도)
   if (short(cmd)) return void (aiming === cmd && cancelAim()); // 모자라면 조준하지 않고 알린다
   const shape = aimShape(cmd);
   if (!shape) return commands.push({ type: cmd });
@@ -661,6 +664,7 @@ addEventListener('keydown', (e) => {
   }
   if (document.querySelector('dialog[open]')) return; // 창을 보는 동안은 게임 키를 쌓지 않는다
   if (e.shiftKey && SKILL_KEYS[e.code]) return learn(SKILL_KEYS[e.code]); // Shift + 스킬 키 = 포인트로 단계 올리기
+  if (e.repeat && SKILL_KEYS[e.code] && world.keys[SKILL_KEYS[e.code]] === 'downcut') return; // 내리베기는 꾹 누르는 동안 모은다(키 반복으로 베지 않게)
   if (e.code === 'KeyQ') skillKey('skill');
   else if (e.code === 'KeyW') skillKey('dash');
   else if (e.code === 'KeyE') skillKey('shout');
@@ -670,6 +674,12 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'Space') (e.preventDefault(), roll(true));
   else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
+});
+// 내리베기: 누르고 있던 키를 떼면 벤다(한 번 더 눌러도 벤다)
+const SLOT_CMD = { cleave: 'skill', dash: 'dash', shout: 'shout', throw: 'throw' } as const;
+addEventListener('keyup', (e) => {
+  const slot = SKILL_KEYS[e.code];
+  if (slot && !e.shiftKey && !document.querySelector('dialog[open]') && charging(SLOT_CMD[slot])) skillKey(SLOT_CMD[slot]);
 });
 // 테스터 모드: 주소 끝에 ?test를 붙이면 왼쪽 위에 레벨 +5·다음 층 버튼(배포판에서도 폰으로 시험할 수 있게)
 // ponytail: 진행 저장에도 그대로 남는다(테스트로 올린 레벨·층). 섞이는 게 싫으면 테스터 모드에서는 saveRun을 건너뛸 것
