@@ -12,7 +12,7 @@ import { clearEdge, flameEdge, frostEdge, temper, tickEdge, unleash } from './te
 import { flock, ride, rideStep, swoop, tickHawks } from './hawk';
 import { afterimage, copyBolt, copyCast, linger, remember, retrace, swap, tickGhosts, type Recast } from './afterimage';
 import { BLOCKS } from './dungeon';
-import { special, specialLoot, tickGimmicks, touchChest } from './gimmicks';
+import { special, specialLoot, tickGimmicks, steerBoat, touchChest } from './gimmicks';
 import { makeSluice } from './sluice';
 import { ferryman } from './ferryman';
 import { chief } from './chief';
@@ -409,7 +409,8 @@ function command(w: World, hero: Entity, c: Command) {
   if (c.type === 'respec') return respec(w);
   if (hero.state === 'dead') return;
   if (c.type === 'move' && w.ferryLock >= 0 && boatAt(w, c.x, c.z)) w.ferryLock = -1; // 막 내린 나루에서 배를 누르면 바로 되돌아 탄다
-  if (w.ride && (c.type === 'move' || c.type === 'amove' || c.type === 'open' || c.type === 'take' || c.type === 'roll')) return; // 배 위: 공격·스킬만
+  if (w.ride && c.type === 'move') return steerBoat(w, c.x, c.z); // 배 위: 누른 곳으로 배를 몬다
+  if (w.ride && (c.type === 'amove' || c.type === 'open' || c.type === 'take' || c.type === 'roll')) return; // 그 밖엔 공격·스킬만
   const going = c.type === 'move' || c.type === 'amove' || c.type === 'attack' || c.type === 'open' || c.type === 'take';
   if (hero.phase !== 'none' || (going && (w.castT > 0 || (hero.state === 'attack' && hero.skill)))) {
     // 돌진·구르기 중에는 물약 말고는 못 하고, 스킬 시전 중에는 못 움직인다. 이동·공격은 마지막 것을 기억했다가 끝나면 따른다
@@ -573,6 +574,7 @@ function reachChest(w: World, hero: Entity) {
     return;
   }
   w.opening = null;
+  Object.assign(hero, { path: [], state: 'idle' }); // 닿으면 선다(대화창이 sim을 멈춰도 제자리 달리기를 하지 않게)
   if (touchChest(w, ch)) return; // 성소·시련의 제단(시작)
   if (ch.guards?.some((id) => w.entities[id].state !== 'dead')) return; // 야영지 무리·시련의 물결이 살아 있으면 잠겨 있다
   ch.open = true;

@@ -53,6 +53,10 @@ import chiefInfo from '../assets/sprites/raider_chief.json';
 import chiefUrl from '../assets/sprites/raider_chief.png';
 import raiderInfo from '../assets/sprites/raider_goblin.json';
 import raiderUrl from '../assets/sprites/raider_goblin.png';
+import raiderOrcInfo from '../assets/sprites/raider_orc.json';
+import raiderOrcUrl from '../assets/sprites/raider_orc.png';
+import treantInfo from '../assets/sprites/swamp_treant.json';
+import treantUrl from '../assets/sprites/swamp_treant.png';
 import ferrymanUrl from '../assets/sprites/plague_ferryman.png';
 import timeWardenUrl from '../assets/sprites/time_warden.png';
 
@@ -116,6 +120,8 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   plague_ferryman: { info: ferrymanInfo as SheetInfo, url: ferrymanUrl }, // 역병 걸린 뱃사공(tools/boss3d로 렌더)
   raider_chief: { info: chiefInfo as SheetInfo, url: chiefUrl }, // 약탈자 우두머리(tools/boss3d로 렌더)
   raider_goblin: { info: raiderInfo as SheetInfo, url: raiderUrl }, // 뒤틀린 고블린(tools/raider.py)
+  swamp_treant: { info: treantInfo as SheetInfo, url: treantUrl }, // 늪 나무 괴물(받은 3D 모델, tools/boss3d/render.py swamp_treant)
+  raider_orc: { info: raiderOrcInfo as SheetInfo, url: raiderOrcUrl }, // 약탈자 오크(받은 3D 모델, tools/boss3d/render.py raider_orc)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때

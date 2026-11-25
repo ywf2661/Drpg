@@ -234,7 +234,7 @@ export const ICICLE = { every: 4, near: 2, chance: 0.6, delay: 1, dmg: 6 };
 export const PIT = { r: 1.6, slow: 0.6, pull: 0.7 };
 export const FORD_SLOW = 0.6; // 여울(호숫가 'v')에서 걸음 배율
 // 나룻배(호숫가 섬 나루 'f'): 초속(m), 건너는 길 절반쯤에 물에서 배로 기어오르는 마을 사람 수(최소·최대)
-export const FERRY = { speed: 2.5, climbers: [1, 2] as const };
+export const FERRY = { speed: 2.5, climbers: [1, 2] as const, hand: [0.45, 0.7] as const, warn: 1.5, up: 1.2, grab: 1.3 }; // hand: 손이 올라올 자리(줄 길이 비율), warn: 예고(초), up: 올라와 있는 시간, grab: 이만큼 안에 배가 있으면 기어오른다(m)
 export type Ferry = { a: Point; b: Point; docks: [Cell, Cell] }; // 배 줄: a·b = 양쪽 배 자리(칸 가운데), docks = 그 곁 나루 끝 판자 칸
 // 호숫가 퍼즐(수문과 검은 물길, 설계: 2026-11-24-act2-lake-design.md '퍼즐' 절)
 // segs: 물길 조각(0 샘·1·2·3·4 검은 물, 7 모래톱 맑은 물) 칸들을 위→아래 차례로, wet: 칸마다 지금 물이 찼나(물길 칸만)
@@ -247,10 +247,10 @@ export const SLUICE = { speed: 30, spawn: 4, alive: 3, near: 14 }; // 물이 차
 export const PUDDLE = { r: 0.8, t: 4, slow: 0.6 }; // 역병 마을 사람이 쓰러진 자리의 검은 웅덩이: 반경·시간·밟은 주인공 걸음 배율
 export const LURK = 6; // 물가에 잠긴 마을 사람이 깨어나는 거리(m)
 // 약탈자 진지 화약통·도화선(설계: 2026-11-24-act2-raid-design.md 3절). fuse = 터지기까지 남은 초(-1 = 안 붙음), lit = 보이게 타는 중(누름·곁 폭발 — 도화선으로 올 차례는 false), wall = 방책 속(누를 수 없다)
-export type Keg = { x: number; z: number; fuse: number; lit: boolean; wall: boolean; done: boolean; chest: number; fx?: number; fz?: number; roll?: [number, number] }; // fx·fz: 칸 사이 자리(구르는 통), roll: 굴러가는 목적지(멈추면 없음)
+export type Keg = { x: number; z: number; fuse: number; lit: boolean; wall: boolean; done: boolean; chest: number; fx?: number; fz?: number; roll?: [number, number]; bump?: boolean }; // fx·fz: 칸 사이 자리(구르는 통), roll: 굴러가는 목적지(멈추면 없음), bump: 우두머리가 들이받은 통(주인공은 안 다친다)
 export type Spark = { cells: number[]; d: number[]; t: number }; // 도화선을 기어가는 불꽃: 칸 번호, 그 칸까지 걸음 수, 지난 초
 export const POWDER = { fuse: 1.5, chain: 0.25, r: 2.5, spark: 6, hero: 0.25, mob: 0.7, boss: 0.1, roll: 3.5 }; // roll: 구르는 통 빠르기(m/s)
-export type Ride = { line: number; from: 0 | 1; s: number; riders: number[]; climbed: boolean }; // 타고 건너는 중: s = 간 거리(m), riders = 배에 기어오른 몬스터
+export type Ride = { line: number; from: 0 | 1; s: number; to: number; riders: number[]; hand: { s: number; t: number } | null }; // 타고 건너는 중: s = 간 거리(m), to = 배가 가는 곳(m, 누른 곳), riders = 배에 기어오른 몬스터, hand = 물속 손(t: 예고 뒤 지난 초, 음수 = 아직 예고 전)
 // 보물 고블린(초원): 주인공을 보면 run초 동안 speed m/s로 도망치고 못 잡으면 사라진다. 잡으면 금화 더미 gold개, 장비 gear개
 export const TREASURE = { run: 12, speed: 3.6, gold: 5, gear: 2 };
 // 폐허의 저주받은 무덤: 주인공이 near m 안이면 every초마다 졸개 하나(최대 max마리 살아 있게). 보스는 체력 절반에 무덤 boss개를 일으킨다
@@ -475,7 +475,7 @@ export const steady = (e: Entity) => e.eliteKind === 'unyielding'; // 기절·�
 export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum' | 'tent' | 'lake' | 'raid'; // camp = 야영지(거점, 몬스터 없음), tent = 2막 원정대 천막(거점), lake = 2막 ① 호숫가
 // 거점: 몬스터 없이 쉬고 사고 맡기는 곳(층 번호 0). 죽거나 보스를 깨면 여기로 온다
 export const isHub = (land: Land) => land === 'camp' || land === 'tent';
-export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin' | 'time_warden' | 'plague_villager' | 'plague_ferryman' | 'raider_goblin' | 'raider_chief';
+export type Skin = 'goblin' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin' | 'time_warden' | 'plague_villager' | 'plague_ferryman' | 'raider_goblin' | 'raider_chief' | 'raider_orc' | 'swamp_treant';
 export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = {
   goblin: { name: '고블린', hp: 0.8, speed: 1.25 }, // 약하지만 빠르고 떼로 온다
   goblin_elite: { name: '고블린 전사', hp: 0.9, speed: 1.15 },
@@ -495,6 +495,8 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   demon: { name: '심연의 악마', hp: 1.2, speed: 1 }, // 폐허의 보스: 체력 절반에 무덤을 일으킨다
   fallen_paladin: { name: '기도하는 자', hp: 1.2, speed: 1 }, // 무너진 성소 5층의 보스(보스 원형). 이야기: docs/superpowers/specs/2026-11-19-prayer-story-design.md
   raider_goblin: { name: '뒤틀린 고블린', hp: 1.1, speed: 1.05 }, // 약탈자 진지 졸개(고블린 색 바꾸기)
+  swamp_treant: { name: '늪 나무 괴물', hp: 1.25, speed: 0.9 }, // 호숫가 전사(받은 3D 모델 — tools/boss3d/render.py MODELS)
+  raider_orc: { name: '약탈자 오크', hp: 1.2, speed: 0.95 }, // 약탈자 진지 전사(받은 3D 모델 — tools/boss3d/render.py MODELS)
   raider_chief: { name: '약탈자 우두머리', hp: 1.35, speed: 1 }, // 약탈자 진지 보스(chief.ts). 그림: tools/boss3d/raider_chief.js
   plague_ferryman: { name: '역병 걸린 뱃사공', hp: 1.3, speed: 1 }, // 호숫가 보스: 배를 타고 호수를 돌다 나루에 내려 싸운다(ferryman.ts). 그림: tools/boss3d/plague_ferryman.js
   time_warden: { name: '시간의 파수꾼', hp: 1.2, speed: 1 }, // 2막 최종 보스(보스 원형). 지금은 ?test 소환만. 그림: tools/boss3d/time_warden.js
@@ -507,8 +509,8 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
   camp: { name: '야영지', unit: '', skins: {} },
   tent: { name: '원정대 천막', unit: '', skins: {} },
   // ponytail: 졸개는 「역병 걸린 마을 사람」, 보스는 뱃사공이 생길 때 바꾼다(설계: 2026-11-24-act2-lake-design.md 6·7절)
-  lake: { name: '호숫가', unit: '구역', skins: { minion: 'plague_villager', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'plague_ferryman' } },
-  raid: { name: '약탈자 진지', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'hobgoblin', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
+  lake: { name: '호숫가', unit: '구역', skins: { minion: 'plague_villager', warrior: 'swamp_treant', archer: 'hobgoblin_archer', boss: 'plague_ferryman' } },
+  raid: { name: '약탈자 진지', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'raider_orc', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
   sanctum: { name: '무너진 성소', unit: '층', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', king: 'bone_knight', boss: 'fallen_paladin' } },
 };
 // 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.

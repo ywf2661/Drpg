@@ -83,7 +83,7 @@ test('호숫가 4구역(섬 나루): 섬끼리는 다리 없이 나룻배 줄로
     }
 });
 
-test('나룻배: 나루 끝에 서면 타고, 이동 명령은 안 먹고, 건너편 나루에 내린다. 절반쯤에 마을 사람이 기어오른다. 내린 나루에서는 바로 다시 타지 않는다', () => {
+test('나룻배: 나루 끝에 서면 타고 건너편으로 간다. 그대로 가면 예고 뒤 올라온 손에 마을 사람이 기어오르고, 내린 나루에서는 바로 다시 타지 않는다', () => {
   //                나루·배 … 배·나루
   const map = ['##############', '#H.._fuuuuuf_#', '##############'];
   const w = createWorld(1, map);
@@ -93,9 +93,9 @@ test('나룻배: 나루 끝에 서면 타고, 이동 명령은 안 먹고, 건�
   for (let i = 0; i < 60 && !w.ride; i++) step(w, []);
   expect(w.ride).not.toBeNull();
   const before = w.entities.length;
-  step(w, [{ type: 'move', x: 1.5, z: 1.5 }]); // 배 위에서는 못 걷는다
-  expect(w.ride).not.toBeNull();
-  for (let i = 0; i < 200 && w.ride; i++) step(w, []);
+  let warned = false;
+  for (let i = 0; i < 200 && w.ride; i++) step(w, []), (warned ||= w.zones.some((z) => z.kind === 'warn'));
+  expect(warned).toBe(true); // 손이 올라오기 전에 예고
   expect(w.ride).toBeNull();
   expect([Math.floor(hero.x), Math.floor(hero.z)]).toEqual([12, 1]);
   expect(w.entities.length).toBeGreaterThan(before); // 기어오른 마을 사람
@@ -104,6 +104,25 @@ test('나룻배: 나루 끝에 서면 타고, 이동 명령은 안 먹고, 건�
   step(w, [{ type: 'move', x: 11.5, z: 1.5 }]); // 곁의 배를 누르면 되돌아 탄다
   for (let i = 0; i < 10 && !w.ride; i++) step(w, []);
   expect(w.ride?.from).toBe(1);
+});
+
+test('나룻배 조종: 배를 누르면 서고, 예고를 보고 기다렸다 손이 가라앉은 뒤 지나가면 아무도 안 탄다. 뒤를 누르면 처음 나루로 돌아가 내린다', () => {
+  const map = ['##############', '#H.._fuuuuuf_#', '##############'];
+  const w = createWorld(1, map);
+  const hero = w.entities[0];
+  step(w, [{ type: 'move', x: 4.5, z: 1.5 }]);
+  for (let i = 0; i < 60 && !w.ride; i++) step(w, []);
+  const before = w.entities.length;
+  for (let i = 0; i < 200 && !w.zones.some((z) => z.kind === 'warn'); i++) step(w, []);
+  step(w, [{ type: 'move', x: hero.x, z: hero.z }]); // 예고가 뜨자 배를 세운다
+  const s = w.ride!.s;
+  for (let i = 0; i < 60 * 3; i++) step(w, []);
+  expect(w.ride!.s).toBeCloseTo(s, 1);
+  expect(w.ride!.hand).toBeNull(); // 아무도 못 잡고 가라앉았다
+  step(w, [{ type: 'move', x: 1.5, z: 1.5 }]); // 뒤로
+  for (let i = 0; i < 200 && w.ride; i++) step(w, []);
+  expect(w.entities.length).toBe(before);
+  expect([Math.floor(hero.x), Math.floor(hero.z)]).toEqual([4, 1]);
 });
 
 test('수문 퍼즐: 바퀴를 누르면 검은 물이 다른 물길로 가고(빠진 물길은 걸을 수 있다), 더러운 우물에서는 마을 사람이 나오고, 늪 구덩이가 차면 정화(물약·장비, 앓는 주민이 낫는다)', () => {
@@ -153,4 +172,28 @@ test('뱃사공: 물 위를 돌며 등불을 던지고(근접은 못 닿는다),
   expect(threw).toBe(true);
   expect(docked).toBe(true);
   expect(reboard).toBe(true);
+});
+
+test('수문 순서 퍼즐(2~3구역): 처음 그대로 바퀴 5를 돌리면 그 주머니 땅이 물에 갇히고, 6을 우물 쪽으로 먼저 돌려 두면 마른 해자로 나와 출구로 간다. 6을 되돌리면 정화', { timeout: 120_000 }, () => {
+  for (const floor of [2, 3])
+    for (let seed = 1; seed <= 4; seed++) {
+      const w = createWorld(1, generateWild(seed, floor, 'lake', 'w', ['lake']));
+      const sl = w.sluice!;
+      const [g5, g6] = [sl.gates.find((g) => g.key === '5')!, sl.gates.find((g) => g.key === '6')!];
+      const settle = (a: 0 | 1, b: 0 | 1) => {
+        [g5.to, g6.to] = [a, b];
+        for (let i = 0; i < 300; i++) step(w, []);
+        const g = w.grid;
+        const seen = new Uint8Array(g.w * g.h);
+        const q = [Math.floor(w.entities[0].z) * g.w + Math.floor(w.entities[0].x)];
+        seen[q[0]] = 1;
+        for (let k = 0; k < q.length; k++) for (const j of [q[k] + 1, q[k] - 1, q[k] + g.w, q[k] - g.w]) if (j >= 0 && j < seen.length && !seen[j] && !g.blocked[j]) (seen[j] = 1), q.push(j);
+        return (x: number, z: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => seen[(z + dz) * g.w + x + dx]);
+      };
+      Object.assign(w.entities[0], { hp: 1e9, maxHp: 1e9 });
+      expect(settle(1, 0)(g5.x, g5.z)).toBe(false); // 바깥에서 주머니 땅으로 못 들어간다
+      expect(settle(1, 1)(g5.x, g5.z)).toBe(true); // 해자가 말랐다
+      settle(1, 0);
+      expect(sl.purified).toBe(true);
+    }
 });

@@ -28,7 +28,7 @@ export function chief(w: World, e: Entity, t: Entity | null): boolean {
   if (e.phase === 'charge') {
     const keg = w.kegs.find((k) => !k.done && Math.hypot(kegAt(k)[0] - e.x, kegAt(k)[1] - e.z) <= CHIEF.bump);
     if (keg) {
-      Object.assign(keg, { lit: true, fuse: 0.05 });
+      Object.assign(keg, { lit: true, fuse: 0.05, bump: true }); // 꾀어낸 주인공은 통 바로 뒤에 서 있다 — 그 폭발로 벌받지 않게
       Object.assign(e, { phase: 'none', state: 'idle', stunT: CHIEF.stun, path: [] });
       w.combos.push({ id: w.nextItem++, x: e.x, z: e.z, kind: 'stunned', age: 0 }); // "약점!" — 이제 때릴 때
       return true;

@@ -429,3 +429,5 @@ https://github.com/flareteam/flare-game/wiki/Credits
 약탈자 우두머리(src/assets/sprites/raider_chief.png): 스크립트 3D 렌더(tools/boss3d/raider_chief.js, three.js 도형). 외부 그림 없음.
 뒤틀린 고블린(src/assets/sprites/raider_goblin.png): Flare 고블린(CC-BY-SA 3.0)의 색을 바꾼 것(tools/raider.py). 가공 결과물도 CC-BY-SA 3.0.
 약탈자 진지 소품(src/assets/sprites/raid_props.png): rubberduck "isometric props and tents"(OpenGameArt, CC0)의 props_1x1·props_2x2에서 말뚝·화약통·상자·장작·그루터기·솥·화덕을 잘라 줄인 것(tools/raid.py).
+약탈자 오크(src/assets/sprites/raider_orc.png): "Orc (3D)" by GuieA_7 (OpenGameArt, https://opengameart.org/content/orc-3d, CC-BY-SA 4.0)를 Blender로 glb로 바꿔(tools/boss3d/blend2glb.py) 게임 카메라로 8방향 렌더한 것(tools/boss3d/render.py raider_orc). 가공 결과물도 CC-BY-SA 4.0. 원본은 tools/art/models/orc.zip.
+늪 나무 괴물(src/assets/sprites/swamp_treant.png): "Forest Monster" by Čestmír Dammer (CDmir), kelgar.org(OpenGameArt, CC0)를 Blender로 glb로 바꿔(tools/boss3d/blend2glb.py) 게임 카메라로 8방향 렌더한 것(tools/boss3d/render.py swamp_treant). 원본은 tools/art/models/forest-monster.7z.

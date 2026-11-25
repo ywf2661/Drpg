@@ -253,9 +253,10 @@ function tickAltars(w: World, hero: Entity) {
   }
 }
 
-// 나룻배(호숫가 섬 나루): 나루 끝 판자 칸에 서면 탄다. 배는 줄을 따라 FERRY.speed로 건너 건너편 나루에 내려 준다
-// (탄 배는 거기 남고 빈 배는 처음 나루로 돌아가 있다 — 그림은 두 배가 엇갈려 지나간다). 타는 동안 주인공은 배에 붙어 있고
-// 이동·구르기 명령은 command가 버린다(공격·스킬은 된다). 절반쯤에 물에서 마을 사람이 배로 기어올라 같이 탄다
+// 나룻배(호숫가 섬 나루): 나루 끝 판자 칸에 서면 탄다. 배는 건너편 나루로 FERRY.speed로 가고, 물 위를 누르면 그 줄 위 자리로 앞뒤로 간다(배를 누르면 선다).
+// 끝에 닿으면 그 나루에 내린다(처음 나루로 되돌아가도 내린다). 탄 배는 거기 남고 빈 배는 반대편에 있다 — 그림은 두 배가 엇갈려 지나간다.
+// 건너는 길 중간에 물속 손 하나: 배가 다가오면 FERRY.warn초 예고(붉은 원) 뒤 FERRY.up초 올라와 있고, 그동안 배가 곁을 지나면 마을 사람이 기어오른다.
+// 멈추거나 물러서서 손이 가라앉은 뒤 지나가면 무사하다. 이동 외의 명령(공격·스킬)은 된다
 function tickFerry(w: World, hero: Entity) {
   const cell = Math.floor(hero.z) * w.grid.w + Math.floor(hero.x);
   const r = w.ride;
@@ -265,35 +266,62 @@ function tickFerry(w: World, hero: Entity) {
     for (let line = 0; line < w.ferries.length; line++) {
       const from = w.ferries[line].docks.findIndex(([x, z]) => z * w.grid.w + x === cell);
       if (from < 0) continue;
-      w.ride = { line, from: from as 0 | 1, s: 0, riders: [], climbed: false };
+      const f = w.ferries[line];
+      const len = Math.hypot(f.b[0] - f.a[0], f.b[1] - f.a[1]);
+      const [lo, hi] = FERRY.hand;
+      w.ride = { line, from: from as 0 | 1, s: 0, to: len, riders: [], hand: { s: len * (lo + rand(w) * (hi - lo)), t: -1 } };
       Object.assign(hero, { path: [], state: 'idle', target: null });
       Object.assign(w, { amove: null, opening: null, taking: null, toStairs: false });
       return;
     }
     return;
   }
-  const f = w.ferries[r.line];
-  const [p, q] = r.from ? [f.b, f.a] : [f.a, f.b];
-  const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
-  const [ux, uz] = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
-  r.s = Math.min(len, r.s + FERRY.speed * DT);
+  const { p, ux, uz, len } = rideLine(w);
+  const d = r.to - r.s;
+  r.s += Math.sign(d) * Math.min(Math.abs(d), FERRY.speed * DT);
   const [bx, bz] = [p[0] + ux * r.s, p[1] + uz * r.s];
-  if (!r.climbed && r.s >= len / 2) {
-    r.climbed = true;
-    const [lo, hi] = FERRY.climbers;
-    for (let n = lo + Math.floor(rand(w) * (hi - lo + 1)), k = 0; k < n; k++) {
-      const e = Object.assign(dress(makeEntity(w.entities.length, 'minion', bx, bz, w.power), w.skins), { target: 0 });
-      w.entities.push(e);
-      r.riders.push(e.id);
+  const h = r.hand;
+  if (h) {
+    const gap = Math.abs(h.s - r.s);
+    if (h.t < 0 && gap <= FERRY.speed * FERRY.warn) {
+      h.t = 0; // 다가오는 배를 알아챘다: 예고
+      w.zones.push({ id: w.nextItem++, x: p[0] + ux * h.s, z: p[1] + uz * h.s, r: FERRY.grab, t: FERRY.warn, total: FERRY.warn, dmg: 0, owner: -1, kind: 'warn' });
     }
+    if (h.t >= 0) h.t += DT;
+    if (h.t >= FERRY.warn && gap <= FERRY.grab) {
+      r.hand = null;
+      const [lo, hi] = FERRY.climbers;
+      for (let n = lo + Math.floor(rand(w) * (hi - lo + 1)), k = 0; k < n; k++) {
+        const e = Object.assign(dress(makeEntity(w.entities.length, 'minion', bx, bz, w.power), w.skins), { target: 0 });
+        w.entities.push(e);
+        r.riders.push(e.id);
+      }
+    } else if (h.t >= FERRY.warn + FERRY.up) r.hand = null; // 아무것도 못 잡고 가라앉았다
   }
   // 주인공은 배 가운데, 기어오른 것들은 뱃머리·고물(번갈아)
   Object.assign(hero, { x: bx, z: bz, path: [] });
   r.riders.forEach((id, i) => Object.assign(w.entities[id], { x: bx + ux * (i % 2 ? -0.75 : 0.75), z: bz + uz * (i % 2 ? -0.75 : 0.75), path: [] }));
-  if (r.s < len) return;
-  const [dx, dz] = f.docks[r.from ? 0 : 1];
+  if (r.s !== r.to || (r.s > 0 && r.s < len)) return;
+  const end = r.s >= len ? (r.from ? 0 : 1) : r.from; // 건너편 또는 처음 나루
+  const [dx, dz] = w.ferries[r.line].docks[end];
+  const back = r.s >= len ? 1 : -1;
   Object.assign(hero, { x: dx + 0.5, z: dz + 0.5 });
-  for (const id of r.riders) Object.assign(w.entities[id], { x: dx + 0.5 - ux * 0.3, z: dz + 0.5 - uz * 0.3 });
+  for (const id of r.riders) Object.assign(w.entities[id], { x: dx + 0.5 - ux * 0.3 * back, z: dz + 0.5 - uz * 0.3 * back });
   w.ferryLock = dz * w.grid.w + dx;
   w.ride = null;
+}
+
+// 탄 배가 가는 줄: p = 처음 나루 쪽 배 자리, (ux, uz) = 건너편 쪽 단위 벡터
+function rideLine(w: World) {
+  const r = w.ride!;
+  const f = w.ferries[r.line];
+  const [p, q] = r.from ? [f.b, f.a] : [f.a, f.b];
+  const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  return { p, ux: (q[0] - p[0]) / len, uz: (q[1] - p[1]) / len, len };
+}
+
+// 배 위에서 누른 곳: 줄 위로 내린 자리까지 앞뒤로 간다
+export function steerBoat(w: World, x: number, z: number) {
+  const { p, ux, uz, len } = rideLine(w);
+  w.ride!.to = Math.max(0, Math.min(len, (x - p[0]) * ux + (z - p[1]) * uz));
 }

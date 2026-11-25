@@ -40,7 +40,7 @@ function blow(w: World, k: Keg) {
   if (k.chest >= 0) w.chests[k.chest].open = true;
   w.blasts.push({ id: w.nextItem++, x: cx, z: cz, age: 0, kind: 'fire' }, { id: w.nextItem++, x: cx, z: cz, age: 0, kind: 'slam' });
   for (const e of [...w.entities, ...w.allies]) {
-    if (e.state === 'dead' || Math.hypot(e.x - cx, e.z - cz) > POWDER.r) continue;
+    if (e.state === 'dead' || Math.hypot(e.x - cx, e.z - cz) > POWDER.r || (k.bump && e.kind === 'hero')) continue;
     hurt(w, e, Math.max(1, Math.round(e.maxHp * (e.kind === 'hero' ? POWDER.hero : e.kind === 'boss' ? POWDER.boss : POWDER.mob))));
   }
   // 말뚝 방책·천막
@@ -52,8 +52,8 @@ function blow(w: World, k: Keg) {
     p.gone = true;
     for (let z = p.z; z < p.z + n; z++) for (let x = p.x; x < p.x + n; x++) w.grid.blocked[z * W + x] = 0;
   }
-  // 곁의 통은 곧 터진다
-  for (const o of w.kegs) if (!o.done && Math.hypot(kegAt(o)[0] - cx, kegAt(o)[1] - cz) <= POWDER.r) Object.assign(o, { lit: true, fuse: o.fuse >= 0 ? Math.min(o.fuse, POWDER.chain) : POWDER.chain });
+  // 곁의 통은 곧 터진다. 결전장에서 굴러 나온 통(fx)은 우두머리가 들이받아야만 터진다(던진 통에 미끼가 날아가지 않게)
+  for (const o of w.kegs) if (!o.done && !(o.fx !== undefined && !o.lit) && Math.hypot(kegAt(o)[0] - cx, kegAt(o)[1] - cz) <= POWDER.r) Object.assign(o, { lit: true, fuse: o.fuse >= 0 ? Math.min(o.fuse, POWDER.chain) : POWDER.chain });
   // 도화선: 이 통에 닿은 도화선 칸에서 걸음 수를 재며 퍼진다. 끝에 닿은 통은 불꽃이 닿는 때에 터진다
   const dist = new Map<number, number>();
   const q: number[] = [];

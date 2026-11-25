@@ -608,7 +608,9 @@ function gimmicks(cells: string[][], r2: () => number, floor: number, land: Wild
 }
 
 // 호숫가 퍼즐(설계: 2026-11-24-act2-lake-design.md '퍼즐' 절). 기준 가장자리(t = 가장자리를 따라, k = 안쪽으로)에서 그린다.
-// 2~3구역(출구 가장자리 기준): 검은 샘 0 → 갈림 1(바퀴 5) → [1: 출구를 U자로 둘러막는 물길 | 2: 안쪽으로] → 갈림 2(바퀴 6) → [3: 우물 9로 | 4: 늪 구덩이].
+// 2~3구역(출구 가장자리 기준, 순서 퍼즐): 검은 샘 0 → 갈림 1(바퀴 5) → [1: 출구를 U자로 둘러막는 물길 | 2: 안쪽으로] → 갈림 2(바퀴 6) → [3: 해자(늪) | 4: 우물 9로].
+//   바퀴 5는 샘·물길 2·해자 3·맵 가장자리가 둘러싼 주머니 땅 안에 있다. 처음 그대로 5를 돌리면 물이 2→3으로 흘러 주머니에 갇힌다(5를 되돌리면 나온다).
+//   먼저 바깥의 6을 우물 쪽(4)으로 돌려 두고 5를 돌려야 마른 해자로 걸어 나와 출구로 간다. 6을 다시 해자 쪽으로 돌리면 우물이 맑아져 정화.
 // 1구역(출구·들어온 곳이 아닌 가장자리): 샘 0 → 갈림 1 → [1: 우물로 | 2: 늪 구덩이]. 물길은 2칸 폭, 둘레의 물웅덩이·다리는 땅으로.
 // 돌려주는 것 = 우물 칸
 function sluiceMap(cells: string[][], rand: () => number, floor: number, from: Side, exit: { side: Side; t: number }): Cell {
@@ -659,11 +661,12 @@ function sluiceMap(cells: string[][], rand: () => number, floor: number, from: S
     run(te - s * R, R, te - s * R, 1, '1');
     const k2 = 8 + l;
     run(F, 8, F, k2, '2');
-    run(F + s * 2, k2, F + s * (2 + m), k2, '3');
-    wellAt = [F + s * (2 + m) + (s > 0 ? 2 : -1), k2];
+    const T3 = F + s * (2 + m);
+    run(F + s * 2, k2, T3, 1, '3'); // 주머니 땅을 둘러막는 해자: 갈림에서 옆으로, 꺾어서 가장자리까지
+    pool(T3, k2, 2.4, '3'); // 꺾이는 곳의 늪
     run(F, k2 + 2, F, k2 + 2 + p, '4');
-    pool(F, k2 + 4 + p, 2.5, '4');
-    wheels = [['5', F - s * 2, 9], ['6', F - s * 2, k2 + 1]];
+    wellAt = [F, k2 + 4 + p];
+    wheels = [['5', F + s * 3, 9], ['6', F - s * 2, k2 + 1]];
   }
   for (const [[x, z]] of marks)
     for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (ok(x + dx, z + dz) && 'uv_'.includes(cells[z + dz][x + dx])) cells[z + dz][x + dx] = '.';
@@ -687,7 +690,8 @@ function puzzleOk(cells: string[][], hero: Cell, exit: Cell, barrier: boolean): 
         const c = cells.map((r) => r.map((ch) => ('012347'.includes(ch) ? (flows(sl, +ch) ? 'u' : '.') : ch)));
         const d = walkDistances(c, hero[0], hero[1]);
         const near = (x: number, z: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => d[(z + dz) * N + x + dx] >= 0);
-        for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if ('5689'.includes(cells[z][x]) && !near(x, z)) return false;
+        const trap = barrier && g5 === 1 && g6 === 0; // 순서 퍼즐: 이때 바퀴 5의 주머니 땅은 물에 갇혀야 한다(바깥에서 못 닿는다)
+        for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if ('5689'.includes(cells[z][x]) && near(x, z) === (trap && cells[z][x] === '5')) return false;
         if (has('5') && d[exit[1] * N + exit[0]] >= 0 !== (!barrier || g5 === 1)) return false;
       }
   return true;

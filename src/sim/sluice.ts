@@ -1,7 +1,7 @@
 // 호숫가 퍼즐: 수문과 검은 물길(설계: docs/superpowers/specs/2026-11-24-act2-lake-design.md '퍼즐' 절). three.js·Math.random 금지.
 // 검은 샘(조각 0)에서 나온 물이 바퀴가 가리키는 쪽 조각으로 흐른다. 흐르는 조각 = 물(못 건넌다), 아닌 조각 = 빠진 여울(건넌다, 느림).
 // 바퀴를 돌리면 물이 위에서 아래로 한 칸씩 차고 빠진다(SLUICE.speed). 우물 곁 조각에 물이 차 있으면 우물이 더럽혀져 마을 사람이 기어 나온다.
-// 늪 구덩이 조각(sink)에 물이 다 차고 더러운 우물이 없으면 정화: 우물마다 물약·장비, 앓는 주민이 낫는다(한 번).
+// 늪 구덩이 조각(sink: 1구역 2, 2~3구역 해자 3)에 물이 다 차고 더러운 우물이 없으면 정화: 우물마다 물약·장비, 앓는 주민이 낫는다(한 번).
 import type { Cell, Grid } from './path';
 import { walkable } from './path';
 import { DT, SLUICE, type Chest, type Point, type Sluice, type Wheel, type World } from './rules';
@@ -57,7 +57,7 @@ export function makeSluice(map: string[], grid: Grid): Sluice | null {
     return c.length ? [c.reduce((s, p) => s + p[0], 0) / c.length + 0.5, c.reduce((s, p) => s + p[1], 0) / c.length + 0.5] : null;
   };
   for (const g of gates) g.aim = [head(KIDS[g.key][0]) ?? [g.x + 0.5, g.z + 0.5], head(KIDS[g.key][1]) ?? [g.x + 0.5, g.z + 0.5]];
-  const sl: Sluice = { segs, wet: new Uint8Array(grid.w * grid.h), gates, wells, sink: segs[3].length ? 4 : 2, purified: false, acc: 0, ver: 0 };
+  const sl: Sluice = { segs, wet: new Uint8Array(grid.w * grid.h), gates, wells, sink: segs[3].length ? 3 : 2, purified: false, acc: 0, ver: 0 };
   segs.forEach((cells, seg) => {
     const on = flows(sl, seg);
     for (const [x, z] of cells) {

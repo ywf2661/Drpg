@@ -79,12 +79,19 @@ test('결전장: 늘 같은 손 맵, 처음엔 통이 없고 군막에서 하나
   const hp = boss.hp;
   hurt(w, boss, 100, hero);
   expect(boss.hp).toBe(hp); // 평소엔 안 맞는다
+  // 굴러 나온 미끼 통은 곁에서 다른 통이 터져도 남는다
+  w.kegs.push({ x: Math.floor(keg.fx!) + 1, z: Math.floor(keg.fz!), fuse: 0.01, lit: true, wall: false, done: false, chest: -1 });
+  for (let i = 0; i < 5; i++) step(w, []);
+  expect(keg.done).toBe(false);
+  Object.assign(hero, { x: keg.fx!, z: keg.fz! + 1.5, path: [] }); // 통 바로 뒤에서 꾀어낸다
   Object.assign(boss, { x: keg.fx!, z: keg.fz! - 0.6, phase: 'charge', phaseT: 5, dx: 0, dz: 1, stunT: 0 });
+  const heroHp = hero.hp;
   step(w, []);
   expect(boss.stunT).toBeGreaterThan(0);
   for (let i = 0; i < 10; i++) step(w, []);
   expect(keg.done).toBe(true);
   expect(boss.hp).toBeLessThan(hp); // 기절한 동안 통에 다쳤다
+  expect(hero.hp).toBe(heroHp); // 들이받은 통에 주인공은 안 다친다
   const hp2 = boss.hp;
   hurt(w, boss, 100, hero);
   expect(boss.hp).toBe(hp2 - 100);

@@ -27,7 +27,19 @@ BOSSES = {
     'raider_chief': {'stance': (12, 2200, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
     'plague_ferryman': {'stance': (12, 2600, 'looped'), 'move': (12, 1200, 'looped'), 'attack': (13, 1200, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
 }
-PAGE = '<!doctype html><meta charset="utf-8"><body style="margin:0"><script type="importmap">{"imports":{"three":"/three/three.module.js"}}</script><script type="module" src="/%s.js"></script>'
+# 받은 모델(tools/art/models → blend2glb.py → tools/.cache/models/<glb>.glb): 키 h(m), 앞 방향 yaw, 동작마다 (모델 동작 이름, 프레임 수, ms, 반복, 시작~끝 비율)
+MODELS = {
+    'raider_orc': {'glb': 'orc', 'h': 1.45, 'yaw': 0, 'normals': 1, 'anims': {
+        'stance': ('wait', 8, 1600, 'looped', 0, 1), 'move': ('walk', 8, 900, 'looped', 0, 1), 'attack': ('attack', 8, 700, 'play_once', 0, 1),
+        'hit': ('die', 2, 200, 'play_once', 0, 0.12), 'die': ('die', 8, 900, 'play_once', 0, 1)}},
+    'swamp_treant': {'glb': 'forest_monster', 'h': 2.6, 'yaw': 0, 'normals': 1, 'anims': {
+        'stance': ('Idle', 8, 2000, 'looped', 0, 1), 'move': ('Walk', 8, 1000, 'looped', 0, 1), 'attack': ('Attack', 8, 700, 'play_once', 0, 1),
+        'hit': ('Dying', 2, 200, 'play_once', 0, 0.12), 'die': ('Dying', 8, 1000, 'play_once', 0, 1)}},
+}
+for _n, _m in MODELS.items():
+    BOSSES[_n] = {a: v[1:4] for a, v in _m['anims'].items()}
+CACHE = ROOT / 'tools' / '.cache' / 'models'
+PAGE = '<!doctype html><meta charset="utf-8"><body style="margin:0"><script type="importmap">{"imports":{"three":"/three/three.module.js","three/addons/":"/addons/"}}</script><script type="module" src="/%s.js"></script>'
 
 
 def serve(name):
@@ -36,7 +48,7 @@ def serve(name):
             pass
 
         def do_GET(self):
-            if self.path in ('/', '/index.html'):
+            if self.path.split('?')[0] in ('/', '/index.html'):
                 body = (PAGE % name).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -50,6 +62,10 @@ def serve(name):
             path = path.split('?')[0]
             if path.startswith('/three/'):
                 return str(THREE / path[len('/three/'):])
+            if path.startswith('/addons/'):
+                return str(THREE.parent / 'examples' / 'jsm' / path[len('/addons/'):])
+            if path.startswith('/models/'):
+                return str(CACHE / path[len('/models/'):])
             return str(HERE / path.lstrip('/'))
 
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
@@ -59,7 +75,8 @@ def serve(name):
 
 def render(name):
     anims = BOSSES[name]
-    srv = serve(name)
+    m = MODELS.get(name)
+    srv = serve('glb' if m else name)
     frames = {}
     try:
         with sync_playwright() as p:
@@ -67,7 +84,7 @@ def render(name):
             pg = b.new_page()
             errors = []
             pg.on('pageerror', lambda e: errors.append(str(e)))
-            pg.goto(f'http://127.0.0.1:{srv.server_address[1]}/')
+            pg.goto(f'http://127.0.0.1:{srv.server_address[1]}/' + (f"?model={m['glb']}&h={m['h']}&yaw={m['yaw']}&rest={m['anims']['stance'][0]}&normals={m.get('normals', '')}" if m else ''))
             try:
                 pg.wait_for_function('window.ready === true', timeout=30000)
             except Exception:
@@ -76,7 +93,11 @@ def render(name):
                 for d in range(8):  # FLARE 화면 방향 0=W 1=NW 2=N 3=NE 4=E 5=SE 6=S 7=SW → 모형 회전(6=S가 카메라를 본다)
                     for f in range(n):
                         t = f / n if loop == 'looped' else f / max(1, n - 1)
-                        data = pg.evaluate('([a, b, c]) => renderFrame(a, b, c)', [(6 - d) * math.pi / 4, anim, t])
+                        clip = anim
+                        if m:
+                            clip, *_, t0, t1 = m['anims'][anim]
+                            t = t0 + (t1 - t0) * t
+                        data = pg.evaluate('([a, b, c]) => renderFrame(a, b, c)', [(6 - d) * math.pi / 4, clip, t])
                         im = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1]))).convert('RGBA')
                         im = im.resize((round(W * K), round(W * K)), Image.LANCZOS)
                         im.putalpha(im.getchannel('A').point(lambda v: 255 if v > ALPHA_CUT else 0))

@@ -121,7 +121,8 @@ export function tickWater(time: number, world: World) {
       if (!b) return;
       b.position.set(x, low ? Y - 0.16 : Y - 0.06 + Math.sin(time * 1.8 + line * 2 + j) * 0.025, z); // 물이 낮으면 바닥에 걸려 기운다
       b.rotation.set(low ? 0.12 : Math.sin(time * 1.3 + j) * 0.03, face, 0);
-      if (moving && n < BOATS) uniforms.uBoats.value[n++].set(x, z, ux * dir * 2.5, uz * dir * 2.5);
+      const go = ride ? Math.sign(ride.to - ride.s) * 2.5 : 0; // 선 배는 물결을 끌지 않는다, 물러서면 거꾸로
+      if (moving && n < BOATS) uniforms.uBoats.value[n++].set(x, z, ux * dir * go, uz * dir * go);
       else if (n < BOATS && Math.hypot(x - hero.x, z - hero.z) < 16) uniforms.uBoats.value[n++].set(x, z, 0, 0);
     });
   });
