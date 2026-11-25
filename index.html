@@ -152,8 +152,8 @@
       @keyframes ending-roll { to { transform: translate(-50%, calc(-100vh - 100%)); } }
 
       /* 대화상자: 금테 두른 가죽 패널, 제목은 금빛 */
-      #credits, #help, #shop, #bag, #talk { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); padding: 18px 20px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.6; }
-      #credits::backdrop, #help::backdrop, #shop::backdrop, #talk::backdrop, #bag::backdrop, #tree::backdrop { background: radial-gradient(ellipse at center, #0008, #000c); }
+      #credits, #help, #shop, #bag, #talk, #forge { width: min(480px, 90vw); box-sizing: border-box; max-width: min(480px, 90vw); padding: 18px 20px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.6; }
+      #credits::backdrop, #help::backdrop, #shop::backdrop, #forge::backdrop, #talk::backdrop, #bag::backdrop, #tree::backdrop { background: radial-gradient(ellipse at center, #0008, #000c); }
       #talk { margin: auto auto calc(12vh + 16px); } /* 대화창은 화면 아래(레터박스 바로 위): 가운데의 장면을 가리지 않게 */
       #talk::backdrop { background: linear-gradient(to top, #000a, transparent 45%); }
       dialog b, #tree-title { color: var(--gold-hi); letter-spacing: 0.5px; }
@@ -191,7 +191,11 @@
       #tree .keys button.on { color: #1a1006; background: var(--gold-hi); }
       #tree-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
       #points { pointer-events: auto; cursor: pointer; }
-      #shop-items, #shop-sell-items { display: grid; gap: 8px; margin: 12px 0; }
+      #shop-items, #shop-sell-items, #forge-items, #forge-pick { display: grid; gap: 8px; margin: 12px 0; }
+      #forge-items button, #forge-pick button { text-align: left; padding: 8px 12px; color: var(--ink); }
+      #forge-items button.sel { background: linear-gradient(#4a3618, #2a1e0e); }
+      #forge-items small, #forge-pick small { display: block; color: var(--ink-dim); }
+      #forge-pick .forge-now { color: var(--gold); white-space: pre-line; }
       #shop-items button, #shop-sell-items button { text-align: left; padding: 8px 12px; color: var(--ink); }
       #shop-leave { border-color: var(--blood); border-top-color: var(--blood-hi); }
       .q0 { color: var(--ink); }
@@ -241,6 +245,7 @@
       #tip .base { color: #f4efe6; }
       #tip .uniq { color: #ffb05a; font-style: italic; }
       #tip .aff { color: #8fa8ff; }
+      #tip .forge { color: var(--gold); }
       #tip .set { color: var(--set); }
       #tip .set-name { font-weight: bold; letter-spacing: 1px; }
       #tip .set .off { color: #6d675c; }
@@ -543,6 +548,12 @@
       <button id="shop-leave">다음 층으로 ▶</button>
       <button id="shop-stay" title="Esc">◀ 여기 남기</button>
       <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
+    </dialog>
+    <dialog id="forge">
+      <p><b>대장장이</b> — 장비를 담금질합니다. <span id="forge-purse"></span></p>
+      <div id="forge-items"></div>
+      <div id="forge-pick"></div>
+      <form method="dialog"><button>닫기</button></form>
     </dialog>
     <div id="letterbox"></div>
     <div id="still"></div>

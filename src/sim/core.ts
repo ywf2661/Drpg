@@ -1,6 +1,6 @@
 // 공용 전투·이동 도구: 난수, 거리·시야, 데미지·피해·드롭, 레벨, 걷기. world·abilities가 함께 쓴다.
 import { findPath, seeThrough, walkable, type Cell, type Grid } from './path';
-import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World, HIT, hitBase, act2Land, LEGEND2, RIFT, CUT, type SetId } from './rules';
+import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF, FINALE, GEAR_SKILLS, GEAR_SKILL_LIST, REWIND, RUNE, RUNE_DROP, STAT_RUNES, runeAffix, runeRow, plainAffixes, socketsOf, runesIn, type Rune, KNIGHT_LATE, steady, GOLD_CHEST, PIT, SHRINE, SLEEP, TREASURE, SET_HUNTER, BONE_KINDS, LEGEND_FX, LEGEND_DROP, UNIQUES, UNIQUE_LIST, type UniqueId, RANK_OVER, SKILL_AFFIX, COST_OVERRIDE, ENERGY, MANA, RESOURCE, TIER_COST, AFFIXES, ARCHER, AXES, BONES, BOUNCE, BURST, DRAIN, FOCUS, FROST_ARMOR, KEY_CD, KEYS, LEAP, SKILLS, SYNERGY, TRAIL, TEMPER, MARK, GRAZE, ECHO, FLASH, TREES, type Ally, RANGER, BAG, CLASSES, SLOTS, WARD, WIZ, type Gear, type HeroClass, type Slot, AXE, COMBO, DASH, DMG_SCALE, DT, ELITE, ELITE_FX, SKINS, METEOR, MONSTER_DMG, RANK_MAX, SHOUT, SKILL, SLAM, TELL, type SkillId, type SkillName, GEAR_DROP, GOLD, GOLD_ELITE, KING, MAGE, POTION, QUALITY, RANGE, STATS, XP, heroMaxHp, xpToNext, MAX_LEVEL, type Affix, type AffixKind, type BagItem, type Entity, type GearItem, GEAR_SIZE, type Item, type Kind, type Point, type World, HIT, hitBase, act2Land, LEGEND2, RIFT, CUT, type SetId, FORGE } from './rules';
 import { HORSE, warded } from './sanctum';
 import { MINE } from './rules';
 import { edgeFall } from './mine';
@@ -224,7 +224,7 @@ export function gearGain(w: World, it: GearItem): number {
 // 장비가 지금 장착한 것보다 나은가
 export function isBetter(w: World, it: Item | GearItem): boolean {
   if (it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' || it.kind === 'relic') return false;
-  if (uniqueOf({ affixes: it.affixes ?? [] }) || uniqueOf({ affixes: w.mods[it.kind] })) return false; // 고유 장비는 자동 장착이 입히지도 벗기지도 않는다(빌드는 플레이어가 고른다)
+  if (uniqueOf({ affixes: it.affixes ?? [] }) || uniqueOf({ affixes: w.mods[it.kind] }) || w.mods[it.kind].some((a) => a.star)) return false; // 담금질한 장비도 // 고유 장비는 자동 장착이 입히지도 벗기지도 않는다(빌드는 플레이어가 고른다)
   return gearDiff(w, { kind: it.kind, tier: it.tier, affixes: it.affixes ?? [] }) > 1e-9;
 }
 
@@ -347,6 +347,7 @@ export function rollRune(w: World, odds: number[]): Rune | null {
 }
 // 쓰러진 적의 룬: 잡몹은 가끔, 정예·해골 왕 하나, 보스 둘 + 칸 룬(낮은 확률, 의뢰를 다 끝냈으면 확정)
 function dropRunes(w: World, t: Entity) {
+  if (act2Land(w.land)) return dropOre(w, t);
   const put = (r: Rune | null) => r && w.items.push({ id: w.nextItem++, x: t.x + (runeRand(w) - 0.5) * 0.8, z: t.z + (runeRand(w) - 0.5) * 0.8, kind: 'rune', tier: 0, rune: r });
   if (t.kind === 'boss') {
     for (let i = 0; i < RUNE_DROP.boss; i++) put(rollRune(w, RUNE_DROP.odds.boss));
@@ -354,6 +355,14 @@ function dropRunes(w: World, t: Entity) {
     if (row >= 0 && (w.sureLegend || runeRand(w) < RUNE_DROP.key)) put(`key:${KEYS[row]}`);
   } else if (t.elite || t.kind === 'king') put(rollRune(w, RUNE_DROP.odds.elite));
   else if (runeRand(w) < RUNE_DROP.mob) put(rollRune(w, RUNE_DROP.odds.mob));
+}
+
+// 2막 땅의 담금질 재료(룬 대신, 전용 난수): 정예 광석 1~2, 보스 광석 + 심장 조각 1, 졸개 가끔 1
+function dropOre(w: World, t: Entity) {
+  const put = (forge: 'ore' | 'heart', amount: number) => amount > 0 && w.items.push({ id: w.nextItem++, x: t.x + (runeRand(w) - 0.5) * 0.8, z: t.z + (runeRand(w) - 0.5) * 0.8, kind: 'gold', tier: 0, amount, forge });
+  if (t.kind === 'boss') put('ore', FORGE.drop.boss), put('heart', 1);
+  else if (t.elite || t.kind === 'king') put('ore', FORGE.drop.elite + (runeRand(w) < 0.5 ? 1 : 0));
+  else put('ore', runeRand(w) < FORGE.drop.mob ? 1 : 0);
 }
 
 // 보관함에 자리가 없어 주우러 간 발밑 장비를 못 줍는 중인가
@@ -392,7 +401,7 @@ export function rollSkillAffix(w: World, rare: boolean): Affix {
 
 // 고유 장비(전설·세트): 옵션 목록 맨 앞의 표식으로 알아본다
 export const uniqueOf = (it: { affixes: Affix[] }): UniqueId | undefined => (it.affixes[0]?.kind === 'unique' ? it.affixes[0].u : undefined);
-export const hasUnique = (w: World, id: UniqueId) => SLOTS.some((s) => uniqueOf({ affixes: w.mods[s] }) === id);
+export const hasUnique = (w: World, id: UniqueId) => SLOTS.some((s) => uniqueOf({ affixes: w.mods[s] }) === id || w.mods[s].some((a) => a.kind === 'awake' && a.u === id)); // 담금질 깨어남으로 켠 전설도
 // 입은 세트 조각 수(세트마다)
 export function setCount(w: World, set: SetId = 'hunter') {
   return SLOTS.filter((s) => {

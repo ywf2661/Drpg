@@ -180,6 +180,7 @@ export function generateTent(raid = false, mine = false): string[] {
   cells[c][c + 5] = 'E';
   cells[c - 5][c] = 'V';
   cells[c + 4][c - 2] = 'h';
+  cells[c + 3][c - 4] = '}'; // 대장장이(담금질)
   for (let k = 0; k < 20; k++) {
     const [x, z] = [int(4, M - 5), int(4, M - 5)];
     if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 7) cells[z][x] = ',';

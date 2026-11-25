@@ -3,13 +3,14 @@ import { FLOORS } from './sim/dungeon';
 import { sellPrice } from './shop';
 import type { Side } from './sim/wilds';
 import { ACT2_MAX } from './sim/act2';
-import { isHub, GEAR_SKILLS, runeAffix, type Rune, LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, BAG, STASH, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
+import { awakeOf } from './sim/forge';
+import { FORGE, isHub, GEAR_SKILLS, runeAffix, type Rune, LAND_LIST, STORY, TREES, type Land, UNIQUES, type UniqueId, AFFIXES, BAG, STASH, bagFits, bagSpot, isPassive, KEYS, newSkills, POTION, RANK_MAX, SKILLS, SLOTS, type Affix, type AffixKind, type BagItem, type Gear, type HeroClass, type SkillId, type Slot, type World } from './sim/world';
 
 export type Stats = { time: number; kills: number; deaths: number }; // 이번 판 기록(초, 처치, 사망)
 export type Mods = Record<Slot, Affix[]>;
 export type Ranks = World['ranks'];
 export type Keys = World['keys'];
-export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[]; relics: number; relicMiss: number[]; stash: BagItem[]; act2: number; heard?: boolean }; // heard: 타임패트롤 신호 1(광산 4구역)을 들었다 // act2: 2막 진행(0 = 아직, sim/act2.ts) // stash: 야영지 창고(STASH 격자) // relics·relicMiss: 무너진 성소의 성물(비트 0~3, 4 = 작은 목마 → 0~31)·지역마다 놓친 횟수(0~2) // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
+export type Run = { name: string; pity: number; cls: HeroClass; floor: number; potions: number; gear: Gear; mods: Mods; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; autoEquip: boolean; level: number; xp: number; gold: number; ore: number; hearts: number; cycle: number; stats: Stats; land: Land; from: Side; stage: number; marks: number; news: boolean; took: boolean; runes: World['runes']; beat: number; marksBy: number[]; relics: number; relicMiss: number[]; stash: BagItem[]; act2: number; heard?: boolean }; // heard: 타임패트롤 신호 1(광산 4구역)을 들었다 // act2: 2막 진행(0 = 아직, sim/act2.ts) // stash: 야영지 창고(STASH 격자) // relics·relicMiss: 무너진 성소의 성물(비트 0~3, 4 = 작은 목마 → 0~31)·지역마다 놓친 횟수(0~2) // runes: 룬 주머니, beat·marksBy: 2회차부터 깬 지역 보스(비트 0~15)·지역마다 의뢰 진행 // news: 순찰대장에게 아직 안 들은 이야기가 있다, took: 지금 단계 의뢰의 부탁을 받았다. land·from: 이 구역의 지역과 들어온 가장자리(야영지면 floor 0), stage: 이야기 단계(0~3), marks: 지역 의뢰 진행(비트 0~7)
 const VERSION = 2; // 1 = 야영지 이전(읽으면 야영지·이야기 1단계로)
 const KEY = 'drpg-save'; // 슬롯 이전의 한 칸 저장. 지금은 KEY-0 ~ KEY-2
 export const SLOT_COUNT = 3;
@@ -17,7 +18,7 @@ export const NAME_MAX = 12;
 let slot = 0; // 지금 판이 저장되는 슬롯
 
 export function encodeSave(r: Run): string {
-  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks, news: r.news, took: r.took, runes: r.runes, beat: r.beat, marksBy: r.marksBy, relics: r.relics, relicMiss: r.relicMiss, stash: r.stash, act2: r.act2, heard: r.heard });
+  return JSON.stringify({ v: VERSION, name: r.name, pity: r.pity, cls: r.cls, floor: r.floor, potions: r.potions, gear: r.gear, level: r.level, xp: r.xp, gold: r.gold, ore: r.ore, hearts: r.hearts, cycle: r.cycle, mods: r.mods, ranks: r.ranks, points: r.points, keys: r.keys, bag: r.bag, autoEquip: r.autoEquip, stats: r.stats, land: r.land, from: r.from, stage: r.stage, marks: r.marks, news: r.news, took: r.took, runes: r.runes, beat: r.beat, marksBy: r.marksBy, relics: r.relics, relicMiss: r.relicMiss, stash: r.stash, act2: r.act2, heard: r.heard });
 }
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
@@ -25,8 +26,13 @@ const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as
 // 한 부위의 옵션 목록: 최대 2개, 서로 다른 종류, 그 부위의 옵션, 값은 범위 안. 스킬 옵션은 그 직업의 스킬·탭 0~2.
 // 고유 장비는 맨 앞의 표식(표에 있고, 부위·직업이 맞음) + 최대 3개(고정 1 + 무작위 2). 아니면 null
 // 소켓(하나, 1~3)과 꽂힌 룬(아는 룬, 이 직업 스킬, 소켓 수 이하)은 따로 확인하고 맨 뒤에 붙인다(룬 값은 표에서 다시 만든다)
-function affixes(all: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
-  if (!Array.isArray(all)) return null;
+// 담금질 줄(★·깨어남)도 따로 확인하고 맨 뒤에
+function affixes(raw: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
+  if (!Array.isArray(raw)) return null;
+  const forged = raw.filter((a) => a?.star !== undefined || a?.awake !== undefined || a?.kind === 'awake');
+  const lines = forgeLines(forged, slot, cls);
+  if (!lines) return null;
+  const all = raw.filter((a) => !forged.includes(a));
   const sock = all.filter((a) => a?.kind === 'socket');
   const runes = all.filter((a) => a?.r !== undefined).map((a) => (typeof a.r === 'string' ? runeAffix(a.r) : null));
   if (sock.length > 1 || (sock[0] && !int(sock[0].value, 1, 3)) || runes.length > (sock[0]?.value ?? 0)) return null;
@@ -34,7 +40,28 @@ function affixes(all: unknown, slot: Slot, cls: HeroClass): Affix[] | null {
   const v = all.filter((a) => a?.kind !== 'socket' && a?.r === undefined);
   const tail: Affix[] = [...(sock[0] ? [{ kind: 'socket' as const, value: sock[0].value as number }] : []), ...(runes as Affix[])];
   const out = plain(v, slot, cls);
-  return out && [...out, ...tail];
+  return out && [...out, ...tail, ...lines];
+}
+// 담금질 줄: ★ 하나(1~FORGE.max, 값은 표에서 다시 만든다), 깨어남은 다다른 ★만큼(고른 것은 그 부위·직업 풀에 있고 서로 다름, 기다리는 것은 하나까지)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 검증 전의 저장 데이터
+function forgeLines(v: any[], slot: Slot, cls: HeroClass): Affix[] | null {
+  const stars = v.filter((a) => a.star !== undefined);
+  const star = stars[0]?.star ?? 0;
+  if (stars.length > 1 || (stars.length && !int(star, 1, FORGE.max))) return null;
+  const [kind, up] = FORGE.up[slot];
+  const out: Affix[] = stars.length ? [{ kind, value: up * star, star }] : [];
+  const rest = v.filter((a) => a.star === undefined);
+  if (rest.length !== FORGE.awakeAt.filter((n) => star >= n).length) return null;
+  for (const a of rest) {
+    if (a.awake === undefined && a.kind === 'awake' && a.u === undefined && int(a.value, 0, 0x7fffffff) && !out.some((o) => o.kind === 'awake' && !o.awake)) {
+      out.push({ kind: 'awake', value: a.value });
+      continue;
+    }
+    const o = a.awake === true ? awakeOf(a, slot) : undefined;
+    if (!o || (o.cls && o.cls !== cls) || out.some((b) => b.awake && awakeOf(b, slot) === o)) return null;
+    out.push(o.u ? { kind: 'awake', value: 0, u: o.u, awake: true } : { kind: o.kind!, value: o.value!, awake: true });
+  }
+  return out;
 }
 // 소켓·룬을 뺀 원래 옵션
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 검증 전의 저장 데이터
@@ -117,7 +144,8 @@ export function decodeSave(text: string | null): Run | null {
   // 금화·기록은 나중에 생긴 항목이라 없으면 0. 있는데 이상하면 저장 전체를 버린다
   const gold = d.gold ?? 0;
   const cycle = d.cycle ?? 0;
-  if (!int(gold, 0, 1e7) || !int(cycle, 0, 1000)) return null;
+  const [ore, hearts] = [d.ore ?? 0, d.hearts ?? 0]; // 담금질 재료(나중에 생긴 항목)
+  if (!int(gold, 0, 1e7) || !int(cycle, 0, 1000) || !int(ore, 0, 1e6) || !int(hearts, 0, 1e4)) return null;
   // 직업(나중에 생긴 항목: 없으면 기사). 스킬 옵션 검증에 필요해 먼저
   const cls = d.cls ?? 'knight';
   if (cls !== 'knight' && cls !== 'wizard' && cls !== 'ranger' && cls !== 'necromancer') return null;
@@ -179,6 +207,8 @@ export function decodeSave(text: string | null): Run | null {
     level: d.level as number,
     xp: d.xp as number,
     gold: (gold as number) + bagged.refund,
+    ore: ore as number,
+    hearts: hearts as number,
     cycle: cycle as number,
     mods: mods as Mods,
     ...skills,

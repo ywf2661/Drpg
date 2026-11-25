@@ -165,6 +165,7 @@ const ICE_CHEST = new THREE.Color(1.2, 2.2, 5.5); // 얼음에 갇힌 상자: �
 const BEACON_COLD = new THREE.Color(0.3, 0.4, 0.75); // 의뢰 봉화(꺼짐): 불꽃이 멈춘 채 어둡고 푸르게(곱하기라 주황 불꽃은 밝게 못 바꾼다)
 const SEAL_RED = new THREE.Color(3, 0.7, 0.6); // 의뢰 봉인 제단: 붉게
 const KEEPER_GOLD = new THREE.Color(2.2, 1.7, 0.7); // 의뢰 잠긴 궤: 금빛
+const FORGE_TINT = { ore: new THREE.Color(1.6, 0.7, 2.4), heart: new THREE.Color(2.6, 0.5, 0.4) }; // 담금질 재료: 보랏빛 광석·붉은 심장 조각(금화 그림에 물들인다)
 const SPIKE_WARN = new THREE.Color(2.2, 0.5, 0.4);
 const gateCards = new Map<number, Card>(); // 닫힌 사슬 문 id → 판자(열리면 치운다)
 const trapCards = new Map<number, Card>(); // 놓인 덫 id → 판자(벌린 그림으로 멈춰 있다)
@@ -824,6 +825,7 @@ export function syncItems(world: World) {
     const g = it.kind === 'rune' ? runeGrade(it.rune!) : -1;
     if (g >= 0) c.glow = 1; // 룬 돌은 어둠 속에서도 보이게
     if (it.kind === 'relic') Object.assign(c, { glow: 1, tint: KEEPER_GOLD });
+    if (it.forge) Object.assign(c, { glow: 1, tint: FORGE_TINT[it.forge] });
     const q = it.kind === 'relic' ? 3 : it.kind === 'potion' || it.kind === 'gold' || it.kind === 'rune' ? 0 : quality({ affixes: it.affixes ?? [] });
     if (q < 1 && g < 2) continue; // 일반 장비·흔한 룬은 표시 없음
     const big = q >= 3 || g >= 2; // 긴 빛기둥: 전설·세트, 드묾 이상 룬
@@ -1020,7 +1022,7 @@ export function buildProps(world: World): THREE.Group {
     return c;
   });
   chestCards = world.chests.map((ch) => {
-    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' ? npcs.merchant : ch.kind === 'asker' || ch.kind === 'priest' ? npcs.villager1 : ch.kind === 'villager' || ch.kind === 'sick' ? npcs.villager2 : null;
+    const npc = ch.kind === 'elder' ? npcs.captain : ch.kind === 'merchant' || ch.kind === 'smith' ? npcs.merchant : ch.kind === 'asker' || ch.kind === 'priest' ? npcs.villager1 : ch.kind === 'villager' || ch.kind === 'sick' ? npcs.villager2 : null;
     if (npc) {
       const c = Object.assign(card(npc, 'stance', ch.x + 0.5, ch.z + 0.5, false), { dir: NPC_DIR });
       if (ch.kind === 'priest') c.tint = PRIEST_ROBE;

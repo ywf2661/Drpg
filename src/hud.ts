@@ -26,7 +26,8 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { greatswordStat, GREATSWORD, downcutStat, isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World, LEGEND2, RIFT, type SetId } from './sim/world';
+import { greatswordStat, GREATSWORD, downcutStat, isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World, LEGEND2, RIFT, type SetId, FORGE, type Awake } from './sim/world';
+import { awakeChoices, forgeCost, starOf } from './sim/forge';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
 const heroFill = $('#hp i');
@@ -527,7 +528,14 @@ const AFFIX_TEXT: Record<Affix['kind'], (v: number, a: Affix) => string> = {
   unique: () => '',
   socket: () => '',
   keyCd: (v, a) => `${KEY_LABEL[a.key!]} 칸 재사용 대기 −${v}%`,
+  awake: (_, a) => (a.u ? `「${UNIQUES[a.u].name}」 ${UNIQUES[a.u].desc}` : '아직 고르지 않았다 — 대장장이에게서 고른다'),
 };
+// 담금질 줄: ★ 수치, 깨어남들
+const STAR_FULL = (n: number) => '★'.repeat(n) + '☆'.repeat(FORGE.max - n);
+function forgeLines(list: Affix[]): string[] {
+  const s = list.find((a) => a.star);
+  return [...(s ? [`담금질 ${STAR_FULL(s.star!)} — ${AFFIX_TEXT[s.kind](s.value, s)}`] : []), ...list.filter((a) => a.awake || a.kind === 'awake').map((a) => `깨어남: ${AFFIX_TEXT[a.kind](a.value, a)}`)];
+}
 
 // 룬 이름: '질풍 룬', '가르기 룬 +2', 'Q 칸 룬'. 효과: 옵션 한 줄과 같은 글
 export function runeName(r: Rune): string {
@@ -572,6 +580,7 @@ function gearParts(it: GearItem) {
     desc: u ? UNIQUES[u].desc : '',
     affixes: plainAffixes(it.affixes).map((a) => AFFIX_TEXT[a.kind](a.value, a)).filter(Boolean),
     sockets: socketLines(it.affixes),
+    forge: forgeLines(it.affixes),
     set: u && UNIQUES[u].set ? setOf(UNIQUES[u].set!) : null,
   };
 }
@@ -582,7 +591,7 @@ const setOf = (id: SetId) => ({ title: `${SET_NAME[id]} (${setNow[id]}/4)`, line
 function gearLines(it: GearItem): string[] {
   const p = gearParts(it);
   const set = p.set ? [p.set.title, ...p.set.lines.map(([t, on]) => `${on ? '●' : '○'} ${t}`)] : [];
-  return [p.base, ...(p.desc ? [`★ ${p.desc}`] : []), ...p.affixes, ...p.sockets, ...set];
+  return [p.base, ...(p.desc ? [`★ ${p.desc}`] : []), ...p.affixes, ...p.forge, ...p.sockets, ...set];
 }
 
 // 장비 그림 색: 아이템마다 다르다(등급은 테두리로만). 고유 장비는 입었을 때와 같은 원색(look), 아니면 첫 옵션의 색, 일반은 원래 색
@@ -629,6 +638,11 @@ function fillTip(it: GearItem, note: string, foot: string) {
   if (p.affixes.length) {
     const s = mk('section', 'aff');
     s.append(...p.affixes.map((a) => mk('div', '', a)));
+    parts.push(s);
+  }
+  if (p.forge.length) {
+    const s = mk('section', 'forge');
+    s.append(...p.forge.map((a) => mk('div', '', a)));
     parts.push(s);
   }
   if (p.sockets.length) {
@@ -1120,6 +1134,54 @@ export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem)
   $('#shop-stay').onclick = () => shop.close();
   shop.onclose = () => (stay ? onStay() : onLeave());
   if (!shop.open) shop.showModal();
+}
+
+// 대장장이 창: 입은 장비·가방 장비 목록 → 고른 장비의 지금 ★과 다음 ★(값), 담금질 버튼, 기다리는 깨어남이면 후보 셋.
+// 창이 열린 동안 sim이 멈추므로 main이 world를 바로 바꾸고 다시 부른다(보관함과 같다)
+const forgeDlg = $('#forge') as HTMLDialogElement;
+let forgeSel: RuneTarget = 'weapon';
+const awakeText = (o: Awake) => AFFIX_TEXT[o.u ? 'awake' : o.kind!](o.value ?? 0, { kind: o.u ? 'awake' : o.kind!, value: o.value ?? 0, u: o.u });
+export function showForge(w: World, h: { temper(t: RuneTarget): void; awaken(t: RuneTarget, k: number): void }) {
+  cls = w.cls;
+  learned = w.ranks;
+  const gearAt = (t: RuneTarget): GearItem | undefined => (typeof t === 'number' ? w.bag[t] : { kind: t, tier: w.gear[t], affixes: w.mods[t] });
+  if (!gearAt(forgeSel)) forgeSel = 'weapon';
+  $('#forge-purse').textContent = `보랏빛 광석 ${w.ore} · 심장 조각 ${w.hearts} · 금화 ${w.gold}`;
+  const row = (t: RuneTarget, it: GearItem, where: string) => {
+    const b = document.createElement('button');
+    if (t === forgeSel) b.className = 'sel';
+    b.append(mk('span', `q${quality(it)}`, nameOf(it.kind, it.tier, it.affixes)), ` — ${where}`, mk('small', '', gearLines(it).join(' · ')));
+    b.onclick = () => ((forgeSel = t), showForge(w, h));
+    return b;
+  };
+  $('#forge-items').replaceChildren(...SLOTS.map((s) => row(s, gearAt(s)!, '입은 것')), ...w.bag.map((it, i) => row(i, it, '가방')));
+  const it = gearAt(forgeSel)!;
+  const star = starOf(it.affixes);
+  const pick: HTMLElement[] = [];
+  const choices = awakeChoices(it.affixes, it.kind, w.cls);
+  if (choices) {
+    pick.push(mk('div', 'forge-now', `${nameOf(it.kind, it.tier, it.affixes)}에 잠든 힘이 깨어난다. 하나를 고르세요.`));
+    choices.forEach((o, k) => {
+      const b = document.createElement('button');
+      b.textContent = awakeText(o);
+      b.onclick = once(() => h.awaken(forgeSel, k));
+      pick.push(b);
+    });
+  } else if (star >= FORGE.max) pick.push(mk('div', 'forge-now', `${STAR_FULL(star)} — 더 담금질할 수 없습니다.`));
+  else {
+    const c = forgeCost(star);
+    const [kind, up] = FORGE.up[it.kind];
+    const wake = FORGE.awakeAt.includes(star + 1) ? ', 깨어남 하나를 고른다' : '';
+    pick.push(mk('div', 'forge-now', `${STAR_FULL(star)} → ★${star + 1}: ${AFFIX_TEXT[kind](up * (star + 1), { kind, value: up * (star + 1) })}${wake}`));
+    const b = document.createElement('button');
+    const ok = w.ore >= c.ore && w.gold >= c.gold && w.hearts >= c.hearts;
+    b.append(`담금질 — 보랏빛 광석 ${c.ore} · 금화 ${c.gold}${c.hearts ? ` · 심장 조각 ${c.hearts}` : ''}`, ...(ok ? [] : [mk('small', '', '재료가 모자랍니다. 2막의 정예와 보스가 광석을, 보스가 심장 조각을 떨굽니다.')]));
+    b.disabled = !ok;
+    b.onclick = once(() => h.temper(forgeSel));
+    pick.push(b);
+  }
+  $('#forge-pick').replaceChildren(...pick);
+  if (!forgeDlg.open) forgeDlg.showModal();
 }
 
 // 매 프레임. hovered: 마우스가 올라간 몬스터 id, choosing: 이어하기를 고르는 중(배너를 건드리지 않음)

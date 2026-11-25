@@ -47,7 +47,7 @@ export const canSummonKnight = (w: World) => !isHub(w.land) && (!!w.stairs || w.
 
 // 특별한 상자를 눌렀다. true = 처리했다(평소처럼 열지 않는다)
 export function touchChest(w: World, ch: Chest): boolean {
-  if (ch.kind === 'elder' || ch.kind === 'merchant' || ch.kind === 'villager' || ch.kind === 'asker' || ch.kind === 'clue' || ch.kind === 'stash') {
+  if (ch.kind === 'elder' || ch.kind === 'merchant' || ch.kind === 'villager' || ch.kind === 'asker' || ch.kind === 'clue' || ch.kind === 'stash' || ch.kind === 'smith') {
     // NPC는 몇 번이든 다시 말을 건다. 흔적은 읽으면 끝(의뢰 하나)
     if (ch.kind === 'clue') {
       ch.open = true;

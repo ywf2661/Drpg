@@ -138,12 +138,13 @@ export type Slot = 'weapon' | 'armor' | 'helm' | 'boots';
 export const SLOTS: Slot[] = ['weapon', 'armor', 'helm', 'boots'];
 // 바닥에 떨어진 아이템(월드 좌표). tier: 장비 단계 1~4(물약은 0)
 // amount: 금화 양(금화만)
-export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | 'relic' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune; relic?: number; sack?: number }; // sack: 자루에서 흘린 금화(주우면 금화 대신 자루로) // rune: 룬(룬만), relic: 성물 번호(STORY 순서, 성물만)
+export type Item = { id: number; x: number; z: number; kind: 'potion' | 'gold' | 'rune' | 'relic' | Slot; tier: number; amount?: number; affixes?: Affix[]; rune?: Rune; relic?: number; sack?: number; forge?: 'ore' | 'heart' }; // forge: 금화 대신 담금질 재료 amount개(보랏빛 광석·심장 조각) // sack: 자루에서 흘린 금화(주우면 금화 대신 자루로) // rune: 룬(룬만), relic: 성물 번호(STORY 순서, 성물만)
 // 마법 옵션. value는 정수(효과 단위는 AFFIXES 설명)
 // skill·tab·allSkills = 스킬 단계 보너스(skill: 대상 스킬, tab: 대상 탭 0~4), unique = 고유 장비(전설·세트) 표식(u)
 // socket = 소켓 수(장비마다 하나, 맨 뒤 쪽), keyCd = 칸(key)의 재사용 대기 −value%(칸 룬). r = 꽂힌 룬(그 룬이 주는 옵션 한 줄)
-export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique' | 'socket' | 'keyCd';
-export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId; key?: SkillName; r?: Rune };
+// star = 담금질 ★(그 부위 수치 한 줄, value = FORGE.up × ★), awake = 깨어남 한 줄(숫자 옵션 또는 kind 'awake' + u = 그 전설 효과). u 없는 'awake' = 아직 안 고른 깨어남(value = 후보 시드) — forge.ts
+export type AffixKind = 'dmg' | 'speed' | 'leech' | 'crit' | 'life' | 'guard' | 'regen' | 'thorns' | 'move' | 'skill' | 'tab' | 'allSkills' | 'unique' | 'socket' | 'keyCd' | 'awake';
+export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: number; u?: UniqueId; key?: SkillName; r?: Rune; star?: number; awake?: true };
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
 export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots' | 'caliburx' | 'elemStaff' | 'graveSkull' | 'stormBow'
@@ -237,7 +238,7 @@ export type Gate = { id: number; x: number; z: number; axis: 'x' | 'z'; open: bo
 export const SEAL = { radius: 10, min: 3 };
 
 // 보물 상자(칸 좌표). 한 번 열면 끝
-export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar' | 'stash' | 'wheel' | 'well' | 'sick' | 'priest' | 'keg' | 'crystal'; wave?: number }; // keg = 약탈자 진지 화약통(누르면 불이 붙는다 — powder.ts) // wheel·well = 호숫가 퍼즐의 바퀴·우물(sluice가 그린다), sick = 앓는 주민(정화하면 낫고 open, wave = 물약을 줬다), priest = 사제 // stash = 야영지 창고(열리지 않고 누르면 창고 창) // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
+export type Chest = { id: number; x: number; z: number; open: boolean; guards?: number[]; kind?: 'shrine' | 'trial' | 'ice' | 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'beacon' | 'keeper' | 'seal' | 'altar' | 'stash' | 'wheel' | 'well' | 'sick' | 'priest' | 'keg' | 'crystal' | 'smith'; wave?: number }; // smith = 원정대 천막 대장장이(담금질 창) // keg = 약탈자 진지 화약통(누르면 불이 붙는다 — powder.ts) // wheel·well = 호숫가 퍼즐의 바퀴·우물(sluice가 그린다), sick = 앓는 주민(정화하면 낫고 open, wave = 물약을 줬다), priest = 사제 // stash = 야영지 창고(열리지 않고 누르면 창고 창) // altar = 무너진 성소 5층의 성소(열림 = 꺼짐) // beacon·keeper·seal(+ clue) = 지역 의뢰 대상 // elder·merchant·villager(주민)·asker(의뢰인 주민) = 야영지 NPC(열리지 않고 말을 건다), clue = 이야기 단서. guards: 야영지 상자를 지키는 몬스터 id(모두 쓰러져야 열린다)
 // kind: shrine = 성소(누르면 버프, 'Y'), trial = 시련의 제단(누르면 몬스터가 waves번 몰려오고 다 막으면 열린다, 'Q' — guards가 지금 물결), ice = 얼어붙은 보물('I', 늘 장비)
 
 // 성소: 누르면 time초 동안 버프 하나(무작위). fury 공격 배율 +, guard 받는 피해 −, haste 이동·공격 속도 +, wisdom 경험치 +
@@ -326,7 +327,7 @@ export type World = {
   toStairs: boolean;
   exits: Exit[]; // 바깥 지역 가장자리의 출구 칸(들어서면 다음 구역)
   locked: Exit[]; // 아직 안 열린 지역으로 가는 출구 칸(막혀 있다, 이름표만)
-  talk: 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'stash' | 'well' | 'sick' | 'priest' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
+  talk: 'elder' | 'merchant' | 'villager' | 'asker' | 'clue' | 'stash' | 'well' | 'sick' | 'priest' | 'smith' | null; // 방금 말을 건 NPC·읽은 단서. main이 창을 열고 지운다
   roads: Cell[]; // 바깥 지역의 길 칸(그림만 다르다)
   fords: Cell[]; // 여울(호숫가 'v': 걸을 수 있지만 느리다, 그림은 얕은 물)
   planks: Cell[]; // 나루·다리 판자(호숫가 '_', 그림만 다르다)
@@ -380,6 +381,8 @@ export type World = {
   pools: { x: number; z: number; t: number }[]; // 「우물 사제의 홀」 물웅덩이(남은 초)
   gales: { x: number; z: number; t: number }[]; // 「회오리 깃 활」의 회오리(남은 초)
   twinT: number; // 「사냥꾼의 쌍궁」 다음 저절로 쏘기까지(초)
+  ore: number; // 보랏빛 광석·심장 조각(담금질 재료, 금화처럼 쌓인다)
+  hearts: number;
   sack: number; // 「약탈자의 전리품 자루」에 쌓인 금화(받는 피해 −sack%, 최대 LEGEND2.sackMax)
   stashLegends: UniqueId[]; // 창고에 든 전설(수집가의 왕관이 센다). main이 정한다
   hitScale: number; // 몬스터 한 방 = 기준 체력 × HIT 비율 × 이 값(dungeon.ts hitScale). 0 = 예전 공식(1막 첫 판). main이 정한다
@@ -704,7 +707,41 @@ export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: numbe
   unique: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 0, hi: 0, special: true },
   socket: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 1, hi: 3, special: true },
   keyCd: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 0, hi: 100, special: true },
+  awake: { slots: ['weapon', 'armor', 'helm', 'boots'], name: '', lo: 0, hi: 0x7fffffff, special: true },
 };
+// 담금질(설계: 2026-11-25-act2-loot-growth-design.md 4절). ★n → ★n+1 값: ore·gold[n], ★4 → ★5는 심장 조각 1.
+// up: ★ 하나마다 오르는 부위 수치(옵션 종류, 값). awakeAt: 깨어나는 ★. drop: 2막 땅 광석(정예 elite + 반 확률로 하나 더, 보스 boss, 졸개 mob 확률로 1)
+export const FORGE = { max: 5, ore: [2, 4, 6, 10, 15], gold: [300, 600, 1000, 1500, 2500], up: { weapon: ['dmg', 8], armor: ['guard', 2], helm: ['life', 12], boots: ['move', 1] } as Record<Slot, [AffixKind, number]>, awakeAt: [3, 5], choices: 3, drop: { elite: 1, boss: 6, mob: 0.04 } };
+// 깨어남 풀: 부위마다. u = 그 전설 효과가 켜진다(cls = 그 직업만), 아니면 옵션 한 줄(kind, value)
+export type Awake = { slot: Slot; u?: UniqueId; cls?: HeroClass; kind?: AffixKind; value?: number };
+export const AWAKEN: Awake[] = [
+  { slot: 'weapon', u: 'berserker' },
+  { slot: 'weapon', u: 'boomerang', cls: 'knight' },
+  { slot: 'weapon', u: 'powderHammer', cls: 'knight' },
+  { slot: 'weapon', u: 'splitOrb', cls: 'wizard' },
+  { slot: 'weapon', u: 'wellScepter', cls: 'wizard' },
+  { slot: 'weapon', u: 'twinBows', cls: 'ranger' },
+  { slot: 'weapon', u: 'galeBow', cls: 'ranger' },
+  { slot: 'weapon', u: 'plagueStaff', cls: 'necromancer' },
+  { slot: 'weapon', kind: 'crit', value: 20 },
+  { slot: 'weapon', kind: 'speed', value: 15 },
+  { slot: 'weapon', kind: 'leech', value: 6 },
+  { slot: 'armor', u: 'lootSack' },
+  { slot: 'armor', u: 'boneShroud', cls: 'necromancer' },
+  { slot: 'armor', kind: 'life', value: 80 },
+  { slot: 'armor', kind: 'thorns', value: 60 },
+  { slot: 'armor', kind: 'regen', value: 20 },
+  { slot: 'helm', u: 'duelist' },
+  { slot: 'helm', u: 'collectorCrown' },
+  { slot: 'helm', u: 'hawkHood', cls: 'ranger' },
+  { slot: 'helm', kind: 'life', value: 60 },
+  { slot: 'helm', kind: 'guard', value: 6 },
+  { slot: 'boots', u: 'emberStep' },
+  { slot: 'boots', u: 'runnerBoots' },
+  { slot: 'boots', kind: 'move', value: 8 },
+  { slot: 'boots', kind: 'life', value: 40 },
+  { slot: 'boots', kind: 'regen', value: 15 },
+];
 // 스킬 옵션 굴림: 희귀(옵션 2개)는 tab 확률로 옵션 하나를 탭 +1로, 스킬 +2는 희귀에서 two 확률
 export const SKILL_AFFIX = { tab: 0.15, two: 0.25 };
 // 초월: 장비 보너스로 RANK_MAX 위로 오를 수 있는 단계 수
@@ -1061,6 +1098,6 @@ export function runeAffix(r: Rune): Affix | null {
 // 등급: 0 흔함(스탯), 1 보통(+1), 2 드묾(+2), 3 아주 드묾(칸)
 export const runeGrade = (r: Rune) => (Object.hasOwn(STAT_RUNES, r) ? 0 : r.startsWith('key:') ? 3 : Number(r.slice(-1)));
 // 장비 옵션 나누기: 원래 옵션, 소켓 수, 꽂힌 룬 옵션
-export const plainAffixes = (list: Affix[]) => list.filter((a) => !a.r && a.kind !== 'socket');
+export const plainAffixes = (list: Affix[]) => list.filter((a) => !a.r && a.kind !== 'socket' && !a.star && !a.awake && a.kind !== 'awake'); // 룬·소켓·담금질 줄은 빼고
 export const socketsOf = (list: Affix[]) => list.find((a) => a.kind === 'socket')?.value ?? 0;
 export const runesIn = (list: Affix[]) => list.filter((a) => a.r);

@@ -133,11 +133,11 @@ test('2막이 열린 야영지: 북쪽 맨 바깥 줄에 원정길 출구(x 3칸
   expect(createWorld(1, open).exits.filter((e) => e.to === 'tent')).toHaveLength(3);
 });
 
-test('원정대 천막: 48칸, 늘 같은 맵, 화덕·순찰대장·상인·창고, 천막 다섯(작은 넷 2×2·큰 하나 4×4, 덮인 칸은 막힘), 서쪽 끝 야영지 출구(y 3칸)·북쪽 끝 호숫가 출구(l 3칸), 몬스터 없음, 모두 닿는다', () => {
+test('원정대 천막: 48칸, 늘 같은 맵, 화덕·순찰대장·상인·창고·대장장이, 천막 다섯(작은 넷 2×2·큰 하나 4×4, 덮인 칸은 막힘), 서쪽 끝 야영지 출구(y 3칸)·북쪽 끝 호숫가 출구(l 3칸), 몬스터 없음, 모두 닿는다', () => {
   const map = generateTent();
   expect(map.length).toBe(SIZE);
   expect(map).toEqual(makeMap(9, 0, 'tent'));
-  for (const ch of 'HEVhB') expect(count(map, ch)).toBe(1);
+  for (const ch of 'HEVhB}') expect(count(map, ch)).toBe(1);
   expect(count(map, 'e')).toBe(4);
   expect(count(map, 'i')).toBe(1);
   expect(count(map, 'n')).toBe(4 * 3 + 15);
@@ -146,9 +146,9 @@ test('원정대 천막: 48칸, 늘 같은 맵, 화덕·순찰대장·상인·창
   expect(exits.every(([x]) => x === 0)).toBe(true);
   expect(count(map, 'mwagNWAGKMZUTXcCYQIL')).toBe(0);
   const ok = reachable(map, find(map, 'H')[0]);
-  for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'h'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
+  for (const p of [...exits, ...find(map, 'E'), ...find(map, 'V'), ...find(map, 'h'), ...find(map, '}'), ...find(map, 'B')]) expect(ok(p)).toBe(true);
   const w = createWorld(1, map);
-  expect(w.chests.map((c) => c.kind).sort()).toEqual(['elder', 'merchant', 'stash']);
+  expect(w.chests.map((c) => c.kind).sort()).toEqual(['elder', 'merchant', 'smith', 'stash']);
   expect(new Set(w.exits.map((e) => e.to))).toEqual(new Set(['camp', 'lake']));
   const north = find(map, 'l');
   expect(north.length).toBe(3);

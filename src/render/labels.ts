@@ -1,6 +1,7 @@
 // 바닥 장비 이름표(HTML). 화면 좌표로 투영해 장비 위에 띄운다. 색은 등급, 지금보다 좋으면 크게 + 튀는 ▲, 아니면 흐리게. 장비 이름표는 누르면 주우러 간다(input.ts)
 import * as THREE from 'three';
 import { AFFIXES, gearTable, isBetter, plainAffixes, quality, runeGrade, UNIQUES, uniqueOf, type Affix, type HeroClass, type Item, type Rune, type Slot, type World } from '../sim/world';
+import { starOf } from '../sim/forge';
 import { RELICS } from '../sim/sanctum';
 
 // 룬 이름은 스킬 이름표가 있는 hud가 넣어 준다(hud가 이 파일을 import하므로 거꾸로 import하지 않는다)
@@ -17,14 +18,15 @@ let layer: HTMLElement;
 export function gearName(kind: Slot, tier: number, affixes: Affix[], cls: HeroClass = 'knight'): string {
   const base = gearTable(cls)[kind][tier - 1].name;
   const u = uniqueOf({ affixes });
-  if (u) return UNIQUES[u].name.replace('%', base);
-  return [...plainAffixes(affixes).map((a) => AFFIXES[a.kind].name).filter(Boolean), base].join(' ');
+  const star = starOf(affixes) ? ` ★${starOf(affixes)}` : ''; // 담금질
+  if (u) return UNIQUES[u].name.replace('%', base) + star;
+  return [...plainAffixes(affixes).map((a) => AFFIXES[a.kind].name).filter(Boolean), base].join(' ') + star;
 }
 
 // 바닥 이름표. quality = 등급(0 일반·1 마법·2 희귀·3 전설·4 세트), better = 지금 장착한 것보다 나은가
 export function itemLabel(it: Item, w: World): { text: string; better: boolean; quality: number; rune?: number } | null {
   if (it.kind === 'potion') return null;
-  if (it.kind === 'gold') return { text: `금화 ${it.amount}`, better: false, quality: 0 };
+  if (it.kind === 'gold') return { text: it.forge === 'heart' ? '심장 조각' : it.forge ? `보랏빛 광석 ${it.amount}` : `금화 ${it.amount}`, better: false, quality: it.forge ? 3 : 0 };
   if (it.kind === 'rune') return { text: runeName(it.rune!), better: false, quality: 0, rune: runeGrade(it.rune!) };
   if (it.kind === 'relic') return { text: RELICS[it.relic!], better: false, quality: 3 };
   const affixes = it.affixes ?? [];

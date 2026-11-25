@@ -1,7 +1,8 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
-import { $, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud } from './hud';
+import { $, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud, showForge } from './hud';
+import { awaken, temper } from './sim/forge';
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
 import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/automap';
 import { hitstop } from './render/feel';
@@ -30,10 +31,10 @@ bag.addEventListener('close', () => {
 });
 const tree = document.querySelector<HTMLDialogElement>('#tree')!;
 // 새 판의 시작 상태: 2단계 장비(기사 = 숏소드 + 가죽 갑옷·두건·장화, 마법사 = 마법 막대 + 견습 로브·두건·장화)
-const startOf = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ...newSkills(cls), points: 0, bag: [], runes: {}, autoEquip: true });
-type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; runes: World['runes']; autoEquip: boolean };
+const startOf = (cls: HeroClass): Carry => ({ pity: 0, cls, potions: 2, gear: { weapon: 2, armor: 2, helm: 2, boots: 2 }, mods: { weapon: [], armor: [], helm: [], boots: [] }, level: 1, xp: 0, gold: 0, ore: 0, hearts: 0, ...newSkills(cls), points: 0, bag: [], runes: {}, autoEquip: true });
+type Carry = { pity: number; cls: HeroClass; potions: number; gear: Gear; mods: Mods; level: number; xp: number; gold: number; ore: number; hearts: number; ranks: Ranks; points: number; keys: Keys; bag: BagItem[]; runes: World['runes']; autoEquip: boolean };
 // 다음 층(또는 상점·회차)으로 가져갈 것만 복사. World·저장(Run)도 이 필드를 다 갖고 있다
-const carryOf = (c: Carry): Carry => ({ pity: c.pity, cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ranks: { ...c.ranks }, points: c.points, keys: { ...c.keys }, bag: [...c.bag], runes: { ...c.runes }, autoEquip: c.autoEquip });
+const carryOf = (c: Carry): Carry => ({ pity: c.pity, cls: c.cls, potions: c.potions, gear: { ...c.gear }, mods: copyMods(c.mods), level: c.level, xp: c.xp, gold: c.gold, ore: c.ore, hearts: c.hearts, ranks: { ...c.ranks }, points: c.points, keys: { ...c.keys }, bag: [...c.bag], runes: { ...c.runes }, autoEquip: c.autoEquip });
 const newStats = (): Stats => ({ time: 0, kills: 0, deaths: 0 });
 const slots = loadSlots(); // 저장 슬롯 셋(있으면 시작 화면에 이어하기)
 let name = ''; // 아이디(새 게임에서 입력)
@@ -96,7 +97,7 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정' };
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', smith: '대장장이', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
 const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' ? act2 < 2 : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
@@ -132,6 +133,7 @@ function makeFloor(n: number, carry: Carry): World {
   w.gear = { ...carry.gear };
   w.mods = copyMods(carry.mods);
   w.gold = carry.gold;
+  [w.ore, w.hearts] = [carry.ore, carry.hearts];
   w.ranks = { ...carry.ranks };
   w.points = carry.points;
   w.keys = { ...carry.keys };
@@ -225,6 +227,7 @@ let chiefHint = false; // 우두머리 안내 한 줄(판마다 한 번) // 화�
 function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'merchant') return openShop(true);
   if (t === 'stash') return (stashOpen = true), renderBag();
+  if (t === 'smith') return openForge();
   if (t === 'villager') return say(chat());
   if (t === 'clue' && land === 'sanctum' && TRACES[floor - 1]) {
     signs = signsOf(world); // 읽은 흔적은 이름표를 뗀다
@@ -461,6 +464,19 @@ function renderBag() {
 
 // 보관함·스킬 창을 열 수 있나: 죽은 때만 빼고(보스를 깬 뒤에도 가방을 비워 전리품을 줍고, 포인트를 쓴다)
 const canOpen = () => !choosing && !shopping && outcome(world) !== 'dead' && !document.querySelector('dialog[open]');
+
+// 대장장이 창. 천막(죽지 않는 곳)이라 창고처럼 지금 상태를 입구 기록으로 삼아 바로 저장한다
+function openForge() {
+  const done = (ok: boolean) => {
+    if (ok) {
+      entry = carryOf(world);
+      saveRun(progress());
+      sound.play([{ name: 'gold', x: world.entities[0].x, z: world.entities[0].z }], world.entities[0].x, world.entities[0].z);
+    }
+    openForge();
+  };
+  showForge(world, { temper: (t) => done(temper(world, t)), awaken: (t, k) => done(awaken(world, t, k)) });
+}
 
 function openBag() {
   if (canOpen()) renderBag();

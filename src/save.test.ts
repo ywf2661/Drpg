@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
 
-const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true, runes: { gale: 3, 'fireball+2': 1, 'key:dash': 1 }, beat: 5, marksBy: [1, 0, 7, 0], relics: 5, relicMiss: [0, 2, 0, 1], stash: [{ kind: 'helm' as const, tier: 1, affixes: [], x: 8, y: 6 }], act2: 0 };
+const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, ore: 0, hearts: 0, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true, runes: { gale: 3, 'fireball+2': 1, 'key:dash': 1 }, beat: 5, marksBy: [1, 0, 7, 0], relics: 5, relicMiss: [0, 2, 0, 1], stash: [{ kind: 'helm' as const, tier: 1, affixes: [], x: 8, y: 6 }], act2: 0 };
 
 test('소켓·꽂힌 룬·룬 주머니·2회차 진행을 되읽고, 소켓보다 많은 룬·다른 직업 스킬 룬은 버린다', () => {
   const sock = { ...run, mods: { ...run.mods, weapon: [{ kind: 'dmg' as const, value: 20 }, { kind: 'socket' as const, value: 2 }, { kind: 'move' as const, value: 4, r: 'gale' }, { kind: 'skill' as const, value: 1, skill: 'fireball' as const, r: 'fireball+1' }] } };
@@ -194,4 +194,16 @@ test('옛 세이브: 회오리·처형 단계와 칸, 룬 주머니, 장비 룬�
   expect(r?.keys).toEqual({ cleave: 'cleave', dash: 'downcut', shout: 'greatsword', throw: null });
   expect(r?.runes).toEqual({ 'downcut+2': 1 });
   expect(r?.mods.weapon.map((a) => a.r)).toEqual([undefined, 'greatsword+1']);
+});
+
+test('담금질: ★·깨어남·재료를 되읽고, 어긋난 ★·깨어남은 버린다', () => {
+  const forged = { ...run, ore: 12, hearts: 1, mods: { ...run.mods, boots: [{ kind: 'move' as const, value: 6 }, { kind: 'move' as const, value: 5, star: 5 }, { kind: 'awake' as const, value: 0, u: 'emberStep' as const, awake: true as const }, { kind: 'awake' as const, value: 12345 }] } };
+  expect(decodeSave(encodeSave(forged))).toEqual(forged);
+  const fake = (boots: object[]) => decodeSave(encodeSave({ ...forged, mods: { ...forged.mods, boots } as never }));
+  expect(fake([{ kind: 'move', value: 99, star: 2 }])!.mods.boots).toEqual([{ kind: 'move', value: 2, star: 2 }]); // 값은 표에서
+  expect(fake([{ kind: 'move', value: 6, star: 6 }])).toBeNull(); // ★6은 없다
+  expect(fake([{ kind: 'move', value: 3, star: 3 }])).toBeNull(); // ★3인데 깨어남이 없다
+  expect(fake([{ kind: 'move', value: 3, star: 3 }, { kind: 'life', value: 999, awake: true }])).toBeNull(); // 풀에 없는 깨어남
+  expect(fake([{ kind: 'move', value: 3, star: 3 }, { kind: 'awake', value: 0, u: 'boomerang', awake: true }])).toBeNull(); // 다른 부위 전설
+  expect(decodeSave(encodeSave({ ...run, ore: -1 }))).toBeNull();
 });
