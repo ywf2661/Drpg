@@ -11,6 +11,7 @@ import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
+import { startStitch, stitchState } from './sim/stitch';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
@@ -20,7 +21,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss, gearDiff } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT, RIFT_OPEN, STITCH_GUIDE, STITCH_SUN, STITCH_DONE, STITCH_SNAP, STITCH_HINT, STITCH_PULLED, STITCH_CRUMBLE, RIFT_CLOSED, EPILOGUE2, WARP_DONE } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -62,6 +63,7 @@ let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
 let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
 let signal2 = false; // 타임패트롤 신호 2(사암 신전 문지기 사제를 쓰러뜨린 뒤)를 들었다
+let [stitchGuide, riftDone, riftTalk] = [false, false, false]; // riftTalk = 틈이 벌어지고 신호를 띄울 차례 // 꿰매기 안내를 띄울 차례, 닫혀서 마지막 신호를 닫으면 후일담
 let patrolOn = false; // 신호 형상이 서 있다(대화창이 닫히면 끊긴다)
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
 // ponytail: 2막 땅이 생기면 여기에 더한다(지금은 호숫가)
@@ -180,7 +182,7 @@ function enterFloor(n: number, carry: Carry) {
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle, land, goalLine());
-  [risen, fell] = [false, false];
+  [risen, fell, stitchGuide, riftDone, riftTalk] = [false, false, false, false, false];
   intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
   outro = null;
   setOutro(null);
@@ -363,7 +365,7 @@ function restart() {
 
 // 보스를 잡은 뒤 야영지로: 지금 이야기 단계의 보스면 다음 단계(마지막이면 회차 + 1), 순찰대장이 다음 이야기를 한다
 function backToCamp() {
-  if (outcome(world) !== 'clear' || clearT < LOOT_TIME || ending) return;
+  if (outcome(world) !== 'clear' || clearT < LOOT_TIME || ending || stitchState(world)) return; // 틈을 꿰매면 후일담이 천막으로 데려간다
   if (land !== 'sanctum' || !world.horseDrop) return goCamp();
   // 처음 쓰러뜨린 판: 줍지 않은 고유 장비는 가방(자리가 없으면 창고)에 넣고, 어두워진 뒤 야영지로 → 후일담·크레딧
   for (const it of world.items) {
@@ -376,14 +378,14 @@ function backToCamp() {
 }
 
 // 엔딩 2: 화면이 어두워지면 go(야영지로) → 후일담 한 줄씩 → 크레딧이 올라간다(아무 키나 누르면 건너뜀) → 밝아진다
-async function epilogue(go: () => void) {
+async function epilogue(go: () => void, lines: string[] = EPILOGUE) {
   const wait = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
   const [box, line, roll] = [$('#ending'), $('#ending-line'), $('#ending-roll')];
   ending = true;
   box.classList.add('on');
   await wait(1.2);
   go();
-  for (const text of EPILOGUE) {
+  for (const text of lines) {
     line.textContent = text;
     line.classList.add('show');
     await wait(2.4);
@@ -403,6 +405,13 @@ async function epilogue(go: () => void) {
   ending = false;
 }
 
+// 타임패트롤 신호: 주인공 곁에 형상을 세우고 대화(창이 닫히면 형상도 끊긴다)
+function patrolTalk(lines: string[]) {
+  patrolOn = true;
+  setPatrol({ x: world.entities[0].x + 1.3, z: world.entities[0].z - 1.3 });
+  showTalks(lines.map((l): [string, string] => ['???', l]));
+}
+
 function goCamp() {
   for (const it of world.items) if (it.kind === 'rune') world.runes[it.rune!] = (world.runes[it.rune!] ?? 0) + 1; // 보스 자리에 남은 룬은 챙겨 간다
   for (const it of world.items) if (it.kind === 'relic') gotRelic(it.relic!); // 줍지 않은 성물도
@@ -420,6 +429,7 @@ function goCamp() {
   if (land === 'lake') [act2, news, captainLine] = [Math.max(act2, 3), true, [LAKE_DONE]];
   if (land === 'raid') [act2, news, captainLine] = [Math.max(act2, 4), true, [RAID_DONE]];
   if (land === 'temple') [act2, news, captainLine] = [Math.max(act2, 6), true, [TEMPLE_DONE]]; // 문지기 사제: 틈 너머 이야기
+  if (land === 'warp' && act2 >= 7 && stitchState(world)) [news, captainLine] = [true, [WARP_DONE]]; // 틈을 꿰맸다
   if (land === 'mine') [act2, news, captainLine] = [Math.max(act2, 5), true, [MINE_DONE]]; // 광산 감독관: 다음 곳(신전) 이야기 // 약탈자 우두머리: 다음 곳(광산) 이야기 // 뱃사공: 원정대 천막의 순찰대장이 다음 길 이야기
   if (land === 'sanctum' && world.horseDrop) act2 = Math.max(act2, 1); // 처음 쓰러뜨렸다: 2막이 열린다(야영지 북쪽 원정길)
   toCamp(carryOf(world), after.advanced && (!was || after.newCycle)); // 2회차부터 순찰대장은 회차가 넘어갈 때만 새로 말한다
@@ -757,6 +767,14 @@ if (new URLSearchParams(location.search).has('test')) {
     land = 'warp';
     enterFloor(FLOORS, carryOf(world));
   });
+  // 틈 꿰매기: 파수꾼 결전 → 파수꾼을 바로 쓰러뜨린다(2막 엔딩, act2 6으로 되돌려 처음 쓰러뜨리는 판으로)
+  $('#test-rift').addEventListener('click', () => {
+    if (!playing()) return;
+    $('#test-warden').click();
+    act2 = 6;
+    const boss = world.entities.find((e) => e.skin === 'time_warden');
+    if (boss) Object.assign(boss, { hp: 0, state: 'dead' });
+  });
   // 숨기기: 테스트 버튼을 모두 접고 접기 버튼만 남긴다
   $('#test-hide').addEventListener('click', (e) => {
     const folded = $('#tester').classList.toggle('folded');
@@ -964,7 +982,33 @@ requestAnimationFrame(function frame(now) {
     setPatrol({ x: world.entities[0].x + 1.3, z: world.entities[0].z - 1.3 });
     showTalks(PATROL2.map((l): [string, string] => ['???', l]));
   }
-  if (o === 'clear' && !talking() && !outroOn()) clearT += dt; // 엔딩 1이면 레터박스가 걷힌 뒤부터
+  // 뒤틀린 차원 결전: 파수꾼을 처음 쓰러뜨리면(act2 6) 틈이 벌어진다 → 다급한 신호 → 꿰매기(sim/stitch.ts). 닫히면 신호 → 후일담 → 천막
+  if (o === 'clear' && land === 'warp' && floor === FLOORS && act2 < 7 && !stitchState(world) && clearT >= 0.8) {
+    startStitch(world);
+    letterbox(true); // 틈이 벌어지는 연출: 띠 + UI 숨김(퍼즐을 시작할 때 걷힌다)
+    riftTalk = true;
+  }
+  const sw = stitchState(world);
+  if (sw) {
+    if (riftTalk && sw.t >= 2) (riftTalk = false), patrolTalk(RIFT_OPEN); // 틈이 커지는 걸 잠깐 보여 준 뒤 신호
+    for (const ev of sw.events.splice(0)) {
+      if (ev === 'start') stitchGuide = true;
+      else if (ev === 'done' && sw.k >= 4) letterbox(true); // 다 꿰맸다: 틈이 닫히는 연출
+      else if (ev === 'done') hint(sw.k === 3 ? STITCH_SUN : STITCH_DONE[sw.k - 1]);
+      else if (ev === 'snap') say(STITCH_SNAP);
+      else if (ev === 'hint') hint(STITCH_HINT);
+      else if (ev === 'pulled') hint(STITCH_PULLED);
+      else if (ev === 'crumble') hint(STITCH_CRUMBLE);
+      else if (ev === 'closed') patrolTalk(RIFT_CLOSED), (riftDone = true);
+    }
+    if (stitchGuide && !riftTalk && !talking()) (stitchGuide = false), letterbox(false), hint(STITCH_GUIDE); // 신호가 끝나면 띠가 걷히고 퍼즐
+    if (riftDone && !talking()) {
+      riftDone = false;
+      act2 = Math.max(act2, 7);
+      void epilogue(goCamp, EPILOGUE2);
+    }
+  }
+  if (o === 'clear' && !talking() && !outroOn() && !(sw && sw.phase !== 'closed')) clearT += dt; // 엔딩 1이면 레터박스가 걷힌 뒤부터, 꿰매는 동안은 멈춘다
   // 성소 5층: 체력 절반에 기사가 일어날 때 한 줄, 쓰러지는 모습이 끝나면 대화(전리품 시간은 대화를 닫은 뒤부터)
   if (land === 'sanctum' && floor === FLOORS) {
     if (world.knightsUp && !risen) {
