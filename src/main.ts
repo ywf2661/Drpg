@@ -187,6 +187,7 @@ function enterFloor(n: number, carry: Carry) {
   [risen, fell, stitchGuide, riftDone, riftTalk, demoT] = [false, false, false, false, false, -1];
   $('#stitch-rule').hidden = true;
   setStitchDemo(null);
+  sound.setWind(0);
   intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
   outro = null;
   setOutro(null);
@@ -1017,6 +1018,7 @@ requestAnimationFrame(function frame(now) {
       if (demoT >= STITCH_DEMO) (stitchGuide = false), (demoT = -1), setStitchDemo(null), letterbox(false), setGaze(null), hint(STITCH_GUIDE);
     }
     $('#stitch-rule').hidden = sw.phase !== 'sew' || stitchGuide || riftTalk;
+    sound.setWind(sw.phase === 'closed' ? 0 : sw.phase === 'closing' ? Math.max(0, 1 - sw.closeT / STITCH.walkIn) * 0.8 : sw.k === 0 ? 0.25 : 0.45 + 0.55 * (sw.r / STITCH.rMax)); // 첫 무늬는 잔잔하게, 틈이 클수록 세게
     if (riftDone && !talking()) {
       riftDone = false;
       act2 = Math.max(act2, 7);

@@ -161,3 +161,27 @@ export function play(events: SoundEvent[], hx: number, hz: number) {
     played++;
   }
 }
+
+// 바람(2막 엔딩 — 틈이 빨아들이는 소리): 걸러 낸 노이즈를 돌린다(파일 없음). k = 세기 0~1, 0이면 잦아든다
+let wind: { gain: GainNode; filter: BiquadFilterNode } | null = null;
+export function setWind(k: number) {
+  if (!ctx || (!wind && k <= 0)) return;
+  if (!wind) {
+    const n = ctx.sampleRate * 3;
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b = 0;
+    for (let i = 0; i < n; i++) d[i] = (b = 0.97 * b + 0.03 * (Math.random() * 2 - 1)) * 6; // 낮게 웅웅대는 갈색 노이즈
+    const src = Object.assign(ctx.createBufferSource(), { buffer: buf, loop: true });
+    const filter = Object.assign(ctx.createBiquadFilter(), { type: 'bandpass' as BiquadFilterType });
+    filter.Q.value = 0.7;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.start();
+    wind = { gain, filter };
+  }
+  const t = ctx.currentTime;
+  wind.gain.gain.setTargetAtTime(settings.muted ? 0 : k * 0.45 * settings.sfx, t, k > 0 ? 0.4 : 0.15);
+  wind.filter.frequency.setTargetAtTime(260 + k * 520 + Math.sin(t * 0.8) * 140 * k, t, 0.5); // 셀수록 높고 일렁인다
+}

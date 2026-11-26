@@ -66,7 +66,12 @@ test('넷을 다 꿰매면 틈이 닫힌다. 무늬마다 다 그은 뒤 메아�
     hold(w, STITCH.echo + 0.2);
   }
   expect(s.phase).toBe('closing');
-  tick(w, STITCH.close + 0.1);
+  tick(w, STITCH.walkIn / 2);
+  const mid = w.warp!.echo!;
+  expect(Math.hypot(mid[0] - STITCH.center, mid[1] - STITCH.center)).toBeLessThan(12); // 메아리가 틈 쪽으로 걸어 들어간다
+  tick(w, STITCH.walkIn / 2 + 0.1);
+  expect(w.warp!.echo).toBeNull(); // 스며들었다
+  tick(w, STITCH.close - STITCH.walkIn);
   expect(stitchState(w)!.phase).toBe('closed');
   expect(s.events.filter((e) => e === 'done').length).toBe(4);
 });

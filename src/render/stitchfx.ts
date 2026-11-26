@@ -21,7 +21,7 @@ const STRIP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const RING = new THREE.RingGeometry(0.28, 0.4, 20).rotateX(-Math.PI / 2);
 const ARROW = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0.35), new THREE.Vector2(0.25, -0.2), new THREE.Vector2(-0.25, -0.2)])).rotateX(Math.PI / 2); // +z를 가리키는 세모
 
-type Fx = { needle: THREE.Mesh; trail: THREE.Group; burst: { m: THREE.Mesh; t: number } | null; world: World; tear: THREE.Mesh; u: Record<string, THREE.IUniform>; hole: THREE.Mesh; motes: THREE.Points; seeds: Float32Array; pattern: THREE.Group; ver: number; k: number; holes: THREE.Mesh[]; crosses: THREE.Group };
+type Fx = { absorbed: boolean; needle: THREE.Mesh; trail: THREE.Group; burst: { m: THREE.Mesh; t: number } | null; world: World; tear: THREE.Mesh; u: Record<string, THREE.IUniform>; hole: THREE.Mesh; motes: THREE.Points; seeds: Float32Array; pattern: THREE.Group; ver: number; k: number; holes: THREE.Mesh[]; crosses: THREE.Group };
 let fx: Fx | null = null;
 
 // 바닥에 눕힌 띠: a → b, 폭 wd
@@ -64,7 +64,7 @@ function build(world: World): Fx {
   needle.renderOrder = 4;
   const trail = new THREE.Group();
   stitchGroup.add(tear, motes, pattern, needle, trail); // 바닥 구멍(보라 테 원)은 그리지 않는다(사용자)
-  return { needle, trail, burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
+  return { absorbed: false, needle, trail, burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
 }
 
 // 무늬를 다시 깐다(그은 줄·굳은 실이 바뀔 때)
@@ -159,6 +159,17 @@ export function tickStitchFx(time: number, dt: number, world: World) {
     f.needle.position.set(a[0] + (b[0] - a[0]) * k, 0.5, a[1] + (b[1] - a[1]) * k);
     for (let j = 0; j < i; j++) f.trail.add(strip(s.holes[seq[j]], s.holes[seq[j + 1]], 0.1, MAT.drawn, 0.05));
     f.trail.add(strip(a, [f.needle.position.x, f.needle.position.z], 0.1, MAT.drawn, 0.05));
+  }
+  // 메아리가 틈에 스며드는 순간: 가운데에서 큰 빛 고리
+  if (s.phase === 'closing' && s.closeT >= STITCH.walkIn && !f.absorbed) {
+    f.absorbed = true;
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 48).rotateX(-Math.PI / 2), add(0xc4a9ff, 1));
+    m.position.set(C, 0.08, C);
+    m.renderOrder = 3;
+    stitchGroup.add(m);
+    if (f.burst) f.burst.m.removeFromParent();
+    f.burst = { m, t: 0 };
+    f.u.uOpen.value = 1.6;
   }
   // 땀 하나 완성: 그 무늬 자리에서 빛 고리가 퍼진다
   if (f.k >= 0 && s.k > f.k) {

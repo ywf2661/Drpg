@@ -467,6 +467,7 @@ export function tickWarpArt(time: number, dt: number, world: World) {
   }
   // 메아리: 쌓이면 나타난다
   const hero = world.entities[0];
+  if (echo) echo.s.mesh.visible = !!wp.echo; // 엔딩에서 틈으로 스며들면 사라진다
   if (wp.echo) {
     if (!echo) {
       echo = { s: ghostSprite(hero), last: wp.echo, facing: hero.facing };

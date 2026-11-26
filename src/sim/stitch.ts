@@ -10,7 +10,7 @@ import { walkable } from './path';
 import { DT, WARP, type World } from './rules';
 import { hourDir } from './warpmap';
 
-export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 2.5 };
+export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8 }; // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
 export type Pattern = { demo?: number[]; name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
@@ -27,7 +27,7 @@ export type StitchState = {
   t: number; r: number; k: number; // 경과(초), 틈 반지름(칸), 지금 무늬 번호(4 = 다 꿰맴)
   holes: [number, number][]; // 지금 무늬 구멍의 월드 자리
   drawn: { e: number; at: number }[]; start: number; cur: number; snaps: number; crumbleT: number; lost: number[]; // 그은 줄(그은 시각), 마지막으로 닿은 구멍, 끊어진 수, 빨려 든 구멍
-  phase: 'sew' | 'closing' | 'closed'; closeT: number; events: StitchEvent[]; ver: number;
+  phase: 'sew' | 'closing' | 'closed'; closeT: number; echoFrom: [number, number] | null; events: StitchEvent[]; ver: number;
 };
 const state = new WeakMap<World, StitchState>();
 export const stitchState = (w: World) => state.get(w) ?? null;
@@ -43,7 +43,7 @@ export function holesOf(k: number): [number, number][] {
 }
 
 export function startStitch(w: World): StitchState {
-  const s: StitchState = { t: 0, r: STITCH.r0, k: 0, holes: holesOf(0), drawn: [], start: -1, cur: -1, snaps: 0, crumbleT: 0, lost: [], phase: 'sew', closeT: 0, events: ['start'], ver: 0 };
+  const s: StitchState = { t: 0, r: STITCH.r0, k: 0, holes: holesOf(0), drawn: [], start: -1, cur: -1, snaps: 0, crumbleT: 0, lost: [], phase: 'sew', closeT: 0, echoFrom: null, events: ['start'], ver: 0 };
   state.set(w, s);
   return s;
 }
@@ -68,7 +68,15 @@ export function tickStitch(w: World) {
   const c = STITCH.center;
   if (s.phase === 'closing') {
     s.closeT += DT;
-    s.r = Math.max(0, s.r - (DT * STITCH.r0) / STITCH.close);
+    // 메아리가 틈 한가운데로 걸어 들어가 스며든다(warp.ts가 이번 틱에 정한 메아리 자리를 덮어쓴다), 그다음 틈이 오므라든다
+    const wp = w.warp;
+    if (wp) {
+      s.echoFrom ??= wp.echo ?? [hero.x, hero.z];
+      const k = Math.min(1, s.closeT / STITCH.walkIn);
+      const e = 1 - (1 - k) ** 2;
+      wp.echo = k < 1 ? [s.echoFrom[0] + (c - s.echoFrom[0]) * e, s.echoFrom[1] + (c - s.echoFrom[1]) * e] : null;
+    }
+    if (s.closeT > STITCH.walkIn) s.r = Math.max(0, s.r - (DT * s.r) / Math.max(DT, STITCH.close - s.closeT + DT));
     if (s.closeT >= STITCH.close) (s.phase = 'closed'), s.events.push('closed'), s.ver++;
     return;
   }
