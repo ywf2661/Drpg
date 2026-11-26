@@ -1,5 +1,6 @@
 // 뒤틀린 차원 퍼즐: 한 박자 늦은 나(설계: docs/superpowers/specs/2026-11-26-act2-rift-design.md 3절). three.js·Math.random 금지.
-// 맵: 'α'~'δ' 발판(같은 글자 둘이 한 짝), 'Α'~'Δ' 그 짝의 문(닫히면 막힘), 'ψ' 불기둥.
+// 맵: 'α'~'δ' 발판(같은 글자 둘이 한 짝), 'Α'~'Δ' 그 짝의 문(닫히면 막힘), 'ψ' 불기둥, 'u' 호숫가 조각의 물웅덩이.
+// 바닥 글자가 방의 땅: 'λ' 호숫가 'ρ' 진지 'μ' 광산 'τ' 신전(방마다 가장 많은 것. 없으면 차례로 돌려 쓴다).
 // 메아리 = WARP.delay초 전 주인공 자리. 발판은 주인공이나 메아리가 올라서면 눌리고, 짝의 발판이 같은 틱에 다 눌리면 문이 열린다(다시 닫히지 않는다).
 // 메아리는 발판만 누른다(싸우지도, 맞지도, 길을 막지도 않는다). 몬스터는 발판을 못 누른다.
 import { dress, hurt } from './core';
@@ -9,11 +10,13 @@ import { DT, LANDS, WARP, type Entity, type Land, type World } from './rules';
 export type Plate = { pair: number; cell: number; on: boolean };
 export type Door = { pair: number; cells: number[]; open: boolean };
 // trail = 주인공 자리 고리 버퍼(x, z 쌍), head = 다음에 쓸 칸, filled = 쌓인 수, room = 칸마다 방 번호(문을 닫은 채 걷는 칸 덩어리, 아니면 -1), rooms = 방마다 그 땅
-export type Warp = { trail: Float32Array; head: number; filled: number; echo: [number, number] | null; plates: Plate[]; doors: Door[]; fires: number[]; fireT: number; fireHit: boolean; room: Int16Array; rooms: Land[]; ver: number };
+export type Warp = { trail: Float32Array; head: number; filled: number; echo: [number, number] | null; plates: Plate[]; doors: Door[]; fires: number[]; fireT: number; fireHit: boolean; room: Int16Array; rooms: Land[]; water: number[]; ver: number }; // water = 물웅덩이 칸(그림)
 
 export const PLATES = 'αβγδ';
 export const DOORS = 'ΑΒΓΔ';
 const LANDS_CYCLE: Land[] = ['lake', 'raid', 'mine', 'temple'];
+export const FLOOR_OF: Record<string, string> = { lake: 'λ', raid: 'ρ', mine: 'μ', temple: 'τ' };
+const LAND_OF_FLOOR: Record<string, Land> = { λ: 'lake', ρ: 'raid', μ: 'mine', τ: 'temple' };
 const TICKS = Math.round(WARP.delay / DT);
 
 export function makeWarp(map: string[], grid: Grid): Warp | null {
@@ -21,6 +24,7 @@ export function makeWarp(map: string[], grid: Grid): Warp | null {
   const plates: Plate[] = [];
   const doors: Door[] = [];
   const fires: number[] = [];
+  const water: number[] = [];
   for (let z = 0; z < h; z++)
     for (let x = 0; x < w; x++) {
       const c = map[z][x];
@@ -31,6 +35,7 @@ export function makeWarp(map: string[], grid: Grid): Warp | null {
         const d = doors.find((o) => o.pair === pair) ?? doors[doors.push({ pair, cells: [], open: false }) - 1];
         d.cells.push(i);
       } else if (c === 'ψ') fires.push(i);
+      else if (c === 'u') water.push(i);
     }
   if (!plates.length && !doors.length && !fires.length) return null;
   // 방: 문을 닫은 채 걷는 칸 덩어리(위 → 아래 순서로 번호)
@@ -41,15 +46,20 @@ export function makeWarp(map: string[], grid: Grid): Warp | null {
     const k = rooms.push(LANDS_CYCLE[rooms.length % 4]) - 1;
     const q = [s];
     room[s] = k;
+    const count: Partial<Record<Land, number>> = {};
     for (let i = 0; i < q.length; i++) {
       const [x, z] = [q[i] % w, Math.floor(q[i] / w)];
+      const l = LAND_OF_FLOOR[map[z][x]];
+      if (l) count[l] = (count[l] ?? 0) + 1;
       for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
         const n = nz * w + nx;
         if (nx >= 0 && nz >= 0 && nx < w && nz < h && !grid.blocked[n] && room[n] < 0) (room[n] = k), q.push(n);
       }
     }
+    const most = (Object.entries(count) as [Land, number][]).sort((a, b) => b[1] - a[1])[0];
+    if (most) rooms[k] = most[0];
   }
-  return { trail: new Float32Array(TICKS * 2), head: 0, filled: 0, echo: null, plates, doors, fires, fireT: 0, fireHit: false, room, rooms, ver: 0 };
+  return { trail: new Float32Array(TICKS * 2), head: 0, filled: 0, echo: null, plates, doors, fires, fireT: 0, fireHit: false, room, rooms, water, ver: 0 };
 }
 
 // 몬스터마다 그 칸 방의 땅 졸개로(createWorld가 땅 스킨 없이 만든 뒤)

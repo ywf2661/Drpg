@@ -1,6 +1,6 @@
 // 뒤틀린 차원 그림(설계: docs/superpowers/specs/2026-11-26-act2-rift-design.md 2·3절). sim은 바꾸지 않는다.
-//   바닥: 방마다 지나온 땅 빛깔(호숫가 이끼·진지 흙·광산 보라 바위·신전 사암). 4칸 덩어리로 가끔 다른 땅 조각이 끼어든다
-//   벽: 검은 돌에 푸른 유령빛(render.ts가 물들인다). 문: 짝 색의 반투명 빛 장막, 열리면 스러진다
+//   꿰맨 조각보: 조각마다 그 땅의 바닥 그림과 빛깔, 떠 있는 두께, 소품(호숫가 나무·물웅덩이, 진지 말뚝 방책·통, 광산 결정, 신전 기둥).
+//   이음매는 낮은 검푸른 돌 위 빛 실 바늘땀, 문은 짝 색의 반투명 빛 장막(열리면 스러진다). 허공 아래로 지나온 땅의 잔해가 한쪽으로 흘러간다
 //   발판: 짝 색 원판, 눌리면 환하게. 불기둥: 솟기 0.6초 전 바닥이 달아오르고, 솟으면 불기둥
 //   메아리: 주인공 판자를 복제한 반투명 보랏빛, 발밑에서 주인공까지 지난 4초 발자취 점선
 import * as THREE from 'three';
@@ -16,7 +16,6 @@ const LAND_TINT: Partial<Record<Land, THREE.Color>> = {
   mine: new THREE.Color(1.35, 1.25, 1.5),
   temple: new THREE.Color(1.32, 1.06, 0.72),
 };
-const LANDS4: Land[] = ['lake', 'raid', 'mine', 'temple'];
 const STEPS = 16; // 발자취 점 수(4초)
 const WARN = 0.6; // 불기둥이 솟기 전 바닥이 달아오르는 시간(초)
 
@@ -32,24 +31,36 @@ const hash = (x: number, z: number) => {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 };
 
-// 차원 그림이 바닥을 깔 칸(방 칸 + 문 칸): render.ts는 이 칸에 바닥·벽을 그리지 않는다
+// 칸 곁 8칸의 방 번호들
+function roomsNear(world: World, i: number): Set<number> {
+  const { w, h } = world.grid;
+  const [x, z] = [i % w, Math.floor(i / w)];
+  const out = new Set<number>();
+  for (let dz = -1; dz <= 1; dz++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const [nx, nz] = [x + dx, z + dz];
+      if (nx >= 0 && nz >= 0 && nx < w && nz < h && world.warp!.room[nz * w + nx] >= 0) out.add(world.warp!.room[nz * w + nx]);
+    }
+  return out;
+}
+
+// 차원 그림이 바닥을 깔 칸(방 칸 + 문 칸 + 방에 붙은 막힌 칸 — 이음매·소품·상자 밑): render.ts는 이 칸에 바닥·벽을 그리지 않는다
 export function warpFloor(world: World): Set<number> {
   const wp = world.warp;
   if (!wp) return new Set();
   const out = new Set<number>();
   wp.room.forEach((r, i) => r >= 0 && out.add(i));
   for (const d of wp.doors) for (const i of d.cells) out.add(i);
+  world.grid.blocked.forEach((b, i) => b === 1 && roomsNear(world, i).size && out.add(i));
   return out;
 }
 
-// 칸의 땅: 방의 땅, 4칸 덩어리마다 다섯에 하나는 다른 땅 조각. 문 칸은 null(검푸른 돌)
+// 칸의 땅: 방이면 그 방의 땅, 막힌 칸이면 곁 방의 땅. 문 칸은 null(검푸른 돌)
 function landAt(world: World, i: number): Land | null {
   const wp = world.warp!;
-  const r = wp.room[i];
-  if (r < 0) return null;
-  const [x, z] = [i % world.grid.w, Math.floor(i / world.grid.w)];
-  const h = hash(x >> 2, z >> 2);
-  return h < 0.2 ? LANDS4[Math.floor(h * 20)] : wp.rooms[r];
+  if (wp.doors.some((d) => d.cells.includes(i))) return null;
+  const r = wp.room[i] >= 0 ? wp.room[i] : [...roomsNear(world, i)][0];
+  return r === undefined ? null : wp.rooms[r];
 }
 
 // floorMat(land, v) = 그 땅 바닥 질감의 v번째 칸 재질(render.ts stone, land가 null이면 차원 바닥), variant(x, z) = 칸의 바닥 변형
@@ -77,6 +88,7 @@ export function buildWarp(world: World, floorMat: (land: Land | null, v: number)
     mesh.receiveShadow = true;
     g.add(mesh);
   }
+  buildPieces(world, g);
   // 발판: 짝 색 원판 + 테
   const disc = new THREE.CircleGeometry(0.42, 28).rotateX(-Math.PI / 2);
   const rim = new THREE.RingGeometry(0.42, 0.48, 28).rotateX(-Math.PI / 2);
@@ -96,14 +108,14 @@ export function buildWarp(world: World, floorMat: (land: Land | null, v: number)
   doors = wp.doors.map((d, i) => {
     const color = PAIR_COLORS[d.pair % 4];
     const cells = d.cells.map((c) => [c % W, Math.floor(c / W)] as const);
-    const alongX = cells.length > 1 && cells[0][1] === cells[1][1]; // 문 칸이 가로로 늘어섰다 = 장막은 x 방향
     const mats: THREE.MeshBasicMaterial[] = [];
     const meshes = cells.map(([x, z]) => {
       const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
       mats.push(mat);
       const mesh = new THREE.Mesh(pane, mat);
       mesh.position.set(x + 0.5, 0.65, z + 0.5);
-      if (!alongX) mesh.rotation.y = Math.PI / 2;
+      const solid = (dx: number, dz: number) => world.grid.blocked[(z + dz) * W + x + dx] === 1;
+      if (Number(solid(0, -1)) + Number(solid(0, 1)) > Number(solid(-1, 0)) + Number(solid(1, 0))) mesh.rotation.y = Math.PI / 2; // 칸마다 이음매가 이어지는 쪽으로 장막을 세운다
       g.add(mesh);
       return mesh;
     });
@@ -143,7 +155,94 @@ export function buildWarp(world: World, floorMat: (land: Land | null, v: number)
   return g;
 }
 
+// 조각 그림: 떠 있는 땅의 두께(바닥 밑 판), 물웅덩이, 이음매(낮은 돌 + 빛 실 바늘땀), 땅마다 소품(나무·말뚝·통·결정·기둥), 허공 아래 흐르는 잔해
+const SLAB = 1.6; // 조각 두께(m)
+let stitchMat: THREE.MeshBasicMaterial | null = null;
+let waterMat: THREE.MeshStandardMaterial | null = null;
+let debris: { mesh: THREE.Object3D; v: number; spin: number }[] = [];
+let span = 64;
+function buildPieces(world: World, g: THREE.Group) {
+  const wp = world.warp!;
+  const { w: W, blocked } = world.grid;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const s = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, list: THREE.Matrix4[]) => {
+    if (!list.length) return;
+    const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+    list.forEach((mm, k) => mesh.setMatrixAt(k, mm));
+    mesh.castShadow = mesh.receiveShadow = true;
+    g.add(mesh);
+  };
+  const at = (x: number, y: number, z: number, sx = 1, sy = 1, sz = 1, ry = 0) => new THREE.Matrix4().compose(p.set(x, y, z), q.setFromEuler(new THREE.Euler(0, ry, 0)), s.set(sx, sy, sz));
+  // 두께: 땅이 있는 칸(바닥·물·막힌 칸) 밑에 판. 땅마다 어두운 흙빛
+  const ground = [...warpFloor(world), ...wp.water];
+  const slabGeo = new THREE.BoxGeometry(1, SLAB, 1);
+  const byLand = new Map<string, THREE.Matrix4[]>();
+  for (const i of ground) {
+    const key = landAt(world, i) ?? 'door';
+    (byLand.get(key) ?? byLand.set(key, []).get(key)!).push(m.clone().makeTranslation((i % W) + 0.5, -SLAB / 2 - 0.01, Math.floor(i / W) + 0.5));
+  }
+  const SLAB_COLOR: Record<string, number> = { lake: 0x2a3a30, raid: 0x3a2a1c, mine: 0x241c30, temple: 0x5a4628, door: 0x1a2238 };
+  for (const [key, list] of byLand) inst(slabGeo, new THREE.MeshStandardMaterial({ color: SLAB_COLOR[key], roughness: 1 }), list);
+  // 물웅덩이
+  waterMat = new THREE.MeshStandardMaterial({ color: 0x4a9ac0, roughness: 0.2, metalness: 0.1, emissive: 0x1a5a80, transparent: true, opacity: 0.95 });
+  inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), waterMat, wp.water.map((i) => at((i % W) + 0.5, -0.04, Math.floor(i / W) + 0.5)));
+  // 막힌 칸 나누기: 두 방 사이 = 이음매, 한 방 곁 = 그 땅 소품(진지는 허공 곁이면 말뚝 방책)
+  const doorCells = new Set(wp.doors.flatMap((d) => d.cells));
+  const chestCells = new Set(world.chests.map((c) => c.z * W + c.x));
+  const seams: number[] = [];
+  const deco: Record<string, THREE.Matrix4[]> = { tree: [], crown: [], stake: [], barrel: [], crystal: [], pillar: [], cap: [] };
+  blocked.forEach((b, i) => {
+    if (b !== 1 || doorCells.has(i) || chestCells.has(i)) return;
+    const near = roomsNear(world, i);
+    if (!near.size) return;
+    const [x, z] = [(i % W) + 0.5, Math.floor(i / W) + 0.5];
+    if (near.size > 1) return void seams.push(i);
+    const land = wp.rooms[[...near][0]];
+    const h = hash(i % W, Math.floor(i / W));
+    const edge = [1, -1, W, -W].some((d) => blocked[i + d] === 2 && !wp.water.includes(i + d));
+    if (land === 'raid' && edge) deco.stake.push(at(x, 0.45, z, 1, 0.9 + h * 0.3, 1, h * 6));
+    else if (land === 'raid') deco.barrel.push(at(x, 0.32, z, 1, 1, 1, h * 6));
+    else if (land === 'lake') (deco.tree.push(at(x, 0.3, z)), deco.crown.push(at(x, 1.05 + h * 0.2, z, 0.9 + h * 0.3, 0.9 + h * 0.4, 0.9 + h * 0.3, h * 6)));
+    else if (land === 'mine') deco.crystal.push(at(x, 0.55, z, 0.32, 0.8 + h * 0.5, 0.32, h * 6));
+    else (deco.pillar.push(at(x, 0.65, z, 1, 0.9 + h * 0.3, 1)), deco.cap.push(at(x, 1.3 + h * 0.4, z)));
+  });
+  const std = (color: number, emissive = 0) => new THREE.MeshStandardMaterial({ color, emissive, roughness: 0.8, flatShading: true });
+  inst(new THREE.CylinderGeometry(0.08, 0.11, 0.6, 6), std(0x4a3420), deco.tree);
+  inst(new THREE.ConeGeometry(0.45, 1.2, 7), std(0x2e4a2c), deco.crown);
+  inst(new THREE.CylinderGeometry(0.07, 0.09, 1, 5).translate(0, 0, 0), std(0x7a5a38), deco.stake);
+  inst(new THREE.CylinderGeometry(0.28, 0.3, 0.64, 9), std(0x6a4a2a), deco.barrel);
+  inst(new THREE.OctahedronGeometry(1, 0), std(0x9a6ad8, 0x3a1870), deco.crystal);
+  inst(new THREE.CylinderGeometry(0.28, 0.32, 1.3, 8), std(0xb09a70), deco.pillar);
+  inst(new THREE.BoxGeometry(0.75, 0.16, 0.75), std(0xc0aa80), deco.cap);
+  // 이음매: 낮은 검푸른 돌 + 위에 빛 실 바늘땀(X)
+  inst(new THREE.BoxGeometry(1, 0.3, 1), std(0x141a30, 0x0a1430), seams.map((i) => at((i % W) + 0.5, 0.15, Math.floor(i / W) + 0.5)));
+  stitchMat = new THREE.MeshBasicMaterial({ color: 0x8fd3ff, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
+  const stitch = new THREE.BoxGeometry(0.85, 0.04, 0.07);
+  inst(stitch, stitchMat, seams.flatMap((i) => [at((i % W) + 0.5, 0.32, Math.floor(i / W) + 0.5, 1, 1, 1, Math.PI / 4), at((i % W) + 0.5, 0.32, Math.floor(i / W) + 0.5, 1, 1, 1, -Math.PI / 4)]));
+  // 허공 아래로 흘러가는 지나온 땅의 잔해(천막·나룻배·결정·부서진 기둥)
+  span = W;
+  const shapes: [THREE.BufferGeometry, number, number][] = [
+    [new THREE.ConeGeometry(1.2, 1.6, 4), 0xa07a50, 0],
+    [new THREE.BoxGeometry(2.6, 0.45, 0.9), 0x5a4028, 0],
+    [new THREE.OctahedronGeometry(0.8, 0).scale(0.6, 1.4, 0.6), 0x8a5ad0, 0x2a1060],
+    [new THREE.CylinderGeometry(0.4, 0.45, 2.4, 8), 0x9a8a68, 0],
+  ];
+  debris = Array.from({ length: 22 }, (_, k) => {
+    const [geo, color, em] = shapes[k % 4];
+    const mesh = new THREE.Mesh(geo, std(color, em));
+    mesh.position.set(hash(k, 1) * (W + 20) - 10, -4 - hash(k, 2) * 5, hash(k, 3) * world.grid.h);
+    mesh.rotation.set(hash(k, 4) * 6, hash(k, 5) * 6, hash(k, 6) * 6);
+    g.add(mesh);
+    return { mesh, v: 0.35 + hash(k, 7) * 0.6, spin: (hash(k, 8) - 0.5) * 0.4 };
+  });
+}
+
 function dropWarp() {
+  debris = [];
+  stitchMat = waterMat = null;
   echo?.s.mesh.removeFromParent();
   echo?.s.mat.map?.dispose();
   echo?.s.mat.dispose();
@@ -158,6 +257,13 @@ function dropWarp() {
 export function tickWarpArt(time: number, dt: number, world: World) {
   const wp = world.warp;
   if (!wp || !group) return;
+  if (stitchMat) stitchMat.opacity = 0.6 + 0.3 * Math.sin(time * 2);
+  if (waterMat) waterMat.emissiveIntensity = 1 + 0.4 * Math.sin(time * 1.3);
+  for (const d of debris) {
+    d.mesh.position.x += d.v * dt;
+    if (d.mesh.position.x > span + 10) d.mesh.position.x -= span + 20; // 한쪽으로만 흐른다
+    d.mesh.rotation.y += d.spin * dt;
+  }
   for (const p of plates) {
     const on = wp.plates[p.i].on;
     p.mat.opacity = on ? 0.85 + 0.15 * Math.sin(time * 9) : 0.3;

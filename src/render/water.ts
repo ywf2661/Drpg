@@ -171,7 +171,7 @@ export function buildWater(world: World): THREE.Group | null {
     bossBoat = null;
     lakeWheels = [];
   }
-  if (world.mine) return null; // 광산의 허공(막힘 값 2)은 물이 아니다(abyss.ts)
+  if (world.mine || world.warp) return null; // 광산·뒤틀린 차원의 허공(막힘 값 2)은 물이 아니다(abyss.ts, 차원의 물웅덩이는 warp.ts)
   const { w, h, blocked } = world.grid;
   const shallow = new Set(world.fords.map(([x, z]) => z * w + x)); // 여울·물길·모래톱(물길이 빠지면 여울로 보인다)
   const plank = new Set(world.planks.map(([x, z]) => z * w + x)); // 다리·나루 판자 밑도 물

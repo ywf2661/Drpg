@@ -94,7 +94,7 @@ const reach = (w: World) => {
   return seen;
 };
 
-test('차원 1~3층: 방 3·4·5, 문을 닫으면 출구에 못 닿고, 발판 짝마다 메아리로 문을 열면 출구까지 걷는다', () => {
+test('차원 1~3층(꿰맨 조각보): 조각 3·4·5가 저마다 다른 땅, 문을 닫으면 출구에 못 닿고, 발판 짝마다 메아리로 문을 열면 출구까지 걷는다', () => {
   for (const floor of [1, 2, 3])
     for (const seed of [3, 41, 977])
       for (const from of ['w', 'n'] as const) {
@@ -103,6 +103,7 @@ test('차원 1~3층: 방 3·4·5, 문을 닫으면 출구에 못 닿고, 발판 
         calm(w);
         const wp = w.warp!;
         expect(wp.rooms.length).toBe([3, 4, 5][floor - 1]);
+        expect(new Set(wp.rooms).size).toBe(Math.min(4, wp.rooms.length)); // 조각마다 그 땅(바닥 글자), 이웃끼리 다르다
         const exits = w.exits.filter((e) => e.to === 'warp');
         expect(exits.length).toBe(3);
         const atExit = (seen: Uint8Array) => exits.some((e) => seen[e.z * w.grid.w + e.x]);

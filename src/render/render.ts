@@ -60,7 +60,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
   raid: { torch: 0xffc890, range: 12, tint: [1.05, 0.9, 0.76], sky: 1.9, sun: 3.0, bg: 0x2a1a10 }, // 약탈자 진지: 먼지 낀 붉은 해
   mine: { torch: 0xffc890, range: 12, tint: [0.98, 0.9, 1.08], sky: 1.1, sun: 1.0, bg: 0x0d0618 }, // 보랏빛 광산: 어둡고, 허공 밑에서 보랏빛이 올라온다
-  warp: { torch: 0xb0d8ff, range: 12, tint: [0.92, 0.96, 1.1], sky: 0.9, sun: 0.9, bg: 0x05040a }, // 뒤틀린 차원: 어둡고 푸르스름하다(메아리·발판이 가장 밝게)
+  warp: { torch: 0xb0d8ff, range: 12, tint: [0.92, 0.96, 1.1], sky: 0.9, sun: 0.9, bg: 0x070a16 }, // 뒤틀린 차원(깊은 남색 허공): 어둡고 푸르스름하다(메아리·발판이 가장 밝게)
   temple: { torch: 0xffd8a0, range: 12, tint: [1.04, 0.94, 0.8], sky: 1.0, sun: 1.5, bg: 0x2a1c10 }, // 사암 신전: 해가 기운 모래 빛(햇빛 줄기가 도드라지게 너무 밝지 않게)
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게

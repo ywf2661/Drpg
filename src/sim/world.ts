@@ -116,9 +116,9 @@ export function createWorld(seed: number, map: string[], power = 1, bossPower = 
   );
   const ferries = pairBoats(map);
   const sluice = makeSluice(map, grid);
-  const mine = makeMine(map, grid, chests);
-  const temple = makeTemple(map, grid, chests, exits);
   const warp = makeWarp(map, grid);
+  const mine = warp ? null : makeMine(map, grid, chests); // 뒤틀린 차원도 허공('-')을 쓰지만 광산이 아니다(보랏빛 구름·떨어지기 없음)
+  const temple = makeTemple(map, grid, chests, exits);
   spawns.sort((a, b) => Number(b.kind === 'hero') - Number(a.kind === 'hero')); // 주인공 = id 0 (안정 정렬)
   if (spawns[0]?.kind !== 'hero') throw new Error('맵에 주인공(H)이 없습니다');
   // 문이 막는 통로의 방향: 양옆(x±1)이 뚫려 있으면 x 방향 통로
