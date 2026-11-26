@@ -40,6 +40,7 @@ import { edgeColor, mixColor } from './edge';
 import { ALLY_TINT, soldierSprite, CAST_SHOW, loadSheet, loadSprites, looksOf, makeSprite, heroRingLevel, setHaloGoal, setHeroRing, setHeroGear, updateSprite, viewHalf, type Sprite } from './sprites';
 import { warded } from '../sim/sanctum';
 import { outroFx, outroGroup, outroLight } from './ending';
+import { patrolFx, patrolGroup, setPatrol } from './patrol';
 
 const SHORT_PX = 360; // 화면 짧은 변을 이만큼의 렌더 픽셀로 그린다(도트 느낌, 기기와 무관하게 같은 굵기)
 const TORCH = 80; // 횃불 밝기(칸델라)
@@ -205,7 +206,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, patrolGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw, pk, lg] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSheet(plankUrl), loadSheet(logUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -268,37 +269,7 @@ export function headOf(id: number): THREE.Vector3 | null {
   return s.mesh.position.clone().add(new THREE.Vector3(0, s.info.cell[1] / s.info.ppm + 0.1, 0));
 }
 
-// 타임패트롤 신호(설계: 2026-11-24-act2-expedition-design.md 4절): 주인공 그림을 푸르스름하게 비춘 흐릿한 형상이 (x, z)에 깜빡이며 선다.
-// 주인공의 지금 동작 칸을 그대로 따라 그리고, 가끔 끊기듯 사라지거나 옆으로 어긋난다(노이즈). null = 없음
-let patrolAt: { x: number; z: number } | null = null;
-let patrol: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; of: Sprite } | null = null;
-export const setPatrol = (p: { x: number; z: number } | null) => (patrolAt = p);
-function drawPatrol() {
-  const hero = sprites[0];
-  if (patrol && (!patrolAt || patrol.of !== hero)) {
-    patrol.mesh.removeFromParent();
-    patrol.mat.map?.dispose();
-    patrol.mat.dispose();
-    patrol = null;
-  }
-  if (!patrolAt || !hero?.mat.map) return;
-  if (!patrol) {
-    const mat = new THREE.MeshBasicMaterial({ map: hero.mat.map.clone(), transparent: true, depthWrite: false, toneMapped: false, color: 0x8ad0ff, blending: THREE.AdditiveBlending }); // 빛이 더해져 신호처럼
-    const mesh = new THREE.Mesh(hero.mesh.geometry, mat);
-    mesh.renderOrder = 3;
-    scene.add(mesh);
-    patrol = { mesh, mat, of: hero };
-  }
-  const map = patrol.mat.map!;
-  map.repeat.copy(hero.mat.map.repeat);
-  map.offset.copy(hero.mat.map.offset);
-  const k = Math.floor(time * 12);
-  const cut = Math.sin(k * 91.7) > 0.82; // 끊김
-  const jx = Math.sin(k * 37.1) > 0.7 ? 0.25 * Math.sin(k * 13.3) : 0; // 옆으로 어긋남
-  patrol.mesh.position.set(patrolAt.x + jx, 0, patrolAt.z - jx);
-  patrol.mesh.quaternion.copy(hero.mesh.quaternion);
-  patrol.mat.opacity = cut ? 0.1 : 0.8 + 0.2 * Math.sin(time * 9);
-}
+export { setPatrol }; // 타임패트롤 신호의 홀로그램 순찰대원(patrol.ts)
 
 export function draw(world: World, dt: number) {
   const hero = world.entities[0];
@@ -306,7 +277,7 @@ export function draw(world: World, dt: number) {
   tickWater(time, world);
   tickAbyss(time, world);
   tickTempleArt(time, world);
-  drawPatrol();
+  patrolFx(hero.x, hero.z, time, dt);
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
   torch.intensity = view.day ? 0 : TORCH * flicker;
