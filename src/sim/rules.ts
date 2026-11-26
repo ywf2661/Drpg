@@ -1085,8 +1085,8 @@ export const STAT_RUNES: Record<string, { name: string; land: Land; kind: AffixK
   spark: { name: '불씨', land: 'ruins', kind: 'crit', value: 4 },
   cinder: { name: '잿불', land: 'ruins', kind: 'dmg', value: 8 },
 };
-// cut: 칸 룬 하나의 재사용 대기 감소(%), cutMax: 한 칸의 합계 상한, sockets: 소켓 1·2·3개 확률
-export const RUNE = { cut: 15, cutMax: 50, sockets: [0.6, 0.3, 0.1] };
+// cut: 칸 룬 하나의 재사용 대기 감소(%, 같은 칸끼리 더한다), sockets: 소켓 1·2·3개 확률
+export const RUNE = { cut: 15, sockets: [0.6, 0.3, 0.1] };
 // 등급 확률 [흔함(스탯), 보통(스킬 +1), 드묾(스킬 +2)]. mob = 잡몹이 하나 떨어뜨릴 확률, boss = 보스가 떨어뜨리는 수, key = 보스의 칸 룬 확률(의뢰를 다 끝냈으면 확정)
 export const RUNE_DROP = { mob: 0.05, odds: { mob: [0.8, 0.2, 0], elite: [0.4, 0.45, 0.15], boss: [0, 0.6, 0.4] }, boss: 2, key: 0.1 };
 export const RUNE_COLOR = ['#e8e0d0', '#5aa0ff', '#ffd84a', '#ff4fd8']; // 흔함·보통·드묾·아주 드묾

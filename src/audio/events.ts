@@ -5,7 +5,7 @@ export type SoundName =
   | 'swing' | 'hero_hit' | 'hero_die'
   | 'skel_attack' | 'skel_hit' | 'skel_die'
   | 'boss_attack' | 'boss_hit' | 'boss_die'
-  | 'gold' | 'summon' | 'dash' | 'shout' | 'throw' | 'shoot' | 'fireball' | 'freeze' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up';
+  | 'gold' | 'summon' | 'dash' | 'shout' | 'throw' | 'shoot' | 'fireball' | 'freeze' | 'blast' | 'cleave' | 'chest' | 'potion' | 'loot' | 'equip_weapon' | 'equip_armor' | 'level_up' | 'anvil';
 export type SoundEvent = { name: SoundName; x: number; z: number };
 export type Snapshot = {
   world: World;

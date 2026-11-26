@@ -6,6 +6,8 @@ import rangerGearIcons from './assets/sprites/ranger_gear_icons.png';
 import rangerSkillIcons from './assets/sprites/ranger_skill_icons.png';
 import necroSkillIcons from './assets/sprites/necro_skill_icons.png';
 import potionIcon from './assets/sprites/potion_icon.png';
+import anvilImg from './assets/sprites/anvil.png';
+import hammerImg from './assets/sprites/smith_hammer.png';
 import runesUrl from './assets/sprites/runes.png';
 import runesInfo from './assets/sprites/runes.json';
 import skillIcon from './assets/sprites/skill_icon.png';
@@ -1105,95 +1107,184 @@ export function showBag(w: World, h: { equip(i: number): boolean; discard(i: num
   auto.onchange = () => h.auto(auto.checked);
 }
 
-// 상점 화면. 항목을 누르면 onBuy, 팔면 onSell, '다음 구역으로'는 onLeave, '여기 남기'·닫기·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다.
-// camp = 야영지 상인(사고팔기, 닫기만), 아니면 구역 사이의 떠돌이 상인(물약 사기만, 다음 구역으로·남기)
-export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void, dest = '다음 층', camp = false) {
+// 상인·대장장이 창의 장비 칸: 가방 칸 그림(gearEl)을 한 칸 크기로, 아래에 담금질 ★ 마름모 다섯
+const TILE = 50;
+function tileEl(it: GearItem, on: boolean, cmp: number, pick: () => void, tipNote: string, tipFoot: string) {
+  const el = gearEl(it, TILE, on ? 'bag-item on' : 'bag-item', cmp);
+  const icon = el.querySelector('i')!;
+  if (artOf(it)) Object.assign(icon.style, { width: `${TILE - 6}px`, height: `${TILE - 6}px`, margin: `${-(TILE - 6) / 2}px` }); // 2×3 그림도 한 칸에
+  else icon.style.scale = String((TILE - 6) / 40);
+  const star = starOf(it.affixes);
+  if (star) {
+    const stars = mk('span', 'stars');
+    for (let n = 1; n <= FORGE.max; n++) stars.append(mk('b', n <= star ? 'on' : ''));
+    el.append(stars);
+  }
+  el.onclick = pick;
+  tipOn(el, () => [it, tipNote, tipFoot]);
+  return el;
+}
+
+// 상점 화면. 물약 사기, (야영지) 가방 칸을 눌러 고른 뒤 팔기. '다음 구역으로'는 onLeave, '여기 남기'·닫기·Esc는 onStay. 사고판 뒤에는 다시 불러 갱신한다.
+// camp = 야영지 상인(사고팔기, 닫기만), 아니면 구역 사이의 떠돌이 상인(물약 사기만, 다음 구역으로·남기). diff: 장착한 것과 비교(▲▼)
+let shopSel = 0;
+export function showShop(c: Wallet & { cls: HeroClass }, onBuy: (item: ShopItem) => void, onSell: (i: number) => void, onLeave: () => void, onStay: () => void, dest = '다음 층', camp = false, diff: (it: GearItem) => number = () => 0) {
   cls = c.cls;
+  hideTip();
   $('#shop-title').textContent = camp ? '상인' : '떠돌이 상인';
   $('#shop-note').textContent = camp ? '물약을 사고, 쓰지 않는 장비를 팝니다.' : '길에서 만난 상인입니다. 물약만 팝니다.';
   $('#shop-leave').hidden = camp;
   $('#shop-stay').textContent = camp ? '닫기' : '◀ 여기 남기';
   $('#shop-leave').textContent = `${dest}으로 ▶`; // 층·구역 모두 받침으로 끝난다
-  const label = (_item: ShopItem) => `체력 물약 1개 <small>(지금 ${c.potions}/8)</small>`;
   shopGold.textContent = String(c.gold);
+  const flasks = mk('div', 'flasks');
+  for (let k = 0; k < POTION.max; k++) flasks.append(Object.assign(document.createElement('img'), { src: potionIcon, alt: '', className: k < c.potions ? 'on' : '' }));
   shopItems.replaceChildren(
+    Object.assign(document.createElement('img'), { src: potionIcon, alt: '', className: 'pot' }),
+    mk('b', '', '체력 물약'),
+    flasks,
+    mk('small', '', `지금 ${c.potions} / ${POTION.max}`),
     ...offers(c).map((o) => {
       const b = document.createElement('button');
-      b.innerHTML = `${label(o.item)} — 금화 ${o.price}`;
+      b.append('사기 · ', mk('i', 'coin'), ` ${o.price}`);
       b.disabled = !o.ok;
       b.addEventListener('click', () => onBuy(o.item));
       return b;
     }),
   );
-  shopSell.hidden = !camp || c.bag.length === 0;
+  shopSell.hidden = !camp;
+  shopSel = Math.max(0, Math.min(shopSel, c.bag.length - 1));
   $('#shop-sell-items').replaceChildren(
     ...c.bag.map((it, i) => {
-      const b = document.createElement('button');
-      b.append(
-        Object.assign(document.createElement('span'), { className: `q${quality(it)}`, textContent: nameOf(it.kind, it.tier, it.affixes) }),
-        ` — 금화 ${sellPrice(it)}`,
-        Object.assign(document.createElement('small'), { textContent: gearLines(it).join(' · ') }),
-      );
-      b.addEventListener('click', once(() => onSell(i)));
-      return b;
+      const d = diff(it);
+      const el = tileEl(it, i === shopSel, d, () => ((shopSel = i), showShop(c, onBuy, onSell, onLeave, onStay, dest, camp, diff)), d > 1e-9 ? '▲ 지금 장착한 장비보다 좋다' : '', `팔면 금화 ${sellPrice(it)}`);
+      el.append(mk('span', 'price', String(sellPrice(it))));
+      return el;
     }),
   );
+  const it = c.bag[shopSel];
+  const pick = $('#shop-pick');
+  if (!it) pick.replaceChildren(mk('div', '', '가방이 비었습니다.'));
+  else {
+    const d = diff(it);
+    const info = mk('div', '');
+    info.append(mk('b', `q${quality(it)}`, nameOf(it.kind, it.tier, it.affixes)), gearLines(it).join(' · '), ...(d > 1e-9 ? [mk('div', 'up', '▲ 지금 장착한 장비보다 좋다')] : []));
+    const b = document.createElement('button');
+    b.append('팔기 · ', mk('i', 'coin'), ` ${sellPrice(it)}`);
+    b.addEventListener('click', once(() => onSell(shopSel)));
+    pick.replaceChildren(info, b);
+  }
   let stay = true; // Esc는 되돌릴 수 있는 쪽(남기)으로
   $('#shop-leave').onclick = () => {
     stay = false;
     shop.close();
   };
   $('#shop-stay').onclick = () => shop.close();
-  shop.onclose = () => (stay ? onStay() : onLeave());
+  shop.onclose = () => (hideTip(), stay ? onStay() : onLeave());
   if (!shop.open) shop.showModal();
 }
 
-// 대장장이 창: 입은 장비·가방 장비 목록 → 고른 장비의 지금 ★과 다음 ★(값), 담금질 버튼, 기다리는 깨어남이면 후보 셋.
+// 대장장이 창: 왼쪽 장착중·가방 칸 → 고른 장비가 모루 위에. 별 길(★1~5, ★3·★5는 깨어남), 지금 ▶ 다음 수치, 재료(가진 것 / 드는 것), 담금질 버튼.
+// 담금질을 누르면 망치가 내리치는 순간(HIT) h.temper를 부른다. 기다리는 깨어남이면 후보 카드 셋.
 // 창이 열린 동안 sim이 멈추므로 main이 world를 바로 바꾸고 다시 부른다(보관함과 같다)
 const forgeDlg = $('#forge') as HTMLDialogElement;
+($('#forge-anvil') as HTMLImageElement).src = anvilImg;
+($('#forge-hammer-img') as HTMLImageElement).src = hammerImg;
+const HIT = 420; // 망치 휘두름(0.52초)에서 모루에 닿는 순간(ms)
 let forgeSel: RuneTarget = 'weapon';
+let forgeJust = 0; // 방금 켜진 ★(다시 그릴 때 한 번 번쩍이고 장비가 달아오른다)
+let striking = false;
 const awakeText = (o: Awake) => AFFIX_TEXT[o.u ? 'awake' : o.kind!](o.value ?? 0, { kind: o.u ? 'awake' : o.kind!, value: o.value ?? 0, u: o.u });
+const restart = (el: HTMLElement, cls: string) => (el.classList.remove(cls), void el.offsetWidth, el.classList.add(cls)); // 같은 애니메이션을 처음부터 다시
+function sparks() {
+  const fx = $('#forge-fx');
+  const bits: HTMLElement[] = [mk('div', 'flash')];
+  for (let k = 0; k < 10; k++) {
+    const a = Math.PI * (1.05 + (k / 9) * 0.9) + (Math.random() - 0.5) * 0.3;
+    const r = 60 + Math.random() * 60;
+    const s = mk('i', 'spark');
+    s.style.cssText = `--dx: ${(Math.cos(a) * r).toFixed(0)}px; --dy: ${(Math.sin(a) * r + 30).toFixed(0)}px; animation-delay: ${(Math.random() * 0.05).toFixed(2)}s`;
+    bits.push(s);
+  }
+  fx.replaceChildren(...bits);
+}
 export function showForge(w: World, h: { temper(t: RuneTarget): void; awaken(t: RuneTarget, k: number): void }) {
   cls = w.cls;
   learned = w.ranks;
+  hideTip();
   const gearAt = (t: RuneTarget): GearItem | undefined => (typeof t === 'number' ? w.bag[t] : { kind: t, tier: w.gear[t], affixes: w.mods[t] });
   if (!gearAt(forgeSel)) forgeSel = 'weapon';
-  $('#forge-purse').textContent = `보랏빛 광석 ${w.ore} · 심장 조각 ${w.hearts} · 금화 ${w.gold}`;
-  const row = (t: RuneTarget, it: GearItem, where: string) => {
-    const b = document.createElement('button');
-    if (t === forgeSel) b.className = 'sel';
-    b.append(mk('span', `q${quality(it)}`, nameOf(it.kind, it.tier, it.affixes)), ` — ${where}`, mk('small', '', gearLines(it).join(' · ')));
-    b.onclick = () => ((forgeSel = t), showForge(w, h));
-    return b;
-  };
-  $('#forge-items').replaceChildren(...SLOTS.map((s) => row(s, gearAt(s)!, '입은 것')), ...w.bag.map((it, i) => row(i, it, '가방')));
   const it = gearAt(forgeSel)!;
   const star = starOf(it.affixes);
-  const pick: HTMLElement[] = [];
+  const max = star >= FORGE.max;
+  const cost = max ? { ore: 0, gold: 0, hearts: 0 } : forgeCost(star);
+  const purse = (label: string, have: number, need: number, coin = false) => {
+    const el = mk('div', !max && have < need ? 'purse short' : 'purse');
+    el.append(...(coin ? [mk('i', 'coin')] : [label]), mk('b', '', need ? `${have} / ${need}` : String(have)));
+    return el;
+  };
+  $('#forge-purse').replaceChildren(purse('보랏빛 광석', w.ore, cost.ore), purse('심장 조각', w.hearts, cost.hearts), purse('금화', w.gold, cost.gold, true));
+  const tile = (t: RuneTarget, g: GearItem) => tileEl(g, t === forgeSel, 0, () => !striking && ((forgeSel = t), (forgeJust = 0), showForge(w, h)), typeof t === 'number' ? '가방' : '장착중', '눌러서 모루에 올리기');
+  $('#forge-worn').replaceChildren(...SLOTS.map((s) => tile(s, gearAt(s)!)));
+  $('#forge-bag').replaceChildren(...w.bag.map((g, i) => tile(i, g)));
+  // 모루 위 장비
+  const item = $('#forge-item');
+  setIcon(item, it);
+  item.style.filter = tint(iconColor(it));
+  if (forgeJust) restart(item, 'hot');
+  const name = $('#forge-name');
+  name.className = `q${quality(it)}`;
+  name.textContent = nameOf(it.kind, it.tier, it.affixes); // 이름에 ★이 붙어 있다
+  $('#forge-lines').textContent = gearLines(it).filter((l) => !l.startsWith('담금질 ')).join(' · '); // ★ 수치는 별 길이 보여 준다
+  // 별 길
+  $('#forge-track').replaceChildren(
+    ...Array.from({ length: FORGE.max }, (_, k) => {
+      const n = k + 1;
+      const el = mk('i', [FORGE.awakeAt.includes(n) && 'wake', n <= star && 'on', n === star + 1 && 'next', n === forgeJust && 'just'].filter(Boolean).join(' '));
+      el.append(mk('span', '', n <= star ? '' : String(n)));
+      return el;
+    }),
+  );
+  const [kind, up] = FORGE.up[it.kind];
+  const line = (s: number) => AFFIX_TEXT[kind](up * s, { kind, value: up * s });
+  $('#forge-next').replaceChildren(
+    ...(max ? [mk('span', 'to', `${line(star)} — 끝까지 담금질했다`)] : [mk('span', 'was', star ? line(star) : '담금질 없음'), mk('span', 'arrow', '▶'), mk('span', 'to', line(star + 1))]),
+  );
+  $('#forge-note').textContent = !max && FORGE.awakeAt.includes(star + 1) ? '이번 담금질로 잠든 힘이 깨어난다 — 셋 중 하나를 고른다' : '';
+  const short = !max && (w.ore < cost.ore || w.gold < cost.gold || w.hearts < cost.hearts);
+  const go = $('#forge-go') as HTMLButtonElement;
+  go.textContent = max ? `★${FORGE.max} — 더 담금질할 수 없다` : short ? '재료가 모자란다' : '담금질';
+  go.disabled = max || short;
+  $('#forge-short').textContent = short ? '광석은 2막의 정예·보스가, 심장 조각은 보스가 떨군다' : '';
+  go.onclick = () => {
+    if (striking) return;
+    striking = true;
+    go.disabled = true;
+    restart($('#forge-hammer'), 'swing');
+    setTimeout(() => {
+      striking = false;
+      sparks();
+      forgeJust = star + 1;
+      h.temper(forgeSel);
+    }, HIT);
+  };
+  // 깨어남 후보
   const choices = awakeChoices(it.affixes, it.kind, w.cls);
-  if (choices) {
-    pick.push(mk('div', 'forge-now', `${nameOf(it.kind, it.tier, it.affixes)}에 잠든 힘이 깨어난다. 하나를 고르세요.`));
-    choices.forEach((o, k) => {
+  $('#forge-wake').hidden = !choices;
+  $('#forge-wake-star').textContent = `★${star}`;
+  $('#forge-cards').replaceChildren(
+    ...(choices ?? []).map((o, k) => {
       const b = document.createElement('button');
-      b.textContent = awakeText(o);
-      b.onclick = once(() => h.awaken(forgeSel, k));
-      pick.push(b);
-    });
-  } else if (star >= FORGE.max) pick.push(mk('div', 'forge-now', `${STAR_FULL(star)} — 더 담금질할 수 없습니다.`));
-  else {
-    const c = forgeCost(star);
-    const [kind, up] = FORGE.up[it.kind];
-    const wake = FORGE.awakeAt.includes(star + 1) ? ', 깨어남 하나를 고른다' : '';
-    pick.push(mk('div', 'forge-now', `${STAR_FULL(star)} → ★${star + 1}: ${AFFIX_TEXT[kind](up * (star + 1), { kind, value: up * (star + 1) })}${wake}`));
-    const b = document.createElement('button');
-    const ok = w.ore >= c.ore && w.gold >= c.gold && w.hearts >= c.hearts;
-    b.append(`담금질 — 보랏빛 광석 ${c.ore} · 금화 ${c.gold}${c.hearts ? ` · 심장 조각 ${c.hearts}` : ''}`, ...(ok ? [] : [mk('small', '', '재료가 모자랍니다. 2막의 정예와 보스가 광석을, 보스가 심장 조각을 떨굽니다.')]));
-    b.disabled = !ok;
-    b.onclick = once(() => h.temper(forgeSel));
-    pick.push(b);
-  }
-  $('#forge-pick').replaceChildren(...pick);
+      const text = awakeText(o);
+      const m = text.match(/^「(.+?)」 (.*)$/); // 전설 효과: 이름과 설명을 나눠 보인다
+      b.append(mk('b', '', m ? m[1] : text), ...(m ? [m[2]] : ['옵션 한 줄이 새로 붙는다']));
+      b.onclick = once(() => ((forgeJust = 0), h.awaken(forgeSel, k)));
+      return b;
+    }),
+  );
+  forgeDlg.onclose = () => ((forgeJust = 0), hideTip());
   if (!forgeDlg.open) forgeDlg.showModal();
+  forgeJust = 0;
 }
 
 // 매 프레임. hovered: 마우스가 올라간 몬스터 id, choosing: 이어하기를 고르는 중(배너를 건드리지 않음)

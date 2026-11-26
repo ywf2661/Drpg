@@ -18,7 +18,7 @@ import { bossScale, cyclePower, FLOORS, floorPower, hitScale } from './sim/dunge
 import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
-import { DOWNCUT, downcutStat, toughenBoss } from './sim/world';
+import { DOWNCUT, downcutStat, toughenBoss, gearDiff } from './sim/world';
 import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
@@ -342,6 +342,7 @@ function openShop(camp: boolean) {
       },
       `${LANDS[next.land].name} ${next.floor}${LANDS[next.land].unit}`,
       camp,
+      (it) => gearDiff(world, it),
     );
   render();
 }
@@ -478,7 +479,7 @@ function openForge() {
     if (ok) {
       entry = carryOf(world);
       saveRun(progress());
-      sound.play([{ name: 'gold', x: world.entities[0].x, z: world.entities[0].z }], world.entities[0].x, world.entities[0].z);
+      sound.play([{ name: 'anvil', x: world.entities[0].x, z: world.entities[0].z }], world.entities[0].x, world.entities[0].z);
     }
     openForge();
   };

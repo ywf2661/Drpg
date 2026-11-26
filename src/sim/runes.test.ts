@@ -90,14 +90,16 @@ test('팔면 꽂힌 룬이 돌아오고, 값은 소켓·룬을 세지 않는다'
   expect(after.gold).toBe(10);
 });
 
-test('칸 룬: 그 칸 재사용 대기 −15%씩, 합계 −50%까지', () => {
+test('칸 룬: 그 칸 재사용 대기 −15%씩 더한다(상한 없음, 0 아래로는 안 간다)', () => {
   const w = make();
   expect(keyCut(w, 'cleave')).toBe(1);
   w.mods.weapon = [{ kind: 'socket', value: 3 }, ...Array.from({ length: 3 }, () => runeAffix('key:cleave')!)];
   expect(keyCut(w, 'cleave')).toBeCloseTo(0.55);
   expect(keyCut(w, 'dash')).toBe(1);
   w.mods.armor = [{ kind: 'socket', value: 1 }, runeAffix('key:cleave')!];
-  expect(keyCut(w, 'cleave')).toBeCloseTo(0.5);
+  expect(keyCut(w, 'cleave')).toBeCloseTo(0.4);
+  w.mods.helm = [{ kind: 'socket', value: 3 }, ...Array.from({ length: 3 }, () => runeAffix('key:cleave')!)];
+  expect(keyCut(w, 'cleave')).toBe(0);
 });
 
 test('보스는 그 지역 룬 둘(보통·드묾 스킬 룬), 의뢰를 다 끝냈으면 그 지역 칸 룬도', () => {

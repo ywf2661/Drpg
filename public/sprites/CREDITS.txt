@@ -441,3 +441,6 @@ https://github.com/flareteam/flare-game/wiki/Credits
 청동 해골 수호병(src/assets/sprites/bronze_guard.png): Flare 해골 전사(CC-BY-SA 3.0)의 색을 바꾼 것(tools/temple.py). 가공 결과물도 CC-BY-SA 3.0.
 모래 해골 궁수(src/assets/sprites/sand_archer.png): Flare 해골 궁수(CC-BY-SA 3.0)의 색을 바꾼 것(tools/temple.py). 가공 결과물도 CC-BY-SA 3.0.
 사암 신전의 모래·판석 바닥·도는 고리·햇빛·봉인(src/render/ground.ts sandGround, src/render/temple.ts): 셰이더와 three.js 도형. 담·고리 돌 질감은 폐허 벽(wall_ruins.png, Flare: Empyrean Campaign CC-BY-SA 3.0)을 사암빛으로 물들인 것.
+대장장이 창의 모루(src/assets/sprites/anvil.png): "Anvil" by PagDev (OpenGameArt, https://opengameart.org/content/anvil-1, CC-BY 4.0)를 Blender로 렌더한 것(tools/forge_art.py). 원본은 tools/art/models/Anvil.zip.
+대장장이 창의 망치(src/assets/sprites/smith_hammer.png): Flare: Empyrean Campaign 대장 망치 아이콘(art_src/icons/weapons_xpac/4smith_hammer.png, CC-BY-SA 3.0)의 검은 바탕을 지운 것(tools/forge_art.py). 가공 결과물도 CC-BY-SA 3.0.
+담금질 소리(src/assets/sounds/anvil.ogg): Flare: Empyrean Campaign anvil_loop.ogg(CC-BY-SA 3.0)에서 한 번 치는 소리만 잘라 끝을 줄인 것(tools/forge_art.py). 가공 결과물도 CC-BY-SA 3.0.

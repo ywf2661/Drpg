@@ -160,13 +160,12 @@
       dialog form { margin-top: 12px; text-align: right; }
       #credits a { color: var(--gold); }
       /* 소제목: 양옆에 금줄 */
-      #bag h4, #shop-sell h4 { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; color: var(--gold); font-weight: normal; letter-spacing: 2px; font-size: 13px; }
-      #bag h4::before, #bag h4::after, #shop-sell h4::before, #shop-sell h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-lo), transparent); }
+      #bag h4 { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; color: var(--gold); font-weight: normal; letter-spacing: 2px; font-size: 13px; }
+      #bag h4::before, #bag h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-lo), transparent); }
       #help table { border-collapse: collapse; font-size: 13px; }
       #help td { padding: 4px 8px; border-bottom: 1px solid #3a2a1a; }
       #help td:first-child { color: var(--gold-hi); white-space: nowrap; }
-      #shop-items small, #shop-sell-items small, .gear-row small { color: var(--ink-dim); }
-      #shop-sell-items small, .gear-row small { display: block; }
+      .gear-row small { color: var(--ink-dim); display: block; }
       /* 스킬 트리 창: 탭 셋을 나란히(좁으면 아래로) */
       #tree { width: min(560px, 96vw); max-width: min(560px, 96vw); max-height: 92vh; box-sizing: border-box; padding: 14px 16px; color: var(--ink); background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 4px; box-shadow: var(--frame); line-height: 1.45; }
       #tree-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -191,13 +190,108 @@
       #tree .keys button.on { color: #1a1006; background: var(--gold-hi); }
       #tree-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
       #points { pointer-events: auto; cursor: pointer; }
-      #shop-items, #shop-sell-items, #forge-items, #forge-pick { display: grid; gap: 8px; margin: 12px 0; }
-      #forge-items button, #forge-pick button { text-align: left; padding: 8px 12px; color: var(--ink); }
-      #forge-items button.sel { background: linear-gradient(#4a3618, #2a1e0e); }
-      #forge-items small, #forge-pick small { display: block; color: var(--ink-dim); }
-      #forge-pick .forge-now { color: var(--gold); white-space: pre-line; }
-      #shop-items button, #shop-sell-items button { text-align: left; padding: 8px 12px; color: var(--ink); }
+      /* 상인·대장장이 창(hud.ts showShop·showForge): 목록 대신 가방과 같은 장비 칸, 대장장이는 모루와 별 길 */
+      #shop, #forge { width: min(860px, 96vw); max-width: min(860px, 96vw); max-height: 94vh; padding: 16px 20px; }
+      #shop:has(#shop-sell[hidden]) { width: min(340px, 92vw); }
+      .smith-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 12px; }
+      .smith-head > b { font-size: 20px; font-weight: 800; letter-spacing: 2px; }
+      .smith-head > span { flex: 1; font-size: 13px; color: var(--ink-dim); }
+      #forge-purse { display: flex; gap: 6px; flex-wrap: wrap; }
+      .purse { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; background: var(--iron); border: 1px solid #4a3a26; font-size: 12px; color: var(--ink-faint); }
+      .purse b { font-size: 15px; color: var(--ink); } .purse.short b { color: var(--blood-hi); }
+      .purse .coin { align-self: center; }
+      .coin { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff1b0, var(--gold) 60%, var(--gold-lo)); box-shadow: 0 0 0 1px #000; vertical-align: -1px; }
+      .smith-body { display: flex; gap: 22px; }
+      .smith-body h4 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; color: var(--gold); font-weight: normal; letter-spacing: 2px; font-size: 12px; }
+      .smith-body h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold-lo), transparent); }
+      .tiles { --t: 52px; display: grid; grid-template-columns: repeat(auto-fill, var(--t)); grid-auto-rows: var(--t); gap: 6px; margin-bottom: 14px; }
+      .tiles .bag-item { margin: 0; cursor: pointer; }
+      .tiles .bag-item.on { outline: 2px solid var(--gold-hi); outline-offset: 2px; box-shadow: 0 0 12px #f2d68a66; }
+      .tiles .stars { position: absolute; left: 10px; right: 0; bottom: 3px; display: flex; justify-content: center; gap: 2px; pointer-events: none; }
+      .tiles .stars b { width: 5px; height: 5px; rotate: 45deg; background: #0008; border: 1px solid var(--gold-lo); }
+      .tiles .stars b.on { background: var(--gold-hi); border-color: var(--gold-hi); box-shadow: 0 0 3px var(--gold-hi); }
+      .tiles .price { position: absolute; right: 2px; bottom: 1px; font: bold 11px var(--serif); color: var(--gold-hi); text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none; }
+      #forge .smith-left { flex: 0 0 300px; max-height: 64vh; overflow-y: auto; }
+      #forge-stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+      .anvil { position: relative; width: 380px; height: 230px; flex: none; }
+      .anvil::before { content: ''; position: absolute; left: 40px; right: 40px; top: 140px; height: 100px; border-radius: 50%; background: radial-gradient(#ff7a2a40, transparent 70%); }
+      .anvil > img { position: absolute; left: 70px; top: 66px; width: 220px; }
+      #forge-item { position: absolute; left: 136px; top: 2px; width: 40px; height: 40px; scale: 2.2; transform-origin: 0 0; background-size: 640px 40px; background-repeat: no-repeat; image-rendering: pixelated; mix-blend-mode: screen; }
+      #forge-item.art { background-size: contain; background-position: center; image-rendering: auto; mix-blend-mode: normal; }
+      #forge-item.hot { animation: forge-hot 1.3s ease-out; }
+      @keyframes forge-hot { from { filter: brightness(2.2) sepia(1) saturate(4) hue-rotate(-20deg); } } /* 그림자를 걸면 아이콘의 네모 바탕이 비친다 */
+      #forge-hammer { position: absolute; left: 236px; top: 0; width: 100px; height: 106px; transform-origin: 82px 106px; rotate: 30deg; pointer-events: none; }
+      #forge-hammer img { width: 100%; height: 100%; scale: -1 1; filter: drop-shadow(0 4px 6px #000); }
+      #forge-hammer.swing { animation: forge-swing 0.52s cubic-bezier(0.5, 0, 0.9, 0.4); }
+      @keyframes forge-swing { 35% { rotate: 44deg; } 78% { rotate: -46deg; } 100% { rotate: 24deg; } }
+      #forge-fx { position: absolute; left: 214px; top: 84px; pointer-events: none; }
+      #forge-fx .flash { position: absolute; left: -100px; top: -35px; width: 200px; height: 70px; border-radius: 50%; background: radial-gradient(#fff6d0, #ffb34a66 40%, transparent 70%); opacity: 0; animation: forge-flash 0.5s ease-out; }
+      @keyframes forge-flash { from { opacity: 1; scale: 0.4; } to { opacity: 0; scale: 1.5; } }
+      #forge-fx .spark { position: absolute; width: 4px; height: 4px; border-radius: 2px; background: #ffd27a; box-shadow: 0 0 6px #ff9b2a; opacity: 0; animation: forge-spark 0.65s ease-out; }
+      @keyframes forge-spark { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: var(--dx) var(--dy); } }
+      #forge-name { font-size: 17px; }
+      #forge-lines { font-size: 12px; color: var(--ink-dim); max-width: 420px; }
+      #forge-track { position: relative; display: flex; justify-content: space-between; align-items: center; width: 320px; height: 44px; margin-bottom: 12px; }
+      #forge-track::before { content: ''; position: absolute; left: 12px; right: 12px; top: 50%; height: 2px; background: linear-gradient(90deg, var(--gold-lo), #3a2c18); }
+      #forge-track i { position: relative; width: 18px; height: 18px; rotate: 45deg; background: #140d09; border: 2px solid var(--gold-lo); display: grid; place-items: center; font: bold 10px Cinzel, serif; font-style: normal; color: var(--ink-faint); }
+      #forge-track i > span { rotate: -45deg; }
+      #forge-track i.wake { width: 26px; height: 26px; border-color: #8a6ad8; background: #1a1030; }
+      #forge-track i.wake::after { content: '깨어남'; position: absolute; top: 32px; left: 50%; rotate: -45deg; translate: -30% 0; white-space: nowrap; font: 11px var(--serif); color: #c9a8ff; }
+      #forge-track i.on { background: var(--gold-hi); border-color: var(--gold-hi); box-shadow: 0 0 10px #f2d68aaa; }
+      #forge-track i.wake.on { background: var(--set); border-color: #e2c6ff; box-shadow: 0 0 14px #b86bffcc; }
+      #forge-track i.next { animation: forge-next 1.4s ease-in-out infinite; }
+      @keyframes forge-next { 50% { box-shadow: 0 0 12px #f2d68a99; border-color: var(--gold-hi); } }
+      #forge-track i.just { animation: forge-lit 0.8s ease-out; }
+      @keyframes forge-lit { from { scale: 2.2; box-shadow: 0 0 30px #fff; } }
+      #forge-next { display: flex; align-items: center; gap: 12px; font-size: 15px; }
+      #forge-next .was { color: var(--ink-faint); } #forge-next .to { color: var(--boost); font-weight: bold; } #forge-next .arrow { color: var(--gold); }
+      #forge-note { min-height: 16px; font-size: 12px; color: #c9a8ff; }
+      #forge-go { width: 320px; max-width: 100%; height: 50px; margin-top: auto; font-size: 18px; font-weight: 800; letter-spacing: 6px; color: var(--gold-hi); box-shadow: inset 0 0 0 1px #000, 0 0 18px #c9a14a33; }
+      #forge-go:disabled { opacity: 0.45; letter-spacing: 2px; font-size: 14px; }
+      #forge-short { min-height: 14px; font-size: 12px; color: var(--ink-faint); }
+      #forge-wake { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; padding: 16px; box-sizing: border-box; background: radial-gradient(ellipse at 50% 20%, #3a1f5cf2, #0d0814fa 70%); border: 1px solid #8a6ad8; }
+      #forge-wake[hidden] { display: none; }
+      #forge-wake p { margin: 0; color: #c9a8ff; font-size: 13px; letter-spacing: 3px; }
+      #forge-wake p b { display: block; color: var(--ink); font-size: 18px; letter-spacing: 1px; }
+      #forge-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      #forge-cards button { display: flex; flex-direction: column; gap: 6px; padding: 12px; text-align: left; color: var(--ink); font-size: 13px; line-height: 1.55; border: 1px solid #8a6ad8; background: linear-gradient(#24163e, #120a20); animation: forge-rise 0.45s ease-out backwards; }
+      #forge-cards button:nth-child(2) { animation-delay: 0.08s; } #forge-cards button:nth-child(3) { animation-delay: 0.16s; }
+      #forge-cards button:hover { border-color: #e2c6ff; box-shadow: 0 0 18px #b86bff66; }
+      #forge-cards b { color: #d9b8ff; font-size: 14px; }
+      @keyframes forge-rise { from { opacity: 0; translate: 0 16px; } }
+      #shop-items { flex: 0 0 240px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 14px; border: 1px solid #4a3a26; background: radial-gradient(circle at 50% 35%, #5a1a14, #1a0c09 70%); align-self: flex-start; box-sizing: border-box; }
+      #shop-items .pot { width: 96px; height: 96px; mix-blend-mode: screen; }
+      #shop-items .flasks { display: flex; gap: 1px; }
+      #shop-items .flasks img { width: 24px; height: 24px; mix-blend-mode: screen; opacity: 0.22; filter: grayscale(1); }
+      #shop-items .flasks img.on { opacity: 1; filter: none; }
+      #shop-items small { color: var(--ink-dim); }
+      #shop-items button { width: 100%; }
+      #shop:has(#shop-sell[hidden]) #shop-items { flex: 1; }
+      #shop-sell { flex: 1; min-width: 0; }
+      #shop-sell .tiles { max-height: 40vh; overflow-y: auto; }
+      #shop-pick { display: flex; gap: 14px; align-items: stretch; min-height: 60px; padding: 12px; border: 1px solid #4a3a26; background: #0d0907aa; }
+      #shop-pick > div { flex: 1; font-size: 13px; color: var(--ink-dim); }
+      #shop-pick > div > b { display: block; font-size: 15px; }
+      #shop-pick .up { color: var(--boost); }
+      #shop-pick button { flex: 0 0 150px; }
+      #shop-sell > small { display: block; margin-top: 8px; font-size: 12px; color: var(--ink-faint); }
+      .smith-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
       #shop-leave { border-color: var(--blood); border-top-color: var(--blood-hi); }
+      @media (max-width: 700px) {
+        .smith-body { flex-direction: column; gap: 12px; }
+        #forge .smith-left { flex: none; max-height: none; overflow: visible; }
+        .tiles { --t: 44px; margin-bottom: 8px; }
+        .anvil { width: 300px; height: 170px; }
+        .anvil > img { left: 60px; top: 48px; width: 170px; }
+        #forge-item { left: 112px; top: 0; scale: 1.7; }
+        #forge-hammer { left: 186px; width: 80px; height: 85px; transform-origin: 66px 85px; }
+        #forge-fx { left: 168px; top: 64px; }
+        #shop-items { flex: none; align-self: stretch; }
+        #forge-cards { grid-template-columns: 1fr; }
+        #shop-items .pot { width: 64px; height: 64px; }
+        #shop-pick { flex-direction: column; }
+        #shop-pick button { flex: none; height: 44px; }
+      }
       .q0 { color: var(--ink); }
       .q1 { color: var(--magic); }
       .q2 { color: var(--rare); }
@@ -545,16 +639,29 @@
       <form method="dialog"><button>시작</button></form>
     </dialog>
     <dialog id="shop">
-      <p><b id="shop-title">떠돌이 상인</b> — <span id="shop-note"></span> 금화 <b id="shop-gold">0</b></p>
-      <div id="shop-items"></div>
-      <button id="shop-leave">다음 층으로 ▶</button>
-      <button id="shop-stay" title="Esc">◀ 여기 남기</button>
-      <div id="shop-sell" hidden><h4>팔기</h4><div id="shop-sell-items"></div></div>
+      <header class="smith-head"><b id="shop-title">떠돌이 상인</b><span id="shop-note"></span><div class="purse"><i class="coin"></i><b id="shop-gold">0</b></div></header>
+      <div class="smith-body">
+        <div id="shop-items"></div>
+        <div id="shop-sell" hidden><h4>팔기 — 가방</h4><div id="shop-sell-items" class="tiles"></div><div id="shop-pick"></div><small>칸 오른쪽 아래 숫자가 파는 값, 오른쪽 위 ▲는 지금 장착한 것보다 좋은 장비입니다.</small></div>
+      </div>
+      <div class="smith-foot"><button id="shop-stay" title="Esc">◀ 여기 남기</button><button id="shop-leave">다음 층으로 ▶</button></div>
     </dialog>
     <dialog id="forge">
-      <p><b>대장장이</b> — 장비를 담금질합니다. <span id="forge-purse"></span></p>
-      <div id="forge-items"></div>
-      <div id="forge-pick"></div>
+      <header class="smith-head"><b>대장장이</b><span>장비를 골라 모루에 올리세요.</span><div id="forge-purse"></div></header>
+      <div class="smith-body">
+        <div class="smith-left"><h4>장착중</h4><div id="forge-worn" class="tiles"></div><h4>가방</h4><div id="forge-bag" class="tiles"></div></div>
+        <div id="forge-stage">
+          <div class="anvil"><img id="forge-anvil" alt="" /><i id="forge-item"></i><div id="forge-hammer"><img id="forge-hammer-img" alt="" /></div><div id="forge-fx"></div></div>
+          <b id="forge-name"></b>
+          <div id="forge-lines"></div>
+          <div id="forge-track"></div>
+          <div id="forge-next"></div>
+          <div id="forge-note"></div>
+          <button id="forge-go">담금질</button>
+          <div id="forge-short"></div>
+          <div id="forge-wake" hidden><p><span id="forge-wake-star"></span> — 잠든 힘이 깨어난다<b>하나를 고르세요</b></p><div id="forge-cards"></div></div>
+        </div>
+      </div>
       <form method="dialog"><button>닫기</button></form>
     </dialog>
     <div id="letterbox"></div>

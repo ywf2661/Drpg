@@ -329,8 +329,8 @@ export function unsocketRune(w: World, t: RuneTarget, k: number): boolean {
   setAffixes(w, t, list.filter((o) => o !== a));
   return true;
 }
-// 칸의 재사용 대기 배율(칸 룬 합계, 상한 RUNE.cutMax%)
-export const keyCut = (w: World, key: SkillName) => 1 - Math.min(RUNE.cutMax, SLOTS.reduce((s, sl) => s + w.mods[sl].reduce((t, a) => t + (a.kind === 'keyCd' && a.key === key ? a.value : 0), 0), 0)) / 100;
+// 칸의 재사용 대기 배율(칸 룬 합계, 상한 없음 — 100% 넘으면 0)
+export const keyCut = (w: World, key: SkillName) => Math.max(0, 1 - SLOTS.reduce((s, sl) => s + w.mods[sl].reduce((t, a) => t + (a.kind === 'keyCd' && a.key === key ? a.value : 0), 0), 0) / 100);
 
 // 소켓 굴림(전용 난수)
 function rollSocket(w: World): Affix {

@@ -7,6 +7,7 @@ const URLS = import.meta.glob('../assets/sounds/*.ogg', { eager: true, query: '?
 const MUSIC = import.meta.glob('../assets/music/*.ogg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const MUSIC_VOLUME = 0.3;
 let music: HTMLAudioElement | null = null; // 스트리밍 재생(곡당 약 3MB). 처음 재생할 때 만든다
+let musicGain: GainNode | null = null;
 let track = ''; // 지금 층의 곡
 let loaded = ''; // music에 실제로 넣은 곡
 const FILES: Record<SoundName, string[]> = {
@@ -35,6 +36,7 @@ const FILES: Record<SoundName, string[]> = {
   equip_weapon: ['inventory_metal'],
   equip_armor: ['inventory_maille'],
   level_up: ['level_up'],
+  anvil: ['anvil'], // 담금질(tools/forge_art.py가 FLARE anvil_loop에서 한 번 치는 소리만 잘랐다)
 };
 const VOLUME = 0.5;
 const HEAR = 12; // 이 거리(m) 밖의 소리는 들리지 않는다
@@ -77,9 +79,14 @@ export function musicFor(floor: number) {
 // 곡을 정한다. 소리를 켠 뒤(첫 입력 이후)에만 실제로 재생
 export function playMusic(name: string) {
   track = name;
-  if (!ctx || settings.muted || settings.music === 0) return music?.pause();
-  music ??= Object.assign(new Audio(), { loop: true });
-  music.volume = MUSIC_VOLUME * settings.music;
+  if (!ctx || document.hidden || settings.muted || settings.music === 0) return music?.pause();
+  if (!music) {
+    // 음량은 Web Audio로(아이폰은 audio.volume을 무시한다)
+    music = Object.assign(new Audio(), { loop: true });
+    musicGain = ctx.createGain();
+    ctx.createMediaElementSource(music).connect(musicGain).connect(ctx.destination);
+  }
+  musicGain!.gain.value = MUSIC_VOLUME * settings.music;
   if (loaded !== name) {
     loaded = name;
     music.src = MUSIC[`../assets/music/${name}.ogg`];
@@ -100,8 +107,27 @@ export function setSound(patch: Partial<SoundSettings>) {
 
 // 브라우저는 사용자 입력 전에는 소리를 막는다. 첫 입력에서 시작
 export function initSound() {
+  // 게임 소리는 배경 소리: 음악 앱을 끊지 않고 섞인다(무음 스위치를 따른다). iOS 사파리 16.4+
+  const session = (navigator as { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = 'ambient';
+  // 사파리를 나가거나 화면이 가려지면 음악·효과음을 멈추고, 돌아오면 이어서
+  const away = () => {
+    music?.pause();
+    void ctx?.suspend();
+  };
+  addEventListener('pagehide', away);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return away();
+    if (!ctx) return;
+    void ctx.resume();
+    playMusic(track);
+  });
   const start = () => {
-    if (ctx) return void ctx.resume();
+    if (ctx) {
+      void ctx.resume();
+      if (music?.paused) playMusic(track); // 돌아왔을 때 입력 없이는 재생을 막는 브라우저 대비
+      return;
+    }
     ctx = new AudioContext();
     playMusic(track);
     for (const [path, url] of Object.entries(URLS)) {
