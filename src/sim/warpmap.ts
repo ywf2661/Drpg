@@ -227,3 +227,42 @@ function tryWarp(seed: number, floor: number, from: Side): string[] | null {
   if (regions !== pieces.length) return null;
   return finish(cells, rand);
 }
+
+// 결전장(4층): 허공에 뜬 돌 시계 문자판(설계서 5절, 시안 https://claude.ai/artifact/5XxqtzbXxvgoaUUa7CPu7K).
+// 지름 DIAL.r*2칸 'ω' 바닥, 가운데 파수꾼('M'). 발판 네 짝은 이웃한 두 시각(1·2, 4·5, 7·8, 10·11시 — 짝 사이 8칸, 메아리 4초에 넉넉히).
+// 12·3·6·9시 바깥에 지나온 땅 조각(호숫가·진지·신전·광산)이 이음매('#')로 꿰매져 붙어 있다(닫혀 있다 — 그림). 주인공은 6시 가장자리 안쪽.
+// 시각 h의 방향: 화면 위가 12시. 카메라는 +x+z에서 내려다보므로 화면 위 = (-1, -1)/√2, 화면 오른쪽 = (1, -1)/√2
+export const DIAL = { r: 20, pad: 15.5, hours: [1, 2, 4, 5, 7, 8, 10, 11] };
+export function hourDir(h: number): [number, number] {
+  const a = (h / 12) * Math.PI * 2;
+  const [up, right] = [Math.cos(a), Math.sin(a)];
+  return [(right - up) * Math.SQRT1_2, (-up - right) * Math.SQRT1_2];
+}
+export function generateWarpArena(): string[] {
+  const c = N / 2;
+  const cells: string[][] = Array.from({ length: N }, (_, z) => Array.from({ length: N }, (_, x) => (Math.hypot(x + 0.5 - c, z + 0.5 - c) <= DIAL.r ? 'ω' : '-')));
+  // 땅 조각: 판 바깥 둥근 땅, 판과 맞닿은 줄은 이음매
+  const frags: [number, string][] = [[0, 'λ'], [3, 'ρ'], [6, 'τ'], [9, 'μ']];
+  for (const [h, ch] of frags) {
+    const [dx, dz] = hourDir(h);
+    const [fx, fz] = [c + dx * (DIAL.r + 3.5), c + dz * (DIAL.r + 3.5)];
+    for (let z = 0; z < N; z++)
+      for (let x = 0; x < N; x++) {
+        if (cells[z][x] !== '-' || Math.hypot(x + 0.5 - fx, z + 0.5 - fz) > 4.6) continue;
+        const touches = [-1, 0, 1].some((j) => [-1, 0, 1].some((i) => cells[z + j]?.[x + i] === 'ω'));
+        cells[z][x] = touches ? '#' : ch;
+      }
+  }
+  const at = (h: number, r: number): [number, number] => {
+    const [dx, dz] = hourDir(h);
+    return [Math.floor(c + dx * r), Math.floor(c + dz * r)];
+  };
+  DIAL.hours.forEach((h, k) => {
+    const [x, z] = at(h, DIAL.pad);
+    cells[z][x] = PLATES[k >> 1];
+  });
+  cells[c][c] = 'M';
+  const [hx, hz] = at(6, DIAL.r - 3);
+  cells[hz][hx] = 'H';
+  return cells.map((r) => r.join(''));
+}

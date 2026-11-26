@@ -11,7 +11,7 @@ import { generateArena } from './sanctum';
 import { flows } from './sluice';
 import { generateMine, generateMineArena } from './minemap';
 import { generateTemple, generateTempleArena } from './templemap';
-import { generateWarp } from './warpmap';
+import { generateWarp, generateWarpArena } from './warpmap';
 import type { Sluice } from './rules';
 
 export const GATE_FIRES = [[-3, -3], [4, -3], [-3, 4], [4, 4]]; // 성소 입구(2×2의 위쪽 모서리 칸)에서 화로 넷
@@ -27,7 +27,7 @@ export function makeMap(seed: number, floor: number, land: Land = 'dungeon', fro
   if (land === 'camp') return generateCamp(!!open?.includes('tent'));
   if (land === 'tent') return generateTent(!!open?.includes('raid'), !!open?.includes('mine'), !!open?.includes('temple'), !!open?.includes('warp'));
   // ponytail: 결전장(FLOORS)은 파수꾼을 만들 때(④) 손 맵으로. 그때까지 3층 맵
-  const map = land === 'warp' ? generateWarp(seed, floor, from) : land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'lake' && floor >= FLOORS ? generateLakeArena() : land === 'raid' && floor >= FLOORS ? generateRaidArena() : land === 'mine' ? (floor >= FLOORS ? generateMineArena() : generateMine(seed, floor, from)) : land === 'temple' ? (floor >= FLOORS ? generateTempleArena() : generateTemple(seed, floor, from)) : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
+  const map = land === 'warp' ? (floor >= FLOORS ? generateWarpArena() : generateWarp(seed, floor, from)) : land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'lake' && floor >= FLOORS ? generateLakeArena() : land === 'raid' && floor >= FLOORS ? generateRaidArena() : land === 'mine' ? (floor >= FLOORS ? generateMineArena() : generateMine(seed, floor, from)) : land === 'temple' ? (floor >= FLOORS ? generateTempleArena() : generateTemple(seed, floor, from)) : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
   return mark ? withMark(map, seed, mark) : map;
 }
 

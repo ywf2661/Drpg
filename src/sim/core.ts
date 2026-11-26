@@ -6,6 +6,7 @@ import { MINE } from './rules';
 import { edgeFall } from './mine';
 import { mummyFalls } from './temple';
 import { KEEPER, keeperShielded } from './keeper';
+import { wardenGuard, wardenSlow } from './warden';
 import { FOREMAN } from './foreman';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -568,6 +569,15 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     raw = Math.round(raw * KEEPER.lit);
     if (from?.kind === 'hero' && !w.combos.some((c) => c.kind === 'stunned' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'stunned', age: 0 }); // "약점!"
   }
+  if (t.skin === 'time_warden' && t.state !== 'dead') {
+    const g = wardenGuard(w); // 시간의 파수꾼: 숨었으면 안 맞고, 수정 판이 닫혀 있으면 막힘, 약점이면 배율
+    if (g < 0) return 0;
+    if (!g) {
+      if (from?.kind === 'hero' && !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 });
+      return 0;
+    }
+    raw = Math.round(raw * g);
+  }
   if (t.kind === 'boss' && warded(w)) {
     if (from?.kind === 'hero' || !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 빛 고리: 성소를 꺼야 맞는다
     return 0;
@@ -778,6 +788,7 @@ export function walk(w: World, e: Entity) {
   e.state = 'move';
   let budget = moveSpeed(w, e) * DT * (w.grid.slow?.[Math.floor(e.z) * w.grid.w + Math.floor(e.x)] ? FORD_SLOW : 1); // 여울에서는 느리다
   if (e.id === 0 && w.puddles.some((p) => Math.hypot(p.x - e.x, p.z - e.z) <= PUDDLE.r)) budget *= PUDDLE.slow; // 검은 웅덩이
+  if (e.id === 0) budget *= wardenSlow(w, e); // 파수꾼의 멈춘 시간
   while (budget > 0 && e.path.length) {
     const [px, pz] = e.path[0];
     const dx = px - e.x;

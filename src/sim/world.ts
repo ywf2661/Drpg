@@ -21,6 +21,7 @@ import { ferryman } from './ferryman';
 import { chief } from './chief';
 import { foreman } from './foreman';
 import { keeper } from './keeper';
+import { warden } from './warden';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
 import { DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World, LEGEND2 } from './rules';
@@ -636,6 +637,9 @@ function act(w: World, e: Entity) {
   } else
   if (e.skin === 'mine_foreman') {
     if (foreman(w, e, t)) return; // 광산 감독관: 내려찍기·결정 조각·다리 바꾸기(돌진은 안 한다 — 허공으로 뛰어들지 않게)
+  } else
+  if (e.skin === 'time_warden') {
+    if (warden(w, e, t)) return; // 시간의 파수꾼: 시계바늘 베기·멈춘 시간·되감기·명멸의 틈, 잔상(돌진은 안 한다)
   } else
   if (e.skin === 'plague_ferryman') {
     if (ferryman(w, e, t)) return; // 뱃사공: 물 위·나루·배에 오르기(돌진은 안 한다)

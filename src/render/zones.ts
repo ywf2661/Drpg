@@ -12,6 +12,16 @@ const AREA_MAT = flat(0xff3a22, 0.14); // 구역 전체를 옅게
 const FILL_MAT = flat(0xff5a30, 0.38); // 차오르는 부분
 const shown = new Map<number, { g: THREE.Group; fill: THREE.Mesh }>();
 export const zoneGroup = new THREE.Group();
+// 반각 arc의 부채꼴 판·테두리(가운데 방향 +z). 반각마다 한 번
+const fans = new Map<number, [THREE.BufferGeometry, THREE.BufferGeometry]>();
+function fan(arc: number): [THREE.BufferGeometry, THREE.BufferGeometry] {
+  if (!fans.has(arc)) {
+    // CircleGeometry는 +x에서 반시계(위에서 보면 -z 쪽으로) — 눕히면 각 θ가 (cos θ, -sin θ)로 간다. +z = -π/2
+    const start = -Math.PI / 2 - arc;
+    fans.set(arc, [new THREE.CircleGeometry(1, 24, start, arc * 2).rotateX(-Math.PI / 2), new THREE.RingGeometry(0.92, 1, 24, 1, start, arc * 2).rotateX(-Math.PI / 2)]);
+  }
+  return fans.get(arc)!;
+}
 
 export function syncZones(world: World) {
   // 근접 평타를 준비 중인 적의 발밑에도 같은 원(다 차면 맞는다). id는 음수로 구역과 겹치지 않게
@@ -23,8 +33,11 @@ export function syncZones(world: World) {
     let s = shown.get(z.id);
     if (!s) {
       const g = new THREE.Group();
-      const fill = new THREE.Mesh(DISC, FILL_MAT);
-      g.add(new THREE.Mesh(DISC, AREA_MAT), fill, new THREE.Mesh(RING, RING_MAT));
+      const arc = (z as { arc?: number }).arc;
+      const [disc, ring] = arc ? fan(arc) : [DISC, RING]; // 부채꼴(파수꾼 시계바늘 베기): 가운데가 +z, a만큼 돌린다
+      const fill = new THREE.Mesh(disc, FILL_MAT);
+      g.add(new THREE.Mesh(disc, AREA_MAT), fill, new THREE.Mesh(ring, RING_MAT));
+      if (arc) g.rotation.y = (z as { a?: number }).a ?? 0;
       g.traverse((o) => (o.renderOrder = 1)); // 바닥 다음, 캐릭터 전에
       zoneGroup.add(g);
       shown.set(z.id, (s = { g, fill }));

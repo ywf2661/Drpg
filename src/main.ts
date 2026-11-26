@@ -10,6 +10,7 @@ import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
+import { wardenState } from './sim/warden';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
@@ -19,7 +20,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss, gearDiff } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -813,7 +814,7 @@ if (new URLSearchParams(location.search).has('test')) {
   }
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; }, get warden() { return wardenState(world); } } });
 
 // 5층 첫 만남 연출 한 프레임(intro 참고). 연출 중엔 플레이어 명령을 버린다
 function introStep(dt: number, cut: boolean) {
@@ -912,9 +913,9 @@ requestAnimationFrame(function frame(now) {
     }
   }
   // 약탈자 우두머리·광산 감독관·문지기 사제: 막히면 힌트(통·다리·빛을 쓰라는 것까지만). 계속 막히면 HINT_AGAIN초마다 다시
-  if ((land === 'raid' || land === 'mine' || land === 'temple') && now / 1000 - chiefHint > HINT_AGAIN && world.combos.some((c) => c.kind === 'ward')) {
+  if ((land === 'raid' || land === 'mine' || land === 'temple' || land === 'warp') && now / 1000 - chiefHint > HINT_AGAIN && world.combos.some((c) => c.kind === 'ward')) {
     chiefHint = now / 1000;
-    hint(land === 'temple' ? KEEPER_HINT : land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
+    hint(land === 'warp' ? WARDEN_HINT : land === 'temple' ? KEEPER_HINT : land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
   }
   if (world.cleansed) {
     world.cleansed = false;

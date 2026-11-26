@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { WARP, type Land, type World } from '../sim/world';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ghostSprite, updateSprite, type Sprite } from './sprites';
+import { wardenState } from '../sim/warden';
 
 export const PAIR_COLORS = [0xffcf5a, 0x5affc8, 0xff7ab8, 0xff9a4a]; // 발판 짝·문(α β γ δ)
 export const ECHO_COLOR = 0xc4a9ff;
@@ -434,14 +435,16 @@ export function tickWarpArt(time: number, dt: number, world: World) {
     if (d.mesh.position.x > span + 10) d.mesh.position.x -= span + 20; // 한쪽으로만 흐른다
     d.mesh.rotation.y += d.spin * dt;
   }
+  const lit = wardenState(world)?.lit; // 파수꾼 결전장: 빛나는 짝만 밝게 맥동하고 나머지는 흐리다
   for (const p of plates) {
     const on = wp.plates[p.i].on;
+    const dim = lit !== undefined && wp.plates[p.i].pair !== lit;
     // 눌리면 0.04 가라앉고 문자판이 환해지며 빛 고리가 퍼진다(0.8초마다)
     p.plate.position.y += ((on ? -0.04 : 0) - p.plate.position.y) * Math.min(1, dt * 18);
-    p.mat.opacity = on ? 1 : 0.8 + 0.12 * Math.sin(time * 2 + p.i);
+    p.mat.opacity = dim ? 0.25 : on ? 1 : 0.8 + 0.12 * Math.sin(time * 2 + p.i);
     const k = (time / 0.8) % 1;
     p.ring.scale.setScalar(1 + k * 0.9);
-    p.pulse.opacity = on ? 0.7 * (1 - k) : 0;
+    p.pulse.opacity = dim ? 0 : on ? 0.7 * (1 - k) : lit !== undefined ? 0.35 * (1 - k) : 0;
   }
   for (const d of doors) {
     // 열리면 엮은 실이 늘어져 내려앉으며 스러진다(0.7초)

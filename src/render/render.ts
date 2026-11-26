@@ -19,6 +19,7 @@ import { barricadeAt, fadeTrees, syncRaid } from './props';
 import { dirtGround, sandGround } from './ground';
 import { buildTemple, templeFloor, tickTempleArt, TEMPLE_TINT } from './temple';
 import { buildWarp, tickWarpArt, warpFloor, WARP_WALL } from './warp';
+import { tickWardenFx, wardenGroup } from './wardenfx';
 import { inLight } from '../sim/temple';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
@@ -208,7 +209,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, patrolGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, patrolGroup, wardenGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw, pk, lg] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSheet(plankUrl), loadSheet(logUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -326,7 +327,7 @@ export function draw(world: World, dt: number) {
     const s = sprites[e.id];
     const f = (fx[e.id] ??= { flashT: 0, flashHex: null, kx: 0, kz: 0, lx: e.x, lz: e.z });
     const lost = e.maxHp === s.maxHp ? Math.round(s.hp - e.hp) : 0; // 갑옷 교체로 줄어든 것은 맞은 것이 아니다
-    if (e !== hero && Math.hypot(e.x - f.lx, e.z - f.lz) > SLIDE_MIN) [f.kx, f.kz] = [f.kx + f.lx - e.x, f.kz + f.lz - e.z];
+    if (e !== hero && e.skin !== 'time_warden' && Math.hypot(e.x - f.lx, e.z - f.lz) > SLIDE_MIN) // 파수꾼은 숨어서 옮겨 가고 돌진한다(밀려난 게 아니다) [f.kx, f.kz] = [f.kx + f.lx - e.x, f.kz + f.lz - e.z];
     [f.lx, f.lz] = [e.x, e.z];
     updateSprite(s, e, dt, attackInterval(world, e));
     if (lost > 0) {
@@ -366,6 +367,8 @@ export function draw(world: World, dt: number) {
       s.mat.color.lerp(GOLD, p < 1 ? 0.45 * p : 0.55 + 0.25 * Math.sin(time * 20));
     } else if (e === hero && world.bigT > 0) s.mat.color.lerp(GOLD, 0.2); // 거인의 칼
   }
+  const warden = world.warp ? world.entities.find((e) => e.skin === 'time_warden') ?? null : null;
+  tickWardenFx(time, dt, world, warden ? sprites[warden.id] : null, warden); // 파수꾼 결전장: 문자판·바늘·잔상·찢어진 틈(판자 위에 덮어 그린다)
   // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
   dropAllies(new Set(world.allies.map((a) => a.id)));
   for (const a of world.allies) {

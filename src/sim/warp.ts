@@ -16,7 +16,7 @@ export const PLATES = 'αβγδ';
 export const DOORS = 'ΑΒΓΔ';
 const LANDS_CYCLE: Land[] = ['lake', 'raid', 'mine', 'temple'];
 export const FLOOR_OF: Record<string, string> = { lake: 'λ', raid: 'ρ', mine: 'μ', temple: 'τ' };
-const LAND_OF_FLOOR: Record<string, Land> = { λ: 'lake', ρ: 'raid', μ: 'mine', τ: 'temple' };
+const LAND_OF_FLOOR: Record<string, Land> = { λ: 'lake', ρ: 'raid', μ: 'mine', τ: 'temple', ω: 'warp' }; // ω = 결전장 시계 문자판
 const TICKS = Math.round(WARP.delay / DT);
 
 export function makeWarp(map: string[], grid: Grid): Warp | null {
