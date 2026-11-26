@@ -8,6 +8,7 @@ import { WARP, type Land, type World } from '../sim/world';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ghostSprite, updateSprite, type Sprite } from './sprites';
 import { wardenState } from '../sim/warden';
+import { stitchState } from '../sim/stitch';
 
 export const PAIR_COLORS = [0xffcf5a, 0x5affc8, 0xff7ab8, 0xff9a4a]; // 발판 짝·문(α β γ δ)
 export const ECHO_COLOR = 0xc4a9ff;
@@ -440,6 +441,7 @@ export function tickWarpArt(time: number, dt: number, world: World) {
     const on = wp.plates[p.i].on;
     const dim = lit !== undefined && wp.plates[p.i].pair !== lit;
     // 눌리면 0.04 가라앉고 문자판이 환해지며 빛 고리가 퍼진다(0.8초마다)
+    p.plate.visible = !stitchState(world); // 엔딩(틈 꿰매기)부터는 발판을 숨긴다(무늬와 헷갈리지 않게)
     p.plate.position.y += ((on ? -0.04 : 0) - p.plate.position.y) * Math.min(1, dt * 18);
     p.mat.opacity = dim ? 0.25 : on ? 1 : 0.8 + 0.12 * Math.sin(time * 2 + p.i);
     const k = (time / 0.8) % 1;
@@ -477,6 +479,7 @@ export function tickWarpArt(time: number, dt: number, world: World) {
     const [ex, ez] = wp.echo;
     const moved = Math.hypot(ex - echo.last[0], ez - echo.last[1]) > 1e-3;
     if (moved) echo.facing = Math.atan2(ex - echo.last[0], ez - echo.last[1]);
+    if (stitchState(world)?.echoLook) echo.facing = Math.atan2(hero.x - ex, hero.z - ez); // 엔딩: 틈 앞에서 멈춰 주인공을 돌아본다
     echo.last = [ex, ez];
     updateSprite(echo.s, { ...hero, x: ex, z: ez, facing: echo.facing, state: moved ? 'move' : 'idle', phase: 'none', attackT: 0, hp: echo.s.hp, maxHp: echo.s.maxHp }, dt, 1);
     echo.s.mesh.renderOrder = 3;

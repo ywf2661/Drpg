@@ -2,7 +2,7 @@
 import { expect, test } from 'vitest';
 import { createWorld, DT, step, type World } from './world';
 import { generateWarpArena } from './warpmap';
-import { holesOf, PATTERNS, riftLimit, STITCH, startHoles, startStitch, stitchState, tickStitch } from './stitch';
+import { closeMarks, holesOf, PATTERNS, riftLimit, STITCH, startHoles, startStitch, stitchState, tickStitch } from './stitch';
 
 // 한붓 길(구멍 번호 순서) — tools 밖 검사기로 찾은 것
 const SOL = [
@@ -100,12 +100,18 @@ test('넷을 다 꿰매면 틈이 닫힌다. 무늬마다 다 그은 뒤 메아�
     hold(w, STITCH.echo + 0.2);
   }
   expect(s.phase).toBe('closing');
-  tick(w, STITCH.walkIn / 2);
-  const mid = w.warp!.echo!;
-  expect(Math.hypot(mid[0] - STITCH.center, mid[1] - STITCH.center)).toBeLessThan(12); // 메아리가 틈 쪽으로 걸어 들어간다
-  tick(w, STITCH.walkIn / 2 + 0.1);
+  const M = closeMarks();
+  tick(w, M.walk + 0.3);
+  expect(s.echoLook).toBe(true); // 틈 앞에서 멈춰 돌아본다
+  const e = w.warp!.echo!;
+  expect(Math.hypot(e[0] - STITCH.center, e[1] - STITCH.center)).toBeLessThan(s.r + 1.5);
+  tick(w, M.enter - M.walk);
   expect(w.warp!.echo).toBeNull(); // 스며들었다
-  tick(w, STITCH.close - STITCH.walkIn);
+  expect(s.events.filter((x) => x === 'thread').length).toBe(4);
+  tick(w, M.sealed - M.enter);
+  expect(s.r).toBeLessThan(0.01); // 땀이 다 조여 닫혔다
+  expect(s.events).toContain('sealed');
+  tick(w, M.end - M.sealed);
   expect(stitchState(w)!.phase).toBe('closed');
   expect(s.events.filter((e) => e === 'done').length).toBe(4);
 });

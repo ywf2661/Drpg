@@ -185,3 +185,41 @@ export function setWind(k: number) {
   wind.gain.gain.setTargetAtTime(settings.muted ? 0 : k * 0.45 * settings.sfx, t, k > 0 ? 0.4 : 0.15);
   wind.filter.frequency.setTargetAtTime(260 + k * 520 + Math.sin(t * 0.8) * 140 * k, t, 0.5); // 셀수록 높고 일렁인다
 }
+
+// 엔딩 연출 효과음(합성, 파일 없음): thread = 실이 꽂히는 '탁', tick = 땀이 조이는·시곗바늘 '째깍', swell = 메아리가 스며들 때 차오르는 소리, sealed = 닫히는 '쿵'
+export function synth(kind: 'thread' | 'tick' | 'swell' | 'sealed') {
+  if (!ctx || settings.muted || settings.sfx === 0) return;
+  const t = ctx.currentTime;
+  const out = ctx.createGain();
+  out.gain.value = 0.5 * settings.sfx;
+  out.connect(ctx.destination);
+  const tone = (type: OscillatorType, f0: number, f1: number, dur: number, peak: number, attack = 0.005) => {
+    const o = Object.assign(ctx!.createOscillator(), { type });
+    const g = ctx!.createGain();
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(out);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  };
+  const noise = (dur: number, freq: number, peak: number) => {
+    const n = Math.ceil(ctx!.sampleRate * dur);
+    const b = ctx!.createBuffer(1, n, ctx!.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 3;
+    const src = Object.assign(ctx!.createBufferSource(), { buffer: b });
+    const f = Object.assign(ctx!.createBiquadFilter(), { type: 'bandpass' as BiquadFilterType });
+    f.frequency.value = freq;
+    const g = ctx!.createGain();
+    g.gain.value = peak;
+    src.connect(f).connect(g).connect(out);
+    src.start(t);
+  };
+  if (kind === 'thread') (tone('triangle', 1400, 380, 0.12, 0.5), noise(0.06, 2400, 0.8));
+  else if (kind === 'tick') (tone('square', 2600, 2400, 0.035, 0.18), noise(0.02, 5000, 0.5));
+  else if (kind === 'swell') (tone('sine', 220, 880, 1.2, 0.35, 0.9), tone('sine', 330, 1320, 1.2, 0.15, 0.9));
+  else (tone('sine', 90, 38, 1.1, 0.9, 0.01), noise(0.35, 300, 1.2), tone('triangle', 660, 640, 1.6, 0.12, 0.02));
+}

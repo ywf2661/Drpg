@@ -4,7 +4,7 @@
 //   무늬: 구멍(시작할 금빛 구멍은 첫 무늬와 힌트 때만), 안 그은 줄 = 옅은 점선, 그은 줄 = 금빛, 굳은 실 = 빛나는 하늘빛, 한쪽 통행 줄 = 화살표.
 //   광산 무늬의 빨려 들 구멍은 때가 다가오면 붉게 깜빡인다
 import * as THREE from 'three';
-import { PATTERNS, STITCH, crumbleHoles, startHoles, stitchState, type StitchState } from '../sim/stitch';
+import { CLOSE, closeMarks, holesOf, PATTERNS, STITCH, crumbleHoles, startHoles, stitchState, type StitchState } from '../sim/stitch';
 import type { World } from '../sim/world';
 import { tearGeo, tearMat } from './wardenfx';
 
@@ -21,7 +21,7 @@ const STRIP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const RING = new THREE.RingGeometry(0.28, 0.4, 20).rotateX(-Math.PI / 2);
 const ARROW = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0.35), new THREE.Vector2(0.25, -0.2), new THREE.Vector2(-0.25, -0.2)])).rotateX(Math.PI / 2); // +z를 가리키는 세모
 
-type Fx = { absorbed: boolean; needle: THREE.Mesh; trail: THREE.Group; burst: { m: THREE.Mesh; t: number } | null; world: World; tear: THREE.Mesh; u: Record<string, THREE.IUniform>; hole: THREE.Mesh; motes: THREE.Points; seeds: Float32Array; pattern: THREE.Group; ver: number; k: number; holes: THREE.Mesh[]; crosses: THREE.Group };
+type Fx = { flyer: THREE.Mesh; flyLine: THREE.Line; scar: THREE.Mesh; mt: number; absorbed: boolean; needle: THREE.Mesh; trail: THREE.Group; burst: { m: THREE.Mesh; t: number } | null; world: World; tear: THREE.Mesh; u: Record<string, THREE.IUniform>; hole: THREE.Mesh; motes: THREE.Points; seeds: Float32Array; pattern: THREE.Group; ver: number; k: number; holes: THREE.Mesh[]; crosses: THREE.Group };
 let fx: Fx | null = null;
 
 // 바닥에 눕힌 띠: a → b, 폭 wd
@@ -63,8 +63,22 @@ function build(world: World): Fx {
   needle.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), add(0xffcf5a, 0.35)));
   needle.renderOrder = 4;
   const trail = new THREE.Group();
+  // ② 날아가는 실: 빛 구슬 + 지나온 줄
+  const flyer = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), add(0xffffff, 1));
+  flyer.add(new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8), add(0x9fdcff, 0.35)));
+  flyer.renderOrder = 8;
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));
+  const flyLine = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xdff1ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false }));
+  flyLine.frustumCulled = false;
+  // ⑤ 닫힌 자리의 흉터: 세로로 남는 빛 꿰맨 자국
+  const scar = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 4).translate(0, 2, 0), new THREE.MeshBasicMaterial({ color: 0xeaf6ff, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  scar.position.set(C, 0, C);
+  scar.rotation.y = Math.PI / 4;
+  scar.renderOrder = 8;
+  stitchGroup.add(flyer, flyLine, scar);
   stitchGroup.add(tear, hole, motes, pattern, needle, trail); // 바닥 구멍: 틈의 경계(빨려 드는 선)가 보이게, 테는 가늘게
-  return { absorbed: false, needle, trail, burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
+  return { flyer, flyLine, scar, mt: 0, absorbed: false, needle, trail, burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
 }
 
 // 무늬를 다시 깐다(그은 줄·굳은 실이 바뀔 때)
@@ -122,8 +136,10 @@ export function tickStitchFx(time: number, dt: number, world: World) {
   f.tear.scale.set(1.2 + k * 1.3, 0.9 + k * 0.55, 1);
   f.u.uTime.value = time;
   f.u.uOpen.value = Math.min(1, s.r / 0.8);
-  // X자 땀
-  const done = Math.min(4, s.k);
+  const M = closeMarks();
+  const T = s.phase === 'closing' ? s.closeT : s.phase === 'closed' ? M.end : 0;
+  // X자 땀: ② 실이 날아와 꽂힐 때마다 하나씩(꿰매는 동안엔 없다)
+  const done = s.phase === 'sew' ? 0 : Math.max(0, Math.min(4, Math.floor((T - M.still) / CLOSE.fly)));
   while (f.crosses.children.length < done) {
     const i = f.crosses.children.length;
     const x = new THREE.Group();
@@ -136,13 +152,45 @@ export function tickStitchFx(time: number, dt: number, world: World) {
     x.renderOrder = 7;
     f.crosses.add(x);
   }
-  // 바람: 소용돌이
+  // ② 날아가는 실: 그 무늬 자리에서 틈의 땀 자리로 호를 그리며
+  const fi = Math.floor((T - M.still) / CLOSE.fly);
+  const flying = s.phase === 'closing' && T >= M.still && fi < 4;
+  f.flyer.visible = f.flyLine.visible = flying;
+  if (flying) {
+    const H = holesOf(fi);
+    const [sx, sz] = [H.reduce((a, q) => a + q[0], 0) / H.length, H.reduce((a, q) => a + q[1], 0) / H.length];
+    const p = ((T - M.still) % CLOSE.fly) / CLOSE.fly;
+    const e = p * p;
+    const ty = (0.6 + fi * 0.8) * (0.9 + k * 0.55); // 틈 판의 그 땀 높이
+    f.flyer.position.set(sx + (C - sx) * e, 0.3 + (ty - 0.3) * e + Math.sin(p * Math.PI) * 2.5, sz + (C - sz) * e);
+    const lp = f.flyLine.geometry.attributes.position as THREE.BufferAttribute;
+    lp.setXYZ(0, sx, 0.05, sz);
+    lp.setXYZ(1, f.flyer.position.x, f.flyer.position.y, f.flyer.position.z);
+    lp.needsUpdate = true;
+    (f.flyLine.material as THREE.LineBasicMaterial).opacity = 0.9 * (1 - p * 0.6);
+  }
+  // ⑤ 흉터: 닫힌 뒤 남았다가 빛 가루로 흘러간다
+  const sk = (T - M.sealed) / CLOSE.scar;
+  f.scar.visible = s.phase !== 'sew' && sk >= 0 && sk < 1;
+  if (f.scar.visible) {
+    f.scar.scale.set(1, 1 - sk * 0.3, 1);
+    f.scar.position.y = sk * 0.8;
+    (f.scar.material as THREE.MeshBasicMaterial).opacity = (1 - sk) * (0.8 + 0.2 * Math.sin(time * 9));
+  }
+  // 바람: 소용돌이. ① 정적이면 멈춰 서고, 닫힌 뒤엔 빛 가루가 되어 위로 흘러간다
   const pos = f.motes.geometry.attributes.position as THREE.BufferAttribute;
-  const wind = s.phase === 'closed' ? 0 : 1;
-  (f.motes.material as THREE.PointsMaterial).opacity = 0.7 * wind;
+  if (!(s.phase === 'closing' && T < M.still)) f.mt += dt;
+  const rising = s.phase !== 'sew' && T >= M.sealed;
+  (f.motes.material as THREE.PointsMaterial).opacity = rising ? 0.8 * Math.max(0, 1 - (T - M.sealed) / (CLOSE.scar + CLOSE.tick)) : 0.7;
   for (let i = 0; i < MOTES; i++) {
     const [a0, h, sp] = [f.seeds[i * 3], f.seeds[i * 3 + 1], f.seeds[i * 3 + 2]];
-    const life = (time * (0.18 + sp * 0.25) + h) % 1;
+    if (rising) {
+      const u = T - M.sealed;
+      const d = 0.3 + h * 3 + u * (0.4 + sp);
+      pos.setXYZ(i, C + Math.cos(a0) * d, 0.3 + ((h * 4 + u * (0.6 + sp * 0.8)) % 6), C + Math.sin(a0) * d);
+      continue;
+    }
+    const life = (f.mt * (0.18 + sp * 0.25) + h) % 1;
     const d = s.r + 1 + (1 - life) * 22;
     const a = a0 + life * 3;
     pos.setXYZ(i, C + Math.cos(a) * d, 0.2 + h * 2.2 * (1 - life), C + Math.sin(a) * d);
@@ -163,7 +211,7 @@ export function tickStitchFx(time: number, dt: number, world: World) {
     f.trail.add(strip(a, [f.needle.position.x, f.needle.position.z], 0.1, MAT.drawn, 0.05));
   }
   // 메아리가 틈에 스며드는 순간: 가운데에서 큰 빛 고리
-  if (s.phase === 'closing' && s.closeT >= STITCH.walkIn && !f.absorbed) {
+  if (s.phase === 'closing' && T >= M.look && !f.absorbed) {
     f.absorbed = true;
     const m = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 48).rotateX(-Math.PI / 2), add(0xc4a9ff, 1));
     m.position.set(C, 0.08, C);
@@ -173,6 +221,7 @@ export function tickStitchFx(time: number, dt: number, world: World) {
     f.burst = { m, t: 0 };
     f.u.uOpen.value = 1.6;
   }
+  if (s.phase === 'closing' && T >= M.look && T < M.enter + 0.4) f.u.uOpen.value = 1 + 0.8 * Math.sin(Math.min(1, (T - M.look) / (CLOSE.enter + 0.4)) * Math.PI); // 스며들 때 틈 안이 하얗게 차오른다
   // 땀 하나 완성: 그 무늬 자리에서 빛 고리가 퍼진다
   if (f.k >= 0 && s.k > f.k) {
     const H = f.holes.filter(Boolean).map((m) => m.position);

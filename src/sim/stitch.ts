@@ -10,7 +10,20 @@ import { walkable } from './path';
 import { DT, WARP, type World } from './rules';
 import { hourDir } from './warpmap';
 
-export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8, margin: 2, pullHurt: 0.25 }; // pullHurt = 빨려 들면 잃는 체력(최대 체력 비율). 다하면 지워졌다 돌아와 첫 무늬부터 // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
+export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, margin: 2, pullHurt: 0.25 }; // pullHurt = 빨려 들면 잃는 체력(최대 체력 비율). 다하면 지워졌다 돌아와 첫 무늬부터 // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
+// 닫히는 연출(설계서 6절 맨 위 다시 짠 것 + 2026-11-26 연출 보강): 초
+export const CLOSE = { still: 1.2, fly: 0.7, walk: 2, look: 1, enter: 0.6, zip: 0.8, scar: 3.5, tick: 2 };
+// 박자마다 끝나는 시각
+export function closeMarks() {
+  const still = CLOSE.still;
+  const fly = still + CLOSE.fly * 4;
+  const walk = fly + CLOSE.walk;
+  const look = walk + CLOSE.look;
+  const enter = look + CLOSE.enter;
+  const sealed = enter + CLOSE.zip * 4;
+  const scar = sealed + CLOSE.scar;
+  return { still, fly, walk, look, enter, sealed, scar, end: scar + CLOSE.tick };
+}
 export type Pattern = { demo?: number[]; name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
@@ -24,13 +37,13 @@ export const PATTERNS: Pattern[] = [
 ];
 export const degrees = (p: Pattern) => p.holes.map((_, i) => p.edges.filter((e) => e.includes(i)).length);
 
-export type StitchEvent = 'start' | 'erased' | 'nopotion' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
+export type StitchEvent = 'tock' | 'thread' | 'look' | 'enter' | 'zip' | 'sealed' | 'flow' | 'start' | 'erased' | 'nopotion' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
 export type StitchState = {
   t: number; r: number; k: number; // 경과(초), 틈 반지름(칸), 지금 무늬 번호(4 = 다 꿰맴)
   holes: [number, number][]; // 지금 무늬 구멍의 월드 자리
   // drawn = 그은 줄(그은 시각), cur = 마지막으로 닿은 구멍, skip = 처음부터가 된 순간 발밑에 있던 구멍(벗어날 때까지 시작점으로 잡지 않는다), snaps = 끊어진 수, lost = 빨려 든 구멍
   drawn: { e: number; at: number }[]; start: number; cur: number; skip: number; snaps: number; crumbleT: number; lost: number[];
-  phase: 'sew' | 'closing' | 'closed'; closeT: number; echoFrom: [number, number] | null; events: StitchEvent[]; ver: number;
+  phase: 'sew' | 'closing' | 'closed'; closeT: number; echoFrom: [number, number] | null; echoLook: boolean; zipFrom: number | null; events: StitchEvent[]; ver: number;
 };
 const state = new WeakMap<World, StitchState>();
 export const stitchState = (w: World) => state.get(w) ?? null;
@@ -46,7 +59,7 @@ export function holesOf(k: number): [number, number][] {
 }
 
 export function startStitch(w: World): StitchState {
-  const s: StitchState = { t: 0, r: STITCH.r0, k: 0, holes: holesOf(0), drawn: [], start: -1, cur: -1, skip: -1, snaps: 0, crumbleT: 0, lost: [], phase: 'sew', closeT: 0, echoFrom: null, events: ['start'], ver: 0 };
+  const s: StitchState = { t: 0, r: STITCH.r0, k: 0, holes: holesOf(0), drawn: [], start: -1, cur: -1, skip: -1, snaps: 0, crumbleT: 0, lost: [], phase: 'sew', closeT: 0, echoFrom: null, echoLook: false, zipFrom: null, events: ['start'], ver: 0 };
   state.set(w, s);
   return s;
 }
@@ -80,17 +93,38 @@ export function tickStitch(w: World) {
   const hero = w.entities[0];
   const c = STITCH.center;
   if (s.phase === 'closing') {
+    const was = s.closeT;
     s.closeT += DT;
-    // 메아리가 틈 한가운데로 걸어 들어가 스며든다(warp.ts가 이번 틱에 정한 메아리 자리를 덮어쓴다), 그다음 틈이 오므라든다
+    const T = s.closeT;
+    const at = (m: number) => was < m && T >= m; // 이번 틱에 m초를 지났다
+    const M = closeMarks();
+    // 박자: ② 실이 하나씩 틈에 꽂힌다 → ③ 메아리가 틈 앞에서 돌아본다 → 스며든다 → ④ 땀이 아래부터 하나씩 조인다 → 닫힘 → ⑤ 흉터가 흘러간다 → ⑥ 시곗바늘이 다시 돈다
+    for (let i = 0; i < 4; i++) if (at(M.still + CLOSE.fly * (i + 1))) s.events.push('thread');
+    if (at(M.look)) s.events.push('look');
+    if (at(M.enter)) s.events.push('enter');
+    for (let i = 0; i < 4; i++) if (at(M.enter + CLOSE.zip * (i + 1))) s.events.push(i < 3 ? 'zip' : 'sealed');
+    if (at(M.scar)) s.events.push('flow');
+    for (let i = 0; i < 4; i++) if (at(M.scar + 0.5 * i)) s.events.push('tock'); // ⑥ 시곗바늘이 다시 째깍
+    // 메아리: 제자리(정적·실) → 틈 앞까지 걷기 → 멈춰 돌아보기 → 한가운데로 들어가 스며든다(warp.ts가 이번 틱에 정한 자리를 덮어쓴다)
     const wp = w.warp;
     if (wp) {
       s.echoFrom ??= wp.echo ?? [hero.x, hero.z];
-      const k = Math.min(1, s.closeT / STITCH.walkIn);
-      const e = 1 - (1 - k) ** 2;
-      wp.echo = k < 1 ? [s.echoFrom[0] + (c - s.echoFrom[0]) * e, s.echoFrom[1] + (c - s.echoFrom[1]) * e] : null;
+      const [fx, fz] = s.echoFrom;
+      const d = Math.hypot(fx - c, fz - c) || 1;
+      const edge: [number, number] = [c + ((fx - c) / d) * (s.r + 0.8), c + ((fz - c) / d) * (s.r + 0.8)];
+      const ease = (k: number) => 1 - (1 - Math.min(1, Math.max(0, k))) ** 2;
+      const lerp2 = (a: [number, number], b: [number, number], k: number): [number, number] => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+      s.echoLook = T >= M.walk && T < M.look;
+      wp.echo = T < M.fly ? [fx, fz] : T < M.walk ? lerp2(s.echoFrom, edge, ease((T - M.fly) / CLOSE.walk)) : T < M.look ? edge : T < M.enter ? lerp2(edge, [c, c], (T - M.look) / CLOSE.enter) : null;
     }
-    if (s.closeT > STITCH.walkIn) s.r = Math.max(0, s.r - (DT * s.r) / Math.max(DT, STITCH.close - s.closeT + DT));
-    if (s.closeT >= STITCH.close) (s.phase = 'closed'), s.events.push('closed'), s.ver++;
+    // 틈: 땀이 하나씩 조일 때마다 한 칸씩 오므라든다
+    if (T >= M.enter) {
+      if (s.zipFrom === null) s.zipFrom = s.r;
+      const k = Math.min(1, (T - M.enter) / (CLOSE.zip * 4));
+      const step = Math.floor(k * 4) + Math.min(1, ((k * 4) % 1) * 4); // 조일 때 툭 줄고 멈춘다
+      s.r = Math.max(0, s.zipFrom * (1 - Math.min(4, step) / 4));
+    }
+    if (T >= M.end) (s.phase = 'closed'), s.events.push('closed'), s.ver++;
     return;
   }
   const calm = s.k === 0; // 첫 무늬(연습)는 숨 고르기: 틈이 커지지 않고 바람도 없다

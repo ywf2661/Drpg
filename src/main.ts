@@ -9,6 +9,7 @@ import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { setStitchDemo, STITCH_DEMO } from './render/stitchfx';
+import { rumble } from './render/feel';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
@@ -411,6 +412,13 @@ async function epilogue(go: () => void, lines: string[] = EPILOGUE) {
 }
 
 // 타임패트롤 신호: 주인공 곁에 형상을 세우고 대화(창이 닫히면 형상도 끊긴다)
+// 닫히는 순간 화면이 하얗게 번쩍
+function flashScreen() {
+  const c = renderer.domElement;
+  c.style.transition = 'none';
+  c.style.filter = 'brightness(3)';
+  requestAnimationFrame(() => ((c.style.transition = 'filter 0.5s ease-out'), (c.style.filter = '')));
+}
 // 연출 동안 카메라: 틈 쪽
 const riftGaze = () => setGaze({ x: STITCH.center + (world.entities[0].x - STITCH.center) * 0.08, z: STITCH.center + (world.entities[0].z - STITCH.center) * 0.08 }); // 틈 가까이(틈이 화면 가운데 위로 솟는다)
 function patrolTalk(lines: string[]) {
@@ -1014,6 +1022,10 @@ requestAnimationFrame(function frame(now) {
       else if (ev === 'drawn') hint(STITCH_DRAWN);
       else if (ev === 'nopotion') say(STITCH_NOPOTION);
       else if (ev === 'erased') hint(STITCH_ERASED);
+      else if (ev === 'thread') sound.synth('thread');
+      else if (ev === 'zip' || ev === 'tock') sound.synth('tick');
+      else if (ev === 'enter') sound.synth('swell');
+      else if (ev === 'sealed') sound.synth('sealed'), rumble(0.6), flashScreen();
       else if (ev === 'snap') say(STITCH_SNAP);
       else if (ev === 'hint') hint(STITCH_HINT);
       else if (ev === 'pulled') hint(STITCH_PULLED);
@@ -1028,10 +1040,11 @@ requestAnimationFrame(function frame(now) {
       if (demoT >= STITCH_DEMO) (stitchGuide = false), (demoT = -1), setStitchDemo(null), letterbox(false), setGaze(null), hint(STITCH_GUIDE);
     }
     $('#stitch-rule').hidden = sw.phase !== 'sew' || stitchGuide || riftTalk;
+    if (sw.phase === 'closing' && !renderer.domElement.style.transition) renderer.domElement.style.filter = sw.closeT < 1.2 ? 'saturate(0.45)' : sw.closeT < 1.8 ? `saturate(${0.45 + (sw.closeT - 1.2) / 0.6 * 0.55})` : ''; // ① 정적: 색이 빠졌다 돌아온다
     // 규칙 문구는 무늬에 따라: 금빛이 보이면(첫 무늬·두 번 끊어진 뒤) 금빛 → 금빛, 숨었으면 홀수 구멍, 해 무늬는 제자리로 돌아오기
     const rule = sw.phase !== 'sew' ? '' : startHoles(sw.k).length === 0 ? '점선을 <b>모두 한 번씩</b> · <b>시작한 구멍으로</b> 돌아온다 · 화살표 줄은 그 방향으로만' : sw.k === 0 || sw.snaps >= 2 ? '점선을 <b>모두 한 번씩</b> · 같은 줄 두 번 ✕ · <b class="gold">금빛</b>에서 시작 → <b class="gold">금빛</b>에서 끝' : '점선을 <b>모두 한 번씩</b> · 같은 줄 두 번 ✕ · 시작은 <b>줄이 홀수 개 모인 구멍</b>';
     if ($('#stitch-rule').innerHTML !== rule) $('#stitch-rule').innerHTML = rule;
-    sound.setWind(sw.phase === 'closed' ? 0 : sw.phase === 'closing' ? Math.max(0, 1 - sw.closeT / STITCH.walkIn) * 0.8 : sw.k === 0 ? 0.25 : 0.45 + 0.55 * (sw.r / STITCH.rMax)); // 첫 무늬는 잔잔하게, 틈이 클수록 세게
+    sound.setWind(sw.phase !== 'sew' ? 0 : sw.k === 0 ? 0.25 : 0.45 + 0.55 * (sw.r / STITCH.rMax)); // 첫 무늬는 잔잔하게, 틈이 클수록 세게
     if (riftDone && !talking()) {
       riftDone = false;
       act2 = Math.max(act2, 7);

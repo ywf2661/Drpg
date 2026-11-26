@@ -13,6 +13,7 @@ import skillUrl from '../assets/sprites/time_warden_skill.png';
 import { cardGeometry, dirIndex, frameAt, loadSheet, type SheetInfo, type Sprite } from './sprites';
 import { WARDEN, wardenState, type WardenAnim } from '../sim/warden';
 import { DIAL, hourDir } from '../sim/warpmap';
+import { closeMarks, stitchState } from '../sim/stitch';
 import type { Entity, World } from '../sim/world';
 import { PAIR_COLORS } from './warp';
 
@@ -247,6 +248,18 @@ export function tickWardenFx(time: number, dt: number, world: World, boss: Sprit
   const hm = hand.material as THREE.MeshBasicMaterial;
   hm.color.setHex(PAIR_COLORS[st.lit]);
   hm.opacity = st.weakT > 0 ? 0.25 : 0.4 + 0.12 * Math.sin(time * 3);
+  // 엔딩: 꿰매는 동안엔 바늘을 숨기고(무늬와 헷갈리지 않게), ⑥ 틈이 닫히고 흉터가 흘러간 뒤 다시 나타나 한 시간씩 째깍 돈다
+  const ss = stitchState(world);
+  if (ss) {
+    const M = closeMarks();
+    hand.visible = ss.phase === 'closed' || (ss.phase === 'closing' && ss.closeT >= M.scar);
+    if (hand.visible) {
+      const n = ss.phase === 'closed' ? Math.floor(time * 2) : Math.floor((ss.closeT - M.scar) / 0.5) + 1;
+      hand.rotation.y = yawOf(n);
+      hm.color.setHex(0xeaf6ff);
+      hm.opacity = 0.55;
+    }
+  } else hand.visible = true;
 
   // 파수꾼 판자
   if (boss) {
