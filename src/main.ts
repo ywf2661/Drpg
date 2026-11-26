@@ -854,7 +854,7 @@ if (new URLSearchParams(location.search).has('test')) {
   }
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; }, get warden() { return wardenState(world); }, get stitch() { return stitchState(world); } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; }, get warden() { return wardenState(world); }, get stitch() { return stitchState(world); }, wearWings: () => { const it = makeUnique(world, 'flowWings', 0, 0, 4); wearGear(world, { kind: 'armor', tier: it.tier, affixes: it.affixes! }); } } });
 
 // 5층 첫 만남 연출 한 프레임(intro 참고). 연출 중엔 플레이어 명령을 버린다
 function introStep(dt: number, cut: boolean) {
