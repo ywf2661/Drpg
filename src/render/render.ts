@@ -18,6 +18,7 @@ import { buildAbyss, tickAbyss } from './abyss';
 import { barricadeAt, fadeTrees, syncRaid } from './props';
 import { dirtGround, sandGround } from './ground';
 import { buildTemple, templeFloor, tickTempleArt, TEMPLE_TINT } from './temple';
+import { buildWarp, tickWarpArt, warpFloor, WARP_WALL } from './warp';
 import { inLight } from '../sim/temple';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
@@ -220,6 +221,7 @@ export async function initRender(world: World, theme: Theme) {
   tex.raid = { floor: ff, wall: fw }; // 약탈자 진지: 초원 그림을 메마른 흙·붉은 바위로 물들인다(buildMap)
   tex.mine = { floor: cf, wall: cw };
   tex.temple = { floor: rf, wall: rw }; // 사암 신전: 폐허 돌을 사암빛으로(buildMap), 바닥은 셰이더(모래·판석) // 보랏빛 광산: 동굴 바위(buildMap이 잿빛 보라로 물들인다)
+  tex.warp = { floor: cf, wall: cw }; // 뒤틀린 차원: 벽은 동굴 바위를 검푸르게, 방 바닥은 그 땅의 바닥 그림(warp.ts)
   tex.lake = { floor: ff, wall: lg }; // 호숫가: 풀은 초원 그림(색만 서늘하게), 벽 상자는 통나무집뿐('#'은 숲으로 그린다)
   plankTex = pk;
   setWorld(world, theme);
@@ -278,6 +280,7 @@ export function draw(world: World, dt: number) {
   tickWater(time, world);
   tickAbyss(time, world);
   tickTempleArt(time, world);
+  tickWarpArt(time, dt, world);
   patrolFx(hero.x, hero.z, time, dt);
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
@@ -474,11 +477,12 @@ function buildMap(world: World, theme: Theme) {
     return false;
   };
   const undergrowth: [number, number][] = [];
+  const warped = warpFloor(world); // 뒤틀린 차원: 방·문 칸의 바닥은 warp.ts가 땅마다 깐다
   const turning = templeFloor(world); // 신전: 도는 고리 땅·봉인·해 틈은 바닥만(돌은 temple.ts가 돌리며 그린다)
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
       const i = z * w + x;
-      if (blocked[i] === 2 || ford.has(i)) continue;
+      if (blocked[i] === 2 || ford.has(i) || warped.has(i)) continue;
       else if (turning.has(i)) floorCells[floorVariant(x, z)].push([x, z]);
       else if (plank.has(i)) planks.push([x, z]);
       else if (theme === 'raid' && blocked[i] === 1 && !prop.has(i) && barricadeAt(world, x, z)) {
@@ -524,6 +528,10 @@ function buildMap(world: World, theme: Theme) {
     const tg = buildTemple(world, [a, b], top);
     if (tg) mapGroup.add(tg);
   }
+  if (theme === 'warp') {
+    const wg = buildWarp(world, (land, v) => stone(tex[land as Theme]?.floor ?? floorTex, v, FLOOR_VARIANTS), floorVariant);
+    if (wg) mapGroup.add(wg);
+  }
   const abyss = buildAbyss(world, wallTex); // 광산: 허공 밑 깊이·절벽 면·빛 다리·결정
   if (abyss) mapGroup.add(abyss);
   const water = buildWater(world);
@@ -552,6 +560,7 @@ function buildMap(world: World, theme: Theme) {
     walls.castShadow = walls.receiveShadow = true;
     if (theme === 'raid') for (const mt of [side[0], side[1], top]) mt.color.multiply(new THREE.Color(1.15, 0.72, 0.55)); // 붉은 바위 언덕
     if (theme === 'temple') for (const mt of [side[0], side[1], top]) mt.color.multiply(TEMPLE_TINT); // 사암 담·모래 언덕
+    if (theme === 'warp') for (const mt of [side[0], side[1]]) (mt.color.multiply(WARP_WALL), mt.emissive.setHex(0x0b1630)); // 검푸른 돌에 유령빛
     mapGroup.add(walls);
     return makeCutaway(walls, cells);
   });
