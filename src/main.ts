@@ -798,8 +798,16 @@ if (new URLSearchParams(location.search).has('test')) {
         b.title = UNIQUES[u].desc;
         b.onclick = () => { legends.hidden = true; wearLegend(u); };
         return b;
-      }), riftButton());
+      }), riftButton(), wingsButton());
   });
+  // 흐르는 깃의 갑옷(2막 엔딩 보상): 4단계로 가방에 넣고 바로 입는다(엔딩에서만 얻는 것이라 목록에 따로)
+  function wingsButton() {
+    const b = document.createElement('button');
+    b.textContent = UNIQUES.flowWings.name;
+    b.title = UNIQUES.flowWings.desc;
+    b.onclick = () => { legends.hidden = true; wearLegend('flowWings'); };
+    return b;
+  }
   // 틈에서 나온 자 세트 4부위를 4단계로 한꺼번에 입는다(입던 장비는 사라진다)
   function riftButton() {
     const b = document.createElement('button');
