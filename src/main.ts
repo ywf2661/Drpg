@@ -10,6 +10,8 @@ import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
 import { setStitchDemo, STITCH_DEMO } from './render/stitchfx';
 import { rumble } from './render/feel';
+import { setIntroGhost, setWardenHold } from './render/wardenfx';
+import { setWarpFrozen } from './render/warp';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
@@ -23,7 +25,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss, gearDiff } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT, RIFT_OPEN, STITCH_GUIDE, STITCH_DRAWN, STITCH_NOPOTION, STITCH_ERASED, STITCH_SUN, STITCH_DONE, STITCH_SNAP, STITCH_HINT, STITCH_PULLED, STITCH_CRUMBLE, RIFT_CLOSED, EPILOGUE2, WARP_DONE } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT, RIFT_OPEN, STITCH_GUIDE, STITCH_DRAWN, STITCH_NOPOTION, STITCH_ERASED, STITCH_SUN, STITCH_DONE, STITCH_SNAP, STITCH_HINT, STITCH_PULLED, STITCH_CRUMBLE, RIFT_CLOSED, EPILOGUE2, WARP_DONE, WARDEN_MEET } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -77,6 +79,10 @@ let captainLine: string[] | null = null;
 let [risen, fell] = [false, false];
 // 5층 첫 만남 연출: wait = 통로를 빠져나오길 기다림 → walk = 레터박스, 남쪽 두 성소 사이까지 저절로 걷기 → look = 기도하는 자를 바라봄 → talk = 대화. 대화가 끝나면 기도하는 자가 주인공을 노린다
 let intro: 'wait' | 'walk' | 'look' | 'talk' | null = null;
+// 뒤틀린 차원 결전장 첫 연출(경과 초, null = 아님): ① 멈춘 결전장 → ② 째깍 → ③ 잔상이 떨어져 나온다 → ④ 패트롤 → ⑤ 이름 카드. short = ⑤만(다시 도전·2막을 깬 뒤)
+let wIntro: { t: number; short: boolean; talked: boolean } | null = null;
+let wardenMet = false; // 이번 실행에서 첫 연출을 봤다(저장하지 않는다 — 새로고침하면 다시)
+const WI = { tick: 2.5, ghost: 3.5, talk: 5.5, title: 1.6 };
 let introT = 0;
 const INTRO_LOOK = 1.5; // 바라보는 시간(초)
 // 엔딩 1(처음 쓰러뜨릴 때): 쓰러진 뒤 대사를 닫으면 흐르는 연출 시간(render/ending.ts OUTRO). 대화창이 열린 동안은 멈춘다. null = 없음
@@ -190,6 +196,9 @@ function enterFloor(n: number, carry: Carry) {
   setStitchDemo(null);
   sound.setWind(0);
   intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
+  wIntro = land === 'warp' && n === FLOORS ? { t: 0, short: wardenMet || act2 >= 7, talked: false } : null;
+  if (wIntro) wardenMet = true;
+  setWarpFrozen(false), setWardenHold(false), setIntroGhost(null), $('#boss-title').classList.remove('on');
   outro = null;
   setOutro(null);
   setHoldHalo(world.horseDrop); // 처음 쓰러뜨리는 판: 빛 고리는 마녀 앞에서 떨어질 때 나타난다
@@ -787,6 +796,7 @@ if (new URLSearchParams(location.search).has('test')) {
     if (!playing()) return;
     $('#test-warden').click();
     act2 = 6;
+    wIntro = null; // 결전장 첫 연출은 건너뛴다(바로 엔딩)
     const boss = world.entities.find((e) => e.skin === 'time_warden');
     if (boss) Object.assign(boss, { hp: 0, state: 'dead' });
   });
@@ -872,6 +882,41 @@ if (new URLSearchParams(location.search).has('test')) {
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
 if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; }, get warden() { return wardenState(world); }, get stitch() { return stitchState(world); }, wearWings: () => { const it = makeUnique(world, 'flowWings', 0, 0, 4); wearGear(world, { kind: 'armor', tier: it.tier, affixes: it.affixes! }); } } });
 
+// 뒤틀린 차원 결전장 첫 연출 한 프레임(wIntro 참고). 연출 중엔 sim이 서 있고 명령을 버린다. 클릭하면 이름 카드로 건너뛴다
+function wardenIntroStep(dt: number) {
+  const w = wIntro!;
+  const hero = world.entities[0];
+  const boss = world.entities.find((e) => e.skin === 'time_warden');
+  const C = STITCH.center;
+  if (w.t === 0) {
+    letterbox(true);
+    step(world, []); // 파수꾼 상태(문자판·잔상 그림)가 생기게 한 틱
+    if (!w.short) setWarpFrozen(true), setWardenHold(true);
+  }
+  const was = w.t;
+  if (!talking()) w.t += dt;
+  const at = (m: number) => was < m && w.t >= m;
+  const end = (w.short ? 0 : WI.talk) + WI.title;
+  if (!w.short) {
+    setGaze({ x: hero.x + (C - hero.x) * Math.min(1, w.t / WI.tick) * 0.97, z: hero.z + (C - hero.z) * Math.min(1, w.t / WI.tick) * 0.97 }); // ① 카메라가 천천히 가운데(파수꾼)로
+    if (at(WI.tick)) (sound.synth('tick'), setWarpFrozen(false), setWardenHold(false)); // ② 째깍: 시간이 풀린다
+    if (boss && w.t >= WI.ghost) boss.facing = Math.atan2(hero.x - boss.x, hero.z - boss.z); // ③ 고개를 들어 주인공을 본다
+    setIntroGhost(w.t >= WI.ghost ? Math.min(1, (w.t - WI.ghost) / 1.2) : null); // ③ 잔상이 떨어져 나온다
+    if (at(WI.talk) && !w.talked) (w.talked = true), patrolTalk(WARDEN_MEET); // ④ 패트롤(창이 열린 동안 시간은 멈춘다)
+  }
+  const tStart = w.short ? 0 : WI.talk;
+  if (at(tStart + 0.01) || (w.short && was === 0)) ($('#boss-title').classList.add('on'), sound.synth('sealed')); // ⑤ 이름 카드
+  if (w.t >= tStart + WI.title * 0.7) $('#boss-title').classList.remove('on');
+  if (w.t >= end) {
+    wIntro = null;
+    letterbox(false), setGaze(null), setIntroGhost(null), setWarpFrozen(false), setWardenHold(false);
+    if (boss) Object.assign(boss, { target: hero.id, repathT: 0 });
+  }
+}
+addEventListener('pointerdown', () => {
+  if (wIntro && !talking() && !wIntro.short && wIntro.t < WI.talk && wIntro.t > 0) [wIntro.t, wIntro.talked] = [WI.talk, true]; // 건너뛰기: 이름 카드로(패트롤 대사도 건너뛴다)
+});
+
 // 5층 첫 만남 연출 한 프레임(intro 참고). 연출 중엔 플레이어 명령을 버린다
 function introStep(dt: number, cut: boolean) {
   const hero = world.entities[0];
@@ -907,14 +952,15 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null || ending; // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
-  const cut = intro === 'walk' || intro === 'look' || outroOn();
+  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null || ending || wIntro !== null; // 결전장 첫 연출 동안도 sim이 서 있다 // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  const cut = intro === 'walk' || intro === 'look' || outroOn() || wIntro !== null;
   pollInput(world, dt, paused || cut);
   // 대화창(타임패트롤·엔딩 대사 등)이 떠 있거나 엔딩 연출 중이면 주인공은 선다 — 멈춘 sim 속에서 달리기 그림만 돌지 않게
   const me = world.entities[0];
   if ((talking() || outroOn()) && me.state === 'move' && me.phase === 'none') Object.assign(me, { state: 'idle', path: [] });
   if (cut) commands.length = 0;
   if (intro) introStep(dt, cut);
+  if (wIntro) wardenIntroStep(dt);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : world.cut >= 0 ? cutGuide() : null);
   renderer.domElement.classList.toggle('aiming', !!aiming || amoving);

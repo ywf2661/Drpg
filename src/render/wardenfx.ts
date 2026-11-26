@@ -18,6 +18,12 @@ import type { Entity, World } from '../sim/world';
 import { PAIR_COLORS } from './warp';
 
 export const wardenGroup = new THREE.Group();
+// 결전장 첫 연출(main): hold = 파수꾼 그림이 멈춰 있다(톱니·숨쉬기까지), introGhost = 몸에서 떨어져 나오는 잔상(0~1, null = 아님)
+let hold = false;
+let introGhost: number | null = null;
+export const setWardenHold = (on: boolean) => (hold = on);
+export const wardenHeld = () => hold;
+export const setIntroGhost = (k: number | null) => (introGhost = k);
 const BEAT = 0.46; // 째깍 걸음 박자(초) — tools/boss3d/time_warden.js 걸음 4박 = 1.1초 시트와 맞춘 것
 const STEP = 0.09; // 한 박자에 툭 나가는 시간(초)
 export const WARDEN_SIZE = 1.35; // 판자 배율(키 약 3m)
@@ -287,9 +293,24 @@ export function tickWardenFx(time: number, dt: number, world: World, boss: Sprit
     if (st.weakT > 0 && !dead) boss.mat.color.lerp(new THREE.Color(1.8, 1.4, 0.5), 0.35 + 0.2 * Math.sin(time * 12));
   }
 
-  // 잔상
+  // 잔상(첫 연출에선 몸에서 천천히 떨어져 나온다 — sim이 멈춰 있어 그림으로만)
   const g = st.ghost;
-  if (g && e.state !== 'dead' && boss) {
+  if (introGhost !== null && boss && e.state !== 'dead') {
+    if (!f.ghost) {
+      const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, color: GHOST });
+      const mesh = new THREE.Mesh(sheets.main.geo, mat);
+      mesh.rotation.y = Math.PI / 4;
+      mesh.renderOrder = 3;
+      f.ghost = { mesh, mat };
+      wardenGroup.add(mesh);
+    }
+    const k = introGhost;
+    show(f.ghost.mesh, f.ghost.mat, sheets.main, 'stance', 0, e.facing);
+    f.ghost.mesh.position.set(e.x - Math.sin(e.facing) * 0.9 * k, 0, e.z - Math.cos(e.facing) * 0.9 * k);
+    f.ghost.mesh.scale.setScalar(WARDEN_SIZE);
+    f.ghost.mat.opacity = 0.55 * k;
+    f.ghost.mesh.visible = k > 0.01;
+  } else if (g && e.state !== 'dead' && boss) {
     if (!f.ghost) {
       const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, color: GHOST });
       const mesh = new THREE.Mesh(sheets.main.geo, mat);

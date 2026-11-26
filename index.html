@@ -133,7 +133,11 @@
       #letterbox::after { bottom: 0; }
       #letterbox.on::before, #letterbox.on::after { height: 12vh; }
       /* 연출 중: 화면 그림·레터박스·대화창·자막(#toast)만 남기고 UI를 숨긴다 */
-      body.cine > :not(canvas, #letterbox, dialog, #toast, #still) { visibility: hidden !important; }
+      body.cine > :not(canvas, #letterbox, dialog, #toast, #still, #boss-title) { visibility: hidden !important; }
+      #boss-title { position: fixed; left: 0; right: 0; top: 38%; z-index: 52; text-align: center; pointer-events: none; color: #e8ecff; text-shadow: 0 0 18px #6a4aff, 0 2px 6px #000; opacity: 0; transition: opacity 0.8s ease; }
+      #boss-title.on { opacity: 1; }
+      #boss-title b { display: block; font-size: clamp(30px, 6vw, 54px); letter-spacing: 0.18em; }
+      #boss-title span { display: block; margin-top: 6px; font-size: clamp(14px, 2.4vw, 20px); letter-spacing: 0.3em; color: #b8c4ff; } /* 보스 이름 카드(결전장 첫 연출) */
       body.cine #toast { bottom: calc(12vh + 16px); z-index: 51; }
       /* 엔딩 1: 시체 둘레만 색이 빠진다(--at·--r은 render/ending.ts가 매 프레임) */
       #still { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; backdrop-filter: grayscale(1) brightness(0.85); -webkit-backdrop-filter: grayscale(1) brightness(0.85);
@@ -580,6 +584,7 @@
     </div>
     <div id="danger"></div>
     <div id="toast"></div>
+    <div id="boss-title"><b>시간의 파수꾼</b><span>틈을 지키는 자</span></div>
     <div id="stitch-rule" hidden></div>
     <div id="pick-card" hidden></div>
     <div id="labels"></div>

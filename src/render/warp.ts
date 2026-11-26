@@ -12,6 +12,8 @@ import { stitchState } from '../sim/stitch';
 
 export const PAIR_COLORS = [0xffcf5a, 0x5affc8, 0xff7ab8, 0xff9a4a]; // 발판 짝·문(α β γ δ)
 export const ECHO_COLOR = 0xc4a9ff;
+let warpFrozen = false;
+export const setWarpFrozen = (on: boolean) => (warpFrozen = on);
 export const WARP_WALL = new THREE.Color(0.5, 0.52, 0.66); // 벽: 검푸른 돌
 const LAND_TINT: Partial<Record<Land, THREE.Color>> = {
   lake: new THREE.Color(0.74, 0.88, 0.8), // 바닥 그림은 render.ts가 그 땅 것으로(호숫가·진지 풀, 광산 동굴 바위, 신전 폐허 돌)
@@ -432,6 +434,7 @@ export function tickWarpArt(time: number, dt: number, world: World) {
   if (crackMat) crackMat.emissiveIntensity = 0.45 + 0.15 * Math.sin(time * 1.1);
   if (waterMat) waterMat.emissiveIntensity = 1 + 0.4 * Math.sin(time * 1.3);
   for (const d of debris) {
+    if (warpFrozen) continue; // 파수꾼 결전장 첫 연출: 시간이 멈춰 잔해도 멈춰 있다
     d.mesh.position.x += d.v * dt;
     if (d.mesh.position.x > span + 10) d.mesh.position.x -= span + 20; // 한쪽으로만 흐른다
     d.mesh.rotation.y += d.spin * dt;

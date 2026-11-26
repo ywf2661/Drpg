@@ -19,7 +19,7 @@ import { barricadeAt, fadeTrees, syncRaid } from './props';
 import { dirtGround, sandGround } from './ground';
 import { buildTemple, templeFloor, tickTempleArt, TEMPLE_TINT } from './temple';
 import { buildWarp, tickWarpArt, warpFloor, WARP_WALL } from './warp';
-import { tickWardenFx, wardenGroup } from './wardenfx';
+import { tickWardenFx, wardenGroup, wardenHeld } from './wardenfx';
 import { stitchGroup, tickStitchFx } from './stitchfx';
 import { tickWings, wingsGroup } from './wings';
 import { inLight } from '../sim/temple';
@@ -331,7 +331,7 @@ export function draw(world: World, dt: number) {
     const lost = e.maxHp === s.maxHp ? Math.round(s.hp - e.hp) : 0; // 갑옷 교체로 줄어든 것은 맞은 것이 아니다
     if (e !== hero && e.skin !== 'time_warden' && Math.hypot(e.x - f.lx, e.z - f.lz) > SLIDE_MIN) // 파수꾼은 숨어서 옮겨 가고 돌진한다(밀려난 게 아니다) [f.kx, f.kz] = [f.kx + f.lx - e.x, f.kz + f.lz - e.z];
     [f.lx, f.lz] = [e.x, e.z];
-    updateSprite(s, e, dt, attackInterval(world, e));
+    updateSprite(s, e, e.skin === 'time_warden' && wardenHeld() ? 0 : dt, attackInterval(world, e)); // 결전장 첫 연출: 시간이 멈춘 동안 파수꾼 그림도 멈춘다
     if (lost > 0) {
       const eh = e === hero ? undefined : edgeBy.get(e.id);
       const [main, extra] = splitLost(lost, eh?.dmg ?? 0); // 벼림 추가 피해는 색을 달리해 따로
