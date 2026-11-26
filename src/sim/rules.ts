@@ -308,7 +308,7 @@ export type Blast = { id: number; x: number; z: number; r?: number; age: number;
 
 // 바닥의 위험 구역(예고 공격). t초 뒤 반경 r 안의 주인공에게 dmg. total = 처음의 t(렌더 진행도).
 // owner: 예고 자세를 유지해야 하는 몬스터 id(끊기면 구역도 사라진다), -1 = 이미 떨어지는 중(못 끊음)
-export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number; kind?: 'ice' | 'sword' | 'warn' }; // ice = 고드름(떨어지면 얼음 그림), sword = 성검의 비(꽂히면 잠시 벽), warn = 예고만(피해는 기술 쪽이 — 뱃사공 삿대)
+export type Zone = { id: number; x: number; z: number; r: number; t: number; total: number; dmg: number; owner: number; kind?: 'ice' | 'sword' | 'warn' | 'plague' }; // plague = 뱃사공의 오염된 운석(떨어진 자리에 검은 웅덩이 — abilities.ts tickZones) // ice = 고드름(떨어지면 얼음 그림), sword = 성검의 비(꽂히면 잠시 벽), warn = 예고만(피해는 기술 쪽이 — 뱃사공 삿대)
 
 // 장착 장비 단계(1~4). WEAPONS·ARMORS·HELMS·BOOTS[단계 − 1]
 export type Gear = Record<Slot, number>;
@@ -549,7 +549,7 @@ export const SKINS: Record<Skin, { name: string; hp: number; speed: number }> = 
   rock_golem: { name: '바위 괴물', hp: 1.5, speed: 0.8 }, // 보랏빛 광산 전사(tools/boss3d/rock_golem.js). 밀리지 않는다(core.heavy)
   mine_foreman: { name: '광산 감독관', hp: 1.3, speed: 1 }, // 보랏빛 광산 보스(foreman.ts). 그림: tools/boss3d/mine_foreman.js
   raider_chief: { name: '약탈자 우두머리', hp: 1.35, speed: 1 }, // 약탈자 진지 보스(chief.ts). 그림: tools/boss3d/raider_chief.js
-  plague_ferryman: { name: '역병 걸린 뱃사공', hp: 1.3, speed: 1 }, // 호숫가 보스: 배를 타고 호수를 돌다 나루에 내려 싸운다(ferryman.ts). 그림: tools/boss3d/plague_ferryman.js
+  plague_ferryman: { name: '역병 걸린 뱃사공', hp: 1.3, speed: 1 }, // 호숫가 보스: 호수 가운데 배 위 — 나루의 바퀴로 물을 빼야 근접이 닿는다(ferryman.ts). 그림: tools/boss3d/plague_ferryman.js
   time_warden: { name: '시간의 파수꾼', hp: 1.2, speed: 1 }, // 2막 최종 보스(보스 원형). 지금은 ?test 소환만. 그림: tools/boss3d/time_warden.js
 };
 export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Record<Kind, Skin>> }> = {

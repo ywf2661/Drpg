@@ -149,6 +149,20 @@ function think(w: World, skills: boolean, dodge: boolean, land: Land = 'dungeon'
     if (shooter && ready('throw')) cmds.push({ type: 'throw', x: shooter.x, z: shooter.z });
     else if (shooter && ready('dash') && d(shooter.x, shooter.z) > 3.5) cmds.push({ type: 'dash', x: shooter.x, z: shooter.z });
   }
+  // 뱃사공 결전: 둘레에 붙은 적이 없으면 물이 찼을 땐 가장 가까운 멀쩡한 바퀴로, 배가 바닥에 걸렸으면 뱃사공을 친다
+  const fm = w.fm;
+  const ferry = fm && w.entities.find((e) => e.skin === 'plague_ferryman' && e.state !== 'dead');
+  if (fm && ferry && fm.phase === 'drain') {
+    // 물이 빠지는 동안 물가를 따라 배 쪽으로 들어간다
+    const [dx, dz] = [hero.x - 24, hero.z - 24];
+    const k = (fm.r + 1.2) / (Math.hypot(dx, dz) || 1);
+    if (k < 1) return [...cmds, { type: 'move', x: 24 + dx * k, z: 24 + dz * k }];
+  }
+  if (fm && ferry && fm.phase === 'dry') return hero.target === ferry.id ? cmds : [...cmds, { type: 'attack', targetId: ferry.id }]; // 딜 타이밍엔 마을 사람을 두고 뱃사공부터
+  if (fm && ferry && !foes.some((e) => d(e.x, e.z) < 3)) {
+    const wheel = fm.phase === 'full' && fm.ids.filter((_, k) => !fm.wheels[k]).map((id) => w.chests[id]).sort((a, b) => d(a.x, a.z) - d(b.x, b.z))[0];
+    if (wheel) return w.opening === wheel.id ? cmds : [...cmds, { type: 'open', chestId: wheel.id }];
+  }
   const wanted = w.items.find((i) => ok(i.x, i.z) && (i.kind === 'gold' ? true : i.kind === 'potion' ? w.potions < 8 : isBetter(w, i)));
   if (foes.length && (d(foes[0].x, foes[0].z) < 9 || !wanted)) {
     if (hero.target !== foes[0].id) cmds.push({ type: 'attack', targetId: foes[0].id });
@@ -310,7 +324,7 @@ export function probe(seed: number, cls: HeroClass, land: Land, n: number, cycle
   const kills: Kill[] = [];
   let taken = 0;
   let t = 0;
-  for (; t < time / DT && hero.state !== 'dead'; t++) {
+  for (; t < time / DT && hero.state !== 'dead' && outcome(w) !== 'clear'; t++) {
     const hp = new Map(w.entities.map((e) => [e.id, e.hp]));
     step(w, t % THINK === 0 ? think(w, true, true, land, build) : []);
     taken += Math.max(0, hp.get(hero.id)! - hero.hp);

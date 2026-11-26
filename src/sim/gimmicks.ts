@@ -6,6 +6,7 @@ import { asleep, dist, dress, dropGold, hurt, makeEntity, rand, randSlot, rollGe
 import { guardOf, SANCTUM } from './sanctum';
 import { tickPaladin } from './paladin';
 import { lakeLow, tickSluice, turnWheel } from './sluice';
+import { turnLakeWheel } from './ferryman';
 import { igniteKeg, tickPowder } from './powder';
 import { pressCrystal, tickMine } from './mine';
 import { bossScale, cyclePower, FLOORS } from './dungeon';
@@ -56,7 +57,7 @@ export function touchChest(w: World, ch: Chest): boolean {
     w.talk = ch.kind;
     return true;
   }
-  if (ch.kind === 'wheel') return turnWheel(w, ch), true;
+  if (ch.kind === 'wheel') return (w.fm ? turnLakeWheel(w, ch) : turnWheel(w, ch)), true; // 뱃사공 결전장의 바퀴는 물을 뺀다
   if (ch.kind === 'keg') return igniteKeg(w, w.kegs.find((k) => k.chest === ch.id)), true;
   if (ch.kind === 'crystal') return pressCrystal(w, ch), true;
   if (ch.kind === 'well' || ch.kind === 'priest') return (w.talk = ch.kind), true;

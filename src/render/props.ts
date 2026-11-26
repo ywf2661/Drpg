@@ -675,7 +675,7 @@ function syncTraps(world: World) {
 }
 
 // 운석(마법사): 떨어지기까지 하늘에서 거의 곧장(조금 화면 왼쪽 위 -x에서) 내려오는 큰 화염구 + 떨어질 자리의 주황 원(차오르면 떨어진다).
-// sim의 world.volleys 중 blast 'fire'(운석뿐)를 읽기만 한다. 볼리에 id가 없어 순서대로 판자를 돌려 쓴다
+// sim의 world.volleys 중 blast 'fire'(운석뿐)와 뱃사공의 오염된 운석(zones kind 'plague')을 읽기만 한다. 볼리에 id가 없어 순서대로 판자를 돌려 쓴다
 export const COMET_FALL = { h: 4.2, back: 1.2, size: 2.4 }; // 높이·옆으로 비껴 오는 거리(m): PC 화면(주인공 위 약 5m가 화면 끝)에서도 시작부터 보이게
 // 떨어지는 화염구 위치 [x, y, z]와 진행도(0 시전 → 1 떨어짐). 떨어질수록 빨라진다
 export function cometAt(v: { x: number; z: number; t: number }): [number, number, number, number] {
@@ -691,8 +691,12 @@ let comets: { c: Card; mark: THREE.Group; fill: THREE.Mesh }[] = [];
 let cometsFalling = 0; // 지난 프레임에 떨어지는 중이던 운석 수(줄면 떨어진 것)
 const COMET_HIT = { shake: 0.35, stop: 0.07 }; // 떨어진 순간: 살짝 쿵(함성 흔들림 0.3, 스킬 타격 최대 0.45)
 
+const PLAGUE_TINT = new THREE.Color(0.45, 1.25, 0.5); // 뱃사공의 오염된 운석: 황록빛(바닥 예고 원은 zones.ts가)
 export function syncComets(world: World) {
-  const list = world.volleys.filter((v) => v.blast === 'fire');
+  const list = [
+    ...world.volleys.filter((v) => v.blast === 'fire').map((v) => ({ x: v.x, z: v.z, t: v.t, r: v.r, plague: false })),
+    ...world.zones.filter((z) => z.kind === 'plague').map((z) => ({ x: z.x, z: z.z, t: (z.t / z.total) * COMET.delay, r: z.r, plague: true })),
+  ];
   if (list.length < cometsFalling) {
     rumble(COMET_HIT.shake);
     pause(COMET_HIT.stop);
@@ -718,7 +722,9 @@ export function syncComets(world: World) {
     m.mark.position.set(v.x, 0.04, v.z);
     m.mark.scale.setScalar(v.r);
     m.fill.scale.setScalar(Math.max(0.001, p));
-    m.c.mesh.visible = m.mark.visible = true;
+    m.c.tint = v.plague ? PLAGUE_TINT : undefined;
+    m.c.mesh.visible = true;
+    m.mark.visible = !v.plague;
   });
   for (const m of comets.slice(list.length)) m.c.mesh.visible = m.mark.visible = false;
 }

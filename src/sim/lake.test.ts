@@ -167,23 +167,6 @@ test('결전장: 호숫가 5구역은 늘 같은 손 맵(가운데 호수, 나�
   for (let z = 0; z < map.length; z++) for (let x = 0; x < map.length; x++) if (OPEN(cells[z][x])) expect(d[z * map.length + x]).toBeGreaterThanOrEqual(0);
 });
 
-test('뱃사공: 물 위를 돌며 등불을 던지고(근접은 못 닿는다), 때가 되면 주인공 가까운 나루에 내려 싸우고, 다시 배에 오른다', () => {
-  const w = createWorld(1, generateLakeArena(), 1, 1, { boss: 'plague_ferryman' });
-  const [hero, boss] = [w.entities[0], w.entities.find((e) => e.kind === 'boss')!];
-  hero.maxHp = hero.hp = 1e9;
-  let threw = false, docked = false, reboard = false;
-  for (let i = 0; i < 60 * 40; i++) {
-    step(w, []);
-    if (w.fm?.mode === 'water' && w.zones.length) threw = true;
-    if (w.fm?.mode === 'water') expect(w.grid.blocked[Math.floor(boss.z) * 48 + Math.floor(boss.x)]).toBe(2); // 물 위
-    if (w.fm?.mode === 'dock') docked = true;
-    if (docked && w.fm?.mode === 'water') reboard = true;
-  }
-  expect(threw).toBe(true);
-  expect(docked).toBe(true);
-  expect(reboard).toBe(true);
-});
-
 test('수문 퍼즐(2~3구역): 5를 돌리면 출구가 열리고 물이 우물로 가 더럽혀진다, 6을 돌리면 늪으로 빠져 정화. 어느 차례로 돌려도 바퀴 둘에 늘 닿는다(갇히지 않는다)', { timeout: 120_000 }, () => {
   for (const floor of [2, 3])
     for (let seed = 1; seed <= 4; seed++) {

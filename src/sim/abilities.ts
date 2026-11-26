@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, seeThrough, walkable, type Cell } from './path';
-import { DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World, HIT } from './rules';
+import { PUDDLE, DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World, HIT } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { landSword } from './paladin';
@@ -621,6 +621,12 @@ export function tickZones(w: World) {
     if (owner && (owner.state === 'dead' || owner.phase !== 'windup')) return false;
     if ((z.t -= DT) > 0) return true;
     if (z.kind === 'warn') return false;
+    if (z.kind === 'plague') {
+      w.blasts.push({ id: w.nextItem++, x: z.x, z: z.z, age: 0, r: z.r, kind: 'curse' }); // 뱃사공의 오염된 운석: 반경 안 피해 + 검은 웅덩이
+      for (const e of friends(w)) if (Math.hypot(e.x - z.x, e.z - z.z) <= z.r) hurt(w, e, z.dmg);
+      w.puddles.push({ x: z.x, z: z.z, t: PUDDLE.t });
+      return false;
+    }
     if (!owner) z.kind === 'sword' ? landSword(w, z) : explode(w, z.x, z.z, z.dmg, z.kind);
     else {
       owner.phase = 'none';

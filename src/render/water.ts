@@ -30,7 +30,9 @@ const uniforms = {
   uSize: { value: new THREE.Vector2(1, 1) },
   uBoats: { value: Array.from({ length: BOATS }, () => new THREE.Vector4(-99, -99, 0, 0)) }, // x, z, 속도 x, 속도 z
   uHero: { value: new THREE.Vector3(-99, -99, 0) }, // x, z, 여울 위인가
+  uArena: { value: new THREE.Vector3(0, 0, -1) }, // 뱃사공 결전 물: 가운데 x, z, 반지름(음수 = 결전장 아님) — 그 밖의 호수는 마른 바닥
 };
+let lakeWheels: { root: THREE.Group; wheel: THREE.Group; spin: number }[] = []; // 결전장 바퀴(sim의 fm.ids 차례)
 
 // 모든 물 재질이 같이 쓰는 셰이더 앞부분
 const COMMON = `
@@ -41,12 +43,15 @@ uniform sampler2D uBlack;
 uniform vec2 uSize;
 uniform vec4 uBoats[${BOATS}];
 uniform vec3 uHero;
+uniform vec3 uArena;
 float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise2(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash2(i), hash2(i + vec2(1, 0)), u.x), mix(hash2(i + vec2(0, 1)), hash2(i + vec2(1, 1)), u.x), u.y); }
 vec4 maskAt(vec2 wp) { return texture2D(uMask, wp / uSize); }
 // 물이 있는 자리: 물 칸 안쪽으로만(땅 칸 위로는 넘지 않게) 울퉁불퉁한 물가 선
 float waterEdge(vec2 wp, vec4 m) { return m.r - 0.16 + (noise2(wp * 2.3) - 0.5) * 0.3; }
+// 결전 물 안쪽까지의 거리(m, 음수 = 물이 빠진 바닥). 결전장이 아니면 늘 1
+float arenaIn(vec2 wp) { return uArena.z < 0.0 ? 1.0 : uArena.z - length(wp - uArena.xy) + (noise2(wp * 2.3) - 0.5) * 0.3; }
 `;
 const VERT = (s: THREE.WebGLProgramParametersWithUniforms) => {
   s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWater;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWater = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -88,14 +93,32 @@ export function tickWater(time: number, world: World) {
   const low = lakeLow(world);
   const hero = world.entities[0];
   // 뱃사공의 배: 물 위에 있는 동안 발밑에. 물 위에서 쓰러지면 천천히 기울며 가라앉는다
-  const boss = world.fm && world.entities.find((e) => e.skin === 'plague_ferryman');
-  if (boss) {
+  // 결전 물: 반지름을 셰이더로. 뱃사공의 배는 가운데에 늘, 물이 빠지면 바닥에 얹혀 기운다. 쓰러지면 천천히 가라앉는다
+  const fm = world.fm;
+  uniforms.uArena.value.set(fm ? 24 : 0, fm ? 24 : 0, fm ? fm.r : -1);
+  const boss = fm && world.entities.find((e) => e.skin === 'plague_ferryman');
+  if (boss && fm) {
     if (!bossBoat) group.add((bossBoat = boat()));
-    const onWater = world.fm!.mode === 'water';
-    sink = boss.state === 'dead' && onWater ? sink + 1 / 60 : 0;
-    bossBoat.visible = onWater && sink < 3;
-    bossBoat.position.set(boss.x, Y - 0.06 - sink * 0.2 + Math.sin(time * 1.8) * 0.02, boss.z);
-    bossBoat.rotation.set(sink * 0.25, boss.facing - Math.PI / 2, sink * 0.12);
+    const aground = fm.r < 1.5; // 배 둘레만 물이 남았다
+    sink = boss.state === 'dead' && !aground ? sink + 1 / 60 : 0;
+    bossBoat.visible = sink < 3;
+    bossBoat.position.set(boss.x, (aground ? Y - 0.16 : Y - 0.06 + Math.sin(time * 1.8) * 0.02) - sink * 0.2, boss.z);
+    bossBoat.rotation.set(aground ? 0.12 : sink * 0.25, boss.facing - Math.PI / 2, sink * 0.12);
+    // 결전장 바퀴: 처음 볼 때 만들고, 물이 빠지는 동안 돌고, 부서진 것은 살이 꺾여 기운다
+    if (!lakeWheels.length)
+      for (const id of fm.ids) {
+        const ch = world.chests[id];
+        const v = waterWheel(ch.x, ch.z);
+        group.add(v.root);
+        lakeWheels.push({ ...v, spin: 0 });
+      }
+    lakeWheels.forEach((v, k) => {
+      const broken = fm.wheels[k] > 0;
+      if (fm.phase === 'drain' && fm.wheels[k] === fm.broke) v.spin += 0.12;
+      v.wheel.rotation.z = v.spin;
+      v.wheel.rotation.x = broken ? 0.9 : 0; // 부서진 바퀴는 앞으로 꺾여 늘어진다
+      v.wheel.position.y = broken ? 0.55 : 0.85;
+    });
   }
   const i = Math.floor(hero.z) * world.grid.w + Math.floor(hero.x);
   uniforms.uHero.value.set(hero.x, hero.z, world.grid.slow?.[i] ? 1 : 0);
@@ -146,6 +169,7 @@ export function buildWater(world: World): THREE.Group | null {
     puddles = [];
     fill = null;
     bossBoat = null;
+    lakeWheels = [];
   }
   if (world.mine) return null; // 광산의 허공(막힘 값 2)은 물이 아니다(abyss.ts)
   const { w, h, blocked } = world.grid;
@@ -268,7 +292,9 @@ vec2 wp = vWater.xz;
 vec4 m = maskAt(wp);
 float edge = waterEdge(wp, m);
 if (edge < 0.5) discard;
-float deep = smoothstep(0.0, 1.0, m.g);
+float ar = arenaIn(wp);
+if (ar < 0.0) discard;
+float deep = smoothstep(0.0, 1.0, m.g) * smoothstep(0.0, 3.0, ar);
 // 해가 세서(낮 지역) 물빛은 어둡게: 물가 = 탁한 청록, 가운데 = 거의 검은 남색. 하늘빛이 비친 얼룩이 천천히 흐른다
 vec3 col = mix(vec3(0.05, 0.15, 0.15), vec3(0.008, 0.03, 0.06), deep);
 col = mix(col, vec3(0.1, 0.2, 0.17), m.b * 0.8); // 여울: 얕고 흙탕
@@ -279,7 +305,7 @@ col = mix(col, vec3(0.03, 0.008, 0.035) + vec3(0.06, 0.0, 0.07) * smoothstep(0.5
 col *= 0.85 + 0.3 * noise2(wp * 0.6 + uTime * 0.05);
 col += vec3(0.03, 0.04, 0.05) * smoothstep(0.62, 0.9, noise2(wp * vec2(0.18, 0.5) + vec2(uTime * 0.03, 0.0))) * (1.0 - m.b);
 // 물가: 바로 안쪽은 젖은 그늘, 그 끝에 가는 물거품 줄이 밀려왔다 빠진다
-float shore = 1.0 - smoothstep(0.5, 0.64, edge);
+float shore = max(1.0 - smoothstep(0.5, 0.64, edge), 1.0 - smoothstep(0.0, 0.45, ar)); // 결전 물이 빠지고 찰 때도 그 가장자리에 물거품
 float lap = 0.5 + 0.5 * sin(uTime * 1.6 - m.r * 9.0 + noise2(wp * 2.0) * 4.0);
 float foam = smoothstep(0.55, 1.0, shore) * lap + wake(wp);
 col *= 1.0 - shore * 0.35;
@@ -315,7 +341,7 @@ diffuseColor.rgb = col;`,
       `#include <color_fragment>
 vec2 wp = vWater.xz;
 vec4 m = maskAt(wp);
-if (waterEdge(wp, m) >= 0.5) discard;
+if (waterEdge(wp, m) >= 0.5 && arenaIn(wp) >= 0.0) discard; // 결전 물이 빠진 호수 바닥은 진흙으로 그린다
 float inWater = texture2D(uMask, (floor(wp) + 0.5) / uSize).r;
 float land = m.a + (noise2(wp * 1.7) - 0.5) * 0.18;
 float a = max(inWater, (1.0 - smoothstep(0.04, 0.5, land)) * 0.7);
@@ -335,7 +361,7 @@ diffuseColor = vec4(col, a);`,
       '#include <color_fragment>',
       `#include <color_fragment>
 vec2 wp = vWater.xz;
-float over = smoothstep(0.3, 1.0, maskAt(wp).r);
+float over = smoothstep(0.3, 1.0, maskAt(wp).r) * step(0.0, arenaIn(wp));
 float fog = noise2(wp * 0.16 + vec2(uTime * 0.05, uTime * 0.02)) * noise2(wp * 0.37 - vec2(uTime * 0.03, -uTime * 0.04));
 diffuseColor.a = over * smoothstep(0.2, 0.55, fog) * 0.14;`,
     );
@@ -344,22 +370,7 @@ diffuseColor.a = over * smoothstep(0.2, 0.55, fog) * 0.14;`,
 
   // 수문 바퀴: 나무 기둥 + 세운 바퀴(바퀴살 넷)
   for (const g of world.sluice?.gates ?? []) {
-    const wood = new THREE.MeshStandardMaterial({ color: 0x5a3c22, roughness: 0.85 });
-    const root = new THREE.Group();
-    root.position.set(g.x + 0.5, 0, g.z + 0.5);
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.9, 0.16), wood);
-    post.position.y = 0.45;
-    const wheel = new THREE.Group();
-    wheel.position.set(0, 0.85, 0.12);
-    wheel.add(new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 6, 18), wood));
-    for (let k = 0; k < 4; k++) {
-      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.04, 0.04), wood);
-      spoke.rotation.z = (k * Math.PI) / 4;
-      wheel.add(spoke);
-    }
-    wheel.rotation.y = Math.PI / 4; // 카메라 쪽을 본다
-    for (const m of [post, ...wheel.children]) (m as THREE.Mesh).castShadow = true;
-    root.add(post, wheel);
+    const { root, wheel } = waterWheel(g.x, g.z);
     group.add(root);
     const [ax, az] = g.aim[g.to];
     wheels.push({ wheel, spin: 0, aim: Math.atan2(ax - g.x - 0.5, az - g.z - 0.5) + (g.key === '8' && !g.to ? Math.PI : 0) });
@@ -382,6 +393,27 @@ diffuseColor.a = over * smoothstep(0.2, 0.55, fog) * 0.14;`,
     group.add(b);
   }
   return group;
+}
+
+// 수문 바퀴: 나무 기둥 + 세운 바퀴(바퀴살 넷). 칸 (x, z)
+function waterWheel(x: number, z: number): { root: THREE.Group; wheel: THREE.Group } {
+  const wood = new THREE.MeshStandardMaterial({ color: 0x5a3c22, roughness: 0.85 });
+  const root = new THREE.Group();
+  root.position.set(x + 0.5, 0, z + 0.5);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.9, 0.16), wood);
+  post.position.y = 0.45;
+  const wheel = new THREE.Group();
+  wheel.position.set(0, 0.85, 0.12);
+  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 6, 18), wood));
+  for (let k = 0; k < 4; k++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.04, 0.04), wood);
+    spoke.rotation.z = (k * Math.PI) / 4;
+    wheel.add(spoke);
+  }
+  wheel.rotation.y = Math.PI / 4; // 카메라 쪽을 본다
+  for (const m of [post, ...wheel.children]) (m as THREE.Mesh).castShadow = true;
+  root.add(post, wheel);
+  return { root, wheel };
 }
 
 // 나무 배 한 척(길이 1.9m, 폭 0.8m): 둘레 판(가운데가 빈 뱃전) + 바닥 + 뱃머리 등불. +x가 뱃머리
