@@ -372,14 +372,18 @@ function buildPieces(world: World, g: THREE.Group, seamDir: Map<number, [number,
     const [nx, nz] = seamDir.get(i)!;
     const [tx, tz] = [-nz, nx]; // 이음매를 따라
     const [cx, cz] = [(i % W) + 0.5, Math.floor(i / W) + 0.5];
-    for (const o of [-0.33, 0, 0.33]) {
-      // 한 땀: 한쪽 바늘구멍에서 틈을 비스듬히 건너 맞은편 구멍으로(실은 팽팽해 살짝만 뜬다)
-      const a = new THREE.Vector3(cx + tx * (o - 0.1) - nx * 0.58, 0.015, cz + tz * (o - 0.1) - nz * 0.58);
-      const b = new THREE.Vector3(cx + tx * (o + 0.1) + nx * 0.58, 0.015, cz + tz * (o + 0.1) + nz * 0.58);
-      core.push(thread(a, b, 0.05, 0.022));
-      halo.push(thread(a, b, 0.05, 0.05));
-      holes.push(at(a.x, 0.015, a.z), at(b.x, 0.015, b.z));
-    }
+    [-0.33, 0, 0.33].forEach((o, k) => {
+      // 한 땀: 한쪽 바늘구멍에서 틈을 비스듬히 건너 맞은편 구멍으로(실은 팽팽해 살짝만 뜬다).
+      // 셋에 하나꼴로 반대로 비스듬한 땀이 위로 겹쳐 X가 된다(한 방향으로만 늘어서지 않게)
+      const lane = (s: number, side: number) => new THREE.Vector3(cx + tx * (o + s) + nx * 0.58 * side, 0.015, cz + tz * (o + s) + nz * 0.58 * side);
+      const pairs: [THREE.Vector3, THREE.Vector3, number][] = [[lane(-0.1, -1), lane(0.1, 1), 0.05]];
+      if (hash(i, k) < 0.32) pairs.push([lane(0.1, -1), lane(-0.1, 1), 0.075]);
+      for (const [a, b, lift] of pairs) {
+        core.push(thread(a, b, lift, 0.022));
+        halo.push(thread(a, b, lift, 0.05));
+        holes.push(at(a.x, 0.015, a.z), at(b.x, 0.015, b.z));
+      }
+    });
   }
   if (seams.length) {
     stitchMat = new THREE.MeshBasicMaterial({ color: 0xcfe8ff, toneMapped: false });
