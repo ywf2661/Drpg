@@ -22,6 +22,7 @@ import { chief } from './chief';
 import { foreman } from './foreman';
 import { keeper } from './keeper';
 import { warden } from './warden';
+import { stitchBlocksPotion } from './stitch';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
 import { DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World, LEGEND2 } from './rules';
@@ -403,6 +404,7 @@ export function respec(w: World) {
 // 즉시 회복. 이동·공격·계단 의도는 그대로 둔다
 function drink(w: World, hero: Entity) {
   if (hero.state === 'dead' || w.potions <= 0 || hero.hp >= hero.maxHp || w.healing) return; // 차는 중에는 다시 못 마신다
+  if (stitchBlocksPotion(w)) return; // 2막 엔딩: 틈을 꿰매는 동안은 못 마신다
   w.healing = { total: Math.round(hero.maxHp * POTION.heal), given: 0, t: 0 };
   w.potions--;
 }

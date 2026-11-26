@@ -1,6 +1,6 @@
 // 2막 엔딩 — 틈을 꿰맨다(한붓 수놓기)
 import { expect, test } from 'vitest';
-import { createWorld, DT, type World } from './world';
+import { createWorld, DT, step, type World } from './world';
 import { generateWarpArena } from './warpmap';
 import { holesOf, PATTERNS, riftLimit, STITCH, startHoles, startStitch, stitchState, tickStitch } from './stitch';
 
@@ -141,6 +141,22 @@ test('틈에 닿으면 바깥으로 내던져지고 굳지 않은 줄만 풀린�
   expect(s.cur).toBe(0);
   expect(Math.hypot(w.entities[0].x - STITCH.center, w.entities[0].z - STITCH.center)).toBeGreaterThan(15);
   expect(s.events).toContain('pulled');
+  expect(w.entities[0].hp).toBe(w.entities[0].maxHp - Math.round(w.entities[0].maxHp * STITCH.pullHurt)); // 체력 1/4을 잃는다
+});
+
+test('빨려 들어도 죽지는 않는다(체력 1), 꿰매는 동안은 물약을 못 마신다', () => {
+  const w = arena();
+  const s = startStitch(w);
+  const h = w.entities[0];
+  h.hp = 3;
+  Object.assign(h, { x: STITCH.center + 0.5, z: STITCH.center + 1 });
+  tick(w, DT);
+  expect(h.hp).toBe(1);
+  expect(h.state).not.toBe('dead');
+  w.potions = 2;
+  step(w, [{ type: 'drink' }]);
+  expect(w.potions).toBe(2);
+  expect(s.events).toContain('nopotion');
 });
 
 test('바람: 첫 무늬(연습)는 잔잔하고 틈도 그대로, 둘째 무늬부터 가만히 서 있어도 틈 쪽으로 끌려간다', () => {

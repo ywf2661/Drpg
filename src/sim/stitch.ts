@@ -10,7 +10,7 @@ import { walkable } from './path';
 import { DT, WARP, type World } from './rules';
 import { hourDir } from './warpmap';
 
-export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8, margin: 2 }; // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
+export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8, margin: 2, pullHurt: 0.25 }; // pullHurt = 빨려 들면 잃는 체력(최대 체력 비율, 죽지는 않는다) // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
 export type Pattern = { demo?: number[]; name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
@@ -22,7 +22,7 @@ export const PATTERNS: Pattern[] = [
 ];
 export const degrees = (p: Pattern) => p.holes.map((_, i) => p.edges.filter((e) => e.includes(i)).length);
 
-export type StitchEvent = 'start' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
+export type StitchEvent = 'start' | 'nopotion' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
 export type StitchState = {
   t: number; r: number; k: number; // 경과(초), 틈 반지름(칸), 지금 무늬 번호(4 = 다 꿰맴)
   holes: [number, number][]; // 지금 무늬 구멍의 월드 자리
@@ -61,6 +61,13 @@ function reset(s: StitchState, ev: StitchEvent, under = -1) {
 }
 // 틈이 자랄 수 있는 끝: 구멍들 중 가운데에 가장 가까운 것에서 STITCH.margin칸 앞(rMax를 넘지 않는다)
 export const riftLimit = (holes: [number, number][]) => Math.min(STITCH.rMax, Math.min(...holes.map((h) => Math.hypot(h[0] - STITCH.center, h[1] - STITCH.center))) - STITCH.margin);
+// 꿰매는 동안(닫힐 때까지)은 물약을 못 마신다(world.ts drink가 묻는다) — 막혔으면 알린다
+export function stitchBlocksPotion(w: World): boolean {
+  const s = state.get(w);
+  if (!s || s.phase === 'closed') return false;
+  s.events.push('nopotion');
+  return true;
+}
 // 광산 무늬: 틈(가운데)에 가장 가까운 구멍 둘
 export const crumbleHoles = (holes: [number, number][]) => holes.map((h, i) => [Math.hypot(h[0] - STITCH.center, h[1] - STITCH.center), i]).sort((a, b) => a[0] - b[0]).slice(0, 2).map((x) => x[1]);
 
@@ -96,6 +103,7 @@ export function tickStitch(w: World) {
   // 빨려 들었다: 바깥 테두리로 내던지고, 굳지 않은 줄을 푼다
   if (d <= s.r + 0.3) {
     Object.assign(hero, { x: c - (dx / d) * STITCH.throwTo, z: c - (dz / d) * STITCH.throwTo, path: [], phase: 'none' });
+    hero.hp = Math.max(1, hero.hp - Math.round(hero.maxHp * STITCH.pullHurt)); // 체력 1/4을 잃는다(죽지는 않는다, 물약도 못 마신다)
     const keep = sewn(s);
     s.drawn = s.drawn.slice(0, keep);
     s.cur = s.drawn.length ? walkEnd(s) : (s.start = -1);
