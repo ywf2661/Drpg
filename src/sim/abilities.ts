@@ -1,6 +1,6 @@
 // 특수 행동: 주인공 스킬(가르기·돌진 베기), 보스 돌진, 해골 왕 소환, 마법사 물러나기, 화살·화염구.
 import { findPath, seeThrough, walkable, type Cell } from './path';
-import { PUDDLE, DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World, HIT } from './rules';
+import { PUDDLE, DOWNCUT, RADIUS, FINALE, ARCHER, AXE, BOUNCE, CHAIN_AXE, BURST, CHARGE, DASH, DT, GREATSWORD, FIREBALL, KEY_CD, KING, KNOCK, LEAP, MAGE, METEOR, PIERCE, RANGER, REPATH, ROLL, GLIDE, SHOUT, SKILL, SLAM, STATS, TRAIL, TREASURE, WIZ, type Entity, type Shot, type World, HIT } from './rules';
 import { fireBurst, magicHit, nearest, stun } from './wizard';
 import { arrowHit } from './ranger';
 import { landSword } from './paladin';
@@ -359,20 +359,49 @@ export function rollStart(w: World, hero: Entity, x?: number, z?: number) {
   const d = Math.hypot(tx - hero.x, tz - hero.z);
   if (d > 1e-6) [dx, dz] = [(tx - hero.x) / d, (tz - hero.z) / d];
   if (hasUnique(w, 'runnerBoots')) decoy(w, hero.x, hero.z); // 도망자의 장화: 구른 자리에 허수아비
-  Object.assign(hero, { phase: 'roll', phaseT: ROLL.dist, dx, dz, state: 'move', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
+  Object.assign(hero, { phase: 'roll', phaseT: hasUnique(w, 'flowWings') ? GLIDE.dist : ROLL.dist, dx, dz, state: 'move', path: hero.path.slice(-1), attackT: 0, skill: false, repathT: 0, facing: Math.atan2(dx, dz) });
   w.rollCd = ROLL.cd;
   w.trail = emberLine(w, hero.x, hero.z); // 불꽃 걸음: 구르며 늘어나는 불길
 }
 
 
 // 구르기 한 틱: 벽에 막히면 제자리에서 구른다(무적 시간은 같다)
+// 활강으로 지나갈 수 있는 칸: 맵 안이고, 벽·문·봉인(hard)이 아니거나 그 문이 열렸다. 고리 돌(사암 신전)은 돌고 있어 blocked로 본다
+function glideOk(w: World, x: number, z: number): boolean {
+  const g = w.grid;
+  if (x < 0 || z < 0 || x >= g.w || z >= g.h) return false;
+  const i = z * g.w + x;
+  if (g.hard?.[i] && g.blocked[i]) return false;
+  return !(w.temple?.rings.some((r) => r.cells.some((c, k) => c === i && r.stone[k])));
+}
+// 내린 자리가 막혀 있으면 가장 가까운 평지로(칸 가운데)
+function land(w: World, hero: Entity) {
+  const g = w.grid;
+  const [cx, cz] = [Math.floor(hero.x), Math.floor(hero.z)];
+  if (walkable(g, cx, cz)) return;
+  for (let r = 1; r < 12; r++) {
+    let best: [number, number] | null = null;
+    let bd = Infinity;
+    for (let dz = -r; dz <= r; dz++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r || !walkable(g, cx + dx, cz + dz)) continue;
+        const d = Math.hypot(cx + dx + 0.5 - hero.x, cz + dz + 0.5 - hero.z);
+        if (d < bd) [bd, best] = [d, [cx + dx + 0.5, cz + dz + 0.5]];
+      }
+    if (best) return void ([hero.x, hero.z] = best);
+  }
+}
+
 export function rollStep(w: World, hero: Entity) {
-  const step = ROLL.speed * DT;
+  const glide = hasUnique(w, 'flowWings'); // 활강: 벽·닫힌 문만 빼고 넘어간다
+  const step = (glide ? GLIDE.speed : ROLL.speed) * DT;
   const [nx, nz] = [hero.x + hero.dx * step, hero.z + hero.dz * step];
-  if (walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];
+  if (glide ? glideOk(w, Math.floor(nx), Math.floor(nz)) : walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];
+  else if (glide) hero.phaseT = 0; // 벽에 닿았다: 거기서 내린다
   const ember = w.fires.find((f) => f.id === w.trail);
   if (ember) [ember.x1, ember.z1] = [hero.x, hero.z];
   if ((hero.phaseT -= step) > 0) return;
+  if (glide) land(w, hero);
   const to = hero.path[0]; // 가던 목적지: 구른 자리에서 길을 다시 잡는다
   Object.assign(hero, { phase: 'none', state: 'idle', path: (to && pathTo(w, hero, to[0], to[1])) ?? [] });
 }

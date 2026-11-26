@@ -149,7 +149,7 @@ export type Affix = { kind: AffixKind; value: number; skill?: SkillId; tab?: num
 
 // 고유 장비(전설·세트). 설계: docs/superpowers/specs/2026-11-16-legendary-design.md
 export type UniqueId = 'crackedHalo' | 'boomerang' | 'splitOrb' | 'hawkHood' | 'boneShroud' | 'duelist' | 'emberStep' | 'berserker' | 'crownless' | 'hunterWeapon' | 'hunterArmor' | 'hunterHelm' | 'hunterBoots' | 'caliburx' | 'elemStaff' | 'graveSkull' | 'stormBow'
-  | 'powderHammer' | 'bannerSpear' | 'wellScepter' | 'plagueStaff' | 'boneFlute' | 'galeBow' | 'twinBows' | 'collectorCrown' | 'runnerBoots' | 'lootSack' // 2막 전설(act2)
+  | 'powderHammer' | 'bannerSpear' | 'wellScepter' | 'plagueStaff' | 'boneFlute' | 'galeBow' | 'twinBows' | 'collectorCrown' | 'runnerBoots' | 'lootSack' | 'flowWings' // 2막 전설(act2), flowWings = 2막 엔딩 보상
   | 'riftWeapon' | 'riftArmor' | 'riftHelm' | 'riftBoots'; // 2막 세트 「틈에서 나온 자」
 // name의 %는 그 단계의 기본 이름. cls: 그 직업일 때만 떨어진다. fixed: 고정 옵션(tab = 탭 하나 +1, tier1 = 1단계 스킬 하나 +1을 드롭 때 굴림).
 // look: 입으면 그 부위 레이어를 이 원색으로. desc: 고유 효과(세트 조각은 비움 — 세트 효과는 SET_HUNTER). only: 무작위 전설에 안 나온다(정해진 보스만)
@@ -186,6 +186,7 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   runnerBoots: { name: '도망자의 장화', slot: 'boots', act2: true, fixed: [{ kind: 'move', value: 10 }], look: '#9a6a3a', desc: '구르면 그 자리에 허수아비가 남아 둘레 적들이 2초 동안 허수아비를 친다' },
   lootSack: { name: '약탈자의 전리품 자루', slot: 'armor', act2: true, fixed: [{ kind: 'life', value: 30 }], look: '#a07840', desc: '적을 잡을수록 자루가 차고 받는 피해가 준다(최대 −25%). 맞으면 금화가 흩어진다' },
   riftWeapon: { name: '틈에서 나온 자의 %', slot: 'weapon', set: 'rift', act2: true, fixed: [{ kind: 'dmg', value: 20 }], look: '#9fdcff', desc: '' },
+  flowWings: { name: '흐르는 깃의 갑옷', slot: 'armor', only: true, act2: true, fixed: [{ kind: 'life', value: 30 }, { kind: 'move', value: 10 }], look: '#cfe8ff', desc: '구르기가 활강이 된다 — 물·허공·소품·적 위를 6m 날아간다(벽·닫힌 문은 못 넘는다). 막힌 곳에 내리면 가장 가까운 평지로' }, // 2막 엔딩: 틈을 꿰매면 받는다
   riftArmor: { name: '틈에서 나온 자의 갑주', slot: 'armor', set: 'rift', act2: true, fixed: [{ kind: 'life', value: 25 }], look: '#9fdcff', desc: '' },
   riftHelm: { name: '틈에서 나온 자의 투구', slot: 'helm', set: 'rift', act2: true, fixed: ['tab'], look: '#9fdcff', desc: '' },
   riftBoots: { name: '틈에서 나온 자의 장화', slot: 'boots', set: 'rift', act2: true, fixed: [{ kind: 'move', value: 8 }], look: '#9fdcff', desc: '' },
@@ -822,6 +823,7 @@ export const DASH = { cd: 6, dist: 5, speed: 14, hit: 1, aim: 6 }; // 돌진 베
 // 구르기: 재사용, 거리, 속도(거리 ÷ 속도 = 무적 시간), 조준이 없을 때 피할 적을 찾는 거리
 // on: false = 구르기(마법사 순간이동)를 막아 둔 실험(입력·봇이 명령을 내지 않는다. sim은 그대로)
 export const ROLL = { on: true, cd: 2.5, dist: 3, speed: 9, away: 4 };
+export const GLIDE = { dist: 6, speed: 13 }; // 활강(흐르는 깃의 갑옷): 거리(m)·빠르기(m/s)
 
 // 기력·마나(롤식 자원): 스킬을 쓰면 비용만큼 줄고 저절로 찬다. 재사용 대기는 그대로, 비용이 더해진다. 평타·구르기는 무료
 export type ResourceKind = 'energy' | 'mana';

@@ -68,9 +68,11 @@ const PROPS: Record<string, Prop['kind'] | undefined> = { B: 'brazier', o: 'prop
 
 // power: 몬스터 층 배율, bossPower: 보스 배율(보스는 마지막 층 기준 수치라 층 배율 대신 회차 배율만).
 // deep: 초원 너머(이야기 깊이 6부터) — 정예에 광폭·질주·불굴이 섞이고, 보스도 그중 하나를 단다
+const HARD = '#D/`()ΑΒΓΔ'; // 활강도 못 넘는 칸: 벽(말뚝·이음매 포함)·사슬 문·봉인·해 틈·고리 돌·차원의 문(열려 blocked가 풀리면 지나간다 — abilities.ts glideOk)
 export function createWorld(seed: number, map: string[], power = 1, bossPower = 1, skins: World['skins'] = {}, deep = false): World {
   const w = map[0].length;
-  const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length), slow: new Uint8Array(w * map.length) };
+  const grid: Grid = { w, h: map.length, blocked: new Uint8Array(w * map.length), slow: new Uint8Array(w * map.length), hard: new Uint8Array(w * map.length) };
+  map.forEach((row, z) => [...row].forEach((c, x) => HARD.includes(c) && (grid.hard![z * w + x] = 1))); // 활강(흐르는 깃의 갑옷)도 못 넘는 칸
   const spawns: { kind: Kind; x: number; z: number; elite: boolean; c: string }[] = [];
   let stairs: Cell | null = null;
   const props: Prop[] = [];

@@ -1022,6 +1022,11 @@ requestAnimationFrame(function frame(now) {
     if (riftDone && !talking()) {
       riftDone = false;
       act2 = Math.max(act2, 7);
+      // 엔딩 보상: 흐르는 깃의 갑옷(가방, 자리가 없으면 창고)
+      const it = makeUnique(world, 'flowWings', world.entities[0].x, world.entities[0].z, world.maxTier);
+      const g = { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! };
+      const [box, at] = bagSpot(world.bag, g) ? [world.bag, bagSpot(world.bag, g)!] : [stash, bagSpot(stash, g, STASH)];
+      if (at) box.push({ ...g, x: at[0], y: at[1] });
       void epilogue(goCamp, EPILOGUE2);
     }
   }
