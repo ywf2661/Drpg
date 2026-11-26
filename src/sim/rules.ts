@@ -720,7 +720,7 @@ export const AFFIXES: Record<AffixKind, { slots: Slot[]; name: string; lo: numbe
 };
 // 담금질(설계: 2026-11-25-act2-loot-growth-design.md 4절). ★n → ★n+1 값: ore·gold[n], ★4 → ★5는 심장 조각 1.
 // up: ★ 하나마다 오르는 부위 수치(옵션 종류, 값). awakeAt: 깨어나는 ★. drop: 2막 땅 광석(정예 elite + 반 확률로 하나 더, 보스 boss, 졸개 mob 확률로 1)
-export const FORGE = { max: 5, ore: [2, 4, 6, 10, 15], gold: [300, 600, 1000, 1500, 2500], up: { weapon: ['dmg', 8], armor: ['guard', 2], helm: ['life', 12], boots: ['move', 1] } as Record<Slot, [AffixKind, number]>, awakeAt: [3, 5], choices: 3, drop: { elite: 1, boss: 6, mob: 0.04 } };
+export const FORGE = { max: 5, ore: [2, 4, 6, 10, 15], gold: [300, 600, 1000, 1500, 2500], up: { weapon: ['dmg', 5], armor: ['guard', 2], helm: ['life', 12], boots: ['move', 1] } as Record<Slot, [AffixKind, number]>, awakeAt: [3, 5], choices: 3, drop: { elite: 1, boss: 6, mob: 0.04 } };
 // 깨어남 풀: 부위마다. u = 그 전설 효과가 켜진다(cls = 그 직업만), 아니면 옵션 한 줄(kind, value)
 export type Awake = { slot: Slot; u?: UniqueId; cls?: HeroClass; kind?: AffixKind; value?: number };
 export const AWAKEN: Awake[] = [
