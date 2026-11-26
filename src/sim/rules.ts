@@ -120,6 +120,7 @@ export type Entity = {
   frost?: number; // 서리 칼에 맞은 횟수(벼림, 없으면 0)
   summoner: number; // 소환한 해골 왕의 id(-1 = 처음부터 있던 몬스터)
   stunT: number; // 기절 남은 시간(초). 기절 중엔 아무것도 하지 않는다
+  openT?: number; // 약탈자 우두머리: 화약통을 들이받고 맞을 수 있는 남은 시간(초). 다른 기절(낙뢰 등)로는 열리지 않는다
   downT?: number; // 사암 신전: 쓰러진 붕대 망령이 일어나기까지 남은 시간(초, 그늘에서 쓰러졌다 — temple.ts)
   hangT?: number; // 광산: 허공 가장자리에 매달린 남은 시간(초, 정예·보스 — 받는 피해 MINE.hangMult배)
   fell?: boolean; // 광산: 허공에 떨어져 죽었다(렌더가 떨어지는 모습으로)

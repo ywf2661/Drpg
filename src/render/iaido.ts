@@ -207,7 +207,6 @@ export function flashFx(s: Sprite, e: Entity, dt: number) {
   }
   lx = e.x;
   lz = e.z;
-  update(dt);
 }
 
 // 칼선·반짝임·터짐 대기열(실제 시간)
@@ -275,6 +274,7 @@ function drop(id: number, f: Floor) {
 }
 
 export function cutsFx(world: World, dt: number) {
+  update(dt); // 칼선이 사라지는 시간은 직업과 상관없이 여기서(얼음 궤적은 마법사에게도 그어진다)
   clock += dt;
   if (world.cutFx.n > cutFxSeen) {
     const [x0, z0, x1, z1] = world.cutFx.seg; // 내리베기: 벤 직선을 따라 금빛 칼날 빛
@@ -321,6 +321,7 @@ export function resetIaido() {
   hop = null;
   cutFxSeen = 0; // 새 층의 내리베기 타격은 0부터 센다
   bursts.length = 0;
+  for (const l of lines) Object.assign(l, { live: false, age: l.life }), place(l); // 남은 칼선은 숨긴다
   starAt = null;
   starT = GLINT;
   for (const [id, f] of floors) drop(id, f);

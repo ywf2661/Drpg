@@ -1138,6 +1138,7 @@ requestAnimationFrame(function frame(now) {
   }
   setHideBeams(land === 'sanctum' && floor === FLOORS && world.horseDrop && o === 'clear' && (outro ?? 0) < OUTRO.end); // 엔딩 1(쓰러진 뒤~마녀가 떠날 때까지)
   heard = snapshot(world);
+  if (bag.open) return void requestAnimationFrame(frame); // 보관함: 게임이 멈춰 있으니 뒤 장면은 마지막 그림 그대로(오래된 폰에서 장비 그림 위로 매 프레임 다시 합성하지 않게)
   draw(world, dt);
   drawAutomap(world);
   drawLabels(world, camera, renderer.domElement, signs);

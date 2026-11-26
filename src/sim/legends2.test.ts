@@ -30,7 +30,7 @@ const chiefKill = (seed: number, cls: HeroClass) => {
   w.land = 'raid';
   w.cls = cls;
   const b = w.entities.find((e) => e.kind === 'boss')!;
-  Object.assign(b, { skin: 'raider_chief', stunT: 1, hp: 1 });
+  Object.assign(b, { skin: 'raider_chief', stunT: 1, openT: 1, hp: 1 });
   hurt(w, b, 999, w.entities[0]);
   return legendsOf(w);
 };

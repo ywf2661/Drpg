@@ -79,6 +79,10 @@ test('결전장: 늘 같은 손 맵, 처음엔 통이 없고 군막에서 하나
   const hp = boss.hp;
   hurt(w, boss, 100, hero);
   expect(boss.hp).toBe(hp); // 평소엔 안 맞는다
+  boss.stunT = 2; // 낙뢰·휘청임 같은 다른 기절로는 열리지 않는다
+  hurt(w, boss, 100, hero);
+  expect(boss.hp).toBe(hp);
+  boss.stunT = 0;
   // 굴러 나온 미끼 통은 곁에서 다른 통이 터져도 남는다
   w.kegs.push({ x: Math.floor(keg.fx!) + 1, z: Math.floor(keg.fz!), fuse: 0.01, lit: true, wall: false, done: false, chest: -1 });
   for (let i = 0; i < 5; i++) step(w, []);

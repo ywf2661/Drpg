@@ -251,6 +251,7 @@ export function step(w: World, cmds: Command[]): void {
     if (e !== hero && special(w, e, hero)) continue; // 잠든 몬스터·무덤·보물 고블린
     if (e.stunT > 0) {
       e.stunT = Math.max(0, e.stunT - DT); // 기절: 생각도 행동도 하지 않는다
+      if (e.openT) e.openT = Math.max(0, e.openT - DT); // 늘 stunT 이하라 기절 중에만 흐른다
       continue;
     }
     if (e.fearT > 0) {
