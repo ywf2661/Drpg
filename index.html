@@ -526,7 +526,8 @@
         #pick-card.show { animation-name: pick-in-left; }
       }
       @keyframes pick-in-left { from { transform: translateX(-40px); opacity: 0; } }
-      #stitch-rule { position: fixed; left: 50%; top: 92px; transform: translateX(-50%); z-index: 2; padding: 6px 16px; background: #000a; border: 1px solid #9fdcff55; border-radius: 4px; color: #dff1ff; font-size: 15px; text-shadow: 0 1px 3px #000; pointer-events: none; white-space: nowrap; } /* 2막 엔딩: 꿰매는 동안 늘 떠 있는 규칙 한 줄 */
+      #stitch-rule { position: fixed; left: 50%; top: 92px; transform: translateX(-50%); z-index: 2; padding: 6px 16px; background: #000a; border: 1px solid #9fdcff55; border-radius: 4px; color: #dff1ff; font-size: 15px; text-shadow: 0 1px 3px #000; pointer-events: none; width: max-content; max-width: calc(100vw - 32px); text-align: center; line-height: 1.45; } /* 2막 엔딩: 꿰매는 동안 늘 떠 있는 규칙(좁은 화면에선 줄을 바꾼다) */
+      @media (max-width: 600px) { #stitch-rule { top: 150px; font-size: 13px; padding: 5px 10px; } }
       #stitch-rule b { color: #fff; } #stitch-rule .gold { color: #ffcf5a; }
       #toast { position: fixed; left: 0; right: 0; bottom: 84px; z-index: 2; text-align: center; font-size: 19px; letter-spacing: 1px; color: var(--gold-hi); text-shadow: 0 1px 3px #000, 0 0 10px #000; pointer-events: none; opacity: 0; }
       #toast.show { animation: floor-title 2s ease-out; }
@@ -579,7 +580,7 @@
     </div>
     <div id="danger"></div>
     <div id="toast"></div>
-    <div id="stitch-rule" hidden>점선 줄을 <b>모두 한 번씩</b> · 같은 줄 두 번 ✕ · <b class="gold">금빛</b>에서 시작해 <b class="gold">금빛</b>에서 끝</div>
+    <div id="stitch-rule" hidden></div>
     <div id="pick-card" hidden></div>
     <div id="labels"></div>
     <div id="blizzard"></div>

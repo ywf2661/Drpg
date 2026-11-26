@@ -12,7 +12,7 @@ import { setStitchDemo, STITCH_DEMO } from './render/stitchfx';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
-import { startStitch, stitchState, STITCH } from './sim/stitch';
+import { startHoles, startStitch, stitchState, STITCH } from './sim/stitch';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
@@ -1028,6 +1028,9 @@ requestAnimationFrame(function frame(now) {
       if (demoT >= STITCH_DEMO) (stitchGuide = false), (demoT = -1), setStitchDemo(null), letterbox(false), setGaze(null), hint(STITCH_GUIDE);
     }
     $('#stitch-rule').hidden = sw.phase !== 'sew' || stitchGuide || riftTalk;
+    // 규칙 문구는 무늬에 따라: 금빛이 보이면(첫 무늬·두 번 끊어진 뒤) 금빛 → 금빛, 숨었으면 홀수 구멍, 해 무늬는 제자리로 돌아오기
+    const rule = sw.phase !== 'sew' ? '' : startHoles(sw.k).length === 0 ? '점선을 <b>모두 한 번씩</b> · <b>시작한 구멍으로</b> 돌아온다 · 화살표 줄은 그 방향으로만' : sw.k === 0 || sw.snaps >= 2 ? '점선을 <b>모두 한 번씩</b> · 같은 줄 두 번 ✕ · <b class="gold">금빛</b>에서 시작 → <b class="gold">금빛</b>에서 끝' : '점선을 <b>모두 한 번씩</b> · 같은 줄 두 번 ✕ · 시작은 <b>줄이 홀수 개 모인 구멍</b>';
+    if ($('#stitch-rule').innerHTML !== rule) $('#stitch-rule').innerHTML = rule;
     sound.setWind(sw.phase === 'closed' ? 0 : sw.phase === 'closing' ? Math.max(0, 1 - sw.closeT / STITCH.walkIn) * 0.8 : sw.k === 0 ? 0.25 : 0.45 + 0.55 * (sw.r / STITCH.rMax)); // 첫 무늬는 잔잔하게, 틈이 클수록 세게
     if (riftDone && !talking()) {
       riftDone = false;
