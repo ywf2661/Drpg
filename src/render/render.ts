@@ -20,6 +20,7 @@ import { dirtGround, sandGround } from './ground';
 import { buildTemple, templeFloor, tickTempleArt, TEMPLE_TINT } from './temple';
 import { buildWarp, tickWarpArt, warpFloor, WARP_WALL } from './warp';
 import { tickWardenFx, wardenGroup } from './wardenfx';
+import { stitchGroup, tickStitchFx } from './stitchfx';
 import { inLight } from '../sim/temple';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
@@ -209,7 +210,7 @@ export async function initRender(world: World, theme: Theme) {
   sun.shadow.bias = -0.002;
   Object.assign(sun.shadow.camera, { left: -SUN_BOX, right: SUN_BOX, top: SUN_BOX, bottom: -SUN_BOX, near: 1, far: 40 });
   scene.add(sun, sun.target);
-  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, patrolGroup, wardenGroup, marker, aimLine, aimCircle, aimRange);
+  scene.add(rainGroup, rollGroup, iaidoGroup, temperGroup, ghostGroup, hawkGroup, legendGroup, zoneGroup, outroGroup, patrolGroup, wardenGroup, stitchGroup, marker, aimLine, aimCircle, aimRange);
   addEventListener('resize', resize);
   resize();
   const [f, w, cf, cw, ff, fw, sf, sw, rf, rw, pk, lg] = await Promise.all([loadSheet(floorUrl), loadSheet(wallUrl), loadSheet(caveFloorUrl), loadSheet(caveWallUrl), loadSheet(fieldFloorUrl), loadSheet(fieldWallUrl), loadSheet(snowFloorUrl), loadSheet(snowWallUrl), loadSheet(ruinsFloorUrl), loadSheet(ruinsWallUrl), loadSheet(plankUrl), loadSheet(logUrl), loadSprites(), loadProps(), setHeroGear(world.gear, world.cls, looksOf(world))]);
@@ -368,7 +369,8 @@ export function draw(world: World, dt: number) {
     } else if (e === hero && world.bigT > 0) s.mat.color.lerp(GOLD, 0.2); // 거인의 칼
   }
   const warden = world.warp ? world.entities.find((e) => e.skin === 'time_warden') ?? null : null;
-  tickWardenFx(time, dt, world, warden ? sprites[warden.id] : null, warden); // 파수꾼 결전장: 문자판·바늘·잔상·찢어진 틈(판자 위에 덮어 그린다)
+  tickWardenFx(time, dt, world, warden ? sprites[warden.id] : null, warden);
+  tickStitchFx(time, dt, world); // 2막 엔딩: 큰 틈·바람·수놓기 무늬 // 파수꾼 결전장: 문자판·바늘·잔상·찢어진 틈(판자 위에 덮어 그린다)
   // 해골 병사: entities 밖이라 판자를 따로 만들고, 사라지면 치운다
   dropAllies(new Set(world.allies.map((a) => a.id)));
   for (const a of world.allies) {

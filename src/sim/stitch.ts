@@ -1,6 +1,6 @@
 // 2막 엔딩: 틈을 꿰맨다(설계: docs/superpowers/specs/2026-11-26-act2-rift-design.md 6절, 시안 https://claude.ai/artifact/9bi1Z6fXG7jtxA4uMFPYvZ). three.js·Math.random 금지.
 // 파수꾼이 쓰러지면 결전장 가운데 틈이 벌어져 점점 커지고, 주인공은 늘 틈 쪽으로 끌린다(바람).
-// 땀 자리 넷(호숫가 12시 → 진지 3시 → 광산 9시 → 신전 6시)을 차례로 한붓 수놓기:
+// 땀 자리 넷(6시 → 3시 → 9시 → 12시 — 주인공이 6시에서 시작하니 가까운 데부터)을 차례로 한붓 수놓기:
 //   구멍에서 구멍으로 걸으면 그 줄을 그은 것. 그은 지 STITCH.echo초(= 메아리가 같은 줄을 지난 때)가 지나야 실이 굳는다.
 //   이미 그은 줄을 다시 지나거나 한쪽 통행 줄을 거꾸로 그으면 실이 끊어져 그 무늬만 처음부터. 두 번 끊어지면 시작할 구멍이 반짝인다(hint).
 //   광산 무늬: 틈 쪽 구멍 둘이 STITCH.crumble초 뒤 빨려 든다 — 그때까지 그 구멍의 줄이 다 굳지 않았으면 처음부터.
@@ -15,10 +15,10 @@ export type Pattern = { name: string; hour: number; holes: [number, number][]; e
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
 export const PATTERNS: Pattern[] = [
-  { name: '나루 사다리', hour: 0, holes: [[-3, 1.5], [0, 1.5], [3, 1.5], [-3, -1.5], [0, -1.5], [3, -1.5]], edges: [[0, 1], [1, 2], [3, 4], [4, 5], [0, 3], [1, 4], [2, 5]], oneway: [] },
+  { name: '나루 사다리', hour: 6, holes: [[-3, 1.5], [0, 1.5], [3, 1.5], [-3, -1.5], [0, -1.5], [3, -1.5]], edges: [[0, 1], [1, 2], [3, 4], [4, 5], [0, 3], [1, 4], [2, 5]], oneway: [] },
   { name: '방책', hour: 3, holes: [[-4.5, 2], [-1.5, 2], [1.5, 2], [4.5, 2], [-4.5, -2], [-1.5, -2], [1.5, -2], [4.5, -2]], edges: [[0, 1], [1, 2], [2, 3], [4, 5], [5, 6], [6, 7], [0, 4], [1, 5], [2, 6], [3, 7], [0, 5], [1, 6]], oneway: [] },
   { name: '결정', hour: 9, holes: [[0, 3.5], [3.5, 0], [0, -3.5], [-3.5, 0], [0, 0], [-1.75, 1.75], [1.75, 1.75], [-1.75, -1.75], [1.75, -1.75], [0, 5.5]], edges: [[0, 6], [6, 1], [1, 8], [8, 2], [2, 7], [7, 3], [3, 5], [5, 0], [4, 5], [4, 6], [4, 7], [4, 8], [5, 6], [7, 8], [0, 9], [9, 6]], oneway: [], crumble: true },
-  { name: '해', hour: 6, holes: [...ring(6, 5, 0), ...ring(6, 2.6, Math.PI / 6)], edges: [...Array.from({ length: 6 }, (_, i) => [[i, 6 + i], [6 + i, (i + 1) % 6]] as [number, number][]).flat(), ...Array.from({ length: 6 }, (_, i) => [6 + i, 6 + ((i + 1) % 6)] as [number, number]), [0, 2], [2, 4], [4, 0]], oneway: [0, 7, 19] },
+  { name: '해', hour: 0, holes: [...ring(6, 5, 0), ...ring(6, 2.6, Math.PI / 6)], edges: [...Array.from({ length: 6 }, (_, i) => [[i, 6 + i], [6 + i, (i + 1) % 6]] as [number, number][]).flat(), ...Array.from({ length: 6 }, (_, i) => [6 + i, 6 + ((i + 1) % 6)] as [number, number]), [0, 2], [2, 4], [4, 0]], oneway: [0, 7, 19] },
 ];
 export const degrees = (p: Pattern) => p.holes.map((_, i) => p.edges.filter((e) => e.includes(i)).length);
 

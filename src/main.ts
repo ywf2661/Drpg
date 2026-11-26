@@ -11,7 +11,7 @@ import { drawEcho, initEcho } from './render/echo';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
-import { startStitch, stitchState } from './sim/stitch';
+import { startStitch, stitchState, STITCH } from './sim/stitch';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
@@ -406,6 +406,8 @@ async function epilogue(go: () => void, lines: string[] = EPILOGUE) {
 }
 
 // 타임패트롤 신호: 주인공 곁에 형상을 세우고 대화(창이 닫히면 형상도 끊긴다)
+// 연출 동안 카메라: 틈 쪽
+const riftGaze = () => setGaze({ x: STITCH.center + (world.entities[0].x - STITCH.center) * 0.08, z: STITCH.center + (world.entities[0].z - STITCH.center) * 0.08 }); // 틈 가까이(틈이 화면 가운데 위로 솟는다)
 function patrolTalk(lines: string[]) {
   patrolOn = true;
   setPatrol({ x: world.entities[0].x + 1.3, z: world.entities[0].z - 1.3 });
@@ -847,7 +849,7 @@ if (new URLSearchParams(location.search).has('test')) {
   }
 }
 // 헤드리스 확인용: 현재 world, 명령 큐, 층 바로 가기
-if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; }, get warden() { return wardenState(world); } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { get world() { return world; }, commands, goto: (n: number, l: Land = land) => ((land = l), enterFloor(n, world)), get played() { return sound.played; }, get outro() { return outro; }, get warden() { return wardenState(world); }, get stitch() { return stitchState(world); } } });
 
 // 5층 첫 만남 연출 한 프레임(intro 참고). 연출 중엔 플레이어 명령을 버린다
 function introStep(dt: number, cut: boolean) {
@@ -932,7 +934,7 @@ requestAnimationFrame(function frame(now) {
   }
   // 뒤틀린 차원: 메아리가 처음 나타나면 한 줄(발판은 말하지 않는다). 문이 열리면 이름표를 다시 단다
   if (world.warp) {
-    if (!echoHint && world.warp.echo) (echoHint = true), hint(ECHO_HINT);
+    if (!echoHint && world.warp.echo && !stitchState(world)) (echoHint = true), hint(ECHO_HINT); // 엔딩에서는 꿰매기 안내가 대신
     if (world.warp.ver !== warpVer) [warpVer, signs] = [world.warp.ver, signsOf(world)];
   }
   // 신전: 처음 손잡이 곁에 오면 한 줄. 고리가 다 돌면 손잡이 이름표를 옮긴다
@@ -986,6 +988,7 @@ requestAnimationFrame(function frame(now) {
   if (o === 'clear' && land === 'warp' && floor === FLOORS && act2 < 7 && !stitchState(world) && clearT >= 0.8) {
     startStitch(world);
     letterbox(true); // 틈이 벌어지는 연출: 띠 + UI 숨김(퍼즐을 시작할 때 걷힌다)
+    riftGaze();
     riftTalk = true;
   }
   const sw = stitchState(world);
@@ -993,7 +996,7 @@ requestAnimationFrame(function frame(now) {
     if (riftTalk && sw.t >= 2) (riftTalk = false), patrolTalk(RIFT_OPEN); // 틈이 커지는 걸 잠깐 보여 준 뒤 신호
     for (const ev of sw.events.splice(0)) {
       if (ev === 'start') stitchGuide = true;
-      else if (ev === 'done' && sw.k >= 4) letterbox(true); // 다 꿰맸다: 틈이 닫히는 연출
+      else if (ev === 'done' && sw.k >= 4) letterbox(true), riftGaze(); // 다 꿰맸다: 틈이 닫히는 연출
       else if (ev === 'done') hint(sw.k === 3 ? STITCH_SUN : STITCH_DONE[sw.k - 1]);
       else if (ev === 'snap') say(STITCH_SNAP);
       else if (ev === 'hint') hint(STITCH_HINT);
@@ -1001,7 +1004,7 @@ requestAnimationFrame(function frame(now) {
       else if (ev === 'crumble') hint(STITCH_CRUMBLE);
       else if (ev === 'closed') patrolTalk(RIFT_CLOSED), (riftDone = true);
     }
-    if (stitchGuide && !riftTalk && !talking()) (stitchGuide = false), letterbox(false), hint(STITCH_GUIDE); // 신호가 끝나면 띠가 걷히고 퍼즐
+    if (stitchGuide && !riftTalk && !talking()) (stitchGuide = false), letterbox(false), setGaze(null), hint(STITCH_GUIDE); // 신호가 끝나면 띠가 걷히고 퍼즐
     if (riftDone && !talking()) {
       riftDone = false;
       act2 = Math.max(act2, 7);

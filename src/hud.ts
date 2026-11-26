@@ -1,4 +1,5 @@
 // 화면 위 HTML: 체력·경험치·레벨, 물약·스킬·장비 칸, 대상·보스 체력바, 층 제목, 알림, 배너. 게임 상태를 읽어 그리기만 한다.
+import { stitchState } from './sim/stitch';
 import gearIcons from './assets/sprites/gear_icons.png';
 import wizardGearIcons from './assets/sprites/wizard_gear_icons.png';
 import wizardSkillIcons from './assets/sprites/wizard_skill_icons.png';
@@ -1445,7 +1446,7 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   renderer.domElement.classList.toggle('attack', hovered !== null); // 몬스터 위에서는 공격 커서
   if (choosing) return;
   const o = outcome(world);
-  banner.hidden = o !== 'dead' && o !== 'clear';
+  banner.hidden = (o !== 'dead' && o !== 'clear') || !!stitchState(world); // 2막 엔딩(틈을 꿰매는 동안)은 클리어 문구를 띄우지 않는다
   banner.classList.toggle('clear', o === 'clear'); // 클리어는 화면을 덮지 않고 위에 — 떨어진 전리품을 보고 주울 수 있게
   restartBtn.hidden = o !== 'dead'; // 클리어는 '야영지로' 하나
   if (o === 'dead') bannerText.textContent = '사망했습니다' + (lostGold ? ` — 금화 ${lostGold}을 잃었습니다` : '');

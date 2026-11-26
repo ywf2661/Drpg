@@ -54,9 +54,9 @@ function pick(anim: WardenAnim, k: number, t: number): [keyof NonNullable<typeof
 // ---- 찢어진 틈 셰이더 ----
 const TEAR_W = 3.2;
 const TEAR_H = 4.4;
-const tearGeo = new THREE.PlaneGeometry(TEAR_W, TEAR_H).translate(0, TEAR_H / 2 - 0.15, 0);
+export const tearGeo = new THREE.PlaneGeometry(TEAR_W, TEAR_H).translate(0, TEAR_H / 2 - 0.15, 0);
 // 두 겹: glow = false면 검은 틈 안쪽만(일반 섞기), true면 바깥 불꽃·테만(빛을 더한다). 같은 uniforms를 쓴다
-const tearMat = (uniforms: Record<string, THREE.IUniform>, glow: boolean) =>
+export const tearMat = (uniforms: Record<string, THREE.IUniform>, glow: boolean) =>
   new THREE.ShaderMaterial({
     uniforms,
     defines: glow ? { GLOW: 1 } : {},
