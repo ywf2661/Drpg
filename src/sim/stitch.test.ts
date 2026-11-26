@@ -2,7 +2,7 @@
 import { expect, test } from 'vitest';
 import { createWorld, DT, type World } from './world';
 import { generateWarpArena } from './warpmap';
-import { PATTERNS, STITCH, startHoles, startStitch, stitchState, tickStitch } from './stitch';
+import { holesOf, PATTERNS, riftLimit, STITCH, startHoles, startStitch, stitchState, tickStitch } from './stitch';
 
 // 한붓 길(구멍 번호 순서) — tools 밖 검사기로 찾은 것
 const SOL = [
@@ -54,6 +54,19 @@ test('무늬 넷 모두 한붓 길이 있고, 시작 구멍은 홀수 줄 구멍
     expect(odd.length === 0 ? seq[0] === seq.at(-1) : odd.includes(seq[0]) && odd.includes(seq.at(-1)!)).toBe(true);
   });
   expect(PATTERNS.map((p) => [p.holes.length, p.edges.length])).toEqual([[6, 7], [8, 12], [10, 16], [12, 21]]);
+});
+
+test('틈은 지금 무늬의 가장 안쪽 구멍 앞까지만 자란다(무늬를 먹지 않는다) — 무늬마다 시작보다 1칸 넘게 자랄 여유는 있다', () => {
+  PATTERNS.forEach((_, k) => expect(riftLimit(holesOf(k))).toBeGreaterThan(STITCH.r0 + 1));
+  const w = arena();
+  const s = startStitch(w);
+  for (let k = 0; k < 4; k++) {
+    s.k = k;
+    s.holes = holesOf(k);
+    tick(w, 120, () => Object.assign(w.entities[0], { x: STITCH.center, z: STITCH.center + 19 }));
+    const near = Math.min(...s.holes.map((h) => Math.hypot(h[0] - STITCH.center, h[1] - STITCH.center)));
+    expect(s.r).toBeLessThanOrEqual(near - STITCH.margin + 1e-6);
+  }
 });
 
 test('넷을 다 꿰매면 틈이 닫힌다. 무늬마다 다 그은 뒤 메아리(4초)가 지나야 굳는다', () => {

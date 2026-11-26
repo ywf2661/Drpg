@@ -10,7 +10,7 @@ import { walkable } from './path';
 import { DT, WARP, type World } from './rules';
 import { hourDir } from './warpmap';
 
-export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8 }; // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
+export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8, margin: 2 }; // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
 export type Pattern = { demo?: number[]; name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
@@ -57,6 +57,8 @@ function reset(s: StitchState, ev: StitchEvent) {
   s.events.push(ev);
   s.ver++;
 }
+// 틈이 자랄 수 있는 끝: 구멍들 중 가운데에 가장 가까운 것에서 STITCH.margin칸 앞(rMax를 넘지 않는다)
+export const riftLimit = (holes: [number, number][]) => Math.min(STITCH.rMax, Math.min(...holes.map((h) => Math.hypot(h[0] - STITCH.center, h[1] - STITCH.center))) - STITCH.margin);
 // 광산 무늬: 틈(가운데)에 가장 가까운 구멍 둘
 export const crumbleHoles = (holes: [number, number][]) => holes.map((h, i) => [Math.hypot(h[0] - STITCH.center, h[1] - STITCH.center), i]).sort((a, b) => a[0] - b[0]).slice(0, 2).map((x) => x[1]);
 
@@ -81,7 +83,7 @@ export function tickStitch(w: World) {
     return;
   }
   const calm = s.k === 0; // 첫 무늬(연습)는 숨 고르기: 틈이 커지지 않고 바람도 없다
-  if (!calm) s.r = Math.min(STITCH.rMax, s.r + STITCH.grow * DT);
+  if (!calm) s.r = Math.min(riftLimit(s.holes), s.r + STITCH.grow * DT); // 지금 무늬의 가장 안쪽 구멍 앞까지만(무늬를 먹으면 못 푼다)
   if (hero.state === 'dead') return;
   // 바람: 틈 쪽으로 끌린다(가까울수록 세다)
   const [dx, dz] = [c - hero.x, c - hero.z];
