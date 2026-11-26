@@ -280,6 +280,7 @@ export type Spark = { cells: number[]; d: number[]; t: number }; // 도화선을
 // 보랏빛 광산 결정 빛 다리(설계: 2026-11-25-act2-mine-design.md 3절): appear = 다리가 나타나 밟히기까지(초), hang = 매달림(초), light = 결정 빛 반지름(m, 렌더)
 export const MINE = { appear: 0.5, hang: 3, hangMult: 2, light: 7 };
 // 사암 신전 햇빛이 드는 자물쇠(설계: 2026-11-26-act2-temple-design.md 3·4절): turn = 고리가 90° 도는 시간(초), burn = 빛 안 망령이 타는 양(초당 최대 체력의 몫), down·rise = 그늘에서 쓰러진 망령이 일어나기까지(초)·일어날 때 체력, crush = 칸막이가 정예·보스에게 주는 피해(최대 체력의 몫)
+export const WARP = { delay: 4, fireEvery: 3, fireUp: 1, fireDmg: 0.15 }; // 뒤틀린 차원: 메아리 늦음(초), 불기둥 주기·솟는 시간(초)·피해(최대 체력 비율, 한 번 솟을 때 한 번)
 export const TEMPLE = { turn: 1.5, burn: 0.4, down: 4, rise: 0.5, crush: 0.3 };
 export const POWDER = { fuse: 1.5, chain: 0.25, r: 2.5, spark: 6, hero: 0.25, mob: 0.7, boss: 0.1, roll: 3.5 }; // roll: 구르는 통 빠르기(m/s)
 export type Ride = { line: number; from: 0 | 1; s: number; to: number; riders: number[]; hand: { s: number; t: number } | null }; // 타고 건너는 중: s = 간 거리(m), to = 배가 가는 곳(m, 누른 곳), riders = 배에 기어오른 몬스터, hand = 물속 손(t: 예고 뒤 지난 초, 음수 = 아직 예고 전)
@@ -317,7 +318,7 @@ export type Zone = { id: number; x: number; z: number; r: number; t: number; tot
 export type Gear = Record<Slot, number>;
 
 // 바깥 지역 출구 한 칸: 맨 바깥 줄에 있고, to 지역의 다음 구역으로 이어진다
-export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' | 'sanctum' | 'tent' | 'camp' | 'lake' | 'raid' | 'mine' | 'temple' };
+export type Exit = { x: number; z: number; to: 'field' | 'snow' | 'ruins' | 'sanctum' | 'tent' | 'camp' | 'lake' | 'raid' | 'mine' | 'temple' | 'warp' };
 // toStairs: 주인공이 계단 칸을 직접 눌러 가는 중. 지나가기만 해서는 내려가지 않도록
 // potions: 허리띠의 물약 수, nextItem: 다음 아이템 id, maxTier: 이 층에서 떨어지는 장비의 최고 단계
 // level·xp: 주인공 레벨과 현재 레벨에서 쌓인 경험치
@@ -345,6 +346,7 @@ export type World = {
   sparks: Spark[];
   stakes: Cell[]; // 말뚝 방책 칸(부서지면 grid가 열리고 broken에)
   broken: Set<number>;
+  warp: import('./warp').Warp | null; // 뒤틀린 차원: 메아리·발판·문·불기둥(아니면 null)
   temple: import('./temple').Temple | null; // 사암 신전: 도는 고리·햇빛·봉인(아니면 null)
   mine: import('./mine').Mine | null; // 보랏빛 광산: 허공·결정·빛 다리(아니면 null)
   fm?: import('./ferryman').FerrymanState; // 뱃사공 결전 상태(처음 움직일 때 생긴다) // 막 내린 나루 칸 번호(벗어나면 -1) — 내리자마자 다시 타지 않게
@@ -523,7 +525,7 @@ export const FIERCE: EliteKind[] = ['frenzied', 'rushing', 'unyielding'];
 export const ELITE_KIND_LIST = (Object.keys(ELITE_KINDS) as EliteKind[]).filter((k) => !FIERCE.includes(k)); // 초원에서 나오는 특성
 export const steady = (e: Entity) => e.eliteKind === 'unyielding'; // 기절·공포·밀쳐내기를 받지 않는다
 // 지역(맵의 종류)과 그곳의 몬스터. 스킨 = 전투 원형(졸개·전사·마법사)에 그림·이름을 바꾸고 체력·이동 속도에 배율을 곱한 것
-export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum' | 'tent' | 'lake' | 'raid' | 'mine' | 'temple'; // camp = 야영지(거점, 몬스터 없음), tent = 2막 원정대 천막(거점), lake = 2막 ① 호숫가
+export type Land = 'dungeon' | 'field' | 'snow' | 'ruins' | 'camp' | 'sanctum' | 'tent' | 'lake' | 'raid' | 'mine' | 'temple' | 'warp'; // camp = 야영지(거점, 몬스터 없음), tent = 2막 원정대 천막(거점), lake = 2막 ① 호숫가
 // 거점: 몬스터 없이 쉬고 사고 맡기는 곳(층 번호 0). 죽거나 보스를 깨면 여기로 온다
 export const isHub = (land: Land) => land === 'camp' || land === 'tent';
 export type Skin = 'mummy' | 'bronze_guard' | 'sand_archer' | 'temple_keeper' | 'goblin' | 'mine_foreman' | 'miner_goblin' | 'crystal_archer' | 'rock_golem' | 'goblin_elite' | 'fire_ant' | 'ice_ant' | 'zombie' | 'antlion' | 'wyvern' | 'treasure' | 'antlion_small' | 'grave' | 'zombie_dark' | 'hobgoblin' | 'hobgoblin_archer' | 'bone_knight' | 'demon' | 'fallen_paladin' | 'time_warden' | 'plague_villager' | 'plague_ferryman' | 'raider_goblin' | 'raider_chief' | 'raider_orc' | 'swamp_treant';
@@ -572,6 +574,7 @@ export const LANDS: Record<Land, { name: string; unit: string; skins: Partial<Re
   raid: { name: '약탈자 진지', unit: '구역', skins: { minion: 'raider_goblin', warrior: 'raider_orc', archer: 'hobgoblin_archer', boss: 'raider_chief' } },
   mine: { name: '보랏빛 광산', unit: '구역', skins: { minion: 'miner_goblin', warrior: 'rock_golem', archer: 'crystal_archer', boss: 'mine_foreman' } },
   temple: { name: '사암 신전', unit: '구역', skins: { minion: 'mummy', warrior: 'bronze_guard', archer: 'sand_archer', boss: 'temple_keeper' } },
+  warp: { name: '뒤틀린 차원', unit: '층', skins: {} }, // 방마다 그 땅 졸개(warp.ts warpSkins)
   sanctum: { name: '무너진 성소', unit: '층', skins: { minion: 'zombie_dark', warrior: 'hobgoblin', archer: 'hobgoblin_archer', king: 'bone_knight', boss: 'fallen_paladin' } },
 };
 // 이야기: 한 단계 = 한 줄(초원 → 설원 → 미궁 → 폐허). stage(0~3)의 지역 보스를 깨면 다음 단계가 열린다.
@@ -687,7 +690,7 @@ export function afterClear(stage: number, cycle: number, land: Land, beat = 0): 
 // 이야기 깊이: 이야기 순서 k(초원 0 … 폐허 3)의 n구역 = 5k + n. 몬스터 세기·장비 상한이 지역을 넘어 이어진다(야영지는 0)
 export const markGold = (land: Land, n: number) => 10 * depthOf(land, n); // 금화 의뢰의 조각 하나 보상
 export const act2Land = (land: Land) => depthOf(land, 1) >= 5 * STORY.length + 6; // 2막 땅(호숫가부터). 거점은 아니다
-export const depthOf = (land: Land, n: number) => (isHub(land) ? 0 : land === 'lake' ? 5 * STORY.length + 5 + n : land === 'raid' ? 5 * STORY.length + 10 + n : land === 'mine' ? 5 * STORY.length + 15 + n : land === 'temple' ? 5 * STORY.length + 20 + n : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25), 호숫가는 성소 다음(26~30), 약탈자 진지는 그다음(31~35), 광산은 그다음(36~40)
+export const depthOf = (land: Land, n: number) => (isHub(land) ? 0 : land === 'lake' ? 5 * STORY.length + 5 + n : land === 'raid' ? 5 * STORY.length + 10 + n : land === 'mine' ? 5 * STORY.length + 15 + n : land === 'temple' ? 5 * STORY.length + 20 + n : land === 'warp' ? 5 * STORY.length + 25 + n : land === 'sanctum' ? 5 * STORY.length + n : 5 * Math.max(0, STORY.findIndex((s) => s.land === land)) + n); // 성소는 폐허 다음(21~25), 호숫가는 성소 다음(26~30), 약탈자 진지는 그다음(31~35), 광산은 그다음(36~40)
 // 장비 최고 단계는 지역마다 하나씩 열린다: 초원 2, 설원 3, 그다음부터 4(정예·상자·시련은 +1). 깊이 0(야영지)은 초원과 같다
 export const tierOf = (depth: number) => Math.min(4, 2 + Math.floor(Math.max(0, depth - 1) / 5));
 

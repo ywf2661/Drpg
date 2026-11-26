@@ -183,7 +183,7 @@ function shove(w: World, e: { x: number; z: number }) {
 
 // 망령의 체력이 다했다(core.hurt가 부른다): 그늘이면 쓰러졌다가 일어난다(true), 빛 안·칸막이면 끝(false)
 export function mummyFalls(w: World, e: Entity): boolean {
-  if (crushing || inLight(w, e)) return false;
+  if (!w.temple || crushing || inLight(w, e)) return false; // 신전 밖(뒤틀린 차원의 신전 방)에서는 그냥 죽는다
   if (e.downT) return (e.hp = 1), true; // 이미 쓰러져 있다: 그늘에서 때려도 소용없다
   Object.assign(e, { hp: 1, downT: TEMPLE.down, stunT: TEMPLE.down, state: 'idle', attackT: 0, path: [], phase: 'none' });
   return true;

@@ -19,7 +19,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2 } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -64,7 +64,7 @@ let signal2 = false; // 타임패트롤 신호 2(사암 신전 문지기 사제�
 let patrolOn = false; // 신호 형상이 서 있다(대화창이 닫히면 끊긴다)
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
 // ponytail: 2막 땅이 생기면 여기에 더한다(지금은 호숫가)
-const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' || l === 'mine' || l === 'temple' ? 'tent' : 'camp');
+const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' || l === 'mine' || l === 'temple' || l === 'warp' ? 'tent' : 'camp');
 // ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
 let captainLine: string[] | null = null;
 // 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
@@ -96,7 +96,7 @@ const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그�
 let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구마다(같은 지역 칸끼리 묶어 가운데) "▶ 설원 3구역", 바깥 지역의 계단은 동굴 입구 "▼ 지하 3층"
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
-const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? floor + 1 : 1);
+const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? (land === 'warp' && floor >= 3 ? FLOORS : floor + 1) : 1); // 뒤틀린 차원은 3층 다음이 결전장
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
 const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', smith: '대장장이', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정', handle: '자칼 손잡이' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
@@ -104,7 +104,7 @@ const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' 
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
-  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid', 'mine', 'temple'] as const) {
+  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid', 'mine', 'temple', 'warp'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
     const mark = to === 'sanctum' || (to === 'temple' && land === 'temple') ? '▼' : '▶'; // 신전 봉인은 가운데에서 아래로
     if (cells.length) out.push({ ...middle(cells), text: isHub(to) ? `${mark} ${LANDS[to].name}` : `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
@@ -124,7 +124,7 @@ const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : []), ...(act2 >= 5 ? (['temple'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : []), ...(act2 >= 5 ? (['temple'] as const) : []), ...(act2 >= 6 ? (['warp'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.stashLegends = stash.map(uniqueOf).filter((u) => u !== undefined); // 수집가의 왕관
   w.hitScale = hitScale(depth, cycle); // 2막·1막 2회차 이상: 몬스터 한 방을 기준 체력의 %로
@@ -222,6 +222,8 @@ let chatter = 0;
 let kegsBlown = 0; // 이 맵에서 터진 화약통 수(이름표를 다시 달 때)
 let kegHint = false;
 let crystalHint = false; // 광산: 결정 안내 한 줄을 보였다(판마다 한 번)
+let warpVer = -1; // 뒤틀린 차원: 이름표를 단 때의 발판·문 상태
+let echoHint = false; // 뒤틀린 차원: 메아리 안내 한 줄을 보였다(판마다 한 번)
 let handleHint = false; // 신전: 손잡이 안내 한 줄을 보였다(판마다 한 번)
 let templeTurns = -1; // 신전 고리 방향의 합(바뀌면 손잡이 이름표를 옮긴다)
 let chiefHint = -Infinity; // 우두머리·감독관 안내를 마지막으로 보인 때(초) — 막힐 때마다 HINT_AGAIN초 간격으로 다시 // 화약통 안내 한 줄을 보였다(판마다 한 번)
@@ -892,6 +894,11 @@ requestAnimationFrame(function frame(now) {
   if (world.mine && !crystalHint && world.mine.crystals.some((c) => Math.hypot(c.x + 0.5 - world.entities[0].x, c.z + 0.5 - world.entities[0].z) < 4)) {
     crystalHint = true;
     hint(CRYSTAL_HINT);
+  }
+  // 뒤틀린 차원: 메아리가 처음 나타나면 한 줄(발판은 말하지 않는다). 문이 열리면 이름표를 다시 단다
+  if (world.warp) {
+    if (!echoHint && world.warp.echo) (echoHint = true), hint(ECHO_HINT);
+    if (world.warp.ver !== warpVer) [warpVer, signs] = [world.warp.ver, signsOf(world)];
   }
   // 신전: 처음 손잡이 곁에 오면 한 줄. 고리가 다 돌면 손잡이 이름표를 옮긴다
   const tp = world.temple;
