@@ -144,16 +144,25 @@ test('틈에 닿으면 바깥으로 내던져지고 굳지 않은 줄만 풀린�
   expect(w.entities[0].hp).toBe(w.entities[0].maxHp - Math.round(w.entities[0].maxHp * STITCH.pullHurt)); // 체력 1/4을 잃는다
 });
 
-test('빨려 들어도 죽지는 않는다(체력 1), 꿰매는 동안은 물약을 못 마신다', () => {
+test('빨려 들어 체력이 다하면 존재가 지워졌다 돌아와 첫 무늬부터(죽지 않는다, 체력 다 참), 꿰매는 동안은 물약을 못 마신다', () => {
   const w = arena();
   const s = startStitch(w);
+  for (let k = 0; k < 2; k++) {
+    sew(w, SOL[k]);
+    hold(w, STITCH.echo + 0.2);
+  }
+  expect(s.k).toBe(2);
   const h = w.entities[0];
   h.hp = 3;
   Object.assign(h, { x: STITCH.center + 0.5, z: STITCH.center + 1 });
   tick(w, DT);
-  expect(h.hp).toBe(1);
   expect(h.state).not.toBe('dead');
+  expect(h.hp).toBe(h.maxHp);
+  expect(s.k).toBe(0);
+  expect(s.r).toBe(STITCH.r0);
+  expect(s.events).toContain('erased');
   w.potions = 2;
+  h.hp = h.maxHp - 10; // 다쳐 있어야 마시려 한다
   step(w, [{ type: 'drink' }]);
   expect(w.potions).toBe(2);
   expect(s.events).toContain('nopotion');

@@ -10,7 +10,7 @@ import { walkable } from './path';
 import { DT, WARP, type World } from './rules';
 import { hourDir } from './warpmap';
 
-export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8, margin: 2, pullHurt: 0.25 }; // pullHurt = 빨려 들면 잃는 체력(최대 체력 비율, 죽지는 않는다) // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
+export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 3.6, walkIn: 1.8, margin: 2, pullHurt: 0.25 }; // pullHurt = 빨려 들면 잃는 체력(최대 체력 비율). 다하면 지워졌다 돌아와 첫 무늬부터 // close = 닫히는 연출 전체(초): 메아리가 walkIn초 걸어 들어간 뒤 틈이 오므라든다
 export type Pattern = { demo?: number[]; name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
@@ -22,7 +22,7 @@ export const PATTERNS: Pattern[] = [
 ];
 export const degrees = (p: Pattern) => p.holes.map((_, i) => p.edges.filter((e) => e.includes(i)).length);
 
-export type StitchEvent = 'start' | 'nopotion' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
+export type StitchEvent = 'start' | 'erased' | 'nopotion' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
 export type StitchState = {
   t: number; r: number; k: number; // 경과(초), 틈 반지름(칸), 지금 무늬 번호(4 = 다 꿰맴)
   holes: [number, number][]; // 지금 무늬 구멍의 월드 자리
@@ -103,7 +103,16 @@ export function tickStitch(w: World) {
   // 빨려 들었다: 바깥 테두리로 내던지고, 굳지 않은 줄을 푼다
   if (d <= s.r + 0.3) {
     Object.assign(hero, { x: c - (dx / d) * STITCH.throwTo, z: c - (dz / d) * STITCH.throwTo, path: [], phase: 'none' });
-    hero.hp = Math.max(1, hero.hp - Math.round(hero.maxHp * STITCH.pullHurt)); // 체력 1/4을 잃는다(죽지는 않는다, 물약도 못 마신다)
+    hero.hp -= Math.round(hero.maxHp * STITCH.pullHurt); // 체력 1/4을 잃는다(물약도 못 마신다)
+    if (hero.hp <= 0) {
+      // 존재가 지워졌다: 죽지 않고 6시 가장자리로 돌아와 체력이 다 차고, 틈은 처음 크기로, 첫 무늬부터
+      const [ox, oz] = hourDir(6);
+      Object.assign(hero, { x: c + ox * (STITCH.throwTo - 1), z: c + oz * (STITCH.throwTo - 1), hp: hero.maxHp });
+      Object.assign(s, { k: 0, r: STITCH.r0, holes: holesOf(0), drawn: [], start: -1, cur: -1, skip: -1, snaps: 0, crumbleT: 0, lost: [] });
+      s.events.push('erased');
+      s.ver++;
+      return;
+    }
     const keep = sewn(s);
     s.drawn = s.drawn.slice(0, keep);
     s.cur = s.drawn.length ? walkEnd(s) : (s.start = -1);
