@@ -4,6 +4,8 @@ import { GREATSWORD, DOWNCUT, REEL, FORD_SLOW, PUDDLE, PRAYER_WEAPON, ELEM_STAFF
 import { HORSE, warded } from './sanctum';
 import { MINE } from './rules';
 import { edgeFall } from './mine';
+import { mummyFalls } from './temple';
+import { KEEPER, keeperShielded } from './keeper';
 import { FOREMAN } from './foreman';
 
 // 레벨·경험치를 정하고 주인공 체력을 그 레벨의 최대치로(main이 층을 만들 때)
@@ -558,6 +560,14 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
     if (!w.combos.some((c) => c.kind === 'ward' && c.age < 0.4)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 약탈자 우두머리: 기절한 동안만 맞는다(화약통 들이받기)
     return 0;
   }
+  if (t.skin === 'temple_keeper' && t.state !== 'dead') {
+    if (keeperShielded(w, t)) {
+      if (from?.kind === 'hero' && !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 문지기 사제: 햇빛 안에서만 맞는다
+      return 0;
+    }
+    raw = Math.round(raw * KEEPER.lit);
+    if (from?.kind === 'hero' && !w.combos.some((c) => c.kind === 'stunned' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'stunned', age: 0 }); // "약점!"
+  }
   if (t.kind === 'boss' && warded(w)) {
     if (from?.kind === 'hero' || !w.combos.some((c) => c.kind === 'ward' && c.age < 0.5)) w.combos.push({ id: w.nextItem++, x: t.x, z: t.z, kind: 'ward', age: 0 }); // 빛 고리: 성소를 꺼야 맞는다
     return 0;
@@ -600,6 +610,7 @@ export function hurt(w: World, t: Entity, raw: number, from?: Entity): number {
   if (thorns > 0) hurt(w, from!, thorns);
   if (t.kind === 'hero' && from?.eliteKind === 'vampiric' && from.state !== 'dead') from.hp = Math.min(from.maxHp, from.hp + dealt * ELITE_FX.leech); // 흡혈의 정예
   if (t.hp > 0) return dealt;
+  if (t.skin === 'mummy' && mummyFalls(w, t)) return dealt; // 사암 신전: 그늘에서 쓰러진 망령은 다시 일어난다
   t.state = 'dead';
   t.path = [];
   t.target = null;

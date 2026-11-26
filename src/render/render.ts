@@ -16,7 +16,9 @@ import logUrl from '../assets/tiles/wall_log.png';
 import { buildWater, tickWater } from './water';
 import { buildAbyss, tickAbyss } from './abyss';
 import { barricadeAt, fadeTrees, syncRaid } from './props';
-import { dirtGround } from './ground';
+import { dirtGround, sandGround } from './ground';
+import { buildTemple, templeFloor, tickTempleArt, TEMPLE_TINT } from './temple';
+import { inLight } from '../sim/temple';
 import ruinsWallUrl from '../assets/tiles/wall_ruins.png';
 import type { Theme } from '../sim/dungeon';
 import { makeCutaway } from './cutaway';
@@ -56,6 +58,7 @@ const MOOD: Record<Theme, typeof DARK> = {
   lake: { torch: 0xd8e8e0, range: 12, tint: [0.9, 0.97, 0.98], sky: 2.4, sun: 2.1, bg: 0x101c18 }, // 호숫가: 흐린 날 — 해는 약하고 하늘빛이 서늘하다
   raid: { torch: 0xffc890, range: 12, tint: [1.05, 0.9, 0.76], sky: 1.9, sun: 3.0, bg: 0x2a1a10 }, // 약탈자 진지: 먼지 낀 붉은 해
   mine: { torch: 0xffc890, range: 12, tint: [0.98, 0.9, 1.08], sky: 1.1, sun: 1.0, bg: 0x0d0618 }, // 보랏빛 광산: 어둡고, 허공 밑에서 보랏빛이 올라온다
+  temple: { torch: 0xffd8a0, range: 12, tint: [1.04, 0.94, 0.8], sky: 1.0, sun: 1.5, bg: 0x2a1c10 }, // 사암 신전: 해가 기운 모래 빛(햇빛 줄기가 도드라지게 너무 밝지 않게)
 };
 const sky = new THREE.HemisphereLight(0x3a4a66, 0x000000, 0.1); // 시야 밖이 완전한 검정은 아니게
 // 낮의 해: 주인공을 따라다니며 비스듬히 비춘다(그림자는 화면 오른쪽 아래로). 지하에서는 세기 0(빛 개수가 바뀌면 셰이더를 다시 만든다)
@@ -67,6 +70,7 @@ const STUNNED = new THREE.Color(0.45, 0.6, 1.1); // 함성에 기절한 적
 const BLOOD = new THREE.Color(3, 0.25, 0.2); // 종언: 체력을 내준 순간 주인공이 붉게
 const GOLD = new THREE.Color(2.6, 1.9, 0.6); // 내리베기를 모으는 중·거인의 칼
 const SCARED = new THREE.Color(0.5, 1.1, 0.5); // 공포로 도망치는 적
+const BURN = new THREE.Color(2.4, 1.1, 0.3); // 햇빛에 타는 붕대 망령
 
 export const renderer = new THREE.WebGLRenderer({ antialias: false });
 export const camera = new THREE.OrthographicCamera();
@@ -212,7 +216,8 @@ export async function initRender(world: World, theme: Theme) {
   tex.ruins = { floor: rf, wall: rw };
   tex.sanctum = tex.ruins;
   tex.raid = { floor: ff, wall: fw }; // 약탈자 진지: 초원 그림을 메마른 흙·붉은 바위로 물들인다(buildMap)
-  tex.mine = { floor: cf, wall: cw }; // 보랏빛 광산: 동굴 바위(buildMap이 잿빛 보라로 물들인다)
+  tex.mine = { floor: cf, wall: cw };
+  tex.temple = { floor: rf, wall: rw }; // 사암 신전: 폐허 돌을 사암빛으로(buildMap), 바닥은 셰이더(모래·판석) // 보랏빛 광산: 동굴 바위(buildMap이 잿빛 보라로 물들인다)
   tex.lake = { floor: ff, wall: lg }; // 호숫가: 풀은 초원 그림(색만 서늘하게), 벽 상자는 통나무집뿐('#'은 숲으로 그린다)
   plankTex = pk;
   setWorld(world, theme);
@@ -300,6 +305,7 @@ export function draw(world: World, dt: number) {
   time += dt;
   tickWater(time, world);
   tickAbyss(time, world);
+  tickTempleArt(time, world);
   drawPatrol();
   const flicker = 1 + 0.06 * Math.sin(time * 11) + 0.04 * Math.sin(time * 23.7); // 불꽃 깜빡임
   torch.position.set(hero.x, 4, hero.z); // 높을수록 가까운 물체와 먼 바닥의 밝기 차가 줄어든다
@@ -366,6 +372,7 @@ export function draw(world: World, dt: number) {
     if (e === hero && world.cls === 'wizard') s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
     else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt)); // 발도: 일섬·스쳐 베기 질주(iaido.ts, 멈춤은 안에서 따진다)
     if (e === hero && e.phase === 'ride') s.mesh.position.y = rideLift(e.phaseT); // 매 타기: 매가 들어 올린다
+    if (e.skin === 'mummy') s.mesh.scale.y = e.downT ? 0.35 : 1; // 그늘에서 쓰러진 붕대 망령: 엎어져 있다가 일어난다
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
     const seen = e === hero ? 1 : fadeOf(hero, e);
@@ -377,6 +384,7 @@ export function draw(world: World, dt: number) {
     if (e !== hero && winding(e)) s.mat.color.lerp(WINDUP, 0.75 + 0.25 * Math.sin(time * 25)); // 공격 준비: 붉게 맥동
     if (e.stunT > 0 || e.asleep) s.mat.color.lerp(STUNNED, 0.5); // 잠든(얼어붙은) 몬스터도 푸르게
     if (e.fearT > 0 && e.skin !== 'treasure') s.mat.color.lerp(SCARED, 0.5); // 보물 고블린은 도망쳐도 금빛
+    if (e.skin === 'mummy' && e.state !== 'dead' && inLight(world, e)) s.mat.color.lerp(BURN, 0.55 + 0.25 * Math.sin(time * 30)); // 햇빛에 타는 망령
     if (e === hero && world.finales.some((f) => f.age < 0.15)) s.mat.color.lerp(BLOOD, 0.6);
     if (e === hero && world.cut >= 0) {
       const p = downcutStat(world).p; // 내리베기를 모은다: 금빛이 차오르고, 다 모이면 맥동
@@ -494,10 +502,12 @@ function buildMap(world: World, theme: Theme) {
     return false;
   };
   const undergrowth: [number, number][] = [];
+  const turning = templeFloor(world); // 신전: 도는 고리 땅·봉인·해 틈은 바닥만(돌은 temple.ts가 돌리며 그린다)
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
       const i = z * w + x;
       if (blocked[i] === 2 || ford.has(i)) continue;
+      else if (turning.has(i)) floorCells[floorVariant(x, z)].push([x, z]);
       else if (plank.has(i)) planks.push([x, z]);
       else if (theme === 'raid' && blocked[i] === 1 && !prop.has(i) && barricadeAt(world, x, z)) {
         if (near(x, z, 1, (j) => !blocked[j])) undergrowth.push([x, z]);
@@ -522,6 +532,8 @@ function buildMap(world: World, theme: Theme) {
   if (forest) for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(0.74, 0.88, 0.8));
   if (theme === 'raid') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) dirtGround(mesh.material as THREE.MeshStandardMaterial); // 밟아 다진 흙(셰이더)
   if (theme === 'mine') for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) (mesh.material as THREE.MeshStandardMaterial).color.multiply(new THREE.Color(1.35, 1.25, 1.5)); // 잿빛 보라 바위(동굴 바닥 그림이 어두워 밝게)
+  const tp = world.temple;
+  if (theme === 'temple' && tp) for (const mesh of mapGroup.children) if (mesh instanceof THREE.InstancedMesh) sandGround(mesh.material as THREE.MeshStandardMaterial, tp.cx + 0.5, tp.cz + 0.5, tp.wall + 1.5); // 모래·판석(셰이더)
   for (const [cells, rgb] of [[undergrowth, theme === 'raid' ? 0x6a5444 : 0x75876a]] as const) {
     if (!cells.length) continue;
     const mat = stone(floorTex, 4, FLOOR_VARIANTS);
@@ -531,6 +543,14 @@ function buildMap(world: World, theme: Theme) {
     cells.forEach(([x, z], k) => mesh.setMatrixAt(k, m.makeTranslation(x + 0.5, 0, z + 0.5)));
     mesh.receiveShadow = true;
     mapGroup.add(mesh);
+  }
+  if (theme === 'temple') {
+    const v = Math.max(1, Math.round((wallTex.image as { width: number }).width / 64));
+    const [a, b, top] = [stone(wallTex, 0, 2 * v), stone(wallTex, 1, 2 * v), stone(floorTex, 3, FLOOR_VARIANTS)];
+    for (const mt of [a, b, top]) mt.color.multiply(TEMPLE_TINT);
+    top.color.multiplyScalar(0.8);
+    const tg = buildTemple(world, [a, b], top);
+    if (tg) mapGroup.add(tg);
   }
   const abyss = buildAbyss(world, wallTex); // 광산: 허공 밑 깊이·절벽 면·빛 다리·결정
   if (abyss) mapGroup.add(abyss);
@@ -559,6 +579,7 @@ function buildMap(world: World, theme: Theme) {
     cells.forEach(([x, z], i) => walls.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.6, z + 0.5)));
     walls.castShadow = walls.receiveShadow = true;
     if (theme === 'raid') for (const mt of [side[0], side[1], top]) mt.color.multiply(new THREE.Color(1.15, 0.72, 0.55)); // 붉은 바위 언덕
+    if (theme === 'temple') for (const mt of [side[0], side[1], top]) mt.color.multiply(TEMPLE_TINT); // 사암 담·모래 언덕
     mapGroup.add(walls);
     return makeCutaway(walls, cells);
   });

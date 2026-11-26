@@ -9,6 +9,7 @@ import { lakeLow, tickSluice, turnWheel } from './sluice';
 import { turnLakeWheel } from './ferryman';
 import { igniteKeg, tickPowder } from './powder';
 import { pressCrystal, tickMine } from './mine';
+import { pressHandle, tickTemple } from './temple';
 import { bossScale, cyclePower, FLOORS } from './dungeon';
 import { isHub, depthOf, FIERCE, AGGRO, CHEST, BUFF_LIST, DMG_SCALE, DT, FERRY, LURK, PUDDLE, GOLD_CHEST, GRAVE, ICICLE, MAGE, MONSTER_DMG, HIT, hitBase, PIT, SHRINE, SLEEP, SPIKE, TREASURE, TRIAL, QUEST, type Chest, type Entity, type Kind, type Skin, type World } from './rules';
 
@@ -60,6 +61,7 @@ export function touchChest(w: World, ch: Chest): boolean {
   if (ch.kind === 'wheel') return (w.fm ? turnLakeWheel(w, ch) : turnWheel(w, ch)), true; // 뱃사공 결전장의 바퀴는 물을 뺀다
   if (ch.kind === 'keg') return igniteKeg(w, w.kegs.find((k) => k.chest === ch.id)), true;
   if (ch.kind === 'crystal') return pressCrystal(w, ch), true;
+  if (ch.kind === 'handle') return pressHandle(w, ch), true;
   if (ch.kind === 'well' || ch.kind === 'priest') return (w.talk = ch.kind), true;
   if (ch.kind === 'sick') {
     if (ch.open && !ch.wave) {
@@ -149,6 +151,7 @@ export function tickGimmicks(w: World, hero: Entity) {
   tickSluice(w);
   if (w.kegs.length) tickPowder(w);
   tickMine(w);
+  tickTemple(w);
   // 역병 마을 사람이 쓰러진 자리: 검은 웅덩이(밟은 주인공은 느려진다 — core 걸음)
   w.puddles = w.puddles.filter((p) => (p.t -= DT) > 0);
   for (const e of w.entities) if (e.skin === 'plague_villager' && e.state === 'dead' && !e.pooled && e.x > -10) (e.pooled = true), w.puddles.push({ x: e.x, z: e.z, t: PUDDLE.t });

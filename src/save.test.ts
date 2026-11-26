@@ -184,6 +184,7 @@ test('2막 진행(act2): 되읽고, 없으면 0, 범위 밖·2막 전에 천막�
   expect(decodeSave(JSON.stringify({ v: 2, ...before }))!.act2).toBe(0);
   expect(decodeSave(encodeSave({ ...run, act2: 9 }))).toBeNull();
   expect(decodeSave(encodeSave({ ...run, heard: true }))?.heard).toBe(true); // 타임패트롤 신호 1을 들었다
+  expect(decodeSave(encodeSave({ ...run, act2: 6, heard2: true }))).toMatchObject({ act2: 6, heard2: true }); // 신전을 지났다, 신호 2를 들었다
   expect(decodeSave(encodeSave({ ...tent, act2: 0 }))).toBeNull();
 });
 

@@ -4,7 +4,6 @@
 // three.js·Math.random 금지. 시드가 같으면 같은 맵.
 import type { Cell } from './path';
 import { ELITE, STORY } from './rules';
-import { ACT2_MAX } from './act2';
 
 export const FLOORS = 5;
 // 층 배율: 몬스터 체력(전부)·데미지(절반)에 곱한다. 회차(0 = 첫 판)마다 100%씩 더 강하다(2회차 ×2, 3회차 ×3).
@@ -14,7 +13,8 @@ export const floorPower = (n: number, cycle = 0, extra = DEPTH_EXTRA) => (1 + 0.
 // 몬스터 한 방의 깊이·회차 배율(HIT 비율에 곱한다). 0 = 예전 공식(1막 첫 판).
 // 2막(깊이 26~50)은 ACT2_HIT배에서 시작해 깊이 따라 ×1.2까지(1.25 → 1.5), 회차는 3회차(cycle 2)부터 회차마다 +5%(최대 +20%)
 // ACT2_HIT: 2막 몬스터 체력은 그대로 두고 한 방을 올렸다(2026-11-26, 사용자). 봇 측정: bot.ts probe
-const ACT2_FROM = 5 * STORY.length + 6, ACT2_TO = ACT2_FROM + 5 * ACT2_MAX - 1;
+const ACT2_LANDS = 5; // ① 호숫가 ~ ⑤ 뒤틀린 차원(act2.ts의 ACT2_MAX는 진행 번호라 땅 수와 다르다 — 신전을 지나면 6)
+const ACT2_FROM = 5 * STORY.length + 6, ACT2_TO = ACT2_FROM + 5 * ACT2_LANDS - 1;
 export const ACT2_HIT = 1.25;
 export const hitScale = (depth: number, cycle: number) =>
   depth < ACT2_FROM && cycle < 1 ? 0 : (depth >= ACT2_FROM ? ACT2_HIT : 1) * (1 + 0.2 * Math.min(1, Math.max(0, depth - ACT2_FROM) / (ACT2_TO - ACT2_FROM))) * (1 + 0.05 * Math.min(4, Math.max(0, cycle - 1)));
@@ -22,11 +22,11 @@ export const cyclePower = (cycle: number) => 1 + cycle;
 // 보스 깊이 배율: 보스 수치(STATS.boss)는 초원 5구역(이야기 깊이 5) 기준이라, 깊은 지역 보스는 그 구역 몬스터 배율만큼 더 세진다(회차 배율은 따로)
 export const bossScale = (depth: number) => Math.max(1, floorPower(depth) / floorPower(FLOORS));
 // 층의 모습(렌더용): 깊은 층은 동굴
-export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins' | 'sanctum' | 'lake' | 'raid' | 'mine';
+export type Theme = 'dungeon' | 'cave' | 'field' | 'snow' | 'ruins' | 'sanctum' | 'lake' | 'raid' | 'mine' | 'temple';
 export const themeFor = (n: number): Theme => (n >= 4 ? 'cave' : 'dungeon');
 export const SIZE = 48;
 type Room = { x: number; z: number; w: number; h: number };
-export const BLOCKS = '#BocCDYQIEVPLsrJkO$heinu!|f5689pt[]{b-+d}'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인(대장장이 '}'는 맨 끝), 주민, 단서, 잠긴 출구(설원·폐허), 의뢰 대상(봉화·궤·봉인), 야영지 창고, 천막(작은·큰·덮인 칸), 물(호숫가 — 막힘 값은 2: 시야·투사체는 지나감), 잠긴 호숫가 출구, 통나무집 벽, 나룻배(물과 같이 막힘 값 2), 호숫가 퍼즐 바퀴·우물, 앓는 주민·사제, 약탈자 진지 말뚝 방책·도화선이 밑을 지나는 방책·방책 속 화약통·화약통, 광산 허공·빛 다리(막힘 값 2, 다리는 켜지면 0)·결정
+export const BLOCKS = '#BocCDYQIEVPLsrJkO$heinu!|f5689pt[]{b-+d}()/`'; // 막는 글자: 벽, 화로, 큰 소품, 상자, 야영지 상자, 사슬 문, 성소, 시련의 제단, 얼어붙은 보물, 순찰대장, 상인(대장장이 '}'는 맨 끝), 주민, 단서, 잠긴 출구(설원·폐허), 의뢰 대상(봉화·궤·봉인), 야영지 창고, 천막(작은·큰·덮인 칸), 물(호숫가 — 막힘 값은 2: 시야·투사체는 지나감), 잠긴 호숫가 출구, 통나무집 벽, 나룻배(물과 같이 막힘 값 2), 호숫가 퍼즐 바퀴·우물, 앓는 주민·사제, 약탈자 진지 말뚝 방책·도화선이 밑을 지나는 방책·방책 속 화약통·화약통, 광산 허공·빛 다리(막힘 값 2, 다리는 켜지면 0)·결정, 사암 신전 고리 돌·자칼 손잡이·봉인(빛이 닿으면 열린다)·해 틈
 export const OPEN = (c: string) => !BLOCKS.includes(c); // 지나갈 수 있는 글자
 const GATE_MAX = 6; // 계단 방 입구가 이보다 넓으면(복도가 벽을 따라 붙은 경우) 문으로 막지 않는다
 

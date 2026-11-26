@@ -10,6 +10,7 @@ import { isHub, type Land } from './rules';
 import { generateArena } from './sanctum';
 import { flows } from './sluice';
 import { generateMine, generateMineArena } from './minemap';
+import { generateTemple, generateTempleArena } from './templemap';
 import type { Sluice } from './rules';
 
 export const GATE_FIRES = [[-3, -3], [4, -3], [-3, 4], [4, 4]]; // 성소 입구(2×2의 위쪽 모서리 칸)에서 화로 넷
@@ -23,8 +24,8 @@ const ISLE = FLOORS - 1; // 호숫가 섬 나루 구역
 // open = 열린 지역(초원 1구역 갈림길에서 갈 수 있는 곳, 없으면 다 열림), mark = 놓을 의뢰 대상 글자(L 흔적·J 봉화·k 궤·O 봉인)
 export function makeMap(seed: number, floor: number, land: Land = 'dungeon', from: Side = 'w', open?: Land[], mark?: string): string[] {
   if (land === 'camp') return generateCamp(!!open?.includes('tent'));
-  if (land === 'tent') return generateTent(!!open?.includes('raid'), !!open?.includes('mine'));
-  const map = land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'lake' && floor >= FLOORS ? generateLakeArena() : land === 'raid' && floor >= FLOORS ? generateRaidArena() : land === 'mine' ? (floor >= FLOORS ? generateMineArena() : generateMine(seed, floor, from)) : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
+  if (land === 'tent') return generateTent(!!open?.includes('raid'), !!open?.includes('mine'), !!open?.includes('temple'));
+  const map = land === 'sanctum' ? (floor >= FLOORS ? generateArena() : generateFloor(seed, floor)) : land === 'lake' && floor >= FLOORS ? generateLakeArena() : land === 'raid' && floor >= FLOORS ? generateRaidArena() : land === 'mine' ? (floor >= FLOORS ? generateMineArena() : generateMine(seed, floor, from)) : land === 'temple' ? (floor >= FLOORS ? generateTempleArena() : generateTemple(seed, floor, from)) : land === 'dungeon' ? generateFloor(seed, floor) : generateWild(seed, floor, land, from, open);
   return mark ? withMark(map, seed, mark) : map;
 }
 
@@ -142,7 +143,8 @@ const TENT_SEED = 11;
 export const TENTS: [x: number, z: number, big: boolean][] = [[-8, -8, false], [5, -9, false], [7, 5, false], [-9, 5, false], [-2, -13, true]]; // 왼쪽 위 칸(마당 가운데 기준)
 // raid = 뱃사공을 쓰러뜨렸다: 동쪽 길 끝에 약탈자 진지 1구역 출구(& 3칸). 난수열은 그대로라 나머지 모양은 같다
 // mine = 우두머리를 쓰러뜨렸다: 남쪽 길 끝에 보랏빛 광산 1구역 출구(z 3칸)
-export function generateTent(raid = false, mine = false): string[] {
+// temple = 감독관을 쓰러뜨렸다: 남서쪽 길 끝에 사암 신전 1구역 출구('"' 3칸 — 네 방향이 다 찼다)
+export function generateTent(raid = false, mine = false, temple = false): string[] {
   const M = SIZE;
   const c = M / 2;
   const rand = mulberry(TENT_SEED);
@@ -169,6 +171,10 @@ export function generateTent(raid = false, mine = false): string[] {
   if (mine) {
     for (let z = c + 5; z < M - 1; z++) for (let x = c + 2; x <= c + 4; x++) cells[z][x] = '='; // 남쪽 길(동쪽 작은 천막 서쪽)
     for (let x = c + 2; x <= c + 4; x++) cells[M - 1][x] = 'z';
+  }
+  if (temple) {
+    for (let z = c + 3; z < M - 1; z++) for (let x = c - 7; x <= c - 5; x++) cells[z][x] = '='; // 남서쪽 길(창고·대장장이 서쪽, 서남 작은 천막 동쪽)
+    for (let x = c - 7; x <= c - 5; x++) cells[M - 1][x] = '"';
   }
   for (const [dx, dz, big] of TENTS) {
     const n = big ? 4 : 2;

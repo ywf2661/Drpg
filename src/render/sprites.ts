@@ -57,6 +57,14 @@ import raiderOrcInfo from '../assets/sprites/raider_orc.json';
 import raiderOrcUrl from '../assets/sprites/raider_orc.png';
 import treantInfo from '../assets/sprites/swamp_treant.json';
 import treantUrl from '../assets/sprites/swamp_treant.png';
+import keeperInfo from '../assets/sprites/temple_keeper.json';
+import keeperUrl from '../assets/sprites/temple_keeper.png';
+import mummyInfo from '../assets/sprites/mummy.json';
+import mummyUrl from '../assets/sprites/mummy.png';
+import bronzeInfo from '../assets/sprites/bronze_guard.json';
+import bronzeUrl from '../assets/sprites/bronze_guard.png';
+import sandArcherInfo from '../assets/sprites/sand_archer.json';
+import sandArcherUrl from '../assets/sprites/sand_archer.png';
 import foremanInfo from '../assets/sprites/mine_foreman.json';
 import foremanUrl from '../assets/sprites/mine_foreman.png';
 import golemInfo from '../assets/sprites/rock_golem.json';
@@ -136,6 +144,10 @@ const SHEETS: Record<Kind | Skin, { info: SheetInfo; url: string }> = {
   mine_foreman: { info: foremanInfo as SheetInfo, url: foremanUrl }, // 광산 감독관(tools/boss3d로 렌더)
   miner_goblin: { info: minerInfo as SheetInfo, url: minerUrl }, // 광부 고블린(tools/miner.py)
   crystal_archer: { info: shardArcherInfo as SheetInfo, url: shardArcherUrl }, // 결정 궁수(tools/miner.py)
+  mummy: { info: mummyInfo as SheetInfo, url: mummyUrl }, // 붕대 망령(tools/temple.py)
+  bronze_guard: { info: bronzeInfo as SheetInfo, url: bronzeUrl }, // 청동 해골 수호병(tools/temple.py)
+  sand_archer: { info: sandArcherInfo as SheetInfo, url: sandArcherUrl }, // 모래 해골 궁수(tools/temple.py)
+  temple_keeper: { info: keeperInfo as SheetInfo, url: keeperUrl }, // 문지기 사제(tools/boss3d로 렌더)
 };
 let heroWanted = '';
 let heroReady: Promise<void> = Promise.resolve(); // 마지막으로 요청한 장비 조합이 입혀질 때

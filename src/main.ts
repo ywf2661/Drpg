@@ -19,7 +19,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2 } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -60,10 +60,11 @@ let stash: BagItem[] = [];
 let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
 let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
+let signal2 = false; // 타임패트롤 신호 2(사암 신전 문지기 사제를 쓰러뜨린 뒤)를 들었다
 let patrolOn = false; // 신호 형상이 서 있다(대화창이 닫히면 끊긴다)
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
 // ponytail: 2막 땅이 생기면 여기에 더한다(지금은 호숫가)
-const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' || l === 'mine' ? 'tent' : 'camp');
+const hubOf = (l: Land): Land => (l === 'tent' || l === 'lake' || l === 'raid' || l === 'mine' || l === 'temple' ? 'tent' : 'camp');
 // ponytail: 성소가 열렸을 때·성기사를 쓰러뜨렸을 때의 순찰대장 말은 저장하지 않는다(새로고침하면 늘 하던 말). 남겨야 하면 Run에 한 줄
 let captainLine: string[] | null = null;
 // 성소 5층: risen = 체력 절반 한 줄을 했다, fell = 쓰러진 뒤 대화를 했다(층마다 처음부터)
@@ -97,15 +98,15 @@ let signs: Sign[] = []; // 이 구역의 출구 이름표
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? floor + 1 : 1);
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', smith: '대장장이', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정' };
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', smith: '대장장이', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정', handle: '자칼 손잡이' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
 const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' ? act2 < 2 : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
 function signsOf(w: World): Sign[] {
   const out: Sign[] = [];
-  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid', 'mine'] as const) {
+  for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid', 'mine', 'temple'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
-    const mark = to === 'sanctum' ? '▼' : '▶';
+    const mark = to === 'sanctum' || (to === 'temple' && land === 'temple') ? '▼' : '▶'; // 신전 봉인은 가운데에서 아래로
     if (cells.length) out.push({ ...middle(cells), text: isHub(to) ? `${mark} ${LANDS[to].name}` : `${mark} ${LANDS[to].name} ${nextFloor(to)}${LANDS[to].unit}` });
     const shut = w.locked.filter((e) => e.to === to);
     if (shut.length && to !== 'sanctum') out.push({ ...middle(shut), text: `▶ ${LANDS[to].name} (길이 막혔다)` }); // 성소 입구 자리는 이름표 없이 땅만 갈라진다
@@ -117,13 +118,13 @@ function signsOf(w: World): Sign[] {
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1 }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1, heard2: signal2 }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : []), ...(act2 >= 5 ? (['temple'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.stashLegends = stash.map(uniqueOf).filter((u) => u !== undefined); // 수집가의 왕관
   w.hitScale = hitScale(depth, cycle); // 2막·1막 2회차 이상: 몬스터 한 방을 기준 체력의 %로
@@ -221,6 +222,8 @@ let chatter = 0;
 let kegsBlown = 0; // 이 맵에서 터진 화약통 수(이름표를 다시 달 때)
 let kegHint = false;
 let crystalHint = false; // 광산: 결정 안내 한 줄을 보였다(판마다 한 번)
+let handleHint = false; // 신전: 손잡이 안내 한 줄을 보였다(판마다 한 번)
+let templeTurns = -1; // 신전 고리 방향의 합(바뀌면 손잡이 이름표를 옮긴다)
 let chiefHint = -Infinity; // 우두머리·감독관 안내를 마지막으로 보인 때(초) — 막힐 때마다 HINT_AGAIN초 간격으로 다시 // 화약통 안내 한 줄을 보였다(판마다 한 번)
 const HINT_AGAIN = 20;
 
@@ -412,6 +415,7 @@ function goCamp() {
   if (land === 'sanctum') [news, captainLine] = [true, world.horseDrop && !act2 ? [SANCTUM_DONE, ACT2_OPEN] : [SANCTUM_DONE]];
   if (land === 'lake') [act2, news, captainLine] = [Math.max(act2, 3), true, [LAKE_DONE]];
   if (land === 'raid') [act2, news, captainLine] = [Math.max(act2, 4), true, [RAID_DONE]];
+  if (land === 'temple') [act2, news, captainLine] = [Math.max(act2, 6), true, [TEMPLE_DONE]]; // 문지기 사제: 틈 너머 이야기
   if (land === 'mine') [act2, news, captainLine] = [Math.max(act2, 5), true, [MINE_DONE]]; // 광산 감독관: 다음 곳(신전) 이야기 // 약탈자 우두머리: 다음 곳(광산) 이야기 // 뱃사공: 원정대 천막의 순찰대장이 다음 길 이야기
   if (land === 'sanctum' && world.horseDrop) act2 = Math.max(act2, 1); // 처음 쓰러뜨렸다: 2막이 열린다(야영지 북쪽 원정길)
   toCamp(carryOf(world), after.advanced && (!was || after.newCycle)); // 2회차부터 순찰대장은 회차가 넘어갈 때만 새로 말한다
@@ -655,6 +659,7 @@ initHud({
     stats = { ...saved.stats };
     ({ cycle, stage, land, from, marks, news, took, beat, relics, act2 } = saved);
     signal1 = !!saved.heard;
+    signal2 = !!saved.heard2;
     if (hasHorse(relics) && !act2) [act2, news, captainLine] = [1, true, [ACT2_OPEN]]; // 2막이 생기기 전에 기도하는 자를 쓰러뜨린 판
     marksBy = [...saved.marksBy];
     relicMiss = [...saved.relicMiss];
@@ -888,10 +893,20 @@ requestAnimationFrame(function frame(now) {
     crystalHint = true;
     hint(CRYSTAL_HINT);
   }
-  // 약탈자 우두머리·광산 감독관: 막히면 힌트(통·다리를 쓰라는 것까지만). 계속 막히면 HINT_AGAIN초마다 다시
-  if ((land === 'raid' || land === 'mine') && now / 1000 - chiefHint > HINT_AGAIN && world.combos.some((c) => c.kind === 'ward')) {
+  // 신전: 처음 손잡이 곁에 오면 한 줄. 고리가 다 돌면 손잡이 이름표를 옮긴다
+  const tp = world.temple;
+  if (tp) {
+    const turns = tp.rings.reduce((a, g, k) => a + g.q * 4 ** k, 0);
+    if (turns !== templeTurns) [templeTurns, signs] = [turns, signsOf(world)];
+    if (!handleHint && tp.handles.some((hd) => Math.hypot(world.chests[hd.chest].x + 0.5 - world.entities[0].x, world.chests[hd.chest].z + 0.5 - world.entities[0].z) < 4)) {
+      handleHint = true;
+      hint(HANDLE_HINT);
+    }
+  }
+  // 약탈자 우두머리·광산 감독관·문지기 사제: 막히면 힌트(통·다리·빛을 쓰라는 것까지만). 계속 막히면 HINT_AGAIN초마다 다시
+  if ((land === 'raid' || land === 'mine' || land === 'temple') && now / 1000 - chiefHint > HINT_AGAIN && world.combos.some((c) => c.kind === 'ward')) {
     chiefHint = now / 1000;
-    hint(land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
+    hint(land === 'temple' ? KEEPER_HINT : land === 'mine' ? FOREMAN_HINT : CHIEF_HINT);
   }
   if (world.cleansed) {
     world.cleansed = false;
@@ -918,6 +933,12 @@ requestAnimationFrame(function frame(now) {
     // 레벨·경험치는 지금 값으로 남긴다. 그 구역에서 오른 레벨만큼 스킬 포인트도(찍은 스킬은 구역에 들어설 때로 돌아가므로 이 셈이 맞다)
     entry = { ...entry, gold: deathGold(entry.gold), level: world.level, xp: world.xp, points: entry.points + world.level - entry.level };
     saveRun({ ...progress(), land: hubOf(land), floor: 0, from: 'w' });
+  }
+  // 사암 신전 결전: 문지기 사제를 처음 쓰러뜨리면 타임패트롤 신호 2(저장에 한 번). 대화가 끝나야 전리품 시간이 흐른다
+  if (o === 'clear' && land === 'temple' && floor === FLOORS && !signal2 && clearT >= 1) {
+    [signal2, patrolOn] = [true, true];
+    setPatrol({ x: world.entities[0].x + 1.3, z: world.entities[0].z - 1.3 });
+    showTalks(PATROL2.map((l): [string, string] => ['???', l]));
   }
   if (o === 'clear' && !talking() && !outroOn()) clearT += dt; // 엔딩 1이면 레터박스가 걷힌 뒤부터
   // 성소 5층: 체력 절반에 기사가 일어날 때 한 줄, 쓰러지는 모습이 끝나면 대화(전리품 시간은 대화를 닫은 뒤부터)
