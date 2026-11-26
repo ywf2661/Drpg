@@ -122,13 +122,14 @@ export function initInput() {
   addEventListener('pointercancel', () => (held = false)); // 시스템 제스처 등으로 터치가 취소된 경우
   addEventListener('blur', () => (held = false));
   // iOS 사파리는 CSS touch-action: manipulation을 늘 지키지 않는다(스킬 연타에 두 번 탭 확대).
-  // 300ms 안의 두 번째 탭은 기본 동작(확대)을 막고, 막히는 click만 대신 보낸다
+  // 두 번 탭으로 볼 만큼(DOUBLE_TAP ms) 가까운 두 번째 탭은 기본 동작(확대)을 막고, 막히는 click만 대신 보낸다
+  const DOUBLE_TAP = 500; // iOS의 두 번 탭 판정은 300ms보다 길 때가 있다
   let lastTap = 0;
   addEventListener(
     'touchend',
     (e) => {
       const t = e.target as HTMLElement;
-      if (e.timeStamp - lastTap < 300 && !t.closest('input, textarea, select')) {
+      if (e.timeStamp - lastTap < DOUBLE_TAP && !t.closest('input, textarea, select')) {
         e.preventDefault();
         t.click?.();
       }
@@ -136,6 +137,10 @@ export function initInput() {
     },
     { passive: false },
   );
+  // 두 손가락(스킬 칸을 누른 채 땅을 연타)은 브라우저가 집어 확대로 본다: 사파리 제스처 이벤트와 두 손가락 이동의 기본 동작을 막는다.
+  // 게임 입력은 pointer 이벤트라 막히지 않는다. touch-action: manipulation은 집어 확대를 허용하는 값이라 이것으로는 안 막힌다
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) addEventListener(type, (e) => e.preventDefault(), { passive: false });
+  addEventListener('touchmove', (e) => e.touches.length > 1 && e.preventDefault(), { passive: false });
 }
 
 function setPointer(e: PointerEvent) {
