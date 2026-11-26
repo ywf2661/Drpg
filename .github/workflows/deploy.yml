@@ -1,21 +1,19 @@
-# main에 push하면 테스트 → 빌드 → GitHub Pages 배포.
-# 저장소 Settings → Pages → Source를 "GitHub Actions"로 설정해야 동작한다.
+# main 브랜치에 push하면 테스트 → 빌드 → GitHub Pages 배포
 name: Deploy to GitHub Pages
-
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
-
+# GitHub Pages 배포 권한
 permissions:
   contents: read
   pages: write
   id-token: write
-
+# 동시에 여러 배포가 실행되는 것을 방지
 concurrency:
   group: pages
   cancel-in-progress: true
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -23,17 +21,38 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # 1. 저장소 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      # 2. Node.js 설정
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+      # 3. 의존성 설치
+      - name: Install dependencies
+        run: npm ci
+      # 4. 테스트
+      - name: Run tests
+        run: npm test
+      # 5. 프로젝트 빌드
+      - name: Build project
+        run: npm run build
+      # 6. GitHub Pages 설정
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+      # 7. 배포 Artifact 업로드
+      - name: Upload GitHub Pages artifact
+        id: upload
+        uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
-      - id: deployment
+          path: ./dist
+          name: github-pages
+          retention-days: 1
+      # 8. GitHub Pages 배포
+      - name: Deploy GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages
