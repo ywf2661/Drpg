@@ -95,8 +95,24 @@ test('그은 줄을 다시 지나면 끊어져 처음부터, 두 번 끊어지�
   sew(w, [1, 0, 1]);
   expect(s.drawn.length).toBe(0);
   expect(s.events).toContain('snap');
-  sew(w, [1, 0, 1]);
+  sew(w, [0, 1, 0]); // 끊어진 구멍(1)은 건너뛰고 0에서 새로 시작 → 다시 겹친다
   expect(s.events).toContain('hint');
+});
+
+test('끊어진 뒤 그 구멍은 시작점이 되지 않는다 — 다른 구멍에서 새로 시작하고, 벗어났다 돌아오면 거기서도 시작한다', () => {
+  const w = arena();
+  const s = startStitch(w);
+  sew(w, [1, 0, 1]); // 1에서 끊어졌다(1 위에 서 있다)
+  expect(s.cur).toBe(-1);
+  sew(w, [4]); // 다른 구멍(4)에서 새로 시작
+  expect(s.start).toBe(4);
+  const w2 = arena();
+  const s2 = startStitch(w2);
+  sew(w2, [1, 0, 1]);
+  Object.assign(w2.entities[0], { x: s2.holes[1][0] + 2, z: s2.holes[1][1] });
+  tick(w2, 0.1, () => Object.assign(w2.entities[0], { x: s2.holes[1][0] + 2, z: s2.holes[1][1] }));
+  sew(w2, [1]); // 한 발 나갔다 돌아왔다
+  expect(s2.start).toBe(1);
 });
 
 test('한쪽 통행 줄을 거꾸로 그으면 끊어진다', () => {

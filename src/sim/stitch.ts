@@ -26,7 +26,8 @@ export type StitchEvent = 'start' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled
 export type StitchState = {
   t: number; r: number; k: number; // 경과(초), 틈 반지름(칸), 지금 무늬 번호(4 = 다 꿰맴)
   holes: [number, number][]; // 지금 무늬 구멍의 월드 자리
-  drawn: { e: number; at: number }[]; start: number; cur: number; snaps: number; crumbleT: number; lost: number[]; // 그은 줄(그은 시각), 마지막으로 닿은 구멍, 끊어진 수, 빨려 든 구멍
+  // drawn = 그은 줄(그은 시각), cur = 마지막으로 닿은 구멍, skip = 처음부터가 된 순간 발밑에 있던 구멍(벗어날 때까지 시작점으로 잡지 않는다), snaps = 끊어진 수, lost = 빨려 든 구멍
+  drawn: { e: number; at: number }[]; start: number; cur: number; skip: number; snaps: number; crumbleT: number; lost: number[];
   phase: 'sew' | 'closing' | 'closed'; closeT: number; echoFrom: [number, number] | null; events: StitchEvent[]; ver: number;
 };
 const state = new WeakMap<World, StitchState>();
@@ -43,15 +44,16 @@ export function holesOf(k: number): [number, number][] {
 }
 
 export function startStitch(w: World): StitchState {
-  const s: StitchState = { t: 0, r: STITCH.r0, k: 0, holes: holesOf(0), drawn: [], start: -1, cur: -1, snaps: 0, crumbleT: 0, lost: [], phase: 'sew', closeT: 0, echoFrom: null, events: ['start'], ver: 0 };
+  const s: StitchState = { t: 0, r: STITCH.r0, k: 0, holes: holesOf(0), drawn: [], start: -1, cur: -1, skip: -1, snaps: 0, crumbleT: 0, lost: [], phase: 'sew', closeT: 0, echoFrom: null, events: ['start'], ver: 0 };
   state.set(w, s);
   return s;
 }
 
 const sewn = (s: StitchState) => s.drawn.filter((d) => s.t - d.at >= STITCH.echo).length;
-function reset(s: StitchState, ev: StitchEvent) {
+function reset(s: StitchState, ev: StitchEvent, under = -1) {
   s.drawn = [];
   s.cur = s.start = -1;
+  s.skip = under;
   s.crumbleT = 0;
   s.lost = [];
   s.events.push(ev);
@@ -103,7 +105,9 @@ export function tickStitch(w: World) {
   }
   const p = PATTERNS[s.k];
   // 구멍에 닿았다
-  const h = s.holes.findIndex((q, i) => !s.lost.includes(i) && Math.hypot(q[0] - hero.x, q[1] - hero.z) <= STITCH.near);
+  const h0 = s.holes.findIndex((q, i) => !s.lost.includes(i) && Math.hypot(q[0] - hero.x, q[1] - hero.z) <= STITCH.near);
+  if (s.skip >= 0 && h0 !== s.skip) s.skip = -1; // 끊어진 구멍을 벗어났다
+  const h = h0 === s.skip ? -1 : h0;
   if (h >= 0 && h !== s.cur) {
     if (s.cur < 0) {
       s.cur = s.start = h;
@@ -114,7 +118,7 @@ export function tickStitch(w: World) {
         const wrong = p.oneway.includes(e) && p.edges[e][0] !== s.cur;
         if (wrong || s.drawn.some((q) => q.e === e)) {
           s.snaps++;
-          reset(s, 'snap');
+          reset(s, 'snap', h);
           if (s.snaps === 2) s.events.push('hint');
           return;
         }
@@ -132,7 +136,7 @@ export function tickStitch(w: World) {
       const hs = crumbleHoles(s.holes);
       const done = sewn(s);
       const ok = hs.every((i) => p.edges.every((ed, j) => !ed.includes(i) || s.drawn.slice(0, done).some((q) => q.e === j)));
-      if (!ok) return reset(s, 'crumble');
+      if (!ok) return reset(s, 'crumble', h0);
       s.lost = hs; // 다 굳었으면 빨려 들어도 그만
     }
   }
