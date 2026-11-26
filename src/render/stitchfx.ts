@@ -49,7 +49,7 @@ function build(world: World): Fx {
   const hole = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x030208, depthWrite: false, toneMapped: false }));
   hole.position.set(C, 0.035, C);
   hole.renderOrder = 1;
-  const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 40).rotateX(-Math.PI / 2), add(0xb45cff, 0.7));
+  const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.035, 48).rotateX(-Math.PI / 2), add(0xb45cff, 0.7));
   rim.position.y = 0.002;
   hole.add(rim);
   const seeds = new Float32Array(MOTES * 3);
@@ -63,7 +63,7 @@ function build(world: World): Fx {
   needle.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), add(0xffcf5a, 0.35)));
   needle.renderOrder = 4;
   const trail = new THREE.Group();
-  stitchGroup.add(tear, motes, pattern, needle, trail); // 바닥 구멍(보라 테 원)은 그리지 않는다(사용자)
+  stitchGroup.add(tear, hole, motes, pattern, needle, trail); // 바닥 구멍: 틈의 경계(빨려 드는 선)가 보이게, 테는 가늘게
   return { absorbed: false, needle, trail, burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
 }
 
@@ -117,6 +117,8 @@ export function tickStitchFx(time: number, dt: number, world: World) {
   // 큰 틈: 반지름만큼(닫히면 사라진다)
   const k = s.r / STITCH.r0;
   f.tear.visible = s.r > 0.02;
+  f.hole.scale.setScalar(Math.max(0.01, s.r));
+  f.hole.visible = s.r > 0.02;
   f.tear.scale.set(1.2 + k * 1.3, 0.9 + k * 0.55, 1);
   f.u.uTime.value = time;
   f.u.uOpen.value = Math.min(1, s.r / 0.8);
