@@ -9,6 +9,10 @@ import type { World } from '../sim/world';
 import { tearGeo, tearMat } from './wardenfx';
 
 export const stitchGroup = new THREE.Group();
+// 첫 무늬 시범: 띠 속에서 빛나는 바늘이 한붓 길(PATTERNS[0].demo)을 따라 그려 보인다. main이 경과 시간을 넘긴다(null = 끝)
+export const STITCH_DEMO = 3.5;
+let demo: number | null = null;
+export const setStitchDemo = (t: number | null) => (demo = t);
 const C = STITCH.center;
 const MOTES = 260;
 const add = (color: number, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
@@ -17,7 +21,7 @@ const STRIP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const RING = new THREE.RingGeometry(0.28, 0.4, 20).rotateX(-Math.PI / 2);
 const ARROW = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0.35), new THREE.Vector2(0.25, -0.2), new THREE.Vector2(-0.25, -0.2)])).rotateX(Math.PI / 2); // +z를 가리키는 세모
 
-type Fx = { burst: { m: THREE.Mesh; t: number } | null; world: World; tear: THREE.Mesh; u: Record<string, THREE.IUniform>; hole: THREE.Mesh; motes: THREE.Points; seeds: Float32Array; pattern: THREE.Group; ver: number; k: number; holes: THREE.Mesh[]; crosses: THREE.Group };
+type Fx = { needle: THREE.Mesh; trail: THREE.Group; burst: { m: THREE.Mesh; t: number } | null; world: World; tear: THREE.Mesh; u: Record<string, THREE.IUniform>; hole: THREE.Mesh; motes: THREE.Points; seeds: Float32Array; pattern: THREE.Group; ver: number; k: number; holes: THREE.Mesh[]; crosses: THREE.Group };
 let fx: Fx | null = null;
 
 // 바닥에 눕힌 띠: a → b, 폭 wd
@@ -55,8 +59,12 @@ function build(world: World): Fx {
   const motes = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xc8b8ff, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
   motes.frustumCulled = false;
   const pattern = new THREE.Group();
-  stitchGroup.add(tear, motes, pattern); // 바닥 구멍(보라 테 원)은 그리지 않는다(사용자)
-  return { burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
+  const needle = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), add(0xffffff, 1));
+  needle.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), add(0xffcf5a, 0.35)));
+  needle.renderOrder = 4;
+  const trail = new THREE.Group();
+  stitchGroup.add(tear, motes, pattern, needle, trail); // 바닥 구멍(보라 테 원)은 그리지 않는다(사용자)
+  return { needle, trail, burst: null, world, tear, u, hole, motes, seeds, pattern, ver: -1, k: -1, holes: [], crosses };
 }
 
 // 무늬를 다시 깐다(그은 줄·굳은 실이 바뀔 때)
@@ -139,6 +147,19 @@ export function tickStitchFx(time: number, dt: number, world: World) {
   }
   pos.needsUpdate = true;
   // 무늬
+  // 시범 바늘: 구멍에서 구멍으로 같은 빠르기, 지나온 길은 금빛 줄로 남는다
+  const seq = PATTERNS[0].demo!;
+  f.needle.visible = demo !== null && s.k === 0;
+  f.trail.clear();
+  if (demo !== null && s.k === 0) {
+    const go = Math.min(1, demo / (STITCH_DEMO - 0.4)) * (seq.length - 1);
+    const i = Math.min(seq.length - 2, Math.floor(go));
+    const [a, b] = [s.holes[seq[i]], s.holes[seq[i + 1]]];
+    const k = go - i;
+    f.needle.position.set(a[0] + (b[0] - a[0]) * k, 0.5, a[1] + (b[1] - a[1]) * k);
+    for (let j = 0; j < i; j++) f.trail.add(strip(s.holes[seq[j]], s.holes[seq[j + 1]], 0.1, MAT.drawn, 0.05));
+    f.trail.add(strip(a, [f.needle.position.x, f.needle.position.z], 0.1, MAT.drawn, 0.05));
+  }
   // 땀 하나 완성: 그 무늬 자리에서 빛 고리가 퍼진다
   if (f.k >= 0 && s.k > f.k) {
     const H = f.holes.filter(Boolean).map((m) => m.position);

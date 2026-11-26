@@ -8,6 +8,7 @@ import { drawAutomap, initAutomap, resetAutomap, toggleAutomap } from './render/
 import { hitstop } from './render/feel';
 import { drawLabels, initLabels, type Sign } from './render/labels';
 import { drawEcho, initEcho } from './render/echo';
+import { setStitchDemo, STITCH_DEMO } from './render/stitchfx';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
@@ -63,6 +64,7 @@ let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
 let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
 let signal2 = false; // 타임패트롤 신호 2(사암 신전 문지기 사제를 쓰러뜨린 뒤)를 들었다
+let demoT = -1; // 첫 무늬 시범 경과(초), -1 = 아님
 let [stitchGuide, riftDone, riftTalk] = [false, false, false]; // riftTalk = 틈이 벌어지고 신호를 띄울 차례 // 꿰매기 안내를 띄울 차례, 닫혀서 마지막 신호를 닫으면 후일담
 let patrolOn = false; // 신호 형상이 서 있다(대화창이 닫히면 끊긴다)
 // 죽거나 보스를 깨면 돌아오는 거점: 2막 땅(지금은 천막뿐)에서는 원정대 천막, 그 밖은 야영지
@@ -182,7 +184,9 @@ function enterFloor(n: number, carry: Carry) {
   resetAutomap(world);
   commands.length = 0; // 이전 층에서 쌓인 명령을 새 층에 적용하지 않는다
   showFloor(n, cycle, land, goalLine());
-  [risen, fell, stitchGuide, riftDone, riftTalk] = [false, false, false, false, false];
+  [risen, fell, stitchGuide, riftDone, riftTalk, demoT] = [false, false, false, false, false, -1];
+  $('#stitch-rule').hidden = true;
+  setStitchDemo(null);
   intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
   outro = null;
   setOutro(null);
@@ -1005,7 +1009,14 @@ requestAnimationFrame(function frame(now) {
       else if (ev === 'crumble') hint(STITCH_CRUMBLE);
       else if (ev === 'closed') patrolTalk(RIFT_CLOSED), (riftDone = true);
     }
-    if (stitchGuide && !riftTalk && !talking()) (stitchGuide = false), letterbox(false), setGaze(null), hint(STITCH_GUIDE); // 신호가 끝나면 띠가 걷히고 퍼즐
+    // 신호가 끝나면 띠 속에서 바늘이 첫 무늬를 한붓으로 그려 보이고(STITCH_DEMO초) → 띠가 걷히고 퍼즐
+    if (stitchGuide && !riftTalk && !talking()) {
+      if (demoT < 0) (demoT = 0), setGaze({ x: sw.holes.reduce((a, q) => a + q[0], 0) / sw.holes.length, z: sw.holes.reduce((a, q) => a + q[1], 0) / sw.holes.length });
+      demoT += dt;
+      setStitchDemo(demoT);
+      if (demoT >= STITCH_DEMO) (stitchGuide = false), (demoT = -1), setStitchDemo(null), letterbox(false), setGaze(null), hint(STITCH_GUIDE);
+    }
+    $('#stitch-rule').hidden = sw.phase !== 'sew' || stitchGuide || riftTalk;
     if (riftDone && !talking()) {
       riftDone = false;
       act2 = Math.max(act2, 7);

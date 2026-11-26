@@ -109,13 +109,18 @@ test('틈에 닿으면 바깥으로 내던져지고 굳지 않은 줄만 풀린�
   expect(s.events).toContain('pulled');
 });
 
-test('바람: 가만히 서 있어도 틈 쪽으로 끌려간다', () => {
+test('바람: 첫 무늬(연습)는 잔잔하고 틈도 그대로, 둘째 무늬부터 가만히 서 있어도 틈 쪽으로 끌려간다', () => {
   const w = arena();
-  startStitch(w);
+  const s = startStitch(w);
   const h = w.entities[0];
   Object.assign(h, { x: STITCH.center + 10, z: STITCH.center });
   tick(w, 1);
+  expect(h.x).toBe(STITCH.center + 10);
+  expect(s.r).toBe(STITCH.r0);
+  s.k = 1;
+  tick(w, 1);
   expect(h.x).toBeLessThan(STITCH.center + 9.2);
+  expect(s.r).toBeGreaterThan(STITCH.r0);
 });
 
 test('광산 무늬: 틈 쪽 구멍 줄이 25초 안에 다 굳지 않으면 빨려 들어 처음부터', () => {

@@ -11,11 +11,11 @@ import { DT, WARP, type World } from './rules';
 import { hourDir } from './warpmap';
 
 export const STITCH = { center: 32, at: 12, r0: 3, grow: 0.09, rMax: 7.2, shrink: 1.6, near: 0.65, echo: WARP.delay, pull: 0.5, pullNear: 1.2, throwTo: 18, crumble: 25, close: 2.5 };
-export type Pattern = { name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
+export type Pattern = { demo?: number[]; name: string; hour: number; holes: [number, number][]; edges: [number, number][]; oneway: number[]; crumble?: boolean };
 // 무늬(화면 기준: x 오른쪽, y 위, 칸). 한붓 길이 있는지는 stitch.test.ts가 확인한다
 const ring = (n: number, r: number, off: number): [number, number][] => Array.from({ length: n }, (_, i) => [Math.sin((i * 2 * Math.PI) / n + off) * r, Math.cos((i * 2 * Math.PI) / n + off) * r]);
 export const PATTERNS: Pattern[] = [
-  { name: '나루 사다리', hour: 6, holes: [[-3, 1.5], [0, 1.5], [3, 1.5], [-3, -1.5], [0, -1.5], [3, -1.5]], edges: [[0, 1], [1, 2], [3, 4], [4, 5], [0, 3], [1, 4], [2, 5]], oneway: [] },
+  { name: '나루 사다리', hour: 6, demo: [1, 0, 3, 4, 5, 2, 1, 4], holes: [[-3, 1.5], [0, 1.5], [3, 1.5], [-3, -1.5], [0, -1.5], [3, -1.5]], edges: [[0, 1], [1, 2], [3, 4], [4, 5], [0, 3], [1, 4], [2, 5]], oneway: [] },
   { name: '방책', hour: 3, holes: [[-4.5, 2], [-1.5, 2], [1.5, 2], [4.5, 2], [-4.5, -2], [-1.5, -2], [1.5, -2], [4.5, -2]], edges: [[0, 1], [1, 2], [2, 3], [4, 5], [5, 6], [6, 7], [0, 4], [1, 5], [2, 6], [3, 7], [0, 5], [1, 6]], oneway: [] },
   { name: '결정', hour: 9, holes: [[0, 3.5], [3.5, 0], [0, -3.5], [-3.5, 0], [0, 0], [-1.75, 1.75], [1.75, 1.75], [-1.75, -1.75], [1.75, -1.75], [0, 5.5]], edges: [[0, 6], [6, 1], [1, 8], [8, 2], [2, 7], [7, 3], [3, 5], [5, 0], [4, 5], [4, 6], [4, 7], [4, 8], [5, 6], [7, 8], [0, 9], [9, 6]], oneway: [], crumble: true },
   { name: '해', hour: 0, holes: [...ring(6, 5, 0), ...ring(6, 2.6, Math.PI / 6)], edges: [...Array.from({ length: 6 }, (_, i) => [[i, 6 + i], [6 + i, (i + 1) % 6]] as [number, number][]).flat(), ...Array.from({ length: 6 }, (_, i) => [6 + i, 6 + ((i + 1) % 6)] as [number, number]), [0, 2], [2, 4], [4, 0]], oneway: [0, 7, 19] },
@@ -72,12 +72,13 @@ export function tickStitch(w: World) {
     if (s.closeT >= STITCH.close) (s.phase = 'closed'), s.events.push('closed'), s.ver++;
     return;
   }
-  s.r = Math.min(STITCH.rMax, s.r + STITCH.grow * DT);
+  const calm = s.k === 0; // 첫 무늬(연습)는 숨 고르기: 틈이 커지지 않고 바람도 없다
+  if (!calm) s.r = Math.min(STITCH.rMax, s.r + STITCH.grow * DT);
   if (hero.state === 'dead') return;
   // 바람: 틈 쪽으로 끌린다(가까울수록 세다)
   const [dx, dz] = [c - hero.x, c - hero.z];
   const d = Math.hypot(dx, dz) || 1;
-  const pull = (STITCH.pull + STITCH.pullNear * Math.max(0, 1 - d / 20)) * DT;
+  const pull = calm ? 0 : (STITCH.pull + STITCH.pullNear * Math.max(0, 1 - d / 20)) * DT;
   const [nx, nz] = [hero.x + (dx / d) * pull, hero.z + (dz / d) * pull];
   if (walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];
   // 빨려 들었다: 바깥 테두리로 내던지고, 굳지 않은 줄을 푼다
