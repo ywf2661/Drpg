@@ -1,0 +1,33 @@
+{
+  "cell": [
+    96,
+    95
+  ],
+  "anchor": [
+    48,
+    78
+  ],
+  "ppm": 30,
+  "cols": 12,
+  "rows": 24,
+  "anims": {
+    "cast": {
+      "row": 0,
+      "frames": 10,
+      "ms": 1000,
+      "loop": "play_once"
+    },
+    "rewind": {
+      "row": 8,
+      "frames": 12,
+      "ms": 1200,
+      "loop": "play_once"
+    },
+    "blink": {
+      "row": 16,
+      "frames": 8,
+      "ms": 700,
+      "loop": "play_once"
+    }
+  }
+}

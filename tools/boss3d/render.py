@@ -29,7 +29,10 @@ BOSSES = {
     'mine_foreman': {'stance': (12, 2400, 'looped'), 'move': (12, 1100, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1400, 'play_once')},
     'temple_keeper': {'stance': (12, 2800, 'looped'), 'move': (12, 1400, 'looped'), 'attack': (13, 1300, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (10, 1500, 'play_once')},
     'rock_golem': {'stance': (8, 2400, 'looped'), 'move': (10, 1200, 'looped'), 'attack': (11, 1200, 'play_once'), 'hit': (2, 200, 'play_once'), 'die': (8, 1200, 'play_once')},
+    # 시간의 파수꾼 기술 동작(시트 세로 4096px 한계로 따로): 멈춘 시간·되감기·명멸의 틈
+    'time_warden_skill': {'cast': (10, 1000, 'play_once'), 'rewind': (12, 1200, 'play_once'), 'blink': (8, 700, 'play_once')},
 }
+MODEL_OF = {'time_warden_skill': 'time_warden'}  # 시트 이름 → 모형 파일(.js)
 # 받은 모델(tools/art/models → blend2glb.py → tools/.cache/models/<glb>.glb): 키 h(m), 앞 방향 yaw, 동작마다 (모델 동작 이름, 프레임 수, ms, 반복, 시작~끝 비율)
 MODELS = {
     'raider_orc': {'glb': 'orc', 'h': 1.8, 'yaw': 0, 'normals': 1, 'anims': {
@@ -79,7 +82,7 @@ def serve(name):
 def render(name):
     anims = BOSSES[name]
     m = MODELS.get(name)
-    srv = serve('glb' if m else name)
+    srv = serve('glb' if m else MODEL_OF.get(name, name))
     frames = {}
     try:
         with sync_playwright() as p:
