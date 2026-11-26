@@ -9,7 +9,7 @@ const SOL = [
   [1, 0, 3, 4, 5, 2, 1, 4],
   [0, 1, 2, 3, 7, 6, 5, 4, 0, 5, 1, 6, 2],
   [0, 6, 1, 8, 2, 7, 3, 5, 0, 9, 6, 4, 7, 8, 4, 5, 6],
-  [0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11, 10, 9, 8, 7, 6, 11, 0, 2, 4, 0],
+  [0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11, 0, 5, 4, 3, 2, 1, 0],
 ];
 const arena = () => {
   const w = createWorld(1, generateWarpArena(), 1, 1, { boss: 'time_warden' });
@@ -53,7 +53,7 @@ test('무늬 넷 모두 한붓 길이 있고, 시작 구멍은 홀수 줄 구멍
     const odd = startHoles(k);
     expect(odd.length === 0 ? seq[0] === seq.at(-1) : odd.includes(seq[0]) && odd.includes(seq.at(-1)!)).toBe(true);
   });
-  expect(PATTERNS.map((p) => [p.holes.length, p.edges.length])).toEqual([[6, 7], [8, 12], [10, 16], [12, 21]]);
+  expect(PATTERNS.map((p) => [p.holes.length, p.edges.length])).toEqual([[6, 7], [8, 12], [10, 16], [12, 18]]);
 });
 
 test('틈은 지금 무늬의 가장 안쪽 구멍 앞까지만 자란다(무늬를 먹지 않는다) — 무늬마다 시작보다 1칸 넘게 자랄 여유는 있다', () => {
@@ -66,6 +66,27 @@ test('틈은 지금 무늬의 가장 안쪽 구멍 앞까지만 자란다(무늬
     tick(w, 120, () => Object.assign(w.entities[0], { x: STITCH.center, z: STITCH.center + 19 }));
     const near = Math.min(...s.holes.map((h) => Math.hypot(h[0] - STITCH.center, h[1] - STITCH.center)));
     expect(s.r).toBeLessThanOrEqual(near - STITCH.margin + 1e-6);
+  }
+});
+
+test('무늬마다 줄끼리 가로지르지 않고, 줄이 다른 구멍 위를 지나지 않는다(점선이 겹쳐 보이지 않게)', () => {
+  const cross = (a: number[], b: number[], c: number[], d: number[]) => {
+    const o = (p: number[], q: number[], r: number[]) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+    return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+  };
+  const near = (p: number[], a: number[], b: number[]) => {
+    const [vx, vy] = [b[0] - a[0], b[1] - a[1]];
+    const k = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy)));
+    return Math.hypot(p[0] - a[0] - vx * k, p[1] - a[1] - vy * k);
+  };
+  for (const p of PATTERNS) {
+    const H = p.holes;
+    p.edges.forEach(([a, b], i) => {
+      p.edges.forEach(([c, d], j) => {
+        if (j > i && ![a, b].includes(c) && ![a, b].includes(d)) expect(cross(H[a], H[b], H[c], H[d]), `${p.name} ${a}-${b} × ${c}-${d}`).toBe(false);
+      });
+      H.forEach((h, k) => k !== a && k !== b && expect(near(h, H[a], H[b]), `${p.name} ${a}-${b} 위 구멍 ${k}`).toBeGreaterThan(0.5));
+    });
   }
 });
 
