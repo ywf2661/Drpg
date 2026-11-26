@@ -22,7 +22,7 @@ export const PATTERNS: Pattern[] = [
 ];
 export const degrees = (p: Pattern) => p.holes.map((_, i) => p.edges.filter((e) => e.includes(i)).length);
 
-export type StitchEvent = 'start' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
+export type StitchEvent = 'start' | 'drawn' | 'snap' | 'hint' | 'done' | 'pulled' | 'crumble' | 'closed';
 export type StitchState = {
   t: number; r: number; k: number; // 경과(초), 틈 반지름(칸), 지금 무늬 번호(4 = 다 꿰맴)
   holes: [number, number][]; // 지금 무늬 구멍의 월드 자리
@@ -110,6 +110,7 @@ export function tickStitch(w: World) {
         s.drawn.push({ e, at: s.t });
         s.cur = h;
         s.ver++;
+        if (s.drawn.length === p.edges.length) s.events.push('drawn'); // 다 그었다(굳는 건 메아리가 지난 뒤)
       }
     }
   }

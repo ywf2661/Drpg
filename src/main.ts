@@ -21,7 +21,7 @@ import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss, gearDiff } from './sim/world';
-import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT, RIFT_OPEN, STITCH_GUIDE, STITCH_SUN, STITCH_DONE, STITCH_SNAP, STITCH_HINT, STITCH_PULLED, STITCH_CRUMBLE, RIFT_CLOSED, EPILOGUE2, WARP_DONE } from './sim/act2';
+import { ACT2_OPEN, act2Step, CHIEF_HINT, CLEANSED, KEG_HINT, LAKE_DONE, RAID_DONE, PRIEST, PRIEST_AGAIN, SICK, WELL, CRYSTAL_HINT, FOREMAN_HINT, PATROL1, MINE_DONE, HANDLE_HINT, KEEPER_HINT, TEMPLE_DONE, PATROL2, ECHO_HINT, WARDEN_HINT, RIFT_OPEN, STITCH_GUIDE, STITCH_DRAWN, STITCH_SUN, STITCH_DONE, STITCH_SNAP, STITCH_HINT, STITCH_PULLED, STITCH_CRUMBLE, RIFT_CLOSED, EPILOGUE2, WARP_DONE } from './sim/act2';
 import { ALL_RELICS, ARENA, hasAllRelics, hasHorse, missAfter, nameSalt, prayerFall, prayerMeet, PRAYER_RISE, relicCount, relicDue, RELICS, RELICS_READY, RELICS_AGAIN, RELICS_GOAL, SANCTUM, SANCTUM_DONE, TRACES, WITCH_LINES, EPILOGUE } from './sim/sanctum';
 
 const credits = document.querySelector<HTMLDialogElement>('#credits')!;
@@ -998,6 +998,7 @@ requestAnimationFrame(function frame(now) {
       if (ev === 'start') stitchGuide = true;
       else if (ev === 'done' && sw.k >= 4) letterbox(true), riftGaze(); // 다 꿰맸다: 틈이 닫히는 연출
       else if (ev === 'done') hint(sw.k === 3 ? STITCH_SUN : STITCH_DONE[sw.k - 1]);
+      else if (ev === 'drawn') hint(STITCH_DRAWN);
       else if (ev === 'snap') say(STITCH_SNAP);
       else if (ev === 'hint') hint(STITCH_HINT);
       else if (ev === 'pulled') hint(STITCH_PULLED);
