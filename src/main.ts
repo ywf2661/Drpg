@@ -744,8 +744,23 @@ if (new URLSearchParams(location.search).has('test')) {
   $('#test-knight').addEventListener('click', () => {
     if (playing() && canSummonKnight(world)) summonKnight(world, cycle); // 그 회차의 성소 5층 기도하는 자와 같은 수치
   });
+  // 파수꾼 결전: 레벨 50 + 틈에서 나온 자 세트 4부위(4단계, 입던 것은 사라진다) → 뒤틀린 차원 결전장
   $('#test-warden').addEventListener('click', () => {
-    if (playing() && canSummonKnight(world)) summonKnight(world, cycle, 'time_warden'); // 그림 시험: 수치는 기사와 같고 전용 기술은 없다
+    if (!playing()) return;
+    for (let i = 0; i < 50 && world.level < 50; i++) gainXp(world, xpToNext(world.level) - world.xp);
+    const hero = world.entities[0];
+    for (const u of ['riftWeapon', 'riftArmor', 'riftHelm', 'riftBoots'] as const) {
+      const it = makeUnique(world, u, hero.x, hero.z, 4);
+      wearGear(world, { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! });
+    }
+    act2 = Math.max(act2, 6);
+    land = 'warp';
+    enterFloor(FLOORS, carryOf(world));
+  });
+  // 숨기기: 테스트 버튼을 모두 접고 접기 버튼만 남긴다
+  $('#test-hide').addEventListener('click', (e) => {
+    const folded = $('#tester').classList.toggle('folded');
+    (e.currentTarget as HTMLElement).textContent = folded ? '▶ 테스트' : '◀ 숨기기';
   });
   // 전설 무기: 누르면 지금 직업이 쓸 수 있는 전설 무기 목록이 펼쳐지고, 고른 것을 4단계로 만들어 가방에 넣고 바로 입는다(입던 무기는 가방으로). 가방이 꽉 차면 그냥 입는다(입던 무기는 사라진다)
   const legends = $('#test-legends');
