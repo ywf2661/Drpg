@@ -32,7 +32,7 @@ import { syncBeams, syncFires, syncJudge, syncSwords, syncZones, zoneGroup } fro
 import { runeTexture } from './ward';
 import { blizzard, fadeOf, SIGHT, view, warnBlizzard } from './sight';
 import { clearRain, rainGroup, syncRain } from './rain';
-import { leapFx, rollFx, rollGroup } from './roll';
+import { ghostTick, leapFx, rollFx, rollGroup } from './roll';
 import { cutsFx, flashFx, iaidoGroup, resetIaido } from './iaido';
 import { freshEdgeHits, resetTemper, temperFx, temperGroup } from './temper';
 import { ghostFx, ghostGroup, resetGhosts } from './ghost';
@@ -351,6 +351,7 @@ export function draw(world: World, dt: number) {
     else if (e === hero && hasUnique(world, 'flowWings')) (leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt), tickWings(time, frozen ? 0 : dt, e, s, true)); // 흐르는 깃의 갑옷: 구르기 대신 활강(날개·수퍼맨 자세)
     else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt), tickWings(time, dt, e, s, false)); // 발도: 일섬·스쳐 베기 질주(iaido.ts, 멈춤은 안에서 따진다)
     if (e === hero && e.phase === 'ride') s.mesh.position.y = rideLift(e.phaseT); // 매 타기: 매가 들어 올린다
+    if (e === hero) ghostTick(s, hasUnique(world, 'riftArmor'), frozen ? 0 : dt); // 잔상 흐리기 + 틈에서 나온 자의 걷기 잔상(roll.ts)
     if (e.skin === 'mummy') s.mesh.scale.y = e.downT ? 0.35 : 1; // 그늘에서 쓰러진 붕대 망령: 엎어져 있다가 일어난다
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)

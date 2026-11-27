@@ -218,7 +218,7 @@ function pixelated<T extends THREE.Texture>(tex: T): T {
 }
 
 // 원색 외형: 특출난 전설(UNIQUES의 look)을 입은 부위 → 그 색. layers: 전설 무기가 바꾸는 레이어 → 시트 이름(null = 그리지 않음)
-export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null>; big?: true }; // big: 거인의 칼(무기 레이어를 키운다)
+export type Looks = Partial<Record<Slot, string>> & { layers?: Record<string, string | null>; big?: true; horns?: true }; // big: 거인의 칼(무기 레이어를 키운다), horns: 정예 사냥꾼의 가면(투구 양옆에 뿔)
 const ELEM_SHEET = ['fire', 'frost', 'bolt', 'void']; // 마법사 탭 0~3 → wizard_main_elem<색>(tools/sprites.py LEGEND_LAYERS)
 // 전설 무기의 레이어(설계 2026-11-20): 칼리버X = 츠바이헨더·방패 없음, 엘리멘탈 스태프 = 마지막 속성 색, 두개골 = 4단계 로드 + 해골 구슬, 천둥새 = 번개 장궁
 const LEGEND_LAYERS: Partial<Record<UniqueId, (elem: number) => Record<string, string | null>>> = {
@@ -240,6 +240,7 @@ export function looksOf(w: Pick<World, 'mods'> & Partial<Pick<World, 'edge' | 'e
     const u = uniqueOf({ affixes: w.mods[s] });
     if (u && UNIQUES[u].look) out[s] = UNIQUES[u].look;
     if (u && LEGEND_LAYERS[u]) out.layers = { ...out.layers, ...LEGEND_LAYERS[u]!(w.elem ?? -1) };
+    if (u === 'hunterHelm') out.horns = true;
   }
   if (w.edge?.kind) out.weapon = EDGE_COLOR[w.edge.kind];
   if (w.bigT) out.big = true;
@@ -290,11 +291,50 @@ async function heroSheet(g: Gear, cls: HeroClass, looks: Looks): Promise<THREE.T
     }),
   );
   if (looks.big && imgs.main) imgs.main = enlarged(imgs.main as HTMLCanvasElement, info);
+  if (looks.horns && imgs.head) imgs.head = horned(imgs.head as HTMLCanvasElement, info);
   const [w, ch] = [info.cols * info.cell[0], info.cell[1]];
   const canvas = Object.assign(document.createElement('canvas'), { width: w, height: info.rows * ch });
   const ctx = canvas.getContext('2d')!;
   for (let r = 0; r < info.rows; r++) for (const l of HERO_ORDER[r % 8]) if (imgs[l]) ctx.drawImage(imgs[l], 0, r * ch, w, ch, 0, r * ch, w, ch);
   return pixelated(new THREE.CanvasTexture(canvas));
+}
+
+// 정예 사냥꾼의 가면: 투구 레이어의 칸마다 머리 윤곽 꼭대기 양옆에 바깥으로 휘어 올라가는 뿔(물들인 뒤라 뿔은 뼈 색 그대로). 쓰러지는 줄은 누워 있어 뺀다
+// HORN = 왼쪽 뿔의 픽셀([dx, dy, 끝 쪽이면 1]): 머리 꼭대기에서 HORN_DOWN줄 아래 줄의 왼쪽 끝 기준. 오른쪽은 좌우를 뒤집는다(맨 꼭대기 기준이면 떠 보였다)
+const HORN: [number, number, number][] = [[0, 0, 0], [-1, 0, 0], [-1, -1, 0], [-2, -1, 0], [-2, -2, 0], [-3, -2, 1], [-3, -3, 1], [-3, -4, 1], [-2, -5, 1]];
+const HORN_DOWN = 3;
+const HORN_COLOR = ['#6e5a40', '#e6d8b8']; // 뿌리, 끝
+const HORN_ROWS = 32; // 이 줄부터는 die(누워 있다)
+const hornedLayers = new WeakMap<CanvasImageSource, HTMLCanvasElement>();
+function horned(img: CanvasImageSource & { width: number; height: number }, info: SheetInfo): HTMLCanvasElement {
+  const done = hornedLayers.get(img);
+  if (done) return done;
+  const [cw, ch] = info.cell;
+  const out = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+  const x = out.getContext('2d', { willReadFrequently: true })!;
+  x.drawImage(img, 0, 0);
+  for (let r = 0; r * ch < img.height && r < HORN_ROWS; r++)
+    for (let c = 0; c * cw < img.width; c++) {
+      const e = headEdge(x.getImageData(c * cw, r * ch, cw, ch).data, cw, ch, HORN_DOWN);
+      if (!e) continue;
+      const [x0, y0, x1] = [c * cw + e[0], r * ch + e[1], c * cw + e[2]];
+      for (const [dx, dy, tip] of HORN) {
+        x.fillStyle = HORN_COLOR[tip];
+        x.fillRect(x0 + dx, y0 + dy, 1, 1);
+        x.fillRect(x1 - dx, y0 + dy, 1, 1);
+      }
+    }
+  hornedLayers.set(img, out);
+  return out;
+}
+// 칸 안 불투명 픽셀의 맨 윗줄에서 down줄 아래(그림 밑을 넘으면 맨 아랫줄)의 [왼쪽 끝, 줄, 오른쪽 끝]. 비었으면 null
+export function headEdge(px: Uint8ClampedArray, w: number, h: number, down: number): [number, number, number] | null {
+  const on = (x: number, y: number) => px[(y * w + x) * 4 + 3] >= 128;
+  const rows = [...Array(h).keys()].filter((y) => [...Array(w).keys()].some((x) => on(x, y)));
+  if (!rows.length) return null;
+  const y = rows.find((r) => r >= rows[0] + down) ?? rows[rows.length - 1];
+  const xs = [...Array(w).keys()].filter((x) => on(x, y));
+  return [xs[0], y, xs[xs.length - 1]];
 }
 
 // 칼자루: 칸 안에서 (cx, cy)(몸 중심)에 가장 가까운 불투명 픽셀. 무기가 없으면 null

@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import hero from '../assets/sprites/hero.json';
 import heads from '../assets/sprites/fallen_paladin_heads.json';
 import { createWorld } from '../sim/world';
-import { gripOf, heroKey, looksOf, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, HERO_RING, heroRingLevel, setHeroRing, type Sprite } from './sprites';
+import { gripOf, heroKey, looksOf, headEdge, CAST_SHOW, cardGeometry, dirIndex, frameAt, HERO_LAYERS, HERO_ORDER, layerUrl, updateSprite, viewHalf, attachHalo, HALO, haloLevel, HERO_RING, heroRingLevel, setHeroRing, type Sprite } from './sprites';
 
 test('후광 맥동: min~max 사이를 period 주기로 오르내린다', () => {
   const xs = Array.from({ length: 200 }, (_, i) => haloLevel((i / 200) * HALO.period));
@@ -187,4 +187,14 @@ test('칼자루 찾기: 몸 중심에 가장 가까운 불투명 픽셀, 없으�
   on(9, 0); on(6, 4); on(1, 9); // 칼끝·칼자루·먼 점
   expect(gripOf(px, w, h, 5, 5)).toEqual([6, 4]);
   expect(gripOf(new Uint8ClampedArray(w * h * 4), w, h, 5, 5)).toBeNull();
+});
+
+test('정예 사냥꾼의 가면: 외형에 붉은 투구 색 + 뿔, 뿔 자리는 투구 꼭대기 몇 줄 아래의 양옆 끝', () => {
+  const mods = { weapon: [], armor: [], helm: [{ kind: 'unique' as const, value: 0, u: 'hunterHelm' as const }], boots: [] };
+  expect(looksOf({ mods })).toEqual({ helm: '#b8322a', horns: true });
+  const px = new Uint8ClampedArray(6 * 5 * 4);
+  for (const [x, y] of [[2, 1], [4, 3], [1, 4]]) px[(y * 6 + x) * 4 + 3] = 255;
+  expect(headEdge(px, 6, 5, 2)).toEqual([4, 3, 4]); // 맨 윗줄 1 → 2줄 아래 = 3줄
+  expect(headEdge(px, 6, 5, 9)).toEqual([1, 4, 1]); // 넘으면 맨 아랫줄
+  expect(headEdge(new Uint8ClampedArray(16), 2, 2, 3)).toBeNull();
 });

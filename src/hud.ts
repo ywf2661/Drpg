@@ -30,7 +30,7 @@ import { offers, sellPrice, type ShopItem, type Wallet } from './shop';
 import { gearName, setRuneNamer } from './render/labels';
 import { FLOORS } from './sim/dungeon';
 import { RELIC_FROM, RELIC_TEXT, RELICS, SANCTUM, type Line } from './sim/sanctum';
-import { greatswordStat, GREATSWORD, downcutStat, isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type UniqueId, type World, LEGEND2, RIFT, type SetId, FORGE, type Awake, heroMax } from './sim/world';
+import { greatswordStat, GREATSWORD, downcutStat, isHub, FINALE, GRAVE_KING, finaleStat, graveKingStat, GEAR_SKILLS, GEAR_SKILL_LIST, runeIcon, STAT_RUNES, GEAR_SIZE, RUNE_COLOR, runeAffix, runeGrade, plainAffixes, socketsOf, runesIn, type Rune, type RuneTarget, BUFFS, TREASURE, TRIAL, quality, setCount, SET_HUNTER, UNIQUES, uniqueOf, gearBonus, rank, canAfford, RESOURCE, resMax, skillCost, swoopStat, rideStat, assistStat, flockStat, HAWK, afterimageStat, swapStat, lingerStat, retraceStat, AFTERIMAGE, arrowStormStat, markStat, grazeStat, echoStat, flashStat, flameEdgeStat, frostEdgeStat, reforgeStat, unleashStat, TEMPER, CUT, GRAZE, FLASH, axeStat, AXES, CHAIN_AXE, BAG, STASH, bagBlocked, bagFits, BLINK, blizzardStat, BOLT, BONE_ARMOR, BONE_MASTERY, boneArmorStat, bonesStat, boltStat, bossName, bounceStat, BURST, burstStat, CHAIN, chainStat, CLASSES, cleaveStat, COMBO, COMET, cometStat, CORPSE, corpseStat, CRIT, critStat, CURSE_MASTERY, curseStat, dashStat, DOWNPOUR, downpourStat, DRAIN, ELITE_KINDS, EMBERS, embersStat, FIREFIELD, firefieldStat, fireRainStat, fireStat, FOCUS, focusStat, FROST_ARMOR, frostArmorStat, frostStat, gearDiff, gearSize, giantStat, huntStat, isPassive, KEY_CD, KEY_LABEL, KEYS, LANDS, LEAP, leapStat, learnBlock, LORD, lordStat, mastered, monsterName, outcome, pierceStat, PLAGUE, plagueStat, POTION, PRISON, prisonStat, PUSH, pushStat, RANGER, RAIN, rainStat, RANK_MAX, RESPEC, ROLL, shoutStat, SKILLS, SLOTS, snareStat, spearStat, spreadStat, staticStat, tempestStat, TRAP, trapStat, trailStat, TREES, WARD, wardStat, xpToNext, MAX_LEVEL, type Affix, type BagItem, type GearItem, type HeroClass, type Land, type SkillId, type SkillName, type Slot, type World, LEGEND2, RIFT, type SetId, FORGE, type Awake, heroMax } from './sim/world';
 import { awakeChoices, forgeCost, starOf } from './sim/forge';
 
 export const $ = (sel: string) => document.querySelector<HTMLElement>(sel)!;
@@ -71,8 +71,9 @@ const GEAR_ICONS: Record<HeroClass, string> = { knight: gearIcons, wizard: wizar
 const nameOf = (kind: Slot, tier: number, affixes: Affix[]) => gearName(kind, tier, affixes, cls);
 // 기도하는 자의 전설(빛 고리·전설 무기 넷): 아이콘 줄 대신 가방 칸 크기(2×2·2×3)에 맞춘 그림 한 장(src/assets/legend)
 // 전설 그림: assets/legend/<전설 id>.png를 넣으면 저절로 붙는다(무기·갑옷 192×288, 둥근 것 192×192)
-const LEGEND_ART = Object.fromEntries(Object.entries(import.meta.glob<string>('./assets/legend/*.png', { eager: true, import: 'default' })).map(([f, url]) => [f.slice(f.lastIndexOf('/') + 1, -4), url])) as Partial<Record<UniqueId, string>>;
-const artOf = (it: GearItem) => { const u = uniqueOf(it); return u && LEGEND_ART[u]; };
+// <전설 id>_<직업>.png가 있으면 그 직업일 때 그것(세트 무기: 칼·지팡이·뼈 완드·활)
+const LEGEND_ART: Record<string, string> = Object.fromEntries(Object.entries(import.meta.glob<string>('./assets/legend/*.png', { eager: true, import: 'default' })).map(([f, url]) => [f.slice(f.lastIndexOf('/') + 1, -4), url]));
+const artOf = (it: GearItem) => { const u = uniqueOf(it); return u && (LEGEND_ART[`${u}_${cls}`] ?? LEGEND_ART[u]); };
 // 아이콘 칸에 그림을 단다: 전설 그림이 있으면 그것(칸에 맞춰 contain), 없으면 직업 장비 줄의 그 단계 칸
 function setIcon(el: HTMLElement, it: GearItem) {
   const art = artOf(it);
@@ -603,6 +604,7 @@ function gearLines(it: GearItem): string[] {
 // 장비 그림 색: 아이템마다 다르다(등급은 테두리로만). 고유 장비는 입었을 때와 같은 원색(look), 아니면 첫 옵션의 색, 일반은 원래 색
 // 아이콘 색: 고유 장비의 제 색만. 옵션 색은 입히지 않는다(치명 주황·생명 초록이 등급 색과 겹쳐 마법이 전설처럼 보였다)
 const iconColor = (it: GearItem) => {
+  if (artOf(it)) return undefined; // 전설 그림은 제 색 그대로
   const u = uniqueOf(it);
   return (u && UNIQUES[u].look) || undefined;
 };

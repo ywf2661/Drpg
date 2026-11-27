@@ -171,10 +171,10 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   elemStaff: { name: '엘리멘탈 스태프', slot: 'weapon', cls: 'wizard', only: true, fixed: [{ kind: 'allSkills', value: 1 }], desc: '마지막에 쓴 스킬의 속성으로 빛나고, 스킬이 맞히면 그 속성으로 한 번 더 피해를 준다' },
   graveSkull: { name: '갇힌 왕의 두개골', slot: 'weapon', cls: 'necromancer', only: true, fixed: [{ kind: 'tab', value: 1, tab: 0 }], desc: '소환 탭에 「무덤 왕의 귀환」이 생긴다' },
   stormBow: { name: '천둥새의 장궁', slot: 'weapon', cls: 'ranger', only: true, fixed: [{ kind: 'skill', value: 2, skill: 'pierce' }], desc: '화살이 맞힌 적 근처의 모든 적에게 번개가 튄다' },
-  hunterWeapon: { name: '정예 사냥꾼의 %', slot: 'weapon', set: 'hunter', fixed: [{ kind: 'dmg', value: 20 }], desc: '' },
-  hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: 'hunter', fixed: [{ kind: 'life', value: 25 }], desc: '' },
-  hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: 'hunter', fixed: ['tab'], desc: '' },
-  hunterBoots: { name: '정예 사냥꾼의 장화', slot: 'boots', set: 'hunter', fixed: [{ kind: 'move', value: 8 }], desc: '' },
+  hunterWeapon: { name: '정예 사냥꾼의 %', slot: 'weapon', set: 'hunter', fixed: [{ kind: 'dmg', value: 20 }], look: '#b8322a', desc: '' },
+  hunterArmor: { name: '정예 사냥꾼의 흉갑', slot: 'armor', set: 'hunter', fixed: [{ kind: 'life', value: 25 }], look: '#b8322a', desc: '' },
+  hunterHelm: { name: '정예 사냥꾼의 가면', slot: 'helm', set: 'hunter', fixed: ['tab'], look: '#b8322a', desc: '' },
+  hunterBoots: { name: '정예 사냥꾼의 장화', slot: 'boots', set: 'hunter', fixed: [{ kind: 'move', value: 8 }], look: '#b8322a', desc: '' },
   // 2막 전설(설계: docs/superpowers/specs/2026-11-25-act2-loot-growth-design.md 2절). 수치는 LEGEND2
   powderHammer: { name: '우두머리의 화약 망치', slot: 'weapon', cls: 'knight', only: true, act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'cleave' }], desc: '가르기를 쓰면 불붙은 화약통이 앞으로 굴러가 터진다' }, // 약탈자 우두머리만(기사일 때)
   bannerSpear: { name: '원정대 깃발창', slot: 'weapon', cls: 'knight', act2: true, fixed: ['tab'], desc: '「깃발 꽂기」가 생긴다. 꽂으면 원정대 병사 둘이 달려와 함께 싸운다' },

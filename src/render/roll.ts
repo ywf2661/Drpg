@@ -80,6 +80,20 @@ export function rollFx(s: Sprite, e: Entity, dt: number) {
     mesh.rotation.z = 0;
     mesh.scale.y = 1;
   }
+}
+
+// 틈에서 나온 자의 갑주: 걷는 동안 RIFT_EVERY초마다 얼음빛 잔상 하나(뒤로 2~3개가 따라오다 흩어진다)
+const RIFT_EVERY = 0.08;
+const RIFT_TINT = new THREE.Color('#9fdcff');
+let riftT = 0;
+// 주인공 판자를 다 움직인 뒤 매 프레임(직업·날개와 상관없이): 걷기 잔상을 남기고 모든 잔상을 흐리게 한다
+export function ghostTick(s: Sprite, rift: boolean, dt: number) {
+  if (rift && s.anim === 'move') {
+    if ((riftT -= dt) <= 0) {
+      ghost(s, RIFT_TINT, 0.8);
+      riftT = RIFT_EVERY;
+    }
+  } else riftT = 0;
   for (const g of ghosts) {
     g.age += dt;
     g.mesh.visible = g.age < GHOST_LIFE;
