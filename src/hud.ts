@@ -356,7 +356,7 @@ const SKILL_TEXT: Record<SkillId, SkillText> = {
   downpour: { name: '폭우', desc: `패시브 — 화살비·불화살이 몇 차례 더 쏟아진다(한 번에 ${pct(DOWNPOUR.mult)} 피해)`, stat: (w) => `${Math.max(1, downpourStat(w).waves)}번 더` },
   arrowStorm: { name: '화살 폭풍', desc: '주변 곳곳에 화살비가 연달아 쏟아진다', stat: (w) => { const s = arrowStormStat(w); return `화살비 ${s.count}번, 각각 ${wd(s.mult)}${cd(s.cd)}`; } },
   // 강령술사
-  bones: { name: '해골 소환', desc: '함께 싸울 해골을 일으킨다. 2단계부터 궁수, 4단계부터 법사가 섞인다. 다시 쓰면 쓰러진 자리만 채운다(살아 있는 해골은 다친 그대로). 궁수·마법사·정예는 해골에게 맞아도 술사를 노린다', cap: '해골을 한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `${s.count}기(최대 ${s.max}기) · 체력 ${s.hp} · ${wd(s.mult)}${cd(s.cd)}`; } },
+  bones: { name: '해골 소환', desc: '함께 싸울 해골을 일으킨다. 2단계부터 궁수, 4단계부터 법사가 섞인다. 다시 쓰면 쓰러진 자리만 채운다(살아 있는 해골은 다친 그대로). 궁수·마법사·정예는 해골에게 맞아도 술사를 노린다. 해골이 한 기 서 있을 때마다 술사의 최대 체력이 6%씩 줄고, 해골이 쓰러지면 돌아온다', cap: '해골을 한 기 더 일으킨다', stat: (w) => { const s = bonesStat(w); return `${s.count}기(최대 ${s.max}기) · 체력 ${s.hp} · ${wd(s.mult)}${cd(s.cd)}`; } },
   giant: { name: '시체 거인', desc: '튼튼한 시체 거인을 하나 불러낸다. 나타날 때 주변 적의 시선을 끈다', cap: '쓰러질 때 터지며 주변 적에게 피해를 준다', stat: (w) => { const s = giantStat(w); return `체력 ${s.hp} · ${wd(s.mult)}${cd(s.cd)}`; } },
   boneMastery: { name: '해골 숙련', desc: `패시브 — 해골이 더 강하고 튼튼해진다. ${BONE_MASTERY.at}단계부터 해골이 한 기 더 나온다`, stat: (w) => `피해 +${pct(BONE_MASTERY.mult * Math.max(1, w.ranks.boneMastery ?? 0))} · 체력 +${pct(BONE_MASTERY.hp * Math.max(1, w.ranks.boneMastery ?? 0))}` },
   lord: { name: '해골 왕 강림', desc: '가장 강한 소환수인 해골 왕을 불러낸다. 휘두르면 주변 적까지 함께 베고, 머무는 동안 다른 소환수가 강해진다', cap: '해골 둘을 거느리고 온다', stat: (w) => { const s = lordStat(w); return `${sec(s.life)} 동안 · 체력 ${s.hp} · 반경 ${LORD.splash}m 안의 적에게 ${wd(s.mult)}${cd(s.cd)}`; } },

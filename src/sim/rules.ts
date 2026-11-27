@@ -1042,7 +1042,7 @@ export const FOCUS = { cd: 14, time: 6, speed: 0.4, spread: 0.15, kill: 1 };
 
 // 강령술사. 평타(뼈 화살)는 마법사 마력탄(WIZ)과 같다.
 // 해골 소환(소환 1): 재사용, 소환 수(3단계 +1, 5단계 +1. 최대 수는 +2), 유지(초), 배율(× 강령술사 굴림), 공격 간격, 닿는 거리, 속도, 적을 찾는 거리
-export const BONES = { cd: 4, count: 2, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, archerAt: 2, mageAt: 4 }; // archerAt·mageAt: 궁수·법사가 섞이기 시작하는 단계
+export const BONES = { cd: 4, count: 2, hp: 0.3, mult: 0.35, interval: 1.1, reach: 1.2, speed: 4.2, aggro: 8, archerAt: 2, mageAt: 4, bind: 0.06 }; // archerAt·mageAt: 궁수·법사가 섞이기 시작하는 단계, bind: 해골 한 기가 묶는 최대 체력 비율
 // 해골 숙련(소환 패시브): 단계마다 해골 피해 +12%·체력 +10%, at단계부터 한 기 더
 export const BONE_MASTERY = { mult: 0.12, hp: 0.1, at: 3 };
 // 해골 종류(검사 기준 체력·피해 배수, 공격 간격, 사거리). 궁수는 뼈 화살을 쏘고, 법사는 맞은 적 둘레(splash)도 함께 태운다

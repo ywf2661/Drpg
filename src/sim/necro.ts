@@ -160,6 +160,13 @@ export function banner(w: World, hero: Entity, x?: number, z?: number): number {
 // 해골에게 맞아도 한눈팔지 않고 강령술사를 노리는 적(시체 거인의 도발만 이들을 끈다 — 보스·해골 왕 빼고)
 export const casterHunter = (e: Entity) => e.elite || e.kind === 'archer' || e.kind === 'mage' || e.kind === 'boss' || e.kind === 'king';
 
+// 생명 묶음: 서 있는 해골(시간제가 아닌 것) 한 기마다 술사의 최대 체력이 BONES.bind씩 묶인다. 쓰러지면 최대치가 돌아온다(현재 체력은 그대로)
+export function bindLife(w: World, hero: Entity) {
+  const n = w.allies.filter((a) => isBone(a) && a.lifeMax === Infinity && a.state !== 'dead').length;
+  hero.maxHp = Math.max(1, Math.round(heroMax(w) * (1 - BONES.bind * n)));
+  hero.hp = Math.min(hero.hp, hero.maxHp);
+}
+
 export function tickAllies(w: World, hero: Entity) {
   const aura = w.allies.some((a) => a.kind === 'king' && a.from === 'lord') ? LORD.aura : 1;
   const marked = (e: Entity) => w.curses.some((c) => c.amp > 0 && Math.hypot(e.x - c.x, e.z - c.z) <= c.r);

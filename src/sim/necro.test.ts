@@ -151,3 +151,14 @@ test('몬스터는 가까운 해골을 노려 때리고, 해골은 체력이 다
   expect(w.items.length).toBe(0);
   expect(m.target).toBe(hero.id); // 해골이 무너지면 주인공에게로
 });
+
+test('생명 묶음: 해골 한 기마다 최대 체력이 묶이고, 쓰러지면 최대치가 돌아온다', () => {
+  const w = necro(['H....', '.....']);
+  const hero = w.entities[0];
+  run(w, 2, [{ type: 'skill' }]);
+  expect(hero.maxHp).toBe(Math.round(75 * (1 - BONES.bind * BONES.count)));
+  expect(hero.hp).toBeLessThanOrEqual(hero.maxHp);
+  w.allies[0].state = 'dead';
+  run(w, 2);
+  expect(hero.maxHp).toBe(Math.round(75 * (1 - BONES.bind * (BONES.count - 1))));
+});

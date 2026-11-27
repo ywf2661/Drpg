@@ -4,7 +4,7 @@ import { walkable, type Cell, type Grid } from './path';
 import type { Side } from './wilds';
 import { mastered, keyOf, downcutStat, gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn, hasUnique, setCount } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap, tickGales, tickTwin } from './ranger';
-import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses, banner, march, casterHunter } from './necro';
+import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, bindLife, tickCurses, banner, march, casterHunter } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { downcut, finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, greatsword, bigSweep, bigFinale, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
@@ -263,6 +263,7 @@ export function step(w: World, cmds: Command[]): void {
     act(w, e);
   }
   if (w.allies.length) tickAllies(w, hero);
+  if (w.cls === 'necromancer' && hero.state !== 'dead') bindLife(w, hero);
   fly(w, hero);
   if (w.cls === 'ranger') tickHawks(w, hero); // 매(스킬 화살 협공은 fly가 고른다)
   tickZones(w);

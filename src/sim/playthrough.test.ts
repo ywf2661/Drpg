@@ -47,7 +47,7 @@ test('강령술사 봇도 5층까지 깨지만 여러 번 죽고, 스킬 없이�
   const withSkills = play(true);
   const standing = play(true, false);
   const bare = play(false);
-  expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(15); // 지금 21(소환수 위주로 다시 짠 뒤: 해골 검사·궁수·법사, 시체 거인, 해골 왕). MONSTER_DMG 3.25(사용자: 너무 쉽다) 뒤. 봇은 층마다 4번 죽으면 포기해 사망 수가 포화한다 — 그 전 수치는 git 기록
+  expect(withSkills.filter((r) => r.cleared).length).toBeGreaterThanOrEqual(10); // 지금 13(생명 묶음 뒤. 그 전 21 — 소환수 위주로 다시 짠 뒤: 해골 검사·궁수·법사, 시체 거인, 해골 왕). MONSTER_DMG 3.25(사용자: 너무 쉽다) 뒤. 봇은 층마다 4번 죽으면 포기해 사망 수가 포화한다 — 그 전 수치는 git 기록
   expect(deaths(withSkills)).toBeGreaterThanOrEqual(55); // 지금 94(마나 뒤. 비용 없을 때 85; 구르기 재사용 2.5초. 구르기 끈 때 102 — 재사용 1~3초 사이 57~71로 대기 시간에 거의 무관)
   expect(deaths(withSkills)).toBeLessThanOrEqual(130);
   expect(standing.filter((r) => r.cleared).length).toBeLessThan(withSkills.filter((r) => r.cleared).length); // 피하지 않으면 더 못 깬다. 지금 6
