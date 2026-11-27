@@ -232,10 +232,13 @@ export function charge(w: World, e: Entity, t: Entity | null): boolean {
     if (!t || e.cd > 0 || e.state === 'attack' || d < CHARGE.min || d > CHARGE.max || !clearLine(w, e, t)) return false;
     Object.assign(e, { phase: 'windup', phaseT: CHARGE.windup, cd: CHARGE.cd, state: 'idle', path: [] });
     face(e, t);
+    // 돌진할 길: 보스에서 대상 쪽으로 뻗는 가는 쐐기(내려찍기 같은 동그라미 예고와 모양으로 갈린다). 예고가 끊기면 tickZones가 지운다
+    w.zones.push({ id: w.nextItem++, x: e.x, z: e.z, r: CHARGE.dist, t: CHARGE.windup, total: CHARGE.windup, dmg: 0, owner: e.id, kind: 'warn', a: e.facing, arc: CHARGE.laneArc });
     return true;
   }
   if (e.phase === 'windup') {
     if (t) face(e, t);
+    for (const z of w.zones) if (z.owner === e.id && z.arc === CHARGE.laneArc) z.a = e.facing; // 대상을 따라 돈다
     if ((e.phaseT -= DT) > 0) return true;
     const d = t ? dist(e, t) || 1 : 1;
     if (!t) return Object.assign(e, { phase: 'none' }), true;

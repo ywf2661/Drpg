@@ -781,7 +781,7 @@ export const GOLD_ELITE = { lo: 40, hi: 60 };
 
 export const GOLD_CHEST = { lo: 15, hi: 30 };
 
-export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8, mult: 1.5, cd: 7 }; // 보스 돌진
+export const CHARGE = { min: 3, max: 7, windup: 0.7, speed: 9, dist: 7, hit: 0.8, mult: 1.5, cd: 7, laneArc: 0.12 }; // 보스 돌진. laneArc: 예고 쐐기의 반각(라디안)
 
 // 초원 야영지: 상자 둘레 radius(m) 안의 몬스터가 지킨다. 상자는 늘 장비, 금화는 gold배
 export const CAMP = { radius: 6, gold: 2 };

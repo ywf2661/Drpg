@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { findPath, walkable } from './path';
+import { CHARGE } from './rules';
 import { ARMORS, attackInterval, createWorld, DMG_SCALE, DT, ELITE, exitAt, MONSTER_DMG, outcome, sideOf, RADIUS, setLevel, STATS, step, TELL, tierOf, WEAPONS, winding, xpToNext, type Command, type World } from './world';
 
 // 예전 기본 맵(32×32). 재현성·연결성 테스트용 고정 데이터
@@ -881,9 +882,14 @@ test('예고 중 옆으로 비키면 돌진이 빗나가고, 벽에서 멈춘다
   const { w, hero, boss } = chargeWorld();
   step(w, []);
   expect(boss.phase).toBe('windup');
+  const lane = () => w.zones.find((z) => z.owner === boss.id && z.arc === CHARGE.laneArc);
+  expect(lane()).toBeDefined(); // 돌진 예고: 바닥에 돌진할 길(가는 쐐기)
   hero.z = 2.5; // 예고 중에 옮긴 위치를 향해 달린다
+  step(w, []);
+  expect(lane()!.a).toBeCloseTo(Math.atan2(hero.x - boss.x, hero.z - boss.z)); // 쐐기가 주인공을 따라 돈다
   run(w, Math.round(0.75 / DT)); // 예고(0.7초)가 끝나 돌진이 시작됨
   expect(boss.phase).toBe('charge');
+  expect(lane()).toBeUndefined();
   hero.z = 0.5; // 돌진이 시작된 뒤 반대쪽으로 비킴
   const hp0 = hero.hp;
   run(w, 45); // 돌진(약 0.6초)이 끝날 때까지. 그 뒤 근접 공격이 닿기 전

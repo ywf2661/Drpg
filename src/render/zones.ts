@@ -37,12 +37,12 @@ export function syncZones(world: World) {
       const [disc, ring] = arc ? fan(arc) : [DISC, RING]; // 부채꼴(파수꾼 시계바늘 베기): 가운데가 +z, a만큼 돌린다
       const fill = new THREE.Mesh(disc, FILL_MAT);
       g.add(new THREE.Mesh(disc, AREA_MAT), fill, new THREE.Mesh(ring, RING_MAT));
-      if (arc) g.rotation.y = (z as { a?: number }).a ?? 0;
       g.traverse((o) => (o.renderOrder = 1)); // 바닥 다음, 캐릭터 전에
       zoneGroup.add(g);
       shown.set(z.id, (s = { g, fill }));
     }
     s.g.position.set(z.x, 0.03, z.z);
+    s.g.rotation.y = (z as { a?: number }).a ?? 0; // 부채꼴은 매 프레임(보스 돌진 쐐기는 대상을 따라 돈다)
     s.g.scale.setScalar(z.r);
     s.fill.scale.setScalar(Math.max(0.001, 1 - z.t / z.total));
   }
