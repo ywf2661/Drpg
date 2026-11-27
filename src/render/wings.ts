@@ -12,10 +12,14 @@ const GLIDE_TILT = 1.2; // 판자를 눕히는 최대 각(라디안, 약 70°)
 const LIFT = 0.55; // 활강 때 뜨는 높이(m)
 const CENTER = 0.6; // 판자를 눕힐 때 축(몸 가운데 높이, roll.ts와 같다)
 const RIGHT = new THREE.Vector3(1, 0, -1).normalize(); // 화면 가로
+const TOWARD_CAM = new THREE.Vector3(1, 0, 1).normalize(); // 판자가 눕는 축(판자 rotation.z = 이 축으로 돈다)
 const C0 = new THREE.Color(0xf2fbff);
 const C1 = new THREE.Color(0x9fd8ff);
 const C2 = new THREE.Color(0x7a5cff);
 const tmp = new THREE.Color();
+const BEHIND = new THREE.Vector3(0, 0, -1);
+const trail = new THREE.Vector3();
+const qInv = new THREE.Quaternion();
 type P3 = [number, number, number];
 type Feather = { mesh: THREE.Mesh; threads: THREE.Line[]; pts: P3[] };
 type Side = { side: number; anchor: THREE.Group; feathers: Feather[]; stitches: { l: THREE.LineSegments; f: number; at: number }[] };
@@ -79,10 +83,12 @@ function spine(side: number, f: number, s: number, t: number, open: number, sway
   const out = 0.45 + fan * 0.35 + open * 0.75;
   const wave = Math.sin(t * 2.2 - s * 3.5 + f * 0.7) * 0.06 * s * (1 + sway);
   const curl = s * s * 0.25;
-  return [side * (out * s * len + 0.02), up * s * len - curl * (0.6 - open * 0.4) + wave * 0.5, -(0.12 + back) * s * len + wave];
+  const flap = Math.sin(t * 7 - s * 1.8) * 0.22 * s * s * open; // 활강: 깃 끝이 늦게 따라오는 느린 날갯짓
+  return [side * (out * s * len + 0.02), up * s * len - curl * (0.6 - open * 0.4) + wave * 0.5 + flap, -(0.12 + back) * s * len + wave];
 }
 
-function pose(sides: Side[], t: number, open: number, sway: number) {
+// trail = 실이 끌리는 쪽(몸 기준 단위 벡터): 서 있으면 등 뒤, 활강하면 날아가는 반대쪽
+function pose(sides: Side[], t: number, open: number, sway: number, trail: THREE.Vector3) {
   const back = 0.15 * (1 - open) + 0.05 * open;
   for (const S of sides) {
     S.feathers.forEach((F, f) => {
@@ -108,7 +114,7 @@ function pose(sides: Side[], t: number, open: number, sway: number) {
         for (let i = 0; i < 10; i++) {
           const q = i / 9;
           const len = (0.25 + open * 0.9) * q;
-          a.setXYZ(i, tip[0] + S.side * q * 0.08 * (j ? 1 : -0.3) + Math.sin(t * 5 + i * 0.8 + j * 2 + f) * 0.04 * q, tip[1] - q * (0.05 + j * 0.06) - len * open + Math.cos(t * 4 + i + f) * 0.03 * q, tip[2] - len * (1 - open));
+          a.setXYZ(i, tip[0] + S.side * q * 0.08 * (j ? 1 : -0.3) + Math.sin(t * 5 + i * 0.8 + j * 2 + f) * 0.04 * q + trail.x * len, tip[1] - q * (0.05 + j * 0.06) + trail.y * len + Math.cos(t * 4 + i + f) * 0.03 * q, tip[2] + trail.z * len);
         }
         a.needsUpdate = true;
         (L.material as THREE.LineBasicMaterial).opacity = 0.45 + open * 0.45;
@@ -129,17 +135,22 @@ function pose(sides: Side[], t: number, open: number, sway: number) {
   }
 }
 
-let wings: { body: THREE.Group; sides: Side[] } | null = null;
+let wings: { pivot: THREE.Group; body: THREE.Group; sides: Side[] } | null = null;
 let open = 0;
 
 // 매 프레임(주인공 판자를 놓은 뒤): worn = 갑옷을 입었나, s = 주인공 판자. 활강이면 판자를 눕히고 띄운다
 export function tickWings(time: number, dt: number, hero: Entity, s: Sprite, worn: boolean) {
   if (!worn || hero.state === 'dead') {
-    if (wings) wings.body.visible = false;
+    if (wings) wings.pivot.visible = false;
     open = 0;
     return;
   }
-  if (!wings) wingsGroup.add((wings = build()).body);
+  if (!wings) {
+    const pivot = new THREE.Group();
+    wings = { pivot, ...build() };
+    wings.body.position.y = -CENTER;
+    wingsGroup.add(pivot.add(wings.body));
+  }
   const gliding = hero.phase === 'roll';
   open += ((gliding ? 1 : 0) - open) * Math.min(1, dt * (gliding ? 12 : 5));
   // 수퍼맨 자세: 화면에서 나아가는 쪽으로 머리를 눕힌다(좌우로 날면 다 눕고, 위아래면 덜)
@@ -150,13 +161,16 @@ export function tickWings(time: number, dt: number, hero: Entity, s: Sprite, wor
   mesh.position.x += RIGHT.x * CENTER * Math.sin(tilt);
   mesh.position.z += RIGHT.z * CENTER * Math.sin(tilt);
   mesh.position.y += CENTER * (1 - Math.cos(tilt)) + LIFT * open;
-  // 날개: 몸(3D)을 바라보는 쪽으로, 누운 만큼 앞으로 숙인다(sim facing: +z가 앞)
-  const b = wings.body;
-  b.visible = true;
-  b.position.set(hero.x, LIFT * open, hero.z);
-  b.rotation.order = 'YXZ';
-  b.rotation.y = hero.facing;
-  b.rotation.x = open * 1.4;
+  // 날개: 판자와 같은 축(몸 가운데, 화면 앞뒤 축)으로 같은 각만큼 눕고, 그 안에서 바라보는 쪽으로 돈다(sim facing: +z가 앞)
+  const p = wings.pivot;
+  p.visible = true;
+  p.position.set(hero.x, CENTER + LIFT * open, hero.z);
+  p.quaternion.setFromAxisAngle(TOWARD_CAM, tilt);
+  wings.body.rotation.y = hero.facing;
   const walking = hero.state === 'move' && !gliding;
-  pose(wings.sides, time, open, walking ? 0.8 + 0.6 * Math.abs(Math.sin(time * 6)) : 0);
+  // 실: 날아가는 반대쪽(조금 아래로)을 몸 기준으로 바꿔, 서 있을 때의 등 뒤와 섞는다
+  qInv.copy(p.quaternion).multiply(wings.body.quaternion).invert();
+  trail.set(-hero.dx, -0.35, -hero.dz).normalize().applyQuaternion(qInv);
+  trail.lerpVectors(BEHIND, trail, open).normalize();
+  pose(wings.sides, time, open, walking ? 0.8 + 0.6 * Math.abs(Math.sin(time * 6)) : 0, trail);
 }
