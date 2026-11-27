@@ -551,6 +551,8 @@
         #throw { right: 18px; bottom: 138px; }
         #potion { right: 148px; bottom: 148px; }
         #hud { max-width: calc(100vw - 250px); } /* 버튼 무리와 겹치지 않게 */
+        /* 알림·힌트: 버튼 무리(위 끝 204px)와 HUD 위로 올리고, 전투 화면 위에서도 읽히게 어두운 바탕 */
+        #toast { bottom: 216px; width: fit-content; max-width: calc(100vw - 32px); margin: 0 auto; padding: 6px 14px; font-size: 16px; line-height: 1.4; background: #000b; border: 1px solid var(--gold-lo); border-radius: 4px; }
       }
       /* 체력이 낮을 때: 화면 가장자리만 붉게(가운데는 그대로 보인다). 세기는 hud.ts가 opacity로, 맥박은 천천히·약하게 */
       #danger { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
