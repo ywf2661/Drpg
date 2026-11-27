@@ -179,7 +179,7 @@ export const UNIQUES: Record<UniqueId, { name: string; slot: Slot; cls?: HeroCla
   powderHammer: { name: '우두머리의 화약 망치', slot: 'weapon', cls: 'knight', only: true, act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'cleave' }], desc: '가르기를 쓰면 불붙은 화약통이 앞으로 굴러가 터진다' }, // 약탈자 우두머리만(기사일 때)
   bannerSpear: { name: '원정대 깃발창', slot: 'weapon', cls: 'knight', act2: true, fixed: ['tab'], desc: '「깃발 꽂기」가 생긴다. 꽂으면 원정대 병사 둘이 달려와 함께 싸운다' },
   wellScepter: { name: '우물 사제의 홀', slot: 'weapon', cls: 'wizard', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'frost' }], look: '#3aa0e0', desc: '냉기 스킬이 물웅덩이를 남긴다. 물 위의 적이 번개에 맞으면 웅덩이 위의 적이 모두 감전된다' },
-  plagueStaff: { name: '역병 의사의 지팡이', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'curse' }], look: '#5dbb3a', desc: '저주받은 채 쓰러진 적이 일어나 10초 동안 함께 싸운다' },
+  plagueStaff: { name: '역병 의사의 지팡이', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'curse' }], look: '#5dbb3a', desc: '죽음의 표식 안에 놓인 시체가 생전 모습 그대로 일어나 10초 동안 함께 싸운다' },
   boneFlute: { name: '뼈 피리', slot: 'weapon', cls: 'necromancer', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'bones' }], look: '#e8dcc0', desc: '「행진」이 생긴다. 해골 병사들이 가리킨 쪽으로 줄지어 돌격한다' },
   galeBow: { name: '회오리 깃 활', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'skill', value: 2, skill: 'rain' }], look: '#7fe0a0', desc: '화살비가 떨어진 자리에 회오리가 일어 둘레의 적을 끌어모은다' },
   twinBows: { name: '사냥꾼의 쌍궁', slot: 'weapon', cls: 'ranger', act2: true, fixed: [{ kind: 'speed', value: 15 }], desc: '걷는 동안 가장 가까운 적에게 저절로 화살을 쏜다' },
