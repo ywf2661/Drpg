@@ -1146,18 +1146,22 @@ requestAnimationFrame(function frame(now) {
     if (riftDone && !talking()) {
       riftDone = false;
       act2 = Math.max(act2, 7);
-      // 엔딩 보상: 흐르는 깃의 갑옷(가방, 자리가 없으면 창고)
+      // 엔딩 보상: 흐르는 깃의 갑옷(가방, 자리가 없으면 창고, 둘 다 차면 천막에 돌아와 주인공 곁 바닥에)
       const it = makeUnique(world, 'flowWings', world.entities[0].x, world.entities[0].z, world.maxTier);
       const g = { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! };
-      const [box, at] = bagSpot(world.bag, g) ? [world.bag, bagSpot(world.bag, g)!] : [stash, bagSpot(stash, g, STASH)];
-      if (at) box.push({ ...g, x: at[0], y: at[1] });
+      const inBag = bagSpot(world.bag, g);
+      const inStash = inBag ? null : bagSpot(stash, g, STASH);
+      if (inBag) world.bag.push({ ...g, x: inBag[0], y: inBag[1] });
+      else if (inStash) stash.push({ ...g, x: inStash[0], y: inStash[1] });
       // 크레딧이 끝나 천막으로 돌아오면 알린다(창고로 가면 모르고 지나가니까): 줍기 카드 + 어디에 넣었는지 한 줄
       void epilogue(goCamp, EPILOGUE2).then(() => {
-        showPick({ ...g, up: gearGain(world, g), worn: false }, () => {
+        const hero = world.entities[0]; // 천막의 새 world
+        if (!inBag && !inStash) world.items.push({ ...it, id: world.nextItem++, x: hero.x, z: hero.z }); // 주인공이 선 칸은 늘 걸을 수 있는 바닥
+        if (inBag || inStash) showPick({ ...g, up: gearGain(world, g), worn: false }, () => {
           const i = world.bag.findIndex((b) => b.affixes === g.affixes);
           return i >= 0 && equipFromBag(world, i);
         });
-        say(`${UNIQUES.flowWings.name}을 얻었다 — ${box === world.bag ? '가방' : '창고'}에 넣었다`);
+        say(`${UNIQUES.flowWings.name}을 얻었다 — ${inBag ? '가방에 넣었다' : inStash ? '창고에 넣었다' : '가방·창고가 가득 차 발밑에 떨어뜨렸다'}`);
       });
     }
   }
