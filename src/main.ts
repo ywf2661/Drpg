@@ -2,6 +2,7 @@
 import { FERRYMAN } from './sim/ferryman';
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
+import { gearGain } from './sim/core';
 import { $, hint, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud, showForge } from './hud';
 import { awaken, temper } from './sim/forge';
 import { aim, aiming, amoving, cancelAim, commands, dragAim, fireAim, setSkillGate, hovered, initInput, pollInput, startAim, startAmove, type AimCmd } from './input';
@@ -1150,7 +1151,14 @@ requestAnimationFrame(function frame(now) {
       const g = { kind: it.kind as Slot, tier: it.tier, affixes: it.affixes! };
       const [box, at] = bagSpot(world.bag, g) ? [world.bag, bagSpot(world.bag, g)!] : [stash, bagSpot(stash, g, STASH)];
       if (at) box.push({ ...g, x: at[0], y: at[1] });
-      void epilogue(goCamp, EPILOGUE2);
+      // 크레딧이 끝나 천막으로 돌아오면 알린다(창고로 가면 모르고 지나가니까): 줍기 카드 + 어디에 넣었는지 한 줄
+      void epilogue(goCamp, EPILOGUE2).then(() => {
+        showPick({ ...g, up: gearGain(world, g), worn: false }, () => {
+          const i = world.bag.findIndex((b) => b.affixes === g.affixes);
+          return i >= 0 && equipFromBag(world, i);
+        });
+        say(`${UNIQUES.flowWings.name}을 얻었다 — ${box === world.bag ? '가방' : '창고'}에 넣었다`);
+      });
     }
   }
   if (o === 'clear' && !talking() && !outroOn() && !(sw && sw.phase !== 'closed')) clearT += dt; // 엔딩 1이면 레터박스가 걷힌 뒤부터, 꿰매는 동안은 멈춘다
