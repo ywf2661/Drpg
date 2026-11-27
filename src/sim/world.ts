@@ -4,7 +4,7 @@ import { walkable, type Cell, type Grid } from './path';
 import type { Side } from './wilds';
 import { mastered, keyOf, downcutStat, gearKeys, keyCut, recordPast, rollUnique, baseRank, canAfford, pay, resMax, resRegen, attackInterval, bagSpot, byId, gearGain, canHit, clearLine, damage, dist, dress, dropGold, face, friends, isBetter, makeEntity, pathTo, rand, randSlot, rank, rollGear, walk, wear, worn, hasUnique, setCount } from './core';
 import { arrowStorm, fireRain, focus, hunt, pierce, pushShot, rain, shaft, spreadShot, tickTraps, tickVolleys, trap, tickGales, tickTwin } from './ranger';
-import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses, banner, march } from './necro';
+import { graveKing, boneArmor, bones, corpseBlast, curse, giant, lord, plague, prison, spear, tickAllies, tickCurses, banner, march, casterHunter } from './necro';
 import { blink, blizzard, bolt, chainLightning, comet, fireball, firefield, frost, lightning, tempest, tickAura, tickStorm, tickWard, ward } from './wizard';
 import { downcut, finale, bounceAxe, charge, cleave, cleaveStart, dashStart, dashStep, greatsword, bigSweep, bigFinale, flee, fly, leap, leapStep, meteor, openGate, rollStart, rollStep, scare, shoot, shout, slam, summon, throwAxe, tickFires, tickZones } from './abilities';
 import { echoCast, flash, flashStep, graze, grazeStep, markSlash, markStart, tickCuts } from './iaido';
@@ -701,7 +701,7 @@ function think(w: World, e: Entity, hero: Entity) {
   }
   if (e.target !== null) return;
   const t = friends(w)
-    .filter((f) => dist(e, f) <= AGGRO)
+    .filter((f) => dist(e, f) <= AGGRO && (f === hero || !casterHunter(e) || dist(e, hero) > AGGRO)) // 궁수·마법사·정예·보스는 술사가 닿으면 해골을 거들떠보지 않는다
     .sort((a, b) => dist(e, a) - dist(e, b))[0];
   if (!t) return;
   e.target = t.id;

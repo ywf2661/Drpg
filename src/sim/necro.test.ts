@@ -31,23 +31,33 @@ test('해골 병사: 둘을 불러 가까운 적을 때려 잡고(경험치는 �
   expect(w.allies.length).toBe(BONES.count);
 });
 
-test('해골 소환을 다시 쓰면 그 스킬로 부른 해골만 물러난다(저주로 일으킨 해골·거인은 남는다)', () => {
+test('해골 소환을 다시 쓰면 쓰러진 자리만 채운다(살아 있는 해골은 다친 그대로, 다 서 있으면 쓰지 않는다)', () => {
   const w = necro(['H....', '.....']);
-  w.ranks.curse = 5;
-  const m = makeEntity(1, 'minion', 3.5, 0.5, 1);
-  m.state = 'dead';
-  w.entities.push(m);
-  run(w, 1, [{ type: 'dash' }]);
-  run(w, 1, [{ type: 'shout', x: 3.5, z: 0.5 }]);
   run(w, 1, [{ type: 'skill' }]);
-  const first = w.allies.filter((a) => a.from === 'bones').map((a) => a.id);
+  const [a, b] = w.allies;
   w.skillCd = 0;
   run(w, 1, [{ type: 'skill' }]);
-  const now = w.allies.filter((a) => a.from === 'bones');
+  expect(w.skillCd).toBe(0); // 다 서 있다: 쓰지 않는다
+  a.hp = 1;
+  b.state = 'dead';
+  run(w, 1);
+  run(w, 1, [{ type: 'skill' }]);
+  const now = w.allies.filter((x) => x.from === 'bones');
   expect(now.length).toBe(bonesStat(w).count);
-  expect(now.some((a) => first.includes(a.id))).toBe(false);
-  expect(w.allies.length).toBe(bonesStat(w).count + 2); // 거인 + 저주 해골
-  expect(now.every((a) => a.lifeMax === Infinity)).toBe(true);
+  expect(now).toContain(a);
+  expect(a.hp).toBe(1); // 상처는 그대로
+  expect(now.every((x) => x.lifeMax === Infinity)).toBe(true);
+});
+
+test('궁수·정예는 해골에게 맞아도 강령술사를 노린다(졸개는 해골에게 끌려간다)', () => {
+  const w = necro(['H...m', '....a']);
+  const [hero, m, ar] = w.entities;
+  m.hp = m.maxHp = ar.hp = ar.maxHp = 100000;
+  run(w, 1, [{ type: 'skill' }]);
+  w.allies.forEach((x) => (x.hp = x.maxHp = 100000));
+  run(w, 60 * 5);
+  expect(m.target).not.toBe(hero.id);
+  expect(ar.target).toBe(hero.id);
 });
 
 test('해골 소환: 단계가 오르면 궁수·법사가 섞이고, 궁수는 멀리서 뼈 화살로 맞힌다', () => {

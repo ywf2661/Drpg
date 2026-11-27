@@ -66,23 +66,25 @@ function spawn(w: World, x: number, z: number, kind: Kind, st: Pick<Ally, 'life'
 }
 
 // (x, z) 둘레에 해골 n기를 일으킨다(종류는 해골 소환 단계의 순서대로)
-export function raise(w: World, x: number, z: number, n: number, from?: SkillId) {
+export function raise(w: World, x: number, z: number, n: number, from?: SkillId, kinds?: BoneKind[]) {
   const st = bonesStat(w);
   for (let k = 0; k < n; k++) {
     const a = (k / Math.max(1, n)) * Math.PI * 2 + w.nextItem;
     const [sx, sz] = [x + Math.sin(a) * 0.8, z + Math.cos(a) * 0.8];
     const [ax, az] = walkable(w.grid, Math.floor(sx), Math.floor(sz)) ? [sx, sz] : [x, z];
-    const kind = st.kinds[k % st.kinds.length];
+    const kind = kinds?.[k] ?? st.kinds[k % st.kinds.length];
     const b: { hp: number; mult: number; interval: number; reach: number; splash?: number } = BONE_KINDS[kind];
     spawn(w, ax, az, kind, { life: st.life, hp: Math.round(st.hp * b.hp), mult: st.mult * b.mult, reach: b.reach, interval: b.interval, splash: b.splash }, isBone, st.max, { from });
   }
 }
 
-// 해골 소환: 주인공 둘레에 소환(먼저 부른 해골은 물러난다)
+// 해골 소환: 쓰러져 빈 자리만 주인공 둘레에 채운다(살아 있는 해골은 상처를 그대로 안고 남는다). 다 서 있으면 쓰지 않는다
 export function bones(w: World, hero: Entity): number {
   const st = bonesStat(w);
-  dismiss(w, 'bones');
-  raise(w, hero.x, hero.z, st.count, 'bones');
+  const left = w.allies.filter((a) => a.from === 'bones' && a.state !== 'dead').map((a) => a.kind as BoneKind);
+  const missing = st.kinds.filter((k) => { const i = left.indexOf(k); return i < 0 || !left.splice(i, 1); });
+  if (!missing.length) return 0;
+  raise(w, hero.x, hero.z, missing.length, 'bones', missing);
   w.casts++;
   return st.cd;
 }
@@ -155,6 +157,9 @@ export function banner(w: World, hero: Entity, x?: number, z?: number): number {
   return LEGEND2.bannerCd;
 }
 
+// 해골에게 맞아도 한눈팔지 않고 강령술사를 노리는 적(시체 거인의 도발만 이들을 끈다 — 보스·해골 왕 빼고)
+export const casterHunter = (e: Entity) => e.elite || e.kind === 'archer' || e.kind === 'mage' || e.kind === 'boss' || e.kind === 'king';
+
 export function tickAllies(w: World, hero: Entity) {
   const aura = w.allies.some((a) => a.kind === 'king' && a.from === 'lord') ? LORD.aura : 1;
   const marked = (e: Entity) => w.curses.some((c) => c.amp > 0 && Math.hypot(e.x - c.x, e.z - c.z) <= c.r);
@@ -196,7 +201,7 @@ export function tickAllies(w: World, hero: Entity) {
         if (a.kind === 'archer') w.shots.push({ id: w.nextItem++, x: a.x, z: a.z, dx: (t.x - a.x) / d, dz: (t.z - a.z) / d, dmg, left: WIZ.flight, kind: 'bolt' }); // 뼈 화살(주인공 평타와 같은 탄)
         else for (const e of a.escort ? foes(w, hero).filter((e) => dist(e, a) <= a.reach) : a.splash ? foes(w, hero).filter((e) => dist(e, at) <= a.splash!) : [t]) hurt(w, e, dmg, hero);
         if (a.kind === 'mage') blast(w, 'spark', t.x, t.z);
-        if (t.target === hero.id && t.kind !== 'boss' && t.kind !== 'king') t.target = a.id;
+        if (t.target === hero.id && !casterHunter(t)) t.target = a.id; // 궁수·마법사·정예·보스는 맞아도 술사를 노린다
       }
       if (a.attackT >= a.interval) Object.assign(a, { state: 'idle', attackT: 0 });
       return;
