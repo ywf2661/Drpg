@@ -354,7 +354,7 @@ export function draw(world: World, dt: number) {
     if (e.skin === 'mummy') s.mesh.scale.y = e.downT ? 0.35 : 1; // 그늘에서 쓰러진 붕대 망령: 엎어져 있다가 일어난다
     s.mat.color.copy(TORCH_TINT).multiply(s.tint).multiplyScalar(e === hero ? (view.day ? 1.05 : 1.15 * flicker) : light(e.x, e.z));
     // 낮: 시야 밖의 적은 서서히 사라진다(발밑 고리도 판자의 자식이라 같이)
-    const seen = e === hero ? 1 : fadeOf(hero, e);
+    const seen = e === hero ? 1 : fadeOf(gaze ?? hero, e); // 연출로 카메라가 다른 곳(보스)을 비추는 동안은 그 자리에서 본다
     s.mesh.visible = seen > 0 && !hidden(e); // 모래 속 개미귀신은 깨기 전엔 안 보인다
     s.mat.transparent = seen < 1;
     s.mat.opacity = seen;

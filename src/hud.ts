@@ -1,5 +1,6 @@
 // 화면 위 HTML: 체력·경험치·레벨, 물약·스킬·장비 칸, 대상·보스 체력바, 층 제목, 알림, 배너. 게임 상태를 읽어 그리기만 한다.
 import { stitchState } from './sim/stitch';
+import { act2Land } from './sim/rules';
 import gearIcons from './assets/sprites/gear_icons.png';
 import wizardGearIcons from './assets/sprites/wizard_gear_icons.png';
 import wizardSkillIcons from './assets/sprites/wizard_skill_icons.png';
@@ -81,6 +82,7 @@ function setIcon(el: HTMLElement, it: GearItem) {
 const toast = $('#toast');
 const soundBtn = $('#sound-btn');
 const goldLabel = $('#gold');
+const oreLabel = $('#ore');
 const shop = document.querySelector<HTMLDialogElement>('#shop')!;
 const shopGold = $('#shop-gold');
 const shopItems = $('#shop-items');
@@ -403,7 +405,7 @@ function showClass(c: HeroClass) {
   const roll = $('#roll');
   roll.hidden = !ROLL.on;
   roll.firstChild!.textContent = c === 'wizard' ? '이동' : '구르기';
-  roll.title = c === 'wizard' ? `순간이동 (스페이스): 커서 쪽으로 ${BLINK.dist}m, 잠깐 무적, ${BLINK.cd}초` : `구르기 (스페이스): ${ROLL.dist}m 구르는 동안 무적, ${ROLL.cd}초`;
+  roll.title = c === 'wizard' ? `순간이동 (스페이스): 바라보는 쪽으로 ${BLINK.dist}m, 잠깐 무적, ${BLINK.cd}초` : `구르기 (스페이스): 바라보는 쪽으로 ${ROLL.dist}m 구르는 동안 무적, ${ROLL.cd}초`;
   for (const slot of Object.values(gearSlots)) slot.style.backgroundImage = `url(${GEAR_ICONS[c]})`;
   resBar.className = RESOURCE[c]; // 기력 초록, 마나 파랑
   shownKeys = '';
@@ -1374,6 +1376,8 @@ export function updateHud(world: World, hovered: number | null, choosing: boolea
   potionCount.textContent = String(world.potions);
   $('#potion i').style.height = `${world.healing ? (1 - world.healing.t / POTION.time) * 100 : 0}%`; // 차는 동안은 다시 못 마신다
   goldLabel.textContent = String(world.gold);
+  oreLabel.hidden = !act2Land(world.land) && world.land !== 'tent' && !world.ore;
+  oreLabel.textContent = String(world.ore);
   potionBtn.classList.toggle('empty', world.potions === 0);
   bagBtn.querySelector('span')!.textContent = bagCount(world.bag);
   let worn = false;

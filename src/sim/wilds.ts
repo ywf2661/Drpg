@@ -176,7 +176,7 @@ export function generateTent(raid = false, mine = false, temple = false, warp = 
     for (let x = c + 2; x <= c + 4; x++) cells[M - 1][x] = 'z';
   }
   if (temple) {
-    for (let z = c + 3; z < M - 1; z++) for (let x = c - 7; x <= c - 5; x++) cells[z][x] = '='; // 남서쪽 길(창고·대장장이 서쪽, 서남 작은 천막 동쪽)
+    for (let z = c + 3; z < M - 1; z++) for (let x = c - 7; x <= c - 5; x++) cells[z][x] = '='; // 남서쪽 길(창고 서쪽, 서남 작은 천막 동쪽)
     for (let x = c - 7; x <= c - 5; x++) cells[M - 1][x] = '"';
   }
   if (warp) {
@@ -193,7 +193,7 @@ export function generateTent(raid = false, mine = false, temple = false, warp = 
   cells[c][c + 5] = 'E';
   cells[c - 5][c] = 'V';
   cells[c + 4][c - 2] = 'h';
-  cells[c + 3][c - 4] = '}'; // 대장장이(담금질)
+  cells[c - 3][c - 4] = '}'; // 대장장이(담금질): 마당 북서쪽 — 창고(남서쪽)와 떨어뜨린다
   for (let k = 0; k < 20; k++) {
     const [x, z] = [int(4, M - 5), int(4, M - 5)];
     if (cells[z][x] === '.' && Math.hypot(x - c, z - c) > 7) cells[z][x] = ',';

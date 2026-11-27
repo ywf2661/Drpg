@@ -15,6 +15,7 @@ import { setWarpFrozen } from './render/warp';
 import { camera, draw, headOf, initRender, renderer, setAim, setGaze, setPatrol, setWorld } from './render/render';
 import { OUTRO, setOutro } from './render/ending';
 import { wardenState } from './sim/warden';
+import { SKINS, type Entity, type Skin } from './sim/rules';
 import { startHoles, startStitch, stitchState, STITCH } from './sim/stitch';
 import { setHideBeams, setHoldHalo } from './render/props';
 import { walkable } from './sim/path';
@@ -66,6 +67,7 @@ let stash: BagItem[] = [];
 let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
 let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
+let smithMet = false; // 대장장이와 처음 이야기를 나눴다(그 전엔 이름표에 느낌표)
 let signal2 = false; // 타임패트롤 신호 2(사암 신전 문지기 사제를 쓰러뜨린 뒤)를 들었다
 let demoT = -1; // 첫 무늬 시범 경과(초), -1 = 아님
 let [stitchGuide, riftDone, riftTalk] = [false, false, false]; // riftTalk = 틈이 벌어지고 신호를 띄울 차례 // 꿰매기 안내를 띄울 차례, 닫혀서 마지막 신호를 닫으면 후일담
@@ -83,6 +85,11 @@ let intro: 'wait' | 'walk' | 'look' | 'talk' | null = null;
 let wIntro: { t: number; short: boolean; talked: boolean } | null = null;
 let wardenMet = false; // 이번 실행에서 첫 연출을 봤다(저장하지 않는다 — 새로고침하면 다시)
 const WI = { tick: 2.5, ghost: 3.5, talk: 5.5, title: 1.6 };
+// 2막 결전장(호숫가·약탈자 진지·광산·신전)에 들어서면: 레터박스 → 카메라가 보스 쪽으로(pan초) → 가운데에 이름 카드(title초) → 돌아온다. 연출 중엔 sim이 서 있고, 누르면 이름 카드로 건너뛴다
+let bIntro: { t: number; boss: Entity } | null = null;
+const BI = { pan: 1.8, title: 2 };
+const BOSS_CARD: Partial<Record<Skin, string>> = { plague_ferryman: '검은 물을 건너는 자', raider_chief: '화약 진지의 주인', mine_foreman: '결정을 두른 자', temple_keeper: '해를 섬기는 자', time_warden: '틈을 지키는 자' };
+const bossCard = (skin: Skin) => $('#boss-title').replaceChildren(Object.assign(document.createElement('b'), { textContent: SKINS[skin].name }), Object.assign(document.createElement('span'), { textContent: BOSS_CARD[skin] ?? '' }));
 let introT = 0;
 const INTRO_LOOK = 1.5; // 바라보는 시간(초)
 // 엔딩 1(처음 쓰러뜨릴 때): 쓰러진 뒤 대사를 닫으면 흐르는 연출 시간(render/ending.ts OUTRO). 대화창이 열린 동안은 멈춘다. null = 없음
@@ -105,17 +112,23 @@ const LOOT_TIME = 2.5;
 let shopping: Carry | null = null; // 계단을 내려가 상점을 보는 중(다음 층으로 가져갈 상태)
 let stayed = false; // 상점에서 '이 층에 남기'를 골랐다: 계단에서 벗어났다가 다시 와야 상점이 열린다
 const STAIRS_AWAY = 1.5; // 이만큼 멀어지면 벗어난 것(m). 계단 그림(3×3칸)의 바깥
-let signs: Sign[] = []; // 이 구역의 출구 이름표
+let signs: Sign[] & { chests?: number } = []; // 이 구역의 출구 이름표
 // 출구마다(같은 지역 칸끼리 묶어 가운데) "▶ 설원 3구역", 바깥 지역의 계단은 동굴 입구 "▼ 지하 3층"
 // 출구 너머의 구역 번호: 같은 지역이면 다음 구역, 갈림길(초원 1구역)에서 새 지역으로 가면 그 지역의 1구역
 const nextFloor = (to: Land) => (isHub(to) ? 0 : to === land ? (land === 'warp' && floor >= 3 ? FLOORS : floor + 1) : 1); // 뒤틀린 차원은 3층 다음이 결전장
 const middle = (cells: { x: number; z: number }[]) => ({ x: cells.reduce((a, e) => a + e.x, 0) / cells.length + 0.5, z: cells.reduce((a, e) => a + e.z, 0) / cells.length + 0.5 });
-const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', smith: '대장장이', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정', handle: '자칼 손잡이' };
+// 대장장이를 처음 만났을 때(담금질이 무엇인지)
+const SMITH_INTRO = [
+  '원정대 대장장이일세. 이 땅 몬스터들 몸에서 보랏빛 광석이 나오는데, 그걸 가져오면 자네 장비를 두들겨서 더 단단하게 만들어 주지.',
+  '한 번 두들길 때마다 별이 하나씩 붙네. 별이 셋, 다섯이 되면 장비가 깨어나 새 힘이 깃드는데, 셋 중에 마음에 드는 걸 고르면 되네.',
+  '다섯째 별은 광석만으론 안 되고, 우두머리 놈들한테서 나오는 심장 조각이 하나 있어야 하네. 다음에 오면 바로 모루를 데워 두지.',
+];
+const CHEST_SIGN: Partial<Record<string, string>> = { elder: '순찰대장', merchant: '상인', asker: '주민', stash: '창고', smith: '대장장이', priest: '사제', sick: '앓는 주민', keg: '화약통', crystal: '보랏빛 결정', handle: '자칼 손잡이', wheel: '수문 핸들' };
 // 머리 위 !: 순찰대장은 새 이야기가 있을 때, 의뢰인은 아직 안 맡긴 부탁이 있을 때
-const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' ? act2 < 2 : kind === 'asker' && !questOn(stage, took));
+const alertOf = (kind?: string) => (kind === 'elder' ? news : kind === 'priest' ? act2 < 2 : kind === 'smith' ? !smithMet : kind === 'asker' && !questOn(stage, took));
 const QUEST_CHESTS = ['clue', 'beacon', 'keeper', 'seal'];
-function signsOf(w: World): Sign[] {
-  const out: Sign[] = [];
+function signsOf(w: World): Sign[] & { chests?: number } {
+  const out: Sign[] & { chests?: number } = Object.assign([], { chests: w.chests.length });
   for (const to of ['field', 'snow', 'ruins', 'sanctum', 'tent', 'camp', 'lake', 'raid', 'mine', 'temple', 'warp'] as const) {
     const cells = w.exits.filter((e) => e.to === to);
     const mark = to === 'sanctum' || (to === 'temple' && land === 'temple') ? '▼' : '▶'; // 신전 봉인은 가운데에서 아래로
@@ -130,7 +143,7 @@ function signsOf(w: World): Sign[] {
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1, heard2: signal2 }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1, heard2: signal2, smith: smithMet }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
@@ -197,7 +210,10 @@ function enterFloor(n: number, carry: Carry) {
   sound.setWind(0);
   intro = land === 'sanctum' && n === FLOORS ? 'wait' : null;
   wIntro = land === 'warp' && n === FLOORS ? { t: 0, short: wardenMet || act2 >= 7, talked: false } : null;
-  if (wIntro) wardenMet = true;
+  if (wIntro) wardenMet = true, bossCard('time_warden');
+  const act2Boss = (land === 'lake' || land === 'raid' || land === 'mine' || land === 'temple') && n === FLOORS ? world.entities.find((e) => e.kind === 'boss' && e.skin) : undefined;
+  bIntro = act2Boss ? { t: 0, boss: act2Boss } : null;
+  if (act2Boss) bossCard(act2Boss.skin!);
   setWarpFrozen(false), setWardenHold(false), setIntroGhost(null), $('#boss-title').classList.remove('on');
   outro = null;
   setOutro(null);
@@ -251,7 +267,13 @@ const HINT_AGAIN = 20;
 function talkTo(t: NonNullable<World['talk']>) {
   if (t === 'merchant') return openShop(true);
   if (t === 'stash') return (stashOpen = true), renderBag();
-  if (t === 'smith') return openForge();
+  if (t === 'smith') {
+    if (smithMet) return openForge();
+    smithMet = true; // 처음 말을 걸면 담금질 이야기부터. 다음부터는 바로 대장장이 창
+    signs = signsOf(world);
+    saveRun(progress());
+    return showTalks(SMITH_INTRO.map((l): [string, string] => ['대장장이', l]));
+  }
   if (t === 'villager') return say(chat());
   if (t === 'clue' && land === 'sanctum' && TRACES[floor - 1]) {
     signs = signsOf(world); // 읽은 흔적은 이름표를 뗀다
@@ -543,7 +565,11 @@ const skill = () => commands.push({ type: 'skill' }); // 버튼: 자동 조준
 const dash = (aimed: boolean) => commands.push({ type: 'dash', ...((aimed && aim()) || {}) }); // 키보드는 커서 방향, 버튼은 자동
 const shout = () => commands.push({ type: 'shout' });
 const throwAxe = (aimed: boolean) => commands.push({ type: 'throw', ...((aimed && aim()) || {}) });
-const roll = (aimed: boolean) => ROLL.on && commands.push({ type: 'roll', ...((aimed && aim()) || {}) }); // 버튼은 가까운 적의 반대쪽
+// 구르기·순간이동: 키보드·버튼 모두 캐릭터가 바라보는 방향으로(먼 점을 주면 순간이동도 끝까지 간다)
+const roll = () => {
+  const h = world.entities[0];
+  if (ROLL.on) commands.push({ type: 'roll', x: h.x + Math.sin(h.facing) * 50, z: h.z + Math.cos(h.facing) * 50 });
+};
 // 칸에 끼운 스킬의 단계를 올린다(버튼의 [+]·Shift+키)
 const learn = (key: SkillName) => {
   const id = world.keys[key];
@@ -678,7 +704,7 @@ initHud({
   dash: tap('dash', () => dash(false)),
   shout: tap('shout', shout),
   throwAxe: tap('throw', () => throwAxe(false)),
-  roll: () => roll(false),
+  roll,
   learn,
   bag: openBag,
   tree: openTree,
@@ -698,6 +724,7 @@ initHud({
     ({ cycle, stage, land, from, marks, news, took, beat, relics, act2 } = saved);
     signal1 = !!saved.heard;
     signal2 = !!saved.heard2;
+    smithMet = !!saved.smith;
     if (hasHorse(relics) && !act2) [act2, news, captainLine] = [1, true, [ACT2_OPEN]]; // 2막이 생기기 전에 기도하는 자를 쓰러뜨린 판
     marksBy = [...saved.marksBy];
     relicMiss = [...saved.relicMiss];
@@ -750,7 +777,7 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyR') (ended() ? restart() : skillKey('throw'));
   else if (e.code === 'Escape') cancelAim();
   else if (e.code === 'KeyA' && !e.ctrlKey && !e.metaKey && world.entities[0].state !== 'dead') startAmove(); // 공격 이동: 다음 좌클릭 지점으로
-  else if (e.code === 'Space') (e.preventDefault(), roll(true));
+  else if (e.code === 'Space') (e.preventDefault(), roll());
   else if (e.code === 'Digit1') drink();
   else if (e.code === 'KeyM') toggleAutomap();
 });
@@ -913,7 +940,19 @@ function wardenIntroStep(dt: number) {
     if (boss) Object.assign(boss, { target: hero.id, repathT: 0 });
   }
 }
+// 2막 결전장 첫 연출 한 프레임(bIntro 참고)
+function bossIntroStep(dt: number) {
+  const b = bIntro!;
+  if (b.t === 0) letterbox(true);
+  const was = b.t;
+  b.t += dt;
+  setGaze({ x: b.boss.x, z: b.boss.z }); // 카메라는 render가 부드럽게 따라간다
+  if (was < BI.pan && b.t >= BI.pan) ($('#boss-title').classList.add('on'), sound.synth('sealed'));
+  if (b.t >= BI.pan + BI.title * 0.7) $('#boss-title').classList.remove('on');
+  if (b.t >= BI.pan + BI.title) (bIntro = null), letterbox(false), setGaze(null);
+}
 addEventListener('pointerdown', () => {
+  if (bIntro && bIntro.t > 0 && bIntro.t < BI.pan) bIntro.t = BI.pan - 1e-3; // 건너뛰기: 이름 카드로
   if (wIntro && !talking() && !wIntro.short && wIntro.t < WI.talk && wIntro.t > 0) [wIntro.t, wIntro.talked] = [WI.talk, true]; // 건너뛰기: 이름 카드로(패트롤 대사도 건너뛴다)
 });
 
@@ -952,8 +991,8 @@ let last = performance.now();
 requestAnimationFrame(function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25); // 탭 전환 후 복귀 시 수천 틱 몰아서 돌지 않게
   last = now;
-  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null || ending || wIntro !== null; // 결전장 첫 연출 동안도 sim이 서 있다 // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
-  const cut = intro === 'walk' || intro === 'look' || outroOn() || wIntro !== null;
+  const paused = credits.open || help.open || bag.open || tree.open || talking() || choosing || shopping !== null || ending || wIntro !== null || bIntro !== null; // 결전장 첫 연출 동안도 sim이 서 있다 // 크레딧·조작법·보관함·상점·이어하기 고르는 동안은 멈춘다
+  const cut = intro === 'walk' || intro === 'look' || outroOn() || wIntro !== null || bIntro !== null;
   pollInput(world, dt, paused || cut);
   // 대화창(타임패트롤·엔딩 대사 등)이 떠 있거나 엔딩 연출 중이면 주인공은 선다 — 멈춘 sim 속에서 달리기 그림만 돌지 않게
   const me = world.entities[0];
@@ -961,6 +1000,7 @@ requestAnimationFrame(function frame(now) {
   if (cut) commands.length = 0;
   if (intro) introStep(dt, cut);
   if (wIntro) wardenIntroStep(dt);
+  if (bIntro) bossIntroStep(dt);
   if (aiming && world.entities[0].state === 'dead') cancelAim();
   setAim(aiming ? aimGuide() : world.cut >= 0 ? cutGuide() : null);
   renderer.domElement.classList.toggle('aiming', !!aiming || amoving);
@@ -976,6 +1016,7 @@ requestAnimationFrame(function frame(now) {
     markDone();
   }
   // 약탈자 진지: 화약통이 터지면 이름표를 다시 단다. 처음 불씨 통 곁에 오면 한 줄(무엇인지만 — 어디로 이어지는지는 말하지 않는다)
+  if (signs.chests !== world.chests.length) signs = signsOf(world); // 뱃사공 결전장의 수문 핸들처럼 나중에 생긴 것에도 이름표
   if (world.kegs.length) {
     const blown = world.kegs.filter((k) => k.done).length;
     if (blown !== kegsBlown) [kegsBlown, signs] = [blown, signsOf(world)];
