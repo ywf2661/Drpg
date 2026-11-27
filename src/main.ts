@@ -1,4 +1,5 @@
 // 게임 흐름: 층 만들기·이동, 저장·이어하기, 입력 연결, 60Hz 고정 틱 루프. 화면 위 HTML은 hud.ts.
+import { FERRYMAN } from './sim/ferryman';
 import { snapshot, soundEvents } from './audio/events';
 import * as sound from './audio/sound';
 import { $, hint, initHud, say, sayLocked, sayShort, showBag, showPick, showTalk, showTalks, showTitle, showTree, showFloor, showLoadError, showShop, showSound, talking, updateHud, showForge } from './hud';
@@ -213,6 +214,7 @@ function enterFloor(n: number, carry: Carry) {
   if (wIntro) wardenMet = true, bossCard('time_warden');
   const act2Boss = (land === 'lake' || land === 'raid' || land === 'mine' || land === 'temple') && n === FLOORS ? world.entities.find((e) => e.kind === 'boss' && e.skin) : undefined;
   bIntro = act2Boss ? { t: 0, boss: act2Boss } : null;
+  if (act2Boss?.skin === 'plague_ferryman') act2Boss.x = act2Boss.z = FERRYMAN.center; // 나루 끝('M')에서 생기고 첫 틱에 호수 가운데 배로 옮겨진다 — 연출 동안은 sim이 서 있으니 미리 옮긴다
   if (act2Boss) bossCard(act2Boss.skin!);
   setWarpFrozen(false), setWardenHold(false), setIntroGhost(null), $('#boss-title').classList.remove('on');
   outro = null;
@@ -799,6 +801,7 @@ if (new URLSearchParams(location.search).has('test')) {
   $('#test-land').addEventListener('click', () => {
     if (!playing()) return;
     land = LAND_LIST[(LAND_LIST.indexOf(land) + 1) % LAND_LIST.length];
+    if (land === 'tent' && !act2) land = LAND_LIST[(LAND_LIST.indexOf(land) + 1) % LAND_LIST.length]; // 2막 전엔 천막을 건너뛴다(저장 검사가 그 판을 버린다)
     enterFloor(isHub(land) ? 0 : Math.max(1, floor), carryOf(world)); // 거점(층 0)에서 바깥 땅으로 넘어가면 1구역부터
   });
   // 최종 보스: 주인공 근처에 기도하는 자(그 회차 성소 5층과 같은 수치, 야영지 제외)
