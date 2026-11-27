@@ -404,6 +404,7 @@ export type World = {
   regenAcc: number; // 재생 옵션의 소수점 회복 누적
   rest: boolean; // 모닥불에서 쉴 수 있는 지역(초원). main이 정한다
   land: Land; // 이 맵의 지역(고드름·무덤 소환처럼 지역마다 다른 규칙). main·봇이 정한다
+  skid?: [vx: number, vz: number] | null; // 설원: 주인공이 멈춘 뒤 미끄러지는 속도(m/s, world.ts act)
   buff: { kind: Buff; t: number } | null; // 성소 버프와 남은 초
   sand: Cell[]; // 개미지옥 모래 칸(그림), pits: 그 가운데
   pits: Point[];

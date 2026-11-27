@@ -628,7 +628,19 @@ function reachChest(w: World, hero: Entity) {
 
 }
 
+// 설원 눈길: 달리다 멈추면 걷던 쪽으로 살짝 미끄러진다(남은 속도가 tau초마다 1/e로 줄어 v·tau m쯤 — 4 m/s면 0.6 m). 걷기 말고 다른 일(휘두르기·구르기 등)을 하면 멈춘다
+const SKID = { tau: 0.15, min: 0.3 };
+function skid(w: World, e: Entity, [vx, vz]: [number, number]) {
+  const [nx, nz] = [e.x + vx * DT, e.z + vz * DT];
+  if (!walkable(w.grid, Math.floor(nx), Math.floor(nz))) return;
+  [e.x, e.z] = [nx, nz];
+  const k = Math.exp(-DT / SKID.tau);
+  if (Math.hypot(vx, vz) * k >= SKID.min) w.skid = [vx * k, vz * k];
+}
+
 function act(w: World, e: Entity) {
+  const slid = e.id === 0 ? w.skid : null; // 지난 틱의 미끄러짐(이번 틱에 걷거나 미끄러지지 않으면 사라진다)
+  if (e.id === 0) w.skid = null;
   let t = byId(w, e.target);
   if (e.target !== null && (!t || t.state === 'dead')) {
     e.target = null;
@@ -670,8 +682,14 @@ function act(w: World, e: Entity) {
       e.path = pathTo(w, e, t.x, t.z) ?? [];
     }
   }
-  if (e.path.length) walk(w, e);
-  else e.state = 'idle';
+  if (e.path.length) {
+    const [x0, z0] = [e.x, e.z];
+    walk(w, e);
+    if (e.id === 0 && w.land === 'snow') w.skid = !e.path.length && slid ? slid : [(e.x - x0) / DT, (e.z - z0) / DT]; // 닿은 틱은 걸음이 짧게 끊기니 앞 틱의 속도로
+  } else {
+    e.state = 'idle';
+    if (slid) skid(w, e, slid);
+  }
 }
 
 // 몬스터 AI: 주인공·해골 병사 중 AGGRO 안의 가장 가까운 쪽을 대상으로 삼는다. 주인공이 죽으면 대상을 버린다.

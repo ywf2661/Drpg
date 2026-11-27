@@ -93,6 +93,24 @@ export function generateWild(seed: number, floor: number, land: Wild, from: Side
   return out.map((row, z) => (Math.abs(z - gz - 0.5) > 5 ? row : row.replace(/[B,]/g, (c, x: number) => (Math.abs(x - gx - 0.5) > 5 ? c : '.'))));
 }
 
+// 고정된 맵(초원 1구역)에 다른 땅에서 들어왔을 때: 주인공('H')을 그 땅으로 가는 출구(글자 letters)에서 3칸쯤 떨어진 길·빈 땅으로 옮긴다. 출구가 없으면 그대로
+export function arriveAt(map: string[], letters: string): string[] {
+  const cells: Cell[] = [];
+  map.forEach((row, z) => [...row].forEach((c, x) => letters.includes(c) && cells.push([x, z])));
+  if (!cells.length) return map;
+  const [mx, mz] = [cells.reduce((a, c) => a + c[0], 0) / cells.length, cells.reduce((a, c) => a + c[1], 0) / cells.length];
+  let best: Cell | null = null;
+  let gap = Infinity;
+  for (let z = Math.round(mz) - 6; z <= mz + 6; z++)
+    for (let x = Math.round(mx) - 6; x <= mx + 6; x++) {
+      const d = Math.abs(Math.hypot(x - mx, z - mz) - 3);
+      if ('.='.includes(map[z]?.[x] ?? '#') && d < gap) [best, gap] = [[x, z], d];
+    }
+  if (!best) return map;
+  const [hx, hz] = best;
+  return map.map((row, z) => [...row].map((c, x) => (x === hx && z === hz ? 'H' : c === 'H' ? '.' : c)).join(''));
+}
+
 // 야영지(48×48): 늘 같은 모양. 가운데 모닥불(B)과 다져진 흙마당, 모닥불 남쪽에 주인공(H)·서쪽에 순찰대장(E)·북쪽에 상인(V), 마당 가에 짐더미(o)·창고(h, 주인공 바로 남쪽 — 들어오자마자 화면에 보이게).
 // 동쪽으로 곧은 길 끝, 맨 바깥 줄에 초원 1구역 출구(F 3칸). 가장자리는 숲 띠, 마당 밖에 바위·잔해. 몬스터·상자·기믹은 없다.
 // expedition = 2막이 열렸다: 마당 북동쪽에서 꺾여 북쪽 숲 띠를 뚫는 원정길과 맨 바깥 줄 출구(x 3칸, → 원정대 천막). 난수열은 그대로라 나머지 모양은 같다
@@ -306,6 +324,11 @@ function wild(seed: number, floor: number, land: Wild, from: Side): string[] {
   const t0 = isle ? N / 2 : int(N / 2 - 10, N / 2 + 10);
   const hero = at(from, t0, 4);
   for (let k = 1; k <= 6; k++) for (let s = -1; s <= 1; s++) set(at(from, t0 + s, k), '.');
+  if (land === 'field' && floor === 1) for (let s = -1; s <= 1; s++) { // 초원 1구역: 들어온 가장자리(야영지 쪽) 맨 바깥 줄에 야영지로 돌아가는 출구
+    for (let k = 1; k <= 3; k++) set(at(from, t0 + s, k), '=');
+    const [x, z] = at(from, t0 + s, 0);
+    cells[z][x] = 'y';
+  }
 
   // 4. 길: 주인공에서 각 출구(마지막 구역은 맞은편 가장자리 가까이의 보스 자리)까지 2칸 폭, 4~8걸음마다 옆으로 1~3칸 휜다
   const road = (to: Cell, start: Cell = hero) => {

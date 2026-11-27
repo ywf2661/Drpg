@@ -152,3 +152,20 @@ test('구르기는 시전을 끊는다', () => {
   expect(hero.phase).toBe('roll');
   expect(w.castT).toBe(0);
 });
+
+test('설원에서는 달리다 멈추면 걷던 쪽으로 살짝 미끄러진다(다른 땅은 그 자리에 선다)', () => {
+  const stop = (land: World['land']) => {
+    const w = createWorld(1, ROOM);
+    w.land = land;
+    const hero = w.entities[0];
+    run(w, 300, [{ type: 'move', x: hero.x + 6, z: hero.z }]);
+    return [hero.x - (2.5 + 6), w.skid] as const;
+  };
+  const [field, still] = stop('field');
+  expect(Math.abs(field)).toBeLessThan(1e-6);
+  expect(still).toBeNull();
+  const [snow, done] = stop('snow');
+  expect(snow).toBeGreaterThan(0.3);
+  expect(snow).toBeLessThan(1);
+  expect(done).toBeNull(); // 다 미끄러지고 섰다
+});

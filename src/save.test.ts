@@ -220,3 +220,10 @@ test('고유 장비의 고정 옵션은 평소 부위·범위를 벗어나도 �
     expect(decodeSave(encodeSave(r))).not.toBeNull();
   }
 });
+
+test('초원 1구역 시드(fieldSeed): 되읽고, 없거나 이상하면 칸이 없다(처음 들어갈 때 새로 정한다)', () => {
+  expect(decodeSave(encodeSave({ ...run, fieldSeed: 12345 }))?.fieldSeed).toBe(12345);
+  expect(decodeSave(encodeSave(run))?.fieldSeed).toBeUndefined();
+  expect(decodeSave(encodeSave({ ...run, fieldSeed: -3 }))?.fieldSeed).toBeUndefined();
+  expect(decodeSave(encodeSave({ ...run, fieldSeed: 1.5 }))?.fieldSeed).toBeUndefined();
+});

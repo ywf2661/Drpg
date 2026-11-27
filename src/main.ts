@@ -23,7 +23,7 @@ import { walkable } from './sim/path';
 import { loadSlots, saveRun, useSlot, type Keys, type Mods, type Ranks, type Stats } from './save';
 import { buy, deathGold, sell } from './shop';
 import { bossScale, cyclePower, FLOORS, floorPower, hitScale } from './sim/dungeon';
-import { makeMap, opposite, themeOf, type Side } from './sim/wilds';
+import { arriveAt, makeMap, opposite, themeOf, type Side } from './sim/wilds';
 import { isHub, UNIQUES, UNIQUE_LIST, type UniqueId, uniqueOf, wear as wearGear, makeUnique, hurt, bagSpot, type Slot, FREE_AGAIN, FREE_GOAL, beatCount, runeRow, socketRune, unsocketRune, afterClear, bossHpScale, bossName, MARK_LETTER, markBit, markCount, markGold, captainNews, questOn, depthOf, tierOf, openLands, STORY, canAfford, LANDS, LAND_LIST, type Land, BLINK, ROLL, SKILL, CURSE, curseStat, AXE, BOLT, boltStat, PIERCE, RAIN, rainStat, TRAP, bind, chainStat, COMET, cometStat, copyMods, CORPSE, createWorld, exitAt, sideOf, DASH, GRAZE, dashStat, discardFromBag, DT, equipFromBag, moveGear, BAG, STASH, FIREBALL, FIREFIELD, firefieldStat, fireRainStat, gainXp, HUNT, KEY_CD, LEAP, leapStat, learn as learnNow, newSkills, PLAGUE, plagueStat, PRISON, prisonStat, respec, TEMPEST, xpToNext, moveInBag, outcome, setLevel, step, type BagItem, type Gear, type HeroClass, type SkillId, type SkillName, type World } from './sim/world';
 import { canSummonKnight, summonKnight } from './sim/gimmicks';
 import { DOWNCUT, downcutStat, toughenBoss, gearDiff } from './sim/world';
@@ -69,6 +69,8 @@ let stashOpen = false;
 let act2 = 0; // 2막 진행(0 = 아직 안 열림, sim/act2.ts). 기도하는 자를 처음 쓰러뜨리고 야영지에 오면 1
 let signal1 = false; // 타임패트롤 신호 1(광산 4구역 출구 섬)을 들었다
 let smithMet = false; // 대장장이와 처음 이야기를 나눴다(그 전엔 이름표에 느낌표)
+let fieldSeed = 0; // 초원 1구역 맵의 시드(0 = 아직 안 만듦). 처음 들어갈 때 정하고 저장해서 그 뒤로는 늘 같은 맵
+let came: Land = 'camp'; // 이 구역에 오기 전의 땅(고정된 초원 1구역에서 주인공을 그 땅 출구 앞에 세운다)
 let signal2 = false; // 타임패트롤 신호 2(사암 신전 문지기 사제를 쓰러뜨린 뒤)를 들었다
 let demoT = -1; // 첫 무늬 시범 경과(초), -1 = 아님
 let [stitchGuide, riftDone, riftTalk] = [false, false, false]; // riftTalk = 틈이 벌어지고 신호를 띄울 차례 // 꿰매기 안내를 띄울 차례, 닫혀서 마지막 신호를 닫으면 후일담
@@ -144,13 +146,16 @@ function signsOf(w: World): Sign[] & { chests?: number } {
   if (land !== 'dungeon' && land !== 'sanctum' && w.stairs) out.push({ x: w.stairs[0] + 0.5, z: w.stairs[1] + 0.5, text: `▼ ${LANDS.dungeon.name} ${nextFloor('dungeon')}${LANDS.dungeon.unit}` });
   return out;
 }
-const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1, heard2: signal2, smith: smithMet }); // 저장할 진행
+const progress = () => ({ name, floor, ...entry, cycle, stats, land, from, stage, marks, news, took, beat, marksBy: [...marksBy], relics, relicMiss: [...relicMiss], stash, act2, heard: signal1, heard2: signal2, smith: smithMet, fieldSeed }); // 저장할 진행
 
 // 층마다 새 시드(sim 밖이라 Math.random 사용). 몬스터 세기·떨어지는 장비 상한은 이야기 깊이(5k + n)로 — 지역을 넘어 이어진다
 function makeFloor(n: number, carry: Carry): World {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const depth = depthOf(land, n);
-  const w = createWorld(seed, makeMap(seed, n, land, from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : []), ...(act2 >= 5 ? (['temple'] as const) : []), ...(act2 >= 6 ? (['warp'] as const) : [])], markLetter()), floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
+  const fixed = land === 'field' && n === 1; // 초원 1구역: 맵은 늘 같은 시드·야영지 쪽(서)에서 들어온 모양
+  if (fixed && !fieldSeed) fieldSeed = seed || 1;
+  const map = makeMap(fixed ? fieldSeed : seed, n, land, fixed ? 'w' : from, [...openLands(stage, cycle), ...(hasAllRelics(relics) ? (['sanctum'] as const) : []), ...(act2 ? (['tent'] as const) : []), ...(act2 >= 3 ? (['raid'] as const) : []), ...(act2 >= 4 ? (['mine'] as const) : []), ...(act2 >= 5 ? (['temple'] as const) : []), ...(act2 >= 6 ? (['warp'] as const) : [])], markLetter());
+  const w = createWorld(seed, fixed && (came === 'snow' || came === 'ruins') ? arriveAt(map, came === 'snow' ? 'S' : 'R') : map, floorPower(depth, cycle), cyclePower(cycle), LANDS[land].skins, depth > FLOORS);
   w.cls = carry.cls;
   w.stashLegends = stash.map(uniqueOf).filter((u) => u !== undefined); // 수집가의 왕관
   w.hitScale = hitScale(depth, cycle); // 2막·1막 2회차 이상: 몬스터 한 방을 기준 체력의 %로
@@ -237,13 +242,14 @@ function leave() {
   const ex = exitAt(world);
   const to: Land = ex ? ex.to : land === 'sanctum' ? 'sanctum' : 'dungeon'; // 계단: 성소에선 다음 층
   next = { land: to, from: ex ? opposite[sideOf(world, ex)] : 'w', floor: nextFloor(to) };
+  came = land;
   // 2회차부터: 다른 지역으로 가면 그 지역이 지금 의뢰 지역(하던 지역의 진행은 따로 둔다)
   const k = runeRow(to);
   if (cycle && k >= 0 && k !== stage) {
     marksBy[stage] = marks;
     [stage, marks, took] = [k, marksBy[k], true];
   }
-  if (!isHub(land)) return openShop(false); // 거점에서 나갈 때는 상점 없이 바로
+  if (!isHub(land) && !isHub(to)) return openShop(false); // 거점에서 나갈 때·거점으로 걸어 돌아갈 때(초원 1구역 → 야영지)는 상점 없이 바로
   if (to === 'tent' && captainLine?.includes(ACT2_OPEN)) [news, captainLine] = [false, null]; // 원정길 이야기를 안 듣고 왔어도 길은 찾았다(천막에서 "북쪽 길로" 소리를 하지 않게)
   ({ land, from } = next);
   enterFloor(next.floor, carryOf(world));
@@ -694,7 +700,7 @@ const pickClass = (cls: HeroClass, id: string, n: number) => {
   useSlot(n);
   name = id;
   stats = newStats();
-  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash, act2, signal1] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], [], 0, false];
+  [cycle, stage, land, from, marks, news, took, beat, marksBy, relics, relicMiss, stash, act2, signal1, fieldSeed] = [0, 0, 'camp', 'w', 0, true, false, 0, [0, 0, 0, 0], 0, [0, 0, 0, 0], [], 0, false, 0];
   begin(0, startOf(cls));
   if (!slots.some(Boolean)) help.showModal();
 };
@@ -727,6 +733,7 @@ initHud({
     signal1 = !!saved.heard;
     signal2 = !!saved.heard2;
     smithMet = !!saved.smith;
+    fieldSeed = saved.fieldSeed ?? 0;
     if (hasHorse(relics) && !act2) [act2, news, captainLine] = [1, true, [ACT2_OPEN]]; // 2막이 생기기 전에 기도하는 자를 쓰러뜨린 판
     marksBy = [...saved.marksBy];
     relicMiss = [...saved.relicMiss];

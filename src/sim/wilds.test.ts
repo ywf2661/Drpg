@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { bossName, createWorld, LANDS, step } from './world';
+import { bossName, createWorld, LAND_LIST, LANDS, step } from './world';
 import { FLOORS, OPEN, SIZE, walkDistances } from './dungeon';
-import { exitsFor, GATE_FIRES, generateCamp, generateTent, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
+import { arriveAt, exitsFor, GATE_FIRES, generateCamp, generateTent, generateWild, makeMap, WILD, wildCount, type Side } from './wilds';
 
 const count = (map: string[], chars: string) => map.join('').split('').filter((c) => chars.includes(c)).length;
 const find = (map: string[], ch: string): [number, number][] => map.flatMap((r, z) => [...r].flatMap((c, x) => (c === ch ? [[x, z] as [number, number]] : [])));
@@ -179,7 +179,7 @@ test('초원 1구역 갈림길 잠금: 안 열린 지역 출구는 막히고(s·
     const ok = reachable(first, find(first, 'H')[0]);
     for (const p of find(first, 'F')) expect(ok(p)).toBe(true);
     const w = createWorld(1, first);
-    expect(w.exits.map((e) => e.to)).toEqual(['field', 'field', 'field']);
+    expect(w.exits.filter((e) => e.to !== 'camp').map((e) => e.to)).toEqual(['field', 'field', 'field']);
     expect(new Set(w.locked.map((e) => e.to))).toEqual(new Set(['snow', 'ruins', 'sanctum']));
     expect(w.stairs).toBeNull();
     // 설원·미궁까지 열림: 폐허만 막힘
@@ -206,4 +206,25 @@ test('의뢰 대상(L·J·O·k): makeMap에 글자를 주면 하나, 걸어서 �
       expect(lost(map)).toBe(lost(makeMap(seed, 3, land, 'w'))); // 단서가 길을 끊지 않는다(미궁은 사슬 문 너머가 원래 닿지 않는다)
       if (land !== 'dungeon') expect(map.slice(l[1] - 3, l[1] + 4).some((r) => r.slice(l[0] - 3, l[0] + 4).includes('='))).toBe(true);
     }
+});
+
+test('초원 1구역: 들어온 가장자리 맨 바깥 줄에 야영지 출구(y 3칸), 다른 구역에는 없다', () => {
+  const map = makeMap(42, 1, 'field', 'w', LAND_LIST);
+  const ys = map.flatMap((r, z) => [...r].flatMap((c, x) => (c === 'y' ? [[x, z]] : [])));
+  expect(ys).toHaveLength(3);
+  expect(ys.every(([x]) => x === 0)).toBe(true);
+  expect(makeMap(42, 2, 'field', 'w', LAND_LIST).join('')).not.toContain('y');
+  const w = createWorld(1, map);
+  expect(w.exits.filter((e) => e.to === 'camp')).toHaveLength(3);
+});
+
+test('arriveAt: 설원에서 돌아오면 주인공이 설원 출구 안쪽에 선다(맵은 그대로)', () => {
+  const map = makeMap(42, 1, 'field', 'w', LAND_LIST);
+  const moved = arriveAt(map, 'S');
+  expect(find(moved, 'H')).toHaveLength(1);
+  const [[hx, hz]] = find(moved, 'H');
+  expect(find(map, 'S').some(([x, z]) => Math.abs(x - hx) + Math.abs(z - hz) <= 5)).toBe(true);
+  const diff = map.flatMap((r, z) => [...r].flatMap((c, x) => (c !== moved[z][x] ? [c + moved[z][x]] : [])));
+  expect(diff).toHaveLength(2); // 주인공 옛 자리(H → 빈 땅)와 새 자리뿐
+  expect(diff.some((d) => d[0] === 'H') && diff.some((d) => d[1] === 'H')).toBe(true);
 });
