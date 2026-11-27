@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest';
 import { decodeSave, encodeSave, formatTime } from './save';
+import { createWorld } from './sim/world';
+import { makeUnique } from './sim/core';
 
 const run = { name: '용사', pity: 0, cls: 'wizard' as const, floor: 3, potions: 4, gear: { weapon: 3, armor: 2, helm: 3, boots: 1 }, level: 6, xp: 12, gold: 133, ore: 0, hearts: 0, cycle: 1, mods: { weapon: [{ kind: 'dmg' as const, value: 20 }], armor: [], helm: [{ kind: 'guard' as const, value: 7 }], boots: [{ kind: 'move' as const, value: 6 }] }, ranks: { fireball: 3, firefield: 1, frost: 2, embers: 5 }, points: 1, keys: { cleave: 'fireball' as const, dash: null, shout: 'frost' as const, throw: 'firefield' as const }, bag: [{ kind: 'armor' as const, tier: 2, affixes: [{ kind: 'thorns' as const, value: 30 }], x: 3, y: 2 }, { kind: 'weapon' as const, tier: 4, affixes: [], x: 0, y: 1 }, { kind: 'boots' as const, tier: 3, affixes: [{ kind: 'move' as const, value: 9 }], x: 6, y: 0 }], autoEquip: false, stats: { time: 754.2, kills: 41, deaths: 2 }, land: 'snow' as const, from: 'e' as const, stage: 2, marks: 5, news: true, took: true, runes: { gale: 3, 'fireball+2': 1, 'key:dash': 1 }, beat: 5, marksBy: [1, 0, 7, 0], relics: 5, relicMiss: [0, 2, 0, 1], stash: [{ kind: 'helm' as const, tier: 1, affixes: [], x: 8, y: 6 }], act2: 0 };
 
@@ -185,7 +187,7 @@ test('2막 진행(act2): 되읽고, 없으면 0, 범위 밖·2막 전에 천막�
   expect(decodeSave(encodeSave({ ...run, act2: 9 }))).toBeNull();
   expect(decodeSave(encodeSave({ ...run, heard: true }))?.heard).toBe(true); // 타임패트롤 신호 1을 들었다
   expect(decodeSave(encodeSave({ ...run, act2: 6, heard2: true }))).toMatchObject({ act2: 6, heard2: true }); // 신전을 지났다, 신호 2를 들었다
-  expect(decodeSave(encodeSave({ ...tent, act2: 0 }))).toBeNull();
+  expect(decodeSave(encodeSave({ ...tent, act2: 0 }))).toMatchObject({ land: 'camp', floor: 0 }); // 버리지 않고 야영지로
 });
 
 test('옛 세이브: 회오리·처형 단계와 칸, 룬 주머니, 장비 룬을 내리베기·거인의 칼로 옮긴다', () => {
@@ -207,4 +209,14 @@ test('담금질: ★·깨어남·재료를 되읽고, 어긋난 ★·깨어남�
   expect(fake([{ kind: 'move', value: 3, star: 3 }, { kind: 'life', value: 999, awake: true }])).toBeNull(); // 풀에 없는 깨어남
   expect(fake([{ kind: 'move', value: 3, star: 3 }, { kind: 'awake', value: 0, u: 'boomerang', awake: true }])).toBeNull(); // 다른 부위 전설
   expect(decodeSave(encodeSave({ ...run, ore: -1 }))).toBeNull();
+});
+
+test('고유 장비의 고정 옵션은 평소 부위·범위를 벗어나도 되읽는다(흐르는 깃의 갑옷: 갑옷에 날랜, 고정 옵션 둘 + 굴린 옵션 둘)', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const w = createWorld(seed, ['H...']);
+    w.cls = run.cls;
+    const it = makeUnique(w, 'flowWings', 0, 0, 4);
+    const r = { ...run, gear: { ...run.gear, armor: 4 }, mods: { ...run.mods, armor: it.affixes! } };
+    expect(decodeSave(encodeSave(r))).not.toBeNull();
+  }
 });

@@ -68,11 +68,12 @@ function forgeLines(v: any[], slot: Slot, cls: HeroClass): Affix[] | null {
 function plain(v: any[], slot: Slot, cls: HeroClass): Affix[] | null {
   const def0 = v[0]?.kind === 'unique' ? UNIQUES[v[0].u as UniqueId] : undefined;
   if (v[0]?.kind === 'unique' && (!def0 || !Object.hasOwn(UNIQUES, v[0].u) || def0.slot !== slot || (def0.cls && def0.cls !== cls) || v[0].value !== 0)) return null;
-  if (v.length > (def0 ? 4 : 2)) return null;
+  if (v.length > (def0 ? 1 + def0.fixed.length + 2 : 2)) return null; // 고유 표식 + 고정 옵션 + 굴린 옵션 둘까지
+  const fixedOk = (a: Affix) => !!def0?.fixed.some((f) => typeof f === 'object' && f.kind === a.kind && f.value === a.value); // 고정 옵션은 평소 부위·범위를 벗어나도 된다(흐르는 깃의 갑옷의 '날랜')
   const out: Affix[] = def0 ? [{ kind: 'unique', value: 0, u: v[0].u }] : [];
   for (const a of def0 ? v.slice(1) : v) {
     const def = a && AFFIXES[a.kind as AffixKind];
-    if (!def || !def.slots.includes(slot) || !int(a.value, def.lo, def.hi) || out.some((o) => o.kind === a.kind)) return null;
+    if (!def || ((!def.slots.includes(slot) || !int(a.value, def.lo, def.hi)) && !fixedOk(a)) || out.some((o) => o.kind === a.kind)) return null;
     if (a.kind === 'skill' && SKILLS[a.skill as SkillId]?.cls !== cls) return null;
     if (a.kind === 'tab' && !int(a.tab, 0, TREES[cls].length - 1)) return null;
     if (a.kind === 'unique' || a.kind === 'socket' || a.kind === 'keyCd') return null;
@@ -190,8 +191,8 @@ export function decodeSave(text: string | null): Run | null {
   if (!int(relics, 0, 31) || !Array.isArray(relicMiss) || relicMiss.length !== STORY.length || !relicMiss.every((n) => int(n, 0, 2))) return null;
   if (typeof news !== 'boolean' || typeof took !== 'boolean') return null;
   const act2 = d.act2 ?? 0; // 2막 이전 저장은 0
-  if (!int(act2, 0, ACT2_MAX) || (land === 'tent' && act2 === 0)) return null;
-  const camp = old || land === 'camp';
+  if (!int(act2, 0, ACT2_MAX)) return null;
+  const camp = old || land === 'camp' || (land === 'tent' && act2 === 0); // 2막 전에 천막에 저장된 판(테스트 모드 땅 바꾸기)은 버리지 않고 야영지로
   const name = d.name ?? '모험가'; // 아이디(나중에 생긴 항목)
   if (typeof name !== 'string' || !name.trim() || name.length > NAME_MAX) return null;
   const st = (d.stats ?? { time: 0, kills: 0, deaths: 0 }) as Record<string, unknown>;
