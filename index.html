@@ -50,7 +50,9 @@
       .bar { width: 240px; height: 14px; background: linear-gradient(#0c0505, #2a0c08); border: 1px solid #000; outline: 1px solid var(--gold-lo); box-shadow: inset 0 2px 4px #000; }
       .bar i { display: block; width: 100%; height: 100%; background: linear-gradient(#ff7a5e 0, var(--blood-hi) 25%, var(--blood) 60%, #4e0b06 100%); box-shadow: inset 0 1px 0 #ffffff40; transition: width 0.15s; }
       #hud { position: fixed; left: 20px; bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: calc(100vw - 64px); padding: 8px 12px; background: var(--panel-bg); border: 1px solid var(--gold-lo); border-radius: 4px; box-shadow: var(--frame); } /* 좁으면 줄바꿈(아래에 붙어 위로 늘어남) */
-      #hp { width: 100%; pointer-events: none; }
+      #hp { width: 100%; pointer-events: none; position: relative; }
+      /* 생명 묶음(강령술사): 해골에 묶인 최대 체력 — 쇠사슬로 감긴 칸 */
+      #hp b { position: absolute; top: 0; right: 0; height: 100%; width: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='14'%3E%3Crect x='9' y='5.6' width='8' height='2.8' rx='1.4' fill='%23d8d2cc' stroke='%23000' stroke-width='0.8'/%3E%3Crect x='1.5' y='3' width='9' height='8' rx='4' fill='none' stroke='%23000' stroke-width='3.4'/%3E%3Crect x='1.5' y='3' width='9' height='8' rx='4' fill='none' stroke='%23a9a3a0' stroke-width='1.8'/%3E%3C/svg%3E") repeat-x left center / 16px 14px, repeating-linear-gradient(135deg, #1a1614 0 3px, #262120 3px 6px); box-shadow: inset 2px 0 #c8c0b8, inset 0 0 4px #000; transition: width 0.15s; }
       #bars { position: relative; width: min(240px, calc(100vw - 260px)); }
       #res { height: 6px; margin-top: 3px; background: #0b0d12; border: 1px solid #000; outline: 1px solid #2a2c3a; } /* 기력·마나 */
       #res i { display: block; width: 0; height: 100%; background: linear-gradient(#d8ff9a, #7ccf3a 50%, #2f6a14); } /* 기력: 초록(경험치 금색·체력 빨강과 구분) */
@@ -571,7 +573,7 @@
       <div id="points" hidden></div>
       <div id="allies"></div>
       <div id="trophies"></div>
-      <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i></div><div id="res"><i></i></div><div id="xp"><i></i></div><div id="gold" title="금화">0</div><div id="ore" title="보랏빛 광석" hidden>0</div></div>
+      <div id="bars"><span id="level">Lv 1</span><div id="hp" class="bar"><i></i><b></b></div><div id="res"><i></i></div><div id="xp"><i></i></div><div id="gold" title="금화">0</div><div id="ore" title="보랏빛 광석" hidden>0</div></div>
       <button id="skill" title="가르기 (Q / 우클릭): 앞쪽 반원 적 모두에게 150%, 4초"><i></i></button>
       <button id="dash" title="돌진 베기 (W): 5m 돌진, 길 위의 적 모두 100%, 6초"><i></i></button>
       <button id="shout" title="전투의 함성 (E): 4m 안 적 2초 기절, 6초간 받는 피해 −30%, 15초"><i></i></button>
