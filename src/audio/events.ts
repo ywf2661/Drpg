@@ -74,7 +74,7 @@ export function soundEvents(prev: Snapshot, w: World): SoundEvent[] {
     if (e.phase === 'windup' && p.phase !== 'windup') at('boss_attack', e.x, e.z); // 돌진 예고
     if (e.phase === 'flash' && p.phase !== 'flash') at('dash', e.x, e.z); // 일섬
     if (e.phase === 'graze' && p.phase !== 'graze') at('dash', e.x, e.z); // 스쳐 베기
-    if (e.phase === 'roll' && p.phase !== 'roll') at(w.cls === 'wizard' && e.kind === 'hero' ? 'summon' : 'dash', e.x, e.z); // 구르기 / 순간이동
+    if (e.phase === 'roll' && p.phase !== 'roll') at(w.cls === 'wizard' && e.kind === 'hero' && !e.dx && !e.dz ? 'summon' : 'dash', e.x, e.z); // 구르기·활강 / 순간이동(제자리)
     if (e.state === 'dead' && p.state !== 'dead') at(`${v}_die`, e.x, e.z);
     else if (e.hp < p.hp && e.maxHp === p.maxHp) at(`${v}_hit`, e.x, e.z); // 최대 체력이 바뀐 것(갑옷 교체)은 맞은 것이 아니다
   });

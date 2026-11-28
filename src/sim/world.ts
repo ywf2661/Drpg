@@ -25,7 +25,7 @@ import { warden } from './warden';
 import { stitchBlocksPotion } from './stitch';
 import { PALADIN } from './sanctum';
 import { paladin } from './paladin';
-import { DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World, LEGEND2 } from './rules';
+import { BLINK, DOWNCUT, FINALE, GEAR_SKILLS, FIERCE, XP_CAP, GRAVE, ICICLE, type Point, type Skin, CAMP, REST, LEGEND_DROP, AGGRO, AMOVE, CAST, CHEST, COMBO, DT, ELITE_KIND_LIST, GOLD_CHEST, HIT_AT, isPassive, KEY_CD, KEYS, MAGE, POTION, RADIUS, RANK_MAX, REPATH, RESPEC, SEAL, SKILLS, TELL, TEMPER, TIER_LEVEL, TREES, startSkill, type Chest, type Ferry, type Keg, type Gate, type HeroClass, type SkillId, type SkillName, type Command, type Entity, type Exit, type Item, type Kind, type Prop, type World, LEGEND2 } from './rules';
 
 export * from './rules';
 export { afterimageStat, lingerStat, retraceStat, swapStat } from './afterimage';
@@ -498,8 +498,9 @@ function cast(w: World, hero: Entity, c: Command) {
   if (c.type === 'roll') {
     if (w.cls !== 'wizard') return rollStart(w, hero, c.x, c.z);
     const [x0, z0, ready] = [hero.x, hero.z, w.rollCd <= 0];
-    blink(w, hero, c.x, c.z);
-    if (ready && w.rollCd > 0) linger(w, hero, x0, z0); // 떠난 자리
+    if (hasUnique(w, 'flowWings')) rollStart(w, hero, c.x, c.z); // 흐르는 깃의 갑옷: 순간이동 대신 활강(재사용은 순간이동 그대로)
+    else blink(w, hero, c.x, c.z);
+    if (ready && w.rollCd > 0) (w.rollCd = BLINK.cd), linger(w, hero, x0, z0); // 떠난 자리: 활강이면 날아오른 자리
     return;
   }
   const key = CMD_KEY[c.type];

@@ -1,6 +1,7 @@
 // 흐르는 깃의 갑옷(2막 엔딩 보상): 구르기가 활강 — 물·허공·소품 위를 6m 날아가고, 벽·닫힌 문은 못 넘는다. 막힌 곳에 내리면 가장 가까운 평지로
 import { expect, test } from 'vitest';
-import { createWorld, step, DT, type World } from './world';
+import { createWorld, step, useClass, DT, type World } from './world';
+import { BLINK, ROLL } from './rules';
 import { makeUnique } from './core';
 
 const run = (w: World, sec: number, cmds: Parameters<typeof step>[1] = []) => {
@@ -32,4 +33,34 @@ test('활강: 물 위에서 끝나면 가장 가까운 평지로 내려앉는다
   const h = glide('..uuuuuuuu..');
   const c = Math.floor(h.x);
   expect(c === 3 || c >= 12).toBe(true); // 물 칸(4~11)이 아닌 가장 가까운 곳
+});
+
+// 마법사: 갑옷을 입으면 순간이동 대신 활강. 재사용은 순간이동 그대로, 떠난 자리(잔상)는 활강을 시작한 자리에 남는다
+const mage = (lingering = 0) => {
+  const w = wings(createWorld(1, ['##############', '#H.uuo........#', '##############']));
+  useClass(w, 'wizard');
+  w.ranks.lingering = lingering;
+  return w;
+};
+
+test('활강(마법사): 순간이동 대신 물·소품 너머로 날아가고, 재사용은 순간이동과 같다', () => {
+  const w = mage();
+  step(w, [{ type: 'roll', x: 12.5, z: 1.5 }]);
+  expect(w.rollCd).toBeCloseTo(BLINK.cd, 1);
+  run(w, 1.2);
+  expect(w.entities[0].x).toBeGreaterThan(6.5);
+});
+
+test('활강(마법사): 떠난 자리를 배웠으면 활강을 시작한 자리에 잔상', () => {
+  const w = mage(1);
+  step(w, [{ type: 'roll', x: 12.5, z: 1.5 }]);
+  expect(w.ghosts).toMatchObject([{ kind: 'linger', x: 1.5, z: 1.5 }]);
+});
+
+test('활강(마법사): 자리 바꾸기의 잠깐 무적(제자리 roll)은 날지 않는다', () => {
+  const w = mage();
+  Object.assign(w.entities[0], { phase: 'roll', phaseT: BLINK.guard * ROLL.speed, dx: 0, dz: 0 });
+  run(w, 0.2);
+  expect(w.entities[0].x).toBe(1.5);
+  expect(w.entities[0].phase).toBe('roll'); // 무적 시간이 활강 빠르기로 줄지 않는다
 });

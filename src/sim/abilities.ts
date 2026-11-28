@@ -396,7 +396,7 @@ function land(w: World, hero: Entity) {
 }
 
 export function rollStep(w: World, hero: Entity) {
-  const glide = hasUnique(w, 'flowWings'); // 활강: 벽·닫힌 문만 빼고 넘어간다
+  const glide = hasUnique(w, 'flowWings') && (hero.dx !== 0 || hero.dz !== 0); // 활강: 벽·닫힌 문만 빼고 넘어간다. 제자리 무적(자리 바꾸기)은 날지 않는다
   const step = (glide ? GLIDE.speed : ROLL.speed) * DT;
   const [nx, nz] = [hero.x + hero.dx * step, hero.z + hero.dz * step];
   if (glide ? glideOk(w, Math.floor(nx), Math.floor(nz)) : walkable(w.grid, Math.floor(nx), Math.floor(nz))) [hero.x, hero.z] = [nx, nz];

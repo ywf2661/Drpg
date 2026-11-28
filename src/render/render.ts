@@ -347,7 +347,7 @@ export function draw(world: World, dt: number) {
     s.mesh.position.x += f.kx;
     s.mesh.position.z += f.kz;
     // 구르기: 한 바퀴 돌며 잔상·흙먼지(roll.ts). 마법사의 순간이동도 sim에선 'roll'(잠깐 무적)이지만 예전처럼 몸만 낮춘다
-    if (e === hero && world.cls === 'wizard') s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
+    if (e === hero && world.cls === 'wizard' && !hasUnique(world, 'flowWings')) s.mesh.scale.y = e.phase === 'roll' ? 0.55 : 1;
     else if (e === hero && hasUnique(world, 'flowWings')) (leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt), tickWings(time, frozen ? 0 : dt, e, s, true)); // 흐르는 깃의 갑옷: 구르기 대신 활강(날개·수퍼맨 자세)
     else if (e === hero) (rollFx(s, e, frozen ? 0 : dt), leapFx(s, e, frozen ? 0 : dt), flashFx(s, e, dt), tickWings(time, dt, e, s, false)); // 발도: 일섬·스쳐 베기 질주(iaido.ts, 멈춤은 안에서 따진다)
     if (e === hero && e.phase === 'ride') s.mesh.position.y = rideLift(e.phaseT); // 매 타기: 매가 들어 올린다

@@ -151,7 +151,7 @@ export function tickWings(time: number, dt: number, hero: Entity, s: Sprite, wor
     wings.body.position.y = -CENTER;
     wingsGroup.add(pivot.add(wings.body));
   }
-  const gliding = hero.phase === 'roll';
+  const gliding = hero.phase === 'roll' && (hero.dx !== 0 || hero.dz !== 0); // 제자리 무적(자리 바꾸기)은 날개를 펴지 않는다
   open += ((gliding ? 1 : 0) - open) * Math.min(1, dt * (gliding ? 12 : 5));
   // 수퍼맨 자세: 화면에서 나아가는 쪽으로 머리를 눕힌다(좌우로 날면 다 눕고, 위아래면 덜)
   const sr = (hero.dx - hero.dz) * Math.SQRT1_2; // 화면 오른쪽 성분
